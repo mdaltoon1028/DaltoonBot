@@ -130,6 +130,9 @@ export default function SettingsPanel({
   
   const [supportText, setSupportText] = useState(settings.supportText || `📞 <b>پشتیبانی دالتون استور (Daltoon Store):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @daltoon_support\n📢 کانال تلگرام دالتون استور: @daltoon_store\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`);
 
+  const [tgChannel, setTgChannel] = useState(settings.tgChannel || "@daltoon_channel");
+  const [supportHandle, setSupportHandle] = useState(settings.supportHandle || "@daltoon_owner");
+
   const [hideSupport, setHideSupport] = useState(!!settings.hideSupport);
   const [hideBuy, setHideBuy] = useState(!!settings.hideBuy);
   const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
@@ -232,6 +235,8 @@ export default function SettingsPanel({
       bankName,
       welcomeText,
       supportText,
+      tgChannel,
+      supportHandle,
       hideSupport,
       hideBuy,
       hideProfile,
@@ -634,6 +639,35 @@ export default function SettingsPanel({
           </p>
 
           <div className="space-y-4 pt-2">
+            {/* Telegram Channel and Support Handle config block */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-800/60 pb-4 mb-2">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                  {lang === "fa" ? "📢 آیدی کانال تلگرام (مثال: @daltoon_channel)" : "📢 Telegram Channel ID (e.g., @daltoon_channel)"}
+                </label>
+                <input
+                  type="text"
+                  placeholder="@daltoon_channel"
+                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={tgChannel}
+                  onChange={(e) => setTgChannel(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                  {lang === "fa" ? "👤 آیدی پشتیبان فنی تلگرام (مثال: @daltoon_owner)" : "👤 Technical Support Handle (e.g., @daltoon_owner)"}
+                </label>
+                <input
+                  type="text"
+                  placeholder="@daltoon_owner"
+                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={supportHandle}
+                  onChange={(e) => setSupportHandle(e.target.value)}
+                />
+              </div>
+            </div>
+
             {/* Welcome text */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
@@ -685,55 +719,6 @@ export default function SettingsPanel({
                   ? "نکته: این متن به عنوان راهنما، بلافاصله در زیر کانفیگ صادر شده به مشتری تحویل داده می‌شود."
                   : "Tip: This text will be appended automatically beneath the premium config link upon successful customer checkout."}
               </span>
-            </div>
-
-            {/* Custom default button labels */}
-            <div className="border-t border-gray-800 pt-5 mt-3">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-3 font-semibold">
-                {lang === "fa" ? "📝 سفارشی‌سازی عناوین دکمه‌های اصلی کیبورد ربات تلگرام:" : "📝 Custom Primary Bot Keyboard Buttons:"}
-              </label>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه خرید کانفیگ" : "Buy Config Button Label"}</label>
-                  <input
-                    type="text"
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                    value={btnTextBuy}
-                    onChange={(e) => setBtnTextBuy(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه اطلاعات حساب" : "Account Profile Button Label"}</label>
-                  <input
-                    type="text"
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                    value={btnTextProfile}
-                    onChange={(e) => setBtnTextProfile(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه شارژ کیف پول" : "Top-up Wallet Button Label"}</label>
-                  <input
-                    type="text"
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                    value={btnTextWallet}
-                    onChange={(e) => setBtnTextWallet(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه پشتیبانی فنی" : "Support Button Label"}</label>
-                  <input
-                    type="text"
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                    value={btnTextSupport}
-                    onChange={(e) => setBtnTextSupport(e.target.value)}
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Configuration button visibility parameters */}
@@ -799,146 +784,201 @@ export default function SettingsPanel({
           </div>
         </div>
 
-        {/* Telegram Custom Buttons Creator Section */}
-        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
-          <div className="flex items-center gap-3 border-b border-gray-800 pb-3 mb-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+        {/* Dedicated Bot Buttons Section / دکمه‌های ربات */}
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-6">
+          <div className="flex items-center gap-3 border-b border-gray-800 pb-3">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
               <Command className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-display font-medium text-lg text-white">
-                {lang === "fa" ? "افزودن، ویرایش و حذف دکمه‌های سفارشی کیبورد ربات تلگرام" : "Add, Edit & Delete Custom reply Buttons"}
+                {lang === "fa" ? "دکمه‌های ربات" : "Bot Buttons"}
               </h3>
               <p className="text-xs text-gray-400">
                 {lang === "fa" 
-                  ? "با افزودن دکمه‌های سفارشی، کاربران می‌توانند با کلیک روی آنها پاسخ‌های خودکار تنظیم‌شده شما را دریافت کنند." 
-                  : "Add custom interactive keyboard reply buttons for the live bot."}
+                  ? "سفارشی‌سازی عناوین دکمه‌های اصلی و مدیریت پاسخ‌های خودکار دکمه‌های سفارشی ربات تلگرام." 
+                  : "Customize default primary keyboard menus and manage automated replies for custom reply buttons."}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            {/* Input Form */}
-            <div className="space-y-4">
+          {/* Part A: Default Primary keyboard button labels */}
+          <div className="space-y-3">
+            <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold">
+              {lang === "fa" ? "📝 سفارشی‌سازی عناوین دکمه‌های اصلی کیبورد ربات تلگرام" : "📝 Custom Primary Bot Keyboard Buttons"}
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
               <div>
-                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1 font-semibold">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  {lang === "fa" ? "عنوان دکمه (مثال: 🎁 تست رایگان)" : "Button Display Label"}
-                </label>
+                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه خرید کانفیگ" : "Buy Config Button Label"}</label>
                 <input
                   type="text"
-                  placeholder={lang === "fa" ? "🎁 دریافت کانفیگ مهلت‌دار" : "e.g. 🎁 Get Free Config"}
-                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                  value={btnText}
-                  onChange={(e) => setBtnText(e.target.value)}
+                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={btnTextBuy}
+                  onChange={(e) => setBtnTextBuy(e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1.5 font-semibold">
-                  {lang === "fa" ? "متن پاسخ ربات (فرمت HTML مجاز است)" : "Auto Reply Text (HTML tags allowed)"}
-                </label>
-                <textarea
-                  rows={4}
-                  placeholder={lang === "fa" ? "سلام! جهت دریافت سرویس تست دکمه فعال شد:\nvless://test-configs-daltoon..." : "Hello! Here is your quick configuration..."}
-                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none leading-relaxed font-sans"
-                  value={btnReplyText}
-                  onChange={(e) => setBtnReplyText(e.target.value)}
+                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه اطلاعات حساب" : "Account Profile Button Label"}</label>
+                <input
+                  type="text"
+                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={btnTextProfile}
+                  onChange={(e) => setBtnTextProfile(e.target.value)}
                 />
               </div>
 
-              {buttonError && (
-                <p className="text-xs text-rose-400 flex items-center gap-1 font-semibold">
-                  <span className="h-1.5 w-1.5 bg-rose-500 rounded-full"></span>
-                  {buttonError}
-                </p>
-              )}
+              <div>
+                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه شارژ کیف پول" : "Top-up Wallet Button Label"}</label>
+                <input
+                  type="text"
+                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={btnTextWallet}
+                  onChange={(e) => setBtnTextWallet(e.target.value)}
+                />
+              </div>
 
-              {buttonSuccess && (
-                <p className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
-                  <Check className="w-3.5 h-3.5 text-emerald-400" /> 
-                  {lang === "fa" ? "✅ تغییرات دکمه با موفقیت همگام شد!" : "✅ Button state synchronized!"}
-                </p>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleAddButton}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-lg transition text-xs shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  {editingButtonId ? (lang === "fa" ? "ذخیره تغییرات دکمه" : "Save Modified Button") : (lang === "fa" ? "ذخیره و افزودن دکمه جدید" : "Create & Add Button")}
-                </button>
-                {editingButtonId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingButtonId(null);
-                      setBtnText("");
-                      setBtnReplyText("");
-                    }}
-                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs cursor-pointer"
-                  >
-                    {lang === "fa" ? "انصراف" : "Cancel"}
-                  </button>
-                )}
+              <div>
+                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه پشتیبانی فنی" : "Support Button Label"}</label>
+                <input
+                  type="text"
+                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={btnTextSupport}
+                  onChange={(e) => setBtnTextSupport(e.target.value)}
+                />
               </div>
             </div>
+          </div>
 
-            {/* List and Actions */}
-            <div className="bg-[#0b0f19] border border-gray-800 rounded-xl p-4 flex flex-col justify-between max-h-[340px] overflow-y-auto">
-              <div>
-                <h4 className="text-xs uppercase font-mono border-b border-gray-800 pb-2 mb-3 text-gray-400 font-semibold tracking-wider flex justify-between items-center">
-                  <span>{lang === "fa" ? "دکمه‌های سفارشی فعال شده:" : "Live Custom reply Buttons:"}</span>
-                  <span className="bg-[#1f2937] text-indigo-400 px-2 py-0.5 rounded text-[10px] font-mono">{customButtons.length}</span>
-                </h4>
+          {/* Part B: Custom Dynamic reply buttons */}
+          <div className="space-y-3 pt-2">
+            <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">
+              {lang === "fa" ? "⚙️ افزودن، ویرایش و حذف دکمه‌های شیشه‌ای / پاسخ خودکار سفارشی" : "⚙️ Add, Edit & Delete Custom reply Buttons"}
+            </label>
 
-                {customButtons.length === 0 ? (
-                  <div className="py-12 text-center flex flex-col items-center justify-center">
-                    <p className="text-xs text-gray-400 font-medium">
-                      {lang === "fa" ? "هیچ دکمه‌ی سفارشی ثبت نشده است." : "No custom buttons created yet."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[240px] overflow-y-auto no-scrollbar pr-1">
-                    {customButtons.map((btn) => (
-                      <div key={btn.id} className="bg-[#111827] border border-gray-800/80 p-2.5 rounded-lg flex items-start justify-between gap-3 shadow-sm hover:border-gray-700 transition">
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 truncate max-w-full">
-                            {btn.text}
-                          </span>
-                          <p className="text-[10px] text-gray-400 leading-normal font-sans line-clamp-2 truncate">
-                            {btn.replyText}
-                          </p>
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+              {/* Input Form */}
+              <div className="space-y-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
+                <div>
+                  <label className="block text-[11px] text-gray-400 mb-1.5 flex items-center gap-1 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    {lang === "fa" ? "عنوان دکمه (مثال: 🎁 تست رایگان)" : "Button Display Label"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={lang === "fa" ? "🎁 دریافت کانفیگ مهلت‌دار" : "e.g. 🎁 Get Free Config"}
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    value={btnText}
+                    onChange={(e) => setBtnText(e.target.value)}
+                  />
+                </div>
 
-                        <div className="flex gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingButtonId(btn.id);
-                              setBtnText(btn.text);
-                              setBtnReplyText(btn.replyText);
-                            }}
-                            className="text-indigo-400 hover:text-white hover:bg-indigo-500/15 p-1 rounded transition cursor-pointer"
-                            title="Edit button"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteButton(btn.id)}
-                            className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer"
-                            title="Remove button"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <div>
+                  <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">
+                    {lang === "fa" ? "متن پاسخ ربات (فرمت HTML مجاز است)" : "Auto Reply Text (HTML tags allowed)"}
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder={lang === "fa" ? "سلام! جهت دریافت سرویس تست دکمه فعال شد:\nvless://test-configs-daltoon..." : "Hello! Here is your quick configuration..."}
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none leading-relaxed font-sans"
+                    value={btnReplyText}
+                    onChange={(e) => setBtnReplyText(e.target.value)}
+                  />
+                </div>
+
+                {buttonError && (
+                  <p className="text-xs text-rose-400 flex items-center gap-1 font-semibold">
+                    <span className="h-1.5 w-1.5 bg-rose-500 rounded-full"></span>
+                    {buttonError}
+                  </p>
                 )}
+
+                {buttonSuccess && (
+                  <p className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> 
+                    {lang === "fa" ? "✅ تغییرات دکمه با موفقیت همگام شد!" : "✅ Button state synchronized!"}
+                  </p>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAddButton}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-lg transition text-xs shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    {editingButtonId ? (lang === "fa" ? "ذخیره تغییرات دکمه" : "Save Modified Button") : (lang === "fa" ? "ذخیره و افزودن دکمه جدید" : "Create & Add Button")}
+                  </button>
+                  {editingButtonId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingButtonId(null);
+                        setBtnText("");
+                        setBtnReplyText("");
+                      }}
+                      className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs cursor-pointer"
+                    >
+                      {lang === "fa" ? "انصراف" : "Cancel"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* List and Actions */}
+              <div className="bg-[#0b0f19] border border-gray-800 rounded-xl p-4 flex flex-col justify-between max-h-[340px] overflow-y-auto">
+                <div>
+                  <h4 className="text-xs uppercase font-mono border-b border-gray-800 pb-2 mb-3 text-gray-400 font-semibold tracking-wider flex justify-between items-center">
+                    <span>{lang === "fa" ? "دکمه‌های سفارشی فعال شده:" : "Live Custom reply Buttons:"}</span>
+                    <span className="bg-[#1f2937] text-indigo-400 px-2 py-0.5 rounded text-[10px] font-mono">{customButtons.length}</span>
+                  </h4>
+
+                  {customButtons.length === 0 ? (
+                    <div className="py-12 text-center flex flex-col items-center justify-center">
+                      <p className="text-xs text-gray-400 font-medium">
+                        {lang === "fa" ? "هیچ دکمه‌ی سفارشی ثبت نشده است." : "No custom buttons created yet."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[240px] overflow-y-auto no-scrollbar pr-1">
+                      {customButtons.map((btn) => (
+                        <div key={btn.id} className="bg-[#111827] border border-gray-800/80 p-2.5 rounded-lg flex items-start justify-between gap-3 shadow-sm hover:border-gray-700 transition">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 truncate max-w-full">
+                              {btn.text}
+                            </span>
+                            <p className="text-[10px] text-gray-400 leading-normal font-sans line-clamp-2 truncate">
+                              {btn.replyText}
+                            </p>
+                          </div>
+
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingButtonId(btn.id);
+                                setBtnText(btn.text);
+                                setBtnReplyText(btn.replyText);
+                              }}
+                              className="text-indigo-400 hover:text-white hover:bg-indigo-500/15 p-1 rounded transition cursor-pointer"
+                              title="Edit button"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteButton(btn.id)}
+                              className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer"
+                              title="Remove button"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

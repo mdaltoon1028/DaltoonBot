@@ -83,6 +83,8 @@ def get_config():
         "HIDE_WALLET": False,
         "KEYBOARD_LAYOUT": "stepped",
         "PURCHASE_SUCCESS_NOTE": "",
+        "TG_CHANNEL": "@daltoon_channel",
+        "SUPPORT_HANDLE": "@daltoon_owner",
         "BTN_BUY": "🛍️ خرید کانفیگ (Our Plans)",
         "BTN_PROFILE": "👤 اطلاعات حساب (My Profile)",
         "BTN_WALLET": "💳 شارژ کیف پول (Top-up Wallet)",
@@ -133,6 +135,10 @@ def get_config():
                 config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
             if "purchaseSuccessNote" in panel_cfg:
                 config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
+            if "tgChannel" in panel_cfg:
+                config["TG_CHANNEL"] = panel_cfg["tgChannel"]
+            if "supportHandle" in panel_cfg:
+                config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
@@ -391,14 +397,30 @@ def text_messages_handler(message):
     # 1. Buy premium plan flow
     cfg = get_config()
     if text == cfg.get("BTN_BUY") or "خرید" in text or "Buy" in text or "🛍️" in text:
-        plans = [
-            {"id": "std_30g", "name": "Standard 30GB - ۱ ماهه", "price": 45000, "traffic": 30, "duration": 1},
-            {"id": "vip_70g", "name": "VIP Premium 70GB - ۲ ماهه", "price": 95000, "traffic": 70, "duration": 2},
-            {"id": "ult_150g", "name": "Unlimited VoIP 150GB - ۳ ماهه", "price": 185000, "traffic": 150, "duration": 3}
-        ]
+        db = read_db_json()
+        db_plans = db.get("vpn_plans", [])
+        
+        # Build the dynamic list of premium packages
+        plans_data = []
+        if db_plans:
+            for dp in db_plans:
+                plans_data.append({
+                    "id": dp["id"],
+                    "name": dp["name"],
+                    "price": dp["price"],
+                    "traffic": dp.get("trafficGb", 30),
+                    "duration": dp.get("durationMonths", 1)
+                })
+        else:
+            # Fallback legacy values
+            plans_data = [
+                {"id": "std_30g", "name": "Standard 30GB - ۱ ماهه", "price": 45000, "traffic": 30, "duration": 1},
+                {"id": "vip_70g", "name": "VIP Premium 70GB - ۲ ماهه", "price": 95000, "traffic": 70, "duration": 2},
+                {"id": "ult_150g", "name": "Unlimited VoIP 150GB - ۳ ماهه", "price": 185000, "traffic": 150, "duration": 3}
+            ]
         
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for p in plans:
+        for p in plans_data:
             btn_text = f"⚡ {p['name']} | {p['price']:,} تومان"
             markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
             
@@ -462,11 +484,13 @@ def text_messages_handler(message):
         if custom_support:
             support_txt = custom_support
         else:
+            support_handle = cfg.get("SUPPORT_HANDLE", "@daltoon_owner")
+            tg_channel = cfg.get("TG_CHANNEL", "@daltoon_channel")
             support_txt = (
                 "📞 <b>پشتیبانی فنی دالتون سرور:</b>\n\n"
                 "مشتری گرامی! در صورت بروز هرگونه قطعی، کندی سرعت، ارورهای اتصال یا سوالات قبل از خرید با ما تماس بگیرید.\n\n"
-                "👤 اکانت ناظر فنی: @daltoon_owner\n"
-                "📢 کانال اطلاع‌رسانی پایداری شبکه: @daltoon_channel\n\n"
+                f"👤 اکانت ناظر فنی: {support_handle}\n"
+                f"📢 کانال اطلاع‌رسانی پایداری شبکه: {tg_channel}\n\n"
                 "پاسخگویی سریع فعال است: ۱۰ صبح الی ۳ شب"
             )
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
@@ -483,14 +507,37 @@ def callback_handler(call):
     if call.data.startswith("buy_"):
         plan_id = call.data.split("_")[1]
         
-        # Details of the plans
-        plan_specs = {
-            "std_30g": {"name": "Standard 30GB", "price": 45000, "traffic": 30, "duration": 1, "inbound_id": 1},
-            "vip_70g": {"name": "VIP Premium 70GB", "price": 95000, "traffic": 70, "duration": 2, "inbound_id": 12},
-            "ult_150g": {"name": "Unlimited VoIP 150GB", "price": 185000, "traffic": 150, "duration": 3, "inbound_id": 16}
-        }
+        db = read_db_json()
+        db_plans = db.get("vpn_plans", [])
+        db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
         
-        spec = plan_specs.get(plan_id)
+        spec = None
+        if db_plan:
+            # Dynamically read first active inbound_id, or default to 1
+            panel_cfg = {}
+            try:
+                panel_cfg = json.loads(db.get("settings", {}).get("panel_config", "{}"))
+            except Exception:
+                pass
+            active_inbounds = panel_cfg.get("activeInboundIds", [])
+            inbound_id = active_inbounds[0] if active_inbounds else 1
+            
+            spec = {
+                "name": db_plan["name"],
+                "price": db_plan["price"],
+                "traffic": db_plan.get("trafficGb", 30),
+                "duration": db_plan.get("durationMonths", 1),
+                "inbound_id": inbound_id
+            }
+        else:
+            # Details of the fallback plans
+            plan_specs = {
+                "std_30g": {"name": "Standard 30GB", "price": 45000, "traffic": 30, "duration": 1, "inbound_id": 1},
+                "vip_70g": {"name": "VIP Premium 70GB", "price": 95000, "traffic": 70, "duration": 2, "inbound_id": 12},
+                "ult_150g": {"name": "Unlimited VoIP 150GB", "price": 185000, "traffic": 150, "duration": 3, "inbound_id": 16}
+            }
+            spec = plan_specs.get(plan_id)
+            
         if not spec:
             bot.answer_callback_query(call.id, "خطا در پیدا کردن مشخصات پلان.")
             return

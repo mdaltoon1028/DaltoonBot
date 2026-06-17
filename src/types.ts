@@ -11,6 +11,8 @@ export interface PanelSettings {
   bankName?: string;
   welcomeText?: string;
   supportText?: string;
+  tgChannel?: string;
+  supportHandle?: string;
   hideSupport?: boolean;
   hideBuy?: boolean;
   hideProfile?: boolean;
