@@ -9,7 +9,8 @@ import {
   Globe, 
   Server,
   Heart,
-  LogOut
+  LogOut,
+  Command
 } from "lucide-react";
 
 // Types & Data
@@ -31,6 +32,7 @@ import TransactionApproval from "./components/TransactionApproval";
 import BotSimulator from "./components/BotSimulator";
 import ServerManagement from "./components/ServerManagement";
 import SettingsPanel from "./components/SettingsPanel";
+import BotButtonsPanel from "./components/BotButtonsPanel";
 import { LoginScreen } from "./components/LoginScreen";
 
 const LionAndSunFlag = () => (
@@ -150,7 +152,7 @@ export default function App() {
     ];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "settings" | "guide" | "xui_connector">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "buttons" | "settings" | "guide" | "xui_connector">("dashboard");
   const [simulatedUserId, setSimulatedUserId] = useState<number>(6536288293); // Admin is initial active
   const [apiOnline, setApiOnline] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -618,6 +620,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("buttons")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                activeTab === "buttons" 
+                  ? "bg-indigo-600 text-white shadow-md" 
+                  : "text-gray-400 hover:text-white bg-transparent"
+              }`}
+            >
+              <Command className="w-4 h-4 text-slate-300" />
+              {t.tabBotButtons}
+            </button>
+
+            <button
               onClick={() => setActiveTab("settings")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
                 activeTab === "settings" 
@@ -697,6 +711,16 @@ export default function App() {
               vpnPlans={vpnPlans}
               setVpnPlans={setVpnPlans}
               lang={lang}
+            />
+          )}
+
+          {activeTab === "buttons" && (
+            <BotButtonsPanel 
+              settings={settings}
+              onSaveSettings={saveSettings}
+              lang={lang}
+              customButtons={customButtons}
+              setCustomButtons={setCustomButtons}
             />
           )}
 

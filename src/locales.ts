@@ -18,6 +18,7 @@ export const translations = {
     tabSimulator: "V2Ray Bot Emulator",
     tabServers: "Server Management",
     tabSettings: "Bot Settings",
+    tabBotButtons: "Bot Buttons & Layout",
     tabGuide: "Connection Guide",
 
     // Dashboard Overview
@@ -178,6 +179,7 @@ export const translations = {
     tabSimulator: "شبیه‌ساز ربات تلگرام",
     tabServers: "مدیریت سرورها",
     tabSettings: "تنظیمات ربات",
+    tabBotButtons: "دکمه‌های کیبورد ربات",
     tabGuide: "راهنمای اتصال به سرور",
 
     // Dashboard Overview

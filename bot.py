@@ -496,7 +496,12 @@ def text_messages_handler(message):
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
         
     else:
-        bot.reply_to(message, "گزینه ارسال شده معتبر نیست. لطفا از دکمه‌های کیبورد تپ کنید. 👇", reply_markup=get_custom_keyboard())
+        db = read_db_json()
+        custom_btn = next((b for b in db.get("custom_buttons", []) if b["text"] == text or text in b["text"]), None)
+        if custom_btn:
+            bot.send_message(message.chat.id, custom_btn["replyText"], parse_mode="HTML")
+        else:
+            bot.reply_to(message, "گزینه ارسال شده معتبر نیست. لطفا از دکمه‌های کیبورد تپ کنید. 👇", reply_markup=get_custom_keyboard())
 
 # --- Callback Queries ---
 

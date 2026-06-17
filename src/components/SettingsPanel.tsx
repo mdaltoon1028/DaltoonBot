@@ -138,97 +138,17 @@ export default function SettingsPanel({
   const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
   const [hideWallet, setHideWallet] = useState(!!settings.hideWallet);
   
-  const [btnTextBuy, setBtnTextBuy] = useState(settings.btnTextBuy || "🛍️ خرید کانفیگ (Our Plans)");
-  const [btnTextProfile, setBtnTextProfile] = useState(settings.btnTextProfile || "👤 اطلاعات حساب (My Profile)");
-  const [btnTextWallet, setBtnTextWallet] = useState(settings.btnTextWallet || "💳 شارژ کیف پول (Top-up Wallet)");
-  const [btnTextSupport, setBtnTextSupport] = useState(settings.btnTextSupport || "📞 پشتیبانی فنی (Support)");
-  
   const [saved, setSaved] = useState(false);
-
-  // States for adding custom buttons inside settings
-  const [btnText, setBtnText] = useState("");
-  const [btnReplyText, setBtnReplyText] = useState("");
-  const [buttonError, setButtonError] = useState("");
-  const [buttonSuccess, setButtonSuccess] = useState(false);
-  const [editingButtonId, setEditingButtonId] = useState<string | null>(null);
-
-
-  const handleAddButton = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setButtonError("");
-    setButtonSuccess(false);
-
-    if (!btnText.trim()) {
-      setButtonError(lang === "fa" ? "عنوان دکمه نمی‌تواند خالی باشد." : "Button text cannot be empty.");
-      return;
-    }
-    if (!btnReplyText.trim()) {
-      setButtonError(lang === "fa" ? "پاسخ ربات نمی‌تواند خالی باشد." : "Bot reply response text cannot be empty.");
-      return;
-    }
-
-    // Check duplicates but exclude current editing button
-    if (customButtons.some(b => b.text === btnText.trim() && b.id !== editingButtonId)) {
-      setButtonError(lang === "fa" ? "این دکمه قبلاً ایجاد شده است." : "A button with this exact label already exists.");
-      return;
-    }
-
-    const buttonIdToUse = editingButtonId || Math.random().toString(36).substring(2, 9);
-    const targetBtn: CustomButton = {
-      id: buttonIdToUse,
-      text: btnText.trim(),
-      replyText: btnReplyText.trim()
-    };
-
-    try {
-      const response = await fetch("/api/custom-buttons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(targetBtn)
-      });
-      if (response.ok) {
-        if (editingButtonId) {
-          setCustomButtons(prev => prev.map(b => b.id === editingButtonId ? targetBtn : b));
-          setEditingButtonId(null);
-        } else {
-          setCustomButtons(prev => [...prev, targetBtn]);
-        }
-        setBtnText("");
-        setBtnReplyText("");
-        setButtonSuccess(true);
-        setTimeout(() => setButtonSuccess(false), 3000);
-      } else {
-        setButtonError(lang === "fa" ? "خطا در برقراری ارتباط با دیتابیس." : "Failed to sync with the database.");
-      }
-    } catch (err) {
-      setButtonError(lang === "fa" ? "خطا در برقراری ارتباط با سرور." : "Network connection failed.");
-    }
-  };
-
-  const handleDeleteButton = async (id: string) => {
-    try {
-      const response = await fetch("/api/custom-buttons/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      if (response.ok) {
-        setCustomButtons(prev => prev.filter(b => b.id !== id));
-      }
-    } catch (err) {
-      console.error("Failed to delete button:", err);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSaveSettings({
+      ...settings,
       botToken,
       baseUrl,
       panelUrl,
       panelUsername,
       panelPassword,
-      activeInboundIds: settings.activeInboundIds,
       ownerId: parseInt(ownerId) || 0,
       cardNumber,
       cardHolder: bankOwner,
@@ -241,14 +161,9 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
-      btnTextBuy,
-      btnTextProfile,
-      btnTextWallet,
-      btnTextSupport,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
-      keyboardLayout,
       purchaseSuccessNote,
       admins: adminsList
     });
@@ -754,231 +669,6 @@ export default function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                    checked={hideWallet}
-                    onChange={(e) => setHideWallet(e.target.checked)}
-                  />
-                  <div>
-                    <span className="block text-sm font-medium text-white">💳 {lang === "fa" ? "مخفی کردن شارژ کیف پول" : "Hide Wallet Top-up"}</span>
-                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه شارژ کارت‌به‌کارت پنهان می‌شود" : "Hides top-up information button"}</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                    checked={hideSupport}
-                    onChange={(e) => setHideSupport(e.target.checked)}
-                  />
-                  <div>
-                    <span className="block text-sm font-medium text-white">📞 {lang === "fa" ? "مخفی کردن پشتیبانی فنی" : "Hide Support"}</span>
-                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه پیش‌فرض پشتیبانی پنهان می‌شود" : "Hides the default support message button"}</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Dedicated Bot Buttons Section / دکمه‌های ربات */}
-        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-6">
-          <div className="flex items-center gap-3 border-b border-gray-800 pb-3">
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
-              <Command className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-display font-medium text-lg text-white">
-                {lang === "fa" ? "دکمه‌های ربات" : "Bot Buttons"}
-              </h3>
-              <p className="text-xs text-gray-400">
-                {lang === "fa" 
-                  ? "سفارشی‌سازی عناوین دکمه‌های اصلی و مدیریت پاسخ‌های خودکار دکمه‌های سفارشی ربات تلگرام." 
-                  : "Customize default primary keyboard menus and manage automated replies for custom reply buttons."}
-              </p>
-            </div>
-          </div>
-
-          {/* Part A: Default Primary keyboard button labels */}
-          <div className="space-y-3">
-            <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold">
-              {lang === "fa" ? "📝 سفارشی‌سازی عناوین دکمه‌های اصلی کیبورد ربات تلگرام" : "📝 Custom Primary Bot Keyboard Buttons"}
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
-              <div>
-                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه خرید کانفیگ" : "Buy Config Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextBuy}
-                  onChange={(e) => setBtnTextBuy(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه اطلاعات حساب" : "Account Profile Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextProfile}
-                  onChange={(e) => setBtnTextProfile(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه شارژ کیف پول" : "Top-up Wallet Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextWallet}
-                  onChange={(e) => setBtnTextWallet(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه پشتیبانی فنی" : "Support Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextSupport}
-                  onChange={(e) => setBtnTextSupport(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Part B: Custom Dynamic reply buttons */}
-          <div className="space-y-3 pt-2">
-            <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">
-              {lang === "fa" ? "⚙️ افزودن، ویرایش و حذف دکمه‌های شیشه‌ای / پاسخ خودکار سفارشی" : "⚙️ Add, Edit & Delete Custom reply Buttons"}
-            </label>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
-              {/* Input Form */}
-              <div className="space-y-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1.5 flex items-center gap-1 font-medium">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    {lang === "fa" ? "عنوان دکمه (مثال: 🎁 تست رایگان)" : "Button Display Label"}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={lang === "fa" ? "🎁 دریافت کانفیگ مهلت‌دار" : "e.g. 🎁 Get Free Config"}
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                    value={btnText}
-                    onChange={(e) => setBtnText(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">
-                    {lang === "fa" ? "متن پاسخ ربات (فرمت HTML مجاز است)" : "Auto Reply Text (HTML tags allowed)"}
-                  </label>
-                  <textarea
-                    rows={4}
-                    placeholder={lang === "fa" ? "سلام! جهت دریافت سرویس تست دکمه فعال شد:\nvless://test-configs-daltoon..." : "Hello! Here is your quick configuration..."}
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none leading-relaxed font-sans"
-                    value={btnReplyText}
-                    onChange={(e) => setBtnReplyText(e.target.value)}
-                  />
-                </div>
-
-                {buttonError && (
-                  <p className="text-xs text-rose-400 flex items-center gap-1 font-semibold">
-                    <span className="h-1.5 w-1.5 bg-rose-500 rounded-full"></span>
-                    {buttonError}
-                  </p>
-                )}
-
-                {buttonSuccess && (
-                  <p className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> 
-                    {lang === "fa" ? "✅ تغییرات دکمه با موفقیت همگام شد!" : "✅ Button state synchronized!"}
-                  </p>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleAddButton}
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-lg transition text-xs shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    {editingButtonId ? (lang === "fa" ? "ذخیره تغییرات دکمه" : "Save Modified Button") : (lang === "fa" ? "ذخیره و افزودن دکمه جدید" : "Create & Add Button")}
-                  </button>
-                  {editingButtonId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingButtonId(null);
-                        setBtnText("");
-                        setBtnReplyText("");
-                      }}
-                      className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs cursor-pointer"
-                    >
-                      {lang === "fa" ? "انصراف" : "Cancel"}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* List and Actions */}
-              <div className="bg-[#0b0f19] border border-gray-800 rounded-xl p-4 flex flex-col justify-between max-h-[340px] overflow-y-auto">
-                <div>
-                  <h4 className="text-xs uppercase font-mono border-b border-gray-800 pb-2 mb-3 text-gray-400 font-semibold tracking-wider flex justify-between items-center">
-                    <span>{lang === "fa" ? "دکمه‌های سفارشی فعال شده:" : "Live Custom reply Buttons:"}</span>
-                    <span className="bg-[#1f2937] text-indigo-400 px-2 py-0.5 rounded text-[10px] font-mono">{customButtons.length}</span>
-                  </h4>
-
-                  {customButtons.length === 0 ? (
-                    <div className="py-12 text-center flex flex-col items-center justify-center">
-                      <p className="text-xs text-gray-400 font-medium">
-                        {lang === "fa" ? "هیچ دکمه‌ی سفارشی ثبت نشده است." : "No custom buttons created yet."}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[240px] overflow-y-auto no-scrollbar pr-1">
-                      {customButtons.map((btn) => (
-                        <div key={btn.id} className="bg-[#111827] border border-gray-800/80 p-2.5 rounded-lg flex items-start justify-between gap-3 shadow-sm hover:border-gray-700 transition">
-                          <div className="space-y-1 flex-1 min-w-0">
-                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 truncate max-w-full">
-                              {btn.text}
-                            </span>
-                            <p className="text-[10px] text-gray-400 leading-normal font-sans line-clamp-2 truncate">
-                              {btn.replyText}
-                            </p>
-                          </div>
-
-                          <div className="flex gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingButtonId(btn.id);
-                                setBtnText(btn.text);
-                                setBtnReplyText(btn.replyText);
-                              }}
-                              className="text-indigo-400 hover:text-white hover:bg-indigo-500/15 p-1 rounded transition cursor-pointer"
-                              title="Edit button"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteButton(btn.id)}
-                              className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer"
-                              title="Remove button"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
