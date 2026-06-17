@@ -385,7 +385,10 @@ def text_messages_handler(message):
     user = get_user_data(tg_id)
     
     if user and user.get('status') == 'banned':
-        bot.send_message(message.chat.id, "❌ حساب شما مسدود شده اس�    # 1. Buy premium plan flow
+        bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
+        return
+
+    # 1. Buy premium plan flow
     cfg = get_config()
     if text == cfg.get("BTN_BUY") or "خرید" in text or "Buy" in text or "🛍️" in text:
         plans = [
