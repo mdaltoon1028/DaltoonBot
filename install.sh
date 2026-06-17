@@ -36,12 +36,19 @@ fi
 # 4. Check if we are running inside cloned folder or need to clone
 if [ ! -f "package.json" ]; then
     echo -e "${YELLOW}No package.json detected in the current directory.${NC}"
-    read -p "Please enter your GitHub repository URL to clone (e.g. https://github.com/username/repo): " REPO_URL
-    if [ -z "$REPO_URL" ]; then
-        echo -e "${RED}Repository URL cannot be empty! Exiting installation.${NC}"
-        exit 1
+    DEFAULT_REPO="https://github.com/mdaltoon1028/DaltoonBot"
+    
+    # Read from /dev/tty because stdin is redirected when streaming via curl | bash
+    if [ -t 0 ]; then
+        read -p "Please enter your GitHub repository URL [Default: $DEFAULT_REPO]: " REPO_URL
+    else
+        read -p "Please enter your GitHub repository URL [Default: $DEFAULT_REPO]: " REPO_URL < /dev/tty
     fi
-    echo -e "${GREEN}[3/6] Cloning repository...${NC}"
+
+    if [ -z "$REPO_URL" ]; then
+        REPO_URL=$DEFAULT_REPO
+    fi
+    echo -e "${GREEN}[3/6] Cloning repository from $REPO_URL...${NC}"
     git clone "$REPO_URL" /opt/daltoon-store
     cd /opt/daltoon-store || exit
 else
