@@ -92,15 +92,24 @@ npm install
 echo -e "${GREEN}[5/6] Building frontend & server targets...${NC}"
 npm run build
 
+# Ensure Python 3 dependencies are completely satisfied
+echo -e "${GREEN}Installing Python 3 dependencies...${NC}"
+if ! command -v pip3 &> /dev/null; then
+    apt install -y python3-pip || apt install -y python3-setuptools || true
+fi
+pip3 install pyTelegramBotAPI python-dotenv requests --break-system-packages || pip install pyTelegramBotAPI python-dotenv requests || true
+
 # 6. Install PM2 and Start Server
 echo -e "${GREEN}[6/6] Setting up process manager PM2...${NC}"
 npm install -g pm2
 
-# Clear previous pm2 instance if exists
+# Clear previous pm2 instances if any exist
 pm2 delete daltoon-store &> /dev/null
+pm2 delete daltoon-bot &> /dev/null
 
-# Start production server
+# Start production server and python telegram bot
 pm2 start dist/server.cjs --name "daltoon-store"
+pm2 start bot.py --name "daltoon-bot" --interpreter python3
 pm2 save
 pm2 startup
 

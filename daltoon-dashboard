@@ -100,13 +100,11 @@ async function mainMenu() {
       printHeader();
       console.log("\x1b[33m=== STARTING DALTOON SERVICES ===\x1b[0m");
       try {
-        console.log("Starting Express + Vite server in background...");
-        exec("nohup npm run start > /dev/null 2>&1 &");
+        console.log("Starting Web Dashboard and Bot processes under PM2...");
+        try { execSync("pm2 start dist/server.cjs --name 'daltoon-store' || pm2 start daltoon-store || pm2 restart daltoon-store", { stdio: "inherit" }); } catch(e){}
+        try { execSync("pm2 start bot.py --name 'daltoon-bot' --interpreter python3 || pm2 start daltoon-bot || pm2 restart daltoon-bot", { stdio: "inherit" }); } catch(e){}
         
-        console.log("Starting Python Telegram Bot process in background...");
-        exec("nohup python3 bot.py > /dev/null 2>&1 &");
-        
-        console.log("\n\x1b[32m✔ Services triggered successfully in background!\x1b[0m");
+        console.log("\n\x1b[32m✔ Services started/restarted successfully via PM2!\x1b[0m");
       } catch (err) {
         console.log("\x1b[31mError starting services:\x1b[0m", err.message);
       }
@@ -117,10 +115,10 @@ async function mainMenu() {
       printHeader();
       console.log("\x1b[33m=== STOPPING SERVICES ===\x1b[0m");
       try {
-        console.log("Killing node, npm, and python3 backend threads...");
-        try { execSync("pkill -lf 'node' || true"); } catch(e){}
-        try { execSync("pkill -lf 'python3 bot.py' || true"); } catch(e){}
-        console.log("\n\x1b[32m✔ Services stopped successfully on server!\x1b[0m");
+        console.log("Stopping PM2 managed services...");
+        try { execSync("pm2 stop daltoon-store || true"); } catch(e){}
+        try { execSync("pm2 stop daltoon-bot || true"); } catch(e){}
+        console.log("\n\x1b[32m✔ Services stopped successfully via PM2 on server!\x1b[0m");
       } catch (err) {
         console.log("\x1b[31mError stopping services:\x1b[0m", err.message);
       }
@@ -131,17 +129,11 @@ async function mainMenu() {
       printHeader();
       console.log("\x1b[33m=== RESTARTING SERVICES ===\x1b[0m");
       try {
-        console.log("Terminating current running backend processes...");
-        try { execSync("pkill -lf 'node' || true"); } catch(e){}
-        try { execSync("pkill -lf 'python3 bot.py' || true"); } catch(e){}
+        console.log("Restarting PM2 managed services...");
+        try { execSync("pm2 restart daltoon-store || true"); } catch(e){}
+        try { execSync("pm2 restart daltoon-bot || true"); } catch(e){}
         
-        console.log("Re-launching Express/Vite service...");
-        exec("nohup npm run start > /dev/null 2>&1 &");
-        
-        console.log("Re-launching Python Telegram bot...");
-        exec("nohup python3 bot.py > /dev/null 2>&1 &");
-        
-        console.log("\n\x1b[32m✔ Services restarted successfully!\x1b[0m");
+        console.log("\n\x1b[32m✔ Services restarted successfully via PM2!\x1b[0m");
       } catch (err) {
         console.log("\x1b[31mError restarting services:\x1b[0m", err.message);
       }
