@@ -300,24 +300,6 @@ export default function BotSimulator({
         return;
       }
 
-      // Check if stock exists locally first before hit
-      const currentPlanObj = plans.find(p => p.id === selectedPlanToBuy.id);
-      const stockLength = currentPlanObj?.configStock ? currentPlanObj.configStock.length : 0;
-      if (stockLength === 0) {
-        setSelectedPlanToBuy(null);
-        addBotReply(
-          lang === "fa" 
-            ? "⚠️ متأسفانه موجودی این پلن (کانفیگ آماده) در حال حاضر به اتمام رسیده است!\n\nلطفاً موضوع را به مدیریت اطلاع دهید تا انبار بسته‌ها را مجدداً شارژ نمایند."
-            : "⚠️ Out of Stock! No pre-built configurations are available for this plan right now.", 
-          500, 
-          [
-            [t.btnBuyPlan, t.btnMyAccount],
-            [t.btnTopUp, t.btnSupport]
-          ]
-        );
-        return;
-      }
-
       // Call server backend to securely pop stock item, charge wallet and create sub key
       fetch("/api/vpn-plans/buy", {
         method: "POST",

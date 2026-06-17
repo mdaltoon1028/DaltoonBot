@@ -219,11 +219,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, 
           <p className="text-[10px] text-gray-500 font-mono">
             {lang === "fa" ? "رمز عبور و یوزرهای ادمین را با استفاده از دستور daltoon-dashboard بازیابی کنید." : "Modify credentials or add sub-admins anytime using the daltoon-dashboard server tool."}
           </p>
-          <div className="inline-flex flex-wrap justify-center gap-2 items-center bg-[#111425] border border-slate-800/80 rounded-lg p-2 text-[11px] text-gray-400 font-mono">
-            <span>{lang === "fa" ? "یوزر پیش‌فرض:" : "Default User:"} <strong className="text-indigo-400 select-all">Daltoon</strong></span>
-            <span className="text-gray-600">|</span>
-            <span>{lang === "fa" ? "پسورد:" : "Pass:"} <strong className="text-indigo-400 select-all">Daltoon10</strong></span>
-          </div>
         </div>
       </div>
     </div>

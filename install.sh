@@ -78,12 +78,23 @@ pm2 startup
 echo -e "${YELLOW}Configuring firewall (opening port 3000)...${NC}"
 ufw allow 3000/tcp
 
+# 8. Setup daltoon-dashboard system CLI globally
+echo -e "${YELLOW}Setting up global CLI command (daltoon-dashboard)...${NC}"
+if [ -f "/opt/daltoon-store/daltoon-dashboard" ]; then
+    chmod +x /opt/daltoon-store/daltoon-dashboard
+    ln -sf /opt/daltoon-store/daltoon-dashboard /usr/local/bin/daltoon-dashboard
+elif [ -f "daltoon-dashboard" ]; then
+    chmod +x daltoon-dashboard
+    ln -sf "$(pwd)/daltoon-dashboard" /usr/local/bin/daltoon-dashboard
+fi
+
 echo -e "${GREEN}====================================================${NC}"
 echo -e "${GREEN}🎉 Daltoon Store Dashboard Installed Successfully!${NC}"
 echo -e "${GREEN}====================================================${NC}"
 echo -e "You can now access your web panel at:"
 echo -e "${BLUE}👉 http://$(curl -s https://api.ipify.org):3000${NC}"
 echo -e ""
+echo -e "To manage credentials, admins or ports, type: ${YELLOW}daltoon-dashboard${NC}"
 echo -e "To view logs, type: ${YELLOW}pm2 logs daltoon-store${NC}"
 echo -e "To restart application, type: ${YELLOW}pm2 restart daltoon-store${NC}"
 echo -e "===================================================="
