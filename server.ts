@@ -4,6 +4,9 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { spawn, ChildProcess, exec } from "child_process";
 
+// Disable SSL verification for outgoing requests to 3x-ui panels
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
 const dbJsonPath = __dirname.endsWith("dist")
   ? path.resolve(__dirname, "..", "bot_database.json")
@@ -238,6 +241,76 @@ app.get("/api/data", async (req, res) => {
       settings.admins = [];
     }
 
+    // REAL-TIME 3X-UI INBOUNDS MONITORING IMPLEMENTATION
+    if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
+      try {
+        const cleanedUrl = `${settings.baseUrl}`.trim().replace(/\/$/, "");
+        const params = new URLSearchParams();
+        params.append("username", settings.panelUsername);
+        params.append("password", settings.panelPassword);
+
+        // 1. Authenticate with XUI panel
+        const loginRes = await fetch(`${cleanedUrl}/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString(),
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (loginRes.ok) {
+          const cookie = loginRes.headers.get("set-cookie");
+          if (cookie) {
+            // 2. Fetch the active state of all inbounds
+            const listRes = await fetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+              method: "GET",
+              headers: { 
+                "Cookie": cookie,
+                "Accept": "application/json"
+              },
+              signal: AbortSignal.timeout(5000)
+            });
+
+            if (listRes.ok) {
+              const listText = await listRes.text();
+              const listJson = JSON.parse(listText);
+              if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+                // Map Sanaei obj data into local DB inbounds structure
+                const freshInbounds = listJson.obj.map((item: any) => {
+                  let totalClientsCount = 0;
+                  try {
+                    const settingsObj = typeof item.settings === "string" ? JSON.parse(item.settings) : item.settings;
+                    if (settingsObj && Array.isArray(settingsObj.clients)) {
+                      totalClientsCount = settingsObj.clients.length;
+                    }
+                  } catch (e) {}
+
+                  const usedGb = ((Number(item.up || 0) + Number(item.down || 0)) / (1024 * 1024 * 1024)).toFixed(1);
+                  const limitGb = item.total ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0) : "unlimited";
+
+                  return {
+                    id: item.id,
+                    remark: item.remark || `Inbound #${item.id}`,
+                    protocol: item.protocol || "vless",
+                    port: item.port || 1234,
+                    totalClients: totalClientsCount,
+                    trafficUsed: usedGb,
+                    trafficLimit: limitGb,
+                    status: item.enable ? "active" : "inactive"
+                  };
+                });
+
+                // Overwrite inbounds with real live data
+                db.inbounds = freshInbounds;
+                writeJsonDb(db);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn("[Background 3x-ui Sync Warning]:", e.message);
+      }
+    }
+
     res.json({
       success: true,
       users: db.users,
@@ -308,6 +381,25 @@ app.post("/api/xui/test-connection", async (req, res) => {
     }
 
     if (checkRes.ok && bodyJson && bodyJson.success) {
+      // Let's do an extra check of the list to confirm complete read API rights
+      const cookie = checkRes.headers.get("set-cookie");
+      if (cookie) {
+        try {
+          const listRes = await fetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+            method: "GET",
+            headers: { 
+              "Cookie": cookie,
+              "Accept": "application/json"
+            },
+            signal: AbortSignal.timeout(4000)
+          });
+          if (listRes.ok) {
+            return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
+          }
+        } catch (err: any) {
+          return res.json({ success: true, message: "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید." });
+        }
+      }
       return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
     } else {
       return res.json({ 

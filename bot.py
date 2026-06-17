@@ -158,6 +158,10 @@ except ImportError:
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML")
 session = requests.Session()
 
+# Clean SSL Warnings inside Python requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # --- Sanaei 3x-ui Admin API Helpers ---
 def login_xui():
     """ Authenticate session with Sanaei X-UI administrator credentials """
@@ -168,7 +172,7 @@ def login_xui():
         "password": cfg['XUI_PASS']
     }
     try:
-        response = session.post(login_url, data=login_data, timeout=8)
+        response = session.post(login_url, data=login_data, timeout=8, verify=False)
         res_json = response.json()
         if res_json.get("success"):
             print("[Sanaei X-UI API] Authenticated successfully with the panel.")
@@ -179,14 +183,15 @@ def login_xui():
         print(f"[Sanaei X-UI API] Handshake error at {login_url}: {e}")
     return False
 
-def add_vpn_client_api(inbound_id, client_email, traffic_gb, duration_months):
-    """ Call Sanaei 3x-ui API to create client in bounds and return subscription link """
+def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=None):
+    """ Call Sanaei 3x-ui API to create client on ALL 6 inbounds so the sub/ link returns all of them! """
     cfg = get_config()
     if not login_xui():
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
 
-    client_uuid = str(uuid.uuid4())
+    if not client_uuid:
+         client_uuid = str(uuid.uuid4())
     total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
     # Expiry timestamp in milliseconds
     expiry_time_ms = int((time.time() + (duration_months * 30 * 24 * 60 * 60)) * 1000)
@@ -202,25 +207,31 @@ def add_vpn_client_api(inbound_id, client_email, traffic_gb, duration_months):
         "subId": client_email
     }
 
-    payload = {
-        "id": inbound_id,
-        "settings": json.dumps({"clients": [client_config]})
-    }
+    # Inbound IDs specified by user to be selected by default
+    inbound_ids = [1, 12, 16, 19, 24, 26]
+    success_count = 0
 
-    add_url = f"{cfg['XUI_URL']}/panel/api/inbounds/addClient"
-    try:
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        response = session.post(add_url, json=payload, headers=headers, timeout=10)
-        res_json = response.json()
-        
-        if res_json.get("success"):
-            print(f"[Sanaei API Sync] Created user '{client_email}' on inbound {inbound_id} successfully.")
-            sub_link = f"{cfg['XUI_URL']}/sub/{client_email}"
-            return client_uuid, sub_link
-        else:
-            print(f"[Sanaei API Response] Creation error: {response.text}")
-    except Exception as e:
-        print(f"[Sanaei API Request Error] Connection timed out: {e}")
+    for inbound_id in inbound_ids:
+        payload = {
+            "id": inbound_id,
+            "settings": json.dumps({"clients": [client_config]})
+        }
+        add_url = f"{cfg['XUI_URL']}/panel/api/inbounds/addClient"
+        try:
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
+            res_json = response.json()
+            if res_json.get("success"):
+                print(f"[Sanaei API Sync] Created user '{client_email}' on inbound {inbound_id} successfully.")
+                success_count += 1
+            else:
+                print(f"[Sanaei API Response] Creation error on inbound {inbound_id}: {response.text}")
+        except Exception as e:
+            print(f"[Sanaei API Request Error] Bound {inbound_id} timeout or error: {e}")
+
+    if success_count > 0:
+        sub_link = f"{cfg['XUI_URL']}/sub/{client_email}"
+        return client_uuid, sub_link
     
     return None, None
 
@@ -505,6 +516,61 @@ def text_messages_handler(message):
 
 # --- Callback Queries ---
 
+def process_purchase_username(message, plan_id, spec):
+    tg_id = message.from_user.id
+    username_input = message.text.strip()
+    
+    # Simple regex validation to ensure safe client email/name (alphanumeric, no spaces, length 3-15)
+    import re
+    if not re.match("^[a-zA-Z0-9_-]{3,15}$", username_input):
+        msg = bot.send_message(
+            message.chat.id,
+            "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\n"
+            "نام کاربری باید فقط شامل حروف انگلیسی، اعداد، خط تیره و بین ۳ تا ۱۵ کاراکتر باشد. (بدون وب، فضای خالی، حروف فارسی)\n\n"
+            "لطفاً یک نام کاربری جدید و معتبر ارسال کنید:"
+        )
+        bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
+        return
+
+    # Check if this name is already taken in our active keys (local prevention check)
+    db = read_db_json()
+    keys = db.get("subscription_keys", [])
+      if not sub_link:
+        # Fallback simulated dynamic link
+        cfg = get_config()
+        client_uuid = str(uuid.uuid4())
+        sub_link = f"{cfg['XUI_URL']}/sub/{username_input}"
+        print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
+
+    expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))
+    sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+
+    create_sub_key(
+        key_id=sub_id, 
+        tg_id=tg_id, 
+        plan_id=plan_id, 
+        plan_name=spec['name'], 
+        sub_link=sub_link, 
+        expire_date=expire_date, 
+        limit_gb=spec['traffic']
+    )
+
+    cfg = get_config()
+    success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
+    note_append = f"\n\n{success_note}" if success_note else ""
+    success_text = (
+        f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
+        f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
+        f"💳 هزینه کسر شده: {spec['price']:,} تومان\n"
+        f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
+        f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
+        f"• مسیر اشتراک (در V2rayNG وارد کنید):\n"
+        f"<code>{sub_link}</code>\n\n"
+        f"این نام کاربری به صورت همزمان بر روی تمامی اینباندهای فعال (سرعت فوق‌العاده) تنظیم گردید."
+        f"{note_append}"
+    )
+    bot.send_message(message.chat.id, success_text)
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     tg_id = call.from_user.id
@@ -518,28 +584,19 @@ def callback_handler(call):
         
         spec = None
         if db_plan:
-            # Dynamically read first active inbound_id, or default to 1
-            panel_cfg = {}
-            try:
-                panel_cfg = json.loads(db.get("settings", {}).get("panel_config", "{}"))
-            except Exception:
-                pass
-            active_inbounds = panel_cfg.get("activeInboundIds", [])
-            inbound_id = active_inbounds[0] if active_inbounds else 1
-            
             spec = {
+                "id": db_plan["id"],
                 "name": db_plan["name"],
                 "price": db_plan["price"],
                 "traffic": db_plan.get("trafficGb", 30),
-                "duration": db_plan.get("durationMonths", 1),
-                "inbound_id": inbound_id
+                "duration": db_plan.get("durationMonths", 1)
             }
         else:
             # Details of the fallback plans
             plan_specs = {
-                "std_30g": {"name": "Standard 30GB", "price": 45000, "traffic": 30, "duration": 1, "inbound_id": 1},
-                "vip_70g": {"name": "VIP Premium 70GB", "price": 95000, "traffic": 70, "duration": 2, "inbound_id": 12},
-                "ult_150g": {"name": "Unlimited VoIP 150GB", "price": 185000, "traffic": 150, "duration": 3, "inbound_id": 16}
+                "std_30g": {"id": "std_30g", "name": "Standard 30GB", "price": 45000, "traffic": 30, "duration": 1},
+                "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB", "price": 95000, "traffic": 70, "duration": 2},
+                "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB", "price": 185000, "traffic": 150, "duration": 3}
             }
             spec = plan_specs.get(plan_id)
             
@@ -557,58 +614,23 @@ def callback_handler(call):
                 call.message.chat.id, 
                 f"❌ <b>موجودی کیف پول شما کافی نیست!</b>\n\nمبلغ پلان: {spec['price']:,} تومان\nموجودی فعلی شما: {int(user['walletBalance']):,} تومان\n\nجهت خرید لطفا ابتدا حساب خود را شارژ کنید."
             )
-            bot.answer_callback_query(call.id, "کاهش اعتبار!")
+            bot.answer_callback_query(call.id, "موجودی ناکافی!")
             return
             
-        # Deduct wallet balance immediately
-        new_balance = user['walletBalance'] - spec['price']
-        update_user_wallet_balance(tg_id, -spec['price'])
-        
-        # Add client dynamically via Sanaei 3x-ui API
-        client_email = f"dl_tg_{tg_id}_{int(time.time())}"
-        
-        bot.send_message(call.message.chat.id, "⏳ در حال ساخت کانفیگ اختصاصی شما از روی سرور ثنایی...")
-        
-        # Call API (with real panel login cookie representation)
-        client_uuid, sub_link = add_vpn_client_api(
-            inbound_id=spec['inbound_id'], 
-            client_email=client_email, 
-            traffic_gb=spec['traffic'], 
-            duration_months=spec['duration']
+        # Ask user what name they want on the panel config
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"✍️ <b>لطفاً نام یا شناسه انگلیسی دلخواه خود را برای کانفیگ بفرستید:</b>\n\n"
+            f"• طرح انتخابی: <code>{spec['name']}</code>\n"
+            f"• هزینه طرح: <code>{spec['price']:,}</code> تومان\n\n"
+            f"⚠️ قوانین نام‌گذاری:\n"
+            f"۱. فقط از حروف انگلیسی و اعداد استفاده کنید (مثال: <code>aria_vpn</code>)\n"
+            f"۲. از فاصله، حروفی مانند @، یا کلمات فارسی استفاده نکنید.\n"
+            f"۳. حداقل ۳ و حداکثر ۱۵ حرف باشد.",
+            parse_mode="HTML"
         )
-        
-        if not sub_link:
-            cfg = get_config()
-            client_uuid = str(uuid.uuid4())
-            sub_link = f"{cfg['XUI_URL']}/sub/{client_email}"
-            print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
-            
-        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))
-        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
-        
-        create_sub_key(
-            key_id=sub_id, 
-            tg_id=tg_id, 
-            plan_id=plan_id, 
-            plan_name=spec['name'], 
-            sub_link=sub_link, 
-            expire_date=expire_date, 
-            limit_gb=spec['traffic']
-        )
-        
-        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
-        note_append = f"\n\n{success_note}" if success_note else ""
-        success_text = (
-            f"🎉 <b>خرید شما با موفقیت تکمیل شد!</b>\n\n"
-            f"💳 هزینه کسر شده: {spec['price']:,} تومان\n"
-            f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
-            f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n\n"
-            f"<code>{sub_link}</code>\n\n"
-            f"لینک بالا را کپی کرده و در کلاینت‌های اتصال خود V2rayNG / Sing-box وارد کنید."
-            f"{note_append}"
-        )
-        bot.send_message(call.message.chat.id, success_text)
-        bot.answer_callback_query(call.id, "خرید با موفقیت تایید شد!")
+        bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
+        bot.answer_callback_query(call.id)
 
     elif call.data.startswith("charge_amount_"):
         try:
