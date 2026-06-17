@@ -17,7 +17,9 @@ import {
   Edit,
   Sparkles,
   Command,
-  Send
+  Send,
+  Power,
+  Activity
 } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -44,9 +46,37 @@ export default function SettingsPanel({
   const [panelPassword, setPanelPassword] = useState(settings.panelPassword || "");
   const [ownerId, setOwnerId] = useState(settings.ownerId ? settings.ownerId.toString() : "");
   
-  // Custom keyboard and notes states
-  const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(settings.purchaseSuccessNote || "");
+  
+  // Real-time 3x-ui connection states
+  const [panelConnectionActive, setPanelConnectionActive] = useState<boolean>(!!settings.panelConnectionActive);
+  const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
+
+  const handleTestConnection = async (forceUrlCheck?: string, forceUserCheck?: string, forcePassCheck?: string) => {
+    setTestStatus({ type: "loading", message: lang === "fa" ? "در حال اتصال به پنل و بررسی احراز هویت..." : "Connecting to panel and validating authentication..." });
+    try {
+      const response = await fetch("/api/xui/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: forceUrlCheck || baseUrl,
+          panelUsername: forceUserCheck || panelUsername,
+          panelPassword: forcePassCheck || panelPassword
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTestStatus({ type: "success", message: data.message });
+        return true;
+      } else {
+        setTestStatus({ type: "error", message: data.error });
+        return false;
+      }
+    } catch (err: any) {
+      setTestStatus({ type: "error", message: lang === "fa" ? "خطا در برقراری ارتباط با هاست سرور." : "Could not connect to host server." });
+      return false;
+    }
+  };
 
   // Broadcast text states
   const [broadcastText, setBroadcastText] = useState("");
@@ -161,6 +191,7 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
+      panelConnectionActive,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
@@ -270,20 +301,7 @@ export default function SettingsPanel({
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa" ? "📥 چیدمان کلیدهای کیبورد تلگرام (کاستوم)" : "📥 Telegram Menu Keyboard Layout"}
-              </label>
-              <select
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500"
-                value={keyboardLayout}
-                onChange={(e) => setKeyboardLayout(e.target.value as any)}
-              >
-                <option value="stepped">{lang === "fa" ? "🔘 پلکانی (staggered - پیش فرض)" : "🔘 Stepped (Staggered - default)"}</option>
-                <option value="horizontal">{lang === "fa" ? "↔️ افقی (horizontal - گرید)" : "↔️ Horizontal (Grid)"}</option>
-                <option value="vertical">{lang === "fa" ? "↕️ عمودی (vertical - لیست ستونی)" : "↕️ Vertical (Single column list)"}</option>
-              </select>
-            </div>
+
           </div>
         </div>
 
@@ -294,6 +312,82 @@ export default function SettingsPanel({
             {t.panelAuthTitle}
           </h3>
           <p className="text-xs text-gray-400">{t.panelAuthDesc}</p>
+
+          {/* Active Integration status and Always-ON toggle */}
+          <div className="bg-[#0b0f19] border border-gray-800 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-full ${
+                panelConnectionActive 
+                  ? "bg-emerald-500/10 text-emerald-400" 
+                  : "bg-gray-800 text-gray-500"
+              }`}>
+                <Power className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="block text-sm font-bold text-white">
+                  {lang === "fa" ? "🔌 وضعیت فعالیت اتصال پس‌زمینه پنل ۳x-ui" : "🔌 Always-ON Background Sync"}
+                </span>
+                <span className="block text-xs text-gray-400 mt-0.5">
+                  {lang === "fa" 
+                    ? "در صورت فعال بودن (روشن)، اتصال به سرور‌های ۳x-ui در پس‌زمینه زنده نگه‌داشته می‌شود." 
+                    : "If active (ON), keeps the API connection and status always ON in the background."}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={async () => {
+                  const nextVal = !panelConnectionActive;
+                  setPanelConnectionActive(nextVal);
+                  if (nextVal) {
+                    await handleTestConnection();
+                  } else {
+                    setTestStatus({ type: "idle", message: "" });
+                  }
+                }}
+                className={`w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center justify-center gap-2 ${
+                  panelConnectionActive
+                    ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/10"
+                    : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+                }`}
+              >
+                <Power className="w-4 h-4" />
+                {panelConnectionActive 
+                  ? (lang === "fa" ? "اتصال فعال (روشن 🟢)" : "Connected (ON 🟢)") 
+                  : (lang === "fa" ? "اتصال غیرفعال (خاموش ⚪)" : "Disconnected (OFF ⚪)")
+                }
+              </button>
+
+              {panelConnectionActive && (
+                <button
+                  type="button"
+                  onClick={() => handleTestConnection()}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-lg text-xs font-semibold select-none cursor-pointer transition flex items-center justify-center gap-1.5"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  {lang === "fa" ? "بررسی و تست ارتباط" : "Test Connectivity"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Test Status feedback block */}
+          {testStatus.type !== "idle" && (
+            <div className={`p-3 rounded-lg text-xs leading-relaxed font-sans ${
+              testStatus.type === "loading" ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" :
+              testStatus.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+              "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+            }`}>
+              <div className="flex items-center gap-2 font-medium">
+                {testStatus.type === "loading" && <span className="h-2 w-2 rounded-full bg-indigo-400 animate-ping"></span>}
+                {testStatus.type === "success" && <span className="h-2 w-2 rounded-full bg-emerald-400"></span>}
+                {testStatus.type === "error" && <span className="h-2 w-2 rounded-full bg-rose-400"></span>}
+                <span>{testStatus.message}</span>
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

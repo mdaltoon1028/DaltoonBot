@@ -275,6 +275,51 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
+// 2.5 Test XUI Panel connection
+app.post("/api/xui/test-connection", async (req, res) => {
+  try {
+    const { baseUrl, panelUsername, panelPassword } = req.body;
+    if (!baseUrl || !panelUsername || !panelPassword) {
+      return res.json({ success: false, error: "تمامی فیلدهای احراز هویت شامل آدرس هاست، نام کاربری و رمز عبور پنل ۳x-ui باید پر شده باشند." });
+    }
+
+    const cleanedUrl = `${baseUrl}`.trim().replace(/\/$/, "");
+    const loginUrl = `${cleanedUrl}/login`;
+
+    const params = new URLSearchParams();
+    params.append("username", panelUsername);
+    params.append("password", panelPassword);
+
+    const checkRes = await fetch(loginUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: params.toString(),
+      signal: AbortSignal.timeout(6000)
+    });
+
+    const bodyText = await checkRes.text();
+    let bodyJson: any = {};
+    try {
+      bodyJson = JSON.parse(bodyText);
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+
+    if (checkRes.ok && bodyJson && bodyJson.success) {
+      return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
+    } else {
+      return res.json({ 
+        success: false, 
+        error: bodyJson?.msg || "خطا در احراز هویت. نام کاربری یا رمز عبور پنل نادرست است." 
+      });
+    }
+  } catch (error: any) {
+    return res.json({ success: false, error: `خطا در اتصال به هاست پنل: ${error.message}` });
+  }
+});
+
 // BROADCAST ENDPOINT
 app.post("/api/broadcast", async (req, res) => {
   try {

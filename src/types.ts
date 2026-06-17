@@ -26,6 +26,7 @@ export interface PanelSettings {
   serverPort?: number;
   keyboardLayout?: "horizontal" | "vertical" | "stepped";
   purchaseSuccessNote?: string;
+  panelConnectionActive?: boolean;
   admins?: Array<{
     id: string;
     userId: number;
