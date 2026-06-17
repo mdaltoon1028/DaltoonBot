@@ -238,7 +238,7 @@ def login_xui():
     return False
 
 def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=None):
-    """ Call Sanaei 3x-ui API to create client on ALL 6 inbounds so the sub/ link returns all of them! """
+    """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
     if not login_xui():
         print("[Sanaei API Error] Skipping user creation - login failed.")
@@ -261,8 +261,34 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
         "subId": client_email
     }
 
-    # Inbound IDs specified by user to be selected by default
-    inbound_ids = [1, 12, 16, 19, 24, 26]
+    # Dynamic inbound IDs selection
+    db = read_db_json()
+    settings_str = db.get("settings", {}).get("panel_config")
+    inbound_ids = []
+    if settings_str:
+        try:
+            panel_cfg = json.loads(settings_str)
+            active_ids = panel_cfg.get("activeInboundIds", [])
+            if active_ids and isinstance(active_ids, list):
+                inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+        except Exception as e:
+            print(f"[Bot Inbound JSON Parse Error]: {e}")
+
+    # Fallback: if no activeInboundIds are explicitly set by administrative setup UI, grab online
+    if not inbound_ids:
+        try:
+            list_url = f"{cfg['XUI_URL']}/panel/api/inbounds/list"
+            list_res = session.get(list_url, timeout=8, verify=False)
+            res_json = list_res.json()
+            if res_json.get("success") and isinstance(res_json.get("obj"), list):
+                inbound_ids = [int(item["id"]) for item in res_json["obj"]]
+                print(f"[Sanaei API] Dynamic read succeeded: {len(inbound_ids)} inbounds found.")
+        except Exception as e:
+            print(f"[Sanaei API] Dynamic read failed: {e}")
+
+    if not inbound_ids:
+        inbound_ids = [1, 12, 16, 19, 24, 26]
+
     success_count = 0
 
     for inbound_id in inbound_ids:
@@ -589,11 +615,19 @@ def process_purchase_username(message, plan_id, spec):
     # Check if this name is already taken in our active keys (local prevention check)
     db = read_db_json()
     keys = db.get("subscription_keys", [])
-      if not sub_link:
+    
+    # Deduct balance
+    user = get_user_data(tg_id)
+    new_balance = int(user['walletBalance']) - spec['price']
+    update_user_balance(tg_id, new_balance)
+
+    # Add client to X-UI panel
+    client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+    if not sub_link:
         # Fallback simulated dynamic link
         cfg = get_config()
         client_uuid = str(uuid.uuid4())
-        sub_link = f"{cfg['XUI_URL']}/sub/{username_input}"
+        sub_link = f"{cfg['XUI_URL']}/sub/{username_input}" if cfg.get('XUI_URL') else f"https://m.daltoon-server.ir:8443/sub/{username_input}"
         print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
 
     expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))
@@ -623,7 +657,15 @@ def process_purchase_username(message, plan_id, spec):
         f"این نام کاربری به صورت همزمان بر روی تمامی اینباندهای فعال (سرعت فوق‌العاده) تنظیم گردید."
         f"{note_append}"
     )
-    bot.send_message(message.chat.id, success_text)
+    
+    # Try sending the QR code photo
+    try:
+        import urllib.parse
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+        bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML")
+    except Exception as e:
+        print(f"[Bot Warning] Failed to send QR Photo: {e}")
+        bot.send_message(message.chat.id, success_text, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):

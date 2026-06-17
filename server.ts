@@ -955,7 +955,7 @@ app.post("/api/vpn-plans/delete", async (req, res) => {
 
 app.post("/api/vpn-plans/buy", async (req, res) => {
   try {
-    const { planId, userId } = req.body;
+    const { planId, userId, clientName } = req.body;
     const db = readJsonDb();
     if (!db.vpn_plans) db.vpn_plans = [];
 
@@ -974,22 +974,136 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
     const parsedSettings = db.settings.panel_config 
       ? JSON.parse(db.settings.panel_config)
       : {};
-    const ownerId = Number(parsedSettings.ownerId || 6536288293);
-    const admins = Array.isArray(parsedSettings.admins) ? parsedSettings.admins : [];
-    
+    const settings = {
+      botToken: "",
+      baseUrl: "",
+      panelUrl: "",
+      panelUsername: "",
+      panelPassword: "",
+      activeInboundIds: [],
+      ownerId: 0,
+      cardNumber: "",
+      cardHolder: "",
+      bankName: "",
+      welcomeText: "",
+      supportText: "",
+      hideSupport: false,
+      hideBuy: false,
+      hideProfile: false,
+      hideWallet: false,
+      dashboardUsername: "Daltoon",
+      dashboardPassword: "Daltoon10",
+      serverPort: 3000,
+      admins: [],
+      panelConnectionActive: false,
+      ...parsedSettings
+    };
+
+    const ownerId = Number(settings.ownerId || 6536288293);
+    const admins = Array.isArray(settings.admins) ? settings.admins : [];
     const isAdminOrOwner = Number(userId) === ownerId || admins.some((adm: any) => Number(adm.userId) === Number(userId)) || user.username === "daltoon_owner";
 
     if (!isAdminOrOwner && user.walletBalance < plan.price) {
       return res.status(400).json({ success: false, error: "موجودی کیف پول شما کافی نیست." });
     }
 
-    // Check if stock exists or is empty. If empty, automatically generate an on-the-fly config as simulator backup!
+    const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
+
     let subLink = "";
-    if (!plan.configStock || plan.configStock.length === 0) {
-      const mockUuid = "xxxx-xxxx-xxxx-xxxx".replace(/[xy]/g, () => (Math.random() * 16 | 0).toString(16));
-      subLink = `vless://${mockUuid}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${plan.name.replace(/\s+/g, "")}`;
-    } else {
-      subLink = plan.configStock.shift();
+    const clientUuid = "xxxx-xxxx-xxxx-xxxx".replace(/[xy]/g, () => (Math.random() * 16 | 0).toString(16));
+    let xuiSuccess = false;
+
+    if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
+      try {
+        const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+
+        if (loginResult.success && loginResult.cookie) {
+          const totalBytes = Math.floor(plan.trafficGb * 1024 * 1024 * 1024);
+          // Expiry timestamp in milliseconds
+          const expiryTimeMs = Date.now() + plan.durationMonths * 30 * 24 * 60 * 60 * 1000;
+
+          const clientConfig = {
+            id: clientUuid,
+            email: cleanClientName,
+            limitIp: 0,
+            totalGB: totalBytes,
+            expiryTime: expiryTimeMs,
+            enable: true,
+            tgId: "",
+            subId: cleanClientName
+          };
+
+          // Get inbound IDs from settings
+          let inbound_ids: number[] = Array.isArray(settings.activeInboundIds) ? settings.activeInboundIds.map(Number) : [];
+
+          // If empty, fetch all from panel dynamically
+          if (!inbound_ids || inbound_ids.length === 0) {
+            try {
+              const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+                method: "GET",
+                headers: { "Cookie": loginResult.cookie }
+              }, 5000);
+              if (listRes.ok) {
+                const listJson = await listRes.json();
+                if (listJson.success && Array.isArray(listJson.obj)) {
+                  inbound_ids = listJson.obj.map((item: any) => Number(item.id));
+                }
+              }
+            } catch (e: any) {
+              console.error("[Sanaei list fetch error]:", e.message);
+            }
+          }
+
+          if (!inbound_ids || inbound_ids.length === 0) {
+            inbound_ids = [1, 12, 16, 19, 24, 26]; // Fallback
+          }
+
+          let successCount = 0;
+          for (const inboundId of inbound_ids) {
+            try {
+              const payload = {
+                id: inboundId,
+                settings: JSON.stringify({ clients: [clientConfig] })
+              };
+
+              const addRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/addClient`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Cookie": loginResult.cookie
+                },
+                body: JSON.stringify(payload)
+              }, 6000);
+
+              const addJson = await addRes.json();
+              if (addJson && addJson.success) {
+                successCount++;
+                console.log(`[XUI Sync] Successfully added client '${cleanClientName}' on inbound ${inboundId}`);
+              } else {
+                console.warn(`[XUI Sync] Failed to add client on inbound ${inboundId}:`, addJson);
+              }
+            } catch (err: any) {
+              console.error(`[XUI Sync Error] inbound ${inboundId}:`, err.message);
+            }
+          }
+
+          if (successCount > 0) {
+            subLink = `${cleanedUrl}/sub/${cleanClientName}`;
+            xuiSuccess = true;
+          }
+        }
+      } catch (err: any) {
+        console.error("[XUI Client Add Exception]:", err.message);
+      }
+    }
+
+    if (!xuiSuccess) {
+      if (!plan.configStock || plan.configStock.length === 0) {
+        subLink = `vless://${clientUuid}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${cleanClientName}`;
+      } else {
+        subLink = plan.configStock.shift() || "";
+      }
     }
     
     // Create subscription key
@@ -1005,7 +1119,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       expireDate: expireDate,
       trafficLimitGb: plan.trafficGb,
       trafficUsedGb: 0,
-      status: "active"
+      status: "active" as const
     };
 
     db.subscription_keys.push(newSub);

@@ -39,6 +39,7 @@ interface ChatMessage {
   timestamp: string;
   keyboard?: string[][]; // Custom Telegram reply keyboard
   inlineButtons?: { text: string; action: string }[]; // Custom Telegram inline markup
+  imageUrl?: string; // Optional dynamic QR Code image
 }
 
 export default function BotSimulator({
@@ -63,6 +64,7 @@ export default function BotSimulator({
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [selectedPlanToBuy, setSelectedPlanToBuy] = useState<VpnPlan | null>(null);
+  const [purchaseStep, setPurchaseStep] = useState<"idle" | "confirm_plan" | "ask_client_name" | "sending">("idle");
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   
   // Invoice form fields
@@ -144,12 +146,112 @@ export default function BotSimulator({
     setMessages(prev => [...prev, userMsg]);
 
     // Check plan cancellation
-    if (selectedPlanToBuy && (text.includes("انصراف") || text.includes("Cancel") || text.includes("cancel") || text.includes("برگشت"))) {
+    if (selectedPlanToBuy && (text.includes("انصراف") || text.includes("Cancel") || text.includes("cancel") || text.includes("برگشت") || text.includes("انصراف و برگشت"))) {
       setSelectedPlanToBuy(null);
+      setPurchaseStep("idle");
       addBotReply(t.buyCancelConfirmation, 500, [
         [t.btnBuyPlan, t.btnMyAccount],
         [t.btnTopUp, t.btnSupport]
       ]);
+      return;
+    }
+
+    if (selectedPlanToBuy && purchaseStep === "ask_client_name") {
+      const clientNameInput = text.trim();
+      const safeNameRegex = /^[a-zA-Z0-9_-]{3,15}$/;
+      if (!safeNameRegex.test(clientNameInput)) {
+        addBotReply(
+          lang === "fa"
+            ? "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد، خط تیره و بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله یا حروف فارسی).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:"
+            : "⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens, and be between 3 and 15 characters long (no spaces/Persian).\n\nPlease write a valid English name:",
+          500,
+          [[lang === "fa" ? "❌ انصراف و برگشت" : "Cancel and Back"]]
+        );
+        return;
+      }
+
+      setPurchaseStep("sending");
+      addBotReply(
+        lang === "fa"
+          ? "⏳ در حال ساخت کانفیگ اختصاصی شما روی پروتکل‌های فعال چندگانه در هسته ۳x-ui و ثبت سابسکریپشن..."
+          : "⏳ Generating your dedicated configurations on multiple active inbounds in the 3x-ui core...",
+        500,
+        []
+      );
+
+      fetch("/api/vpn-plans/buy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: selectedPlanToBuy.id,
+          userId: currentUser.userId,
+          clientName: clientNameInput
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          if (data.vpnPlans) setVpnPlans(data.vpnPlans);
+          if (data.subscriptionKeys) setKeys(data.subscriptionKeys);
+          if (data.users) setUsers(data.users);
+          
+          const newBal = data.userWalletBalance;
+          const mockSub = data.subKey;
+          
+          setSelectedPlanToBuy(null);
+          setPurchaseStep("idle");
+
+          const deliveryNote = settings?.purchaseSuccessNote ? `\n\n${settings.purchaseSuccessNote}` : "";
+          const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+          const confirmMsg = lang === "fa"
+            ? `🎉 خرید شما با موفقیت انجام شد!\n\n` +
+              `👤 نام کاربری سرویس شما: <code>${clientNameInput}</code>\n` +
+              `💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : selectedPlanToBuy.price.toLocaleString() + " تومان"}\n` +
+              `💰 موجودی جدید باقیمانده کیف پول: ${newBal.toLocaleString()} تومان\n\n` +
+              `🔑 <b>سابسکریپشن اختصاصی شما با موفقیت فعال شد:</b>\n` +
+              `<code>${mockSub.subLink}</code>\n\n` +
+              `این نام کاربری به صورت همزمان بر روی تمامی اینباندهای فعال (سرعت فوق‌العاده) تنظیم گردید. جهت استفاده، آدرس بالا را کپی کرده و در کلاینت خود ایمپورت کنید یا کارت QR زیر را اسکن فرمایید.${deliveryNote}`
+            : `🎉 VPN subscription purchased successfully!\n\n` +
+              `👤 Username: <code>${clientNameInput}</code>\n` +
+              `💳 Price Deducted: ${isUserAdminOrOwner ? "0 (Admin Free 👑)" : selectedPlanToBuy.price.toLocaleString() + " Toman"}\n` +
+              `💰 New Balance: ${newBal.toLocaleString()} Toman\n\n` +
+              `🔑 <b>Your dedicated subscription link has been generated:</b>\n` +
+              `<code>${mockSub.subLink}</code>\n\n` +
+              `This client was added to all active panel inbounds. Import the link above or scan the QR code below.${deliveryNote}`;
+
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockSub.subLink)}`;
+
+          setIsTyping(true);
+          setTimeout(() => {
+            setIsTyping(false);
+            setMessages(prev => [
+              ...prev,
+              {
+                id: Math.random().toString(),
+                sender: "bot",
+                text: confirmMsg,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                keyboard: getKeyboard(),
+                imageUrl: qrUrl
+              }
+            ]);
+          }, 1000);
+        } else {
+          setSelectedPlanToBuy(null);
+          setPurchaseStep("idle");
+          const errMsg = lang === "fa" ? "پرداخت ناموفق بود: " + data.error : "Checkout failed: " + data.error;
+          addBotReply(errMsg, 500, getKeyboard());
+        }
+      })
+      .catch(err => {
+        setSelectedPlanToBuy(null);
+        setPurchaseStep("idle");
+        addBotReply(
+          lang === "fa" ? "خطایی در برقراری ارتباط با سرور رخ داد." : "Database connection lost during payment.",
+          500,
+          getKeyboard()
+        );
+      });
       return;
     }
 
@@ -251,6 +353,7 @@ export default function BotSimulator({
       const matchedPlan = plans.find(p => p.id === planId);
       if (matchedPlan) {
         setSelectedPlanToBuy(matchedPlan);
+        setPurchaseStep("confirm_plan");
         const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
         const hasEnough = isUserAdminOrOwner || (currentUser.walletBalance >= matchedPlan.price);
         
@@ -285,82 +388,26 @@ export default function BotSimulator({
 
   const handleKeyboardClick = (text: string) => {
     // If we are confirming checkout
-    if ((text === "✅ بله، خرید نهایی شود" || text === "Yes, complete buy" || text === "✅ بله، خرید نهایی شود") && selectedPlanToBuy) {
+    if ((text === "✅ بله، خرید نهایی شود" || text === "Yes, complete buy") && selectedPlanToBuy && purchaseStep === "confirm_plan") {
+      setPurchaseStep("ask_client_name");
       const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
-      if (!isUserAdminOrOwner && currentUser.walletBalance < selectedPlanToBuy.price) {
-        setSelectedPlanToBuy(null);
-        addBotReply(
-          lang === "fa" 
-            ? "متأسفانه خطایی در پرداخت رخ داد. موجودی کیف پول شما کافی نیست." 
-            : "Sorry, checkout error occurred. Insufficient wallet balance.", 
-          500, 
-          [
-            [t.btnBuyPlan, t.btnMyAccount],
-            [t.btnTopUp, t.btnSupport]
-          ]
-        );
-        return;
-      }
+      const paymentMsg = lang === "fa"
+        ? `✍️ <b>لطفاً یک نام دلخواه (بدون فاصله، انگلیسی) برای کانفیگ خود بفرستید:</b>\n\n` +
+          `• طرح انتخابی: <code>${selectedPlanToBuy.name}</code>\n` +
+          `• هزینه طرح: ${isUserAdminOrOwner ? "پیش‌نمایش مدیریت (رایگان 👑)" : selectedPlanToBuy.price.toLocaleString() + " تومان"}\n\n` +
+          `⚠️ قوانین نام‌گذاری:\n` +
+          `۱. فقط از حروف و اعداد انگلیسی استفاده نمایید (مثال: <code>aria_vpn</code>)\n` +
+          `۲. از فاصله (space)، علامت یا حروف فارسی استفاده نکنید.`
+        : `✍️ <b>Please send a preferred username (no space, English only) for your configuration:</b>\n\n` +
+          `• Selected Plan: <code>${selectedPlanToBuy.name}</code>\n` +
+          `• Plan Cost: ${isUserAdminOrOwner ? "FREE for Admin 👑" : selectedPlanToBuy.price.toLocaleString() + " Toman"}\n\n` +
+          `⚠️ Rules:\n` +
+          `1. Use English letters & numbers (eg: <code>aria_vpn</code>)\n` +
+          `2. Do not use space or special signs.`;
 
-      // Call server backend to securely pop stock item, charge wallet and create sub key
-      fetch("/api/vpn-plans/buy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planId: selectedPlanToBuy.id,
-          userId: currentUser.userId
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          // Synchronize states
-          if (data.vpnPlans) setVpnPlans(data.vpnPlans);
-          if (data.subscriptionKeys) setKeys(data.subscriptionKeys);
-          if (data.users) setUsers(data.users);
-          
-          const newBal = data.userWalletBalance;
-          const mockSub = data.subKey;
-          setSelectedPlanToBuy(null);
-
-          // Add Bot message
-          const deliveryNote = settings?.purchaseSuccessNote ? `\n\n${settings.purchaseSuccessNote}` : "";
-          const confirmMsg = lang === "fa"
-            ? isUserAdminOrOwner
-              ? `🎉 کانفیگ شما با موفقیت فعال شد (ویژه مدیریت - رایگان)!\n\n💳 هزینه کسر شده: ۰ تومان (رایگان) 👑\n💰 موجودی کیف پول: بدون تغییر (${newBal.toLocaleString()} تومان)\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.${deliveryNote}`
-              : `🎉 خرید شما با موفقیت انجام شد!\n\n💳 هزینه کسر شده: ${selectedPlanToBuy.price.toLocaleString()} تومان\n💰 موجودی جدید باقیمانده: ${newBal.toLocaleString()} تومان\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.${deliveryNote}`
-            : isUserAdminOrOwner
-              ? `🎉 VPN subscription activated successfully (Admin Free Access)!\n\n💳 Price Deducted: 0 Toman (Free) 👑\n💰 Wallet Balance: Unchanged (${newBal.toLocaleString()} Toman)\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.${deliveryNote}`
-              : `🎉 VPN subscription purchased successfully!\n\n💳 Price Deducted: ${selectedPlanToBuy.price.toLocaleString()} Toman\n💰 New Remaining Balance: ${newBal.toLocaleString()} Toman\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.${deliveryNote}`;
-          
-          addBotReply(confirmMsg, 1000, [
-            [t.btnBuyPlan, t.btnMyAccount],
-            [t.btnTopUp, t.btnSupport]
-          ]);
-        } else {
-          setSelectedPlanToBuy(null);
-          const errMsg = data.error === "out_of_stock" 
-            ? (lang === "fa" ? "⚠️ موجودی انبار آماده این بسته تمام شده است!" : "⚠️ Pre-built config stock depleted for this plan!")
-            : (lang === "fa" ? "پرداخت ناموفق بود: " + data.error : "Checkout failed: " + data.error);
-          
-          addBotReply(errMsg, 500, [
-            [t.btnBuyPlan, t.btnMyAccount],
-            [t.btnTopUp, t.btnSupport]
-          ]);
-        }
-      })
-      .catch(err => {
-        // Fallback for standalone mock
-        setSelectedPlanToBuy(null);
-        addBotReply(
-          lang === "fa" ? "خطایی در برقراری ارتباط با سرور رخ داد." : "Database connection lost during payment.",
-          500,
-          [
-            [t.btnBuyPlan, t.btnMyAccount],
-            [t.btnTopUp, t.btnSupport]
-          ]
-        );
-      });
+      addBotReply(paymentMsg, 500, [
+        [lang === "fa" ? "❌ انصراف و برگشت" : "Cancel and Back"]
+      ]);
       return;
     }
 
@@ -519,7 +566,54 @@ export default function BotSimulator({
                       ? "bg-indigo-600 text-white rounded-tr-xs" 
                       : "bg-[#111827] text-gray-200 border border-[#1f2937] rounded-tl-xs whitespace-pre-wrap font-sans"
                   }`}>
-                    {m.text}
+                    <div className="break-words">
+                      {m.sender === "bot" ? (
+                        (() => {
+                          const parts = m.text.split(/(\n|<\/?b>|<\/?code>)/g);
+                          let isBold = false;
+                          let isCode = false;
+                          return parts.map((part, i) => {
+                            if (part === "<b>") { isBold = true; return null; }
+                            if (part === "</b>") { isBold = false; return null; }
+                            if (part === "<code>") { isCode = true; return null; }
+                            if (part === "</code>") { isCode = false; return null; }
+                            if (part === "\n") return <br key={i} />;
+                            if (isCode) {
+                              return (
+                                <code 
+                                  key={i} 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(part);
+                                  }}
+                                  className="bg-slate-900/95 text-pink-400 px-1.5 py-0.5 rounded font-mono text-[10px] break-all border border-slate-800 select-all hover:bg-slate-805 cursor-pointer block mt-1 mb-1 shadow-inner text-center"
+                                  title="Copy code"
+                                >
+                                  {part}
+                                </code>
+                              );
+                            }
+                            if (isBold) return <strong key={i} className="font-extrabold text-[#f3f4f6]">{part}</strong>;
+                            return part;
+                          });
+                        })()
+                      ) : (
+                        m.text
+                      )}
+                    </div>
+
+                    {m.imageUrl && (
+                      <div className="mt-3 flex flex-col items-center bg-white p-2 rounded-xl border border-[#374151]/40 shadow-md">
+                        <img 
+                          src={m.imageUrl} 
+                          alt="QR Code" 
+                          referrerPolicy="no-referrer"
+                          className="w-40 h-40 object-contain" 
+                        />
+                        <span className="text-[9px] text-slate-500 font-sans mt-1">
+                          {lang === "fa" ? "📷 برای اتصال اسکن نمایید" : "📷 Scan to connect"}
+                        </span>
+                      </div>
+                    )}
                     
                     <span className={`block text-[8px] text-right mt-1.5 ${m.sender === "user" ? "text-indigo-200" : "text-gray-500"} font-mono`}>
                       {m.timestamp}
