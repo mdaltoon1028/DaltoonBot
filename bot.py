@@ -104,7 +104,13 @@ def get_config():
         "XUI_USER": os.getenv("XUI_USER", "Daltoon"),
         "XUI_PASS": os.getenv("XUI_PASS", "Daltoon10"),
         "CARD_NUMBER": os.getenv("CARD_NUMBER", "6037701194079627"),
-        "CARD_HOLDER": os.getenv("CARD_HOLDER", "Daltoon")
+        "CARD_HOLDER": os.getenv("CARD_HOLDER", "Daltoon"),
+        "WELCOME_TEXT": None,
+        "SUPPORT_TEXT": None,
+        "HIDE_SUPPORT": False,
+        "HIDE_BUY": False,
+        "HIDE_PROFILE": False,
+        "HIDE_WALLET": False
     }
     try:
         db = read_db_json()
@@ -127,6 +133,18 @@ def get_config():
                 config["CARD_NUMBER"] = panel_cfg["cardNumber"]
             if panel_cfg.get("cardHolder"):
                 config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+            if "welcomeText" in panel_cfg:
+                config["WELCOME_TEXT"] = panel_cfg["welcomeText"]
+            if "supportText" in panel_cfg:
+                config["SUPPORT_TEXT"] = panel_cfg["supportText"]
+            if "hideSupport" in panel_cfg:
+                config["HIDE_SUPPORT"] = bool(panel_cfg["hideSupport"])
+            if "hideBuy" in panel_cfg:
+                config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
+            if "hideProfile" in panel_cfg:
+                config["HIDE_PROFILE"] = bool(panel_cfg["hideProfile"])
+            if "hideWallet" in panel_cfg:
+                config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
@@ -267,16 +285,27 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
     write_db_json(db)
 
 def get_custom_keyboard():
-    """ Load dynamic and static custom buttons """
+    """ Load dynamic and static custom buttons with visibility toggles """
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    cfg = get_config()
     
-    btn_buy = types.KeyboardButton("🛍️ خرید کانفیگ (Our Plans)")
-    btn_acc = types.KeyboardButton("👤 اطلاعات حساب (My Profile)")
-    btn_charge = types.KeyboardButton("💳 شارژ کیف پول (Top-up Wallet)")
-    btn_support = types.KeyboardButton("📞 پشتیبانی فنی (Support)")
+    hide_buy = cfg.get("HIDE_BUY", False)
+    hide_profile = cfg.get("HIDE_PROFILE", False)
+    hide_wallet = cfg.get("HIDE_WALLET", False)
+    hide_support = cfg.get("HIDE_SUPPORT", False)
+
+    main_buttons = []
+    if not hide_buy:
+        main_buttons.append(types.KeyboardButton("🛍️ خرید کانفیگ (Our Plans)"))
+    if not hide_profile:
+        main_buttons.append(types.KeyboardButton("👤 اطلاعات حساب (My Profile)"))
+    if not hide_wallet:
+        main_buttons.append(types.KeyboardButton("💳 شارژ کیف پول (Top-up Wallet)"))
+    if not hide_support:
+        main_buttons.append(types.KeyboardButton("📞 پشتیبانی فنی (Support)"))
     
-    markup.row(btn_buy, btn_acc)
-    markup.row(btn_charge, btn_support)
+    for i in range(0, len(main_buttons), 2):
+        markup.row(*main_buttons[i:i+2])
 
     try:
         db = read_db_json()
@@ -307,14 +336,21 @@ def start_cmd(message):
         bot.reply_to(message, "❌ حساب کاربری شما به علت تخلف غیرفعال شده است. جهت اتصال به پشتیبانی پیام دهید.")
         return
 
-    welcome_text = (
-        f"<b>🚀 به ربات پرسرعت Daltoon Servers خوش آمدید!</b>\n\n"
-        f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
-        f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
-        f"💰 موجودی کیف پول: <code>{int(user['walletBalance'] or 0):,}</code> تومان\n\n"
-        f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
-    )
-    bot.send_message(message.chat.id, welcome_text, reply_markup=get_custom_keyboard())
+    cfg = get_config()
+    custom_welcome = cfg.get("WELCOME_TEXT")
+    
+    if custom_welcome:
+        formatted_balance = f"{int(user['walletBalance'] or 0):,}"
+        welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance)
+    else:
+        welcome_text = (
+            f"<b>🚀 به ربات پرسرعت Daltoon Servers خوش آمدید!</b>\n\n"
+            f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
+            f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
+            f"💰 موجودی کیف پول: <code>{int(user['walletBalance'] or 0):,}</code> تومان\n\n"
+            f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
+        )
+    bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
 
 @bot.message_handler(func=lambda msg: True)
 def text_messages_handler(message):
@@ -333,7 +369,7 @@ def text_messages_handler(message):
         db = read_db_json()
         match_btn = next((b for b in db.get("custom_buttons", []) if b["text"] == text), None)
         if match_btn:
-            bot.send_message(message.chat.id, match_btn["replyText"])
+            bot.send_message(message.chat.id, match_btn["replyText"], parse_mode="HTML")
             return
     except Exception as e:
         print("Error serving custom content:", e)
@@ -354,6 +390,7 @@ def text_messages_handler(message):
         bot.send_message(
             message.chat.id, 
             "🛍️ <b>پلان‌های فعال سرعت اختصاصی دالتون:</b>\n\nلطفا یکی از کانفیگ‌های زیر را برای خرید مستقیم انتخاب کنید. مبلغ به صورت خودکار از کیف پول تلگرام کسر می‌شود:",
+            parse_mode="HTML",
             reply_markup=markup
         )
 
@@ -370,14 +407,18 @@ def text_messages_handler(message):
         else:
             config_lines = "\n\n❌ شما تا کنون هیچ سرویس اشتراکی از دالتون خریداری نکرده‌اید."
 
+         # Check if walletBalance is missing (which default templates might have as floats or int)
+        bal = user.get("walletBalance", 0)
+        formatted_bal = f"{int(bal):,}" if bal is not None else "0"
+
         profile_text = (
             f"👤 <b>اطلاعات حساب دالتون سرور:</b>\n\n"
             f"🆔 شناسه عددی کاربری: <code>{tg_id}</code>\n"
             f"🏷️ آیدی تلگرام: @{user['username']}\n"
-            f"💰 موجودی اعتباری کیف پول: <b>{int(user['walletBalance']):,} تومان</b>"
+            f"💰 موجودی اعتباری کیف پول: <b>{formatted_bal} تومان</b>"
             f"{config_lines}"
         )
-        bot.send_message(message.chat.id, profile_text)
+        bot.send_message(message.chat.id, profile_text, parse_mode="HTML")
 
     # 3. Charger Wallet instructions
     elif "شارژ" in text or "Wallet" in text or "💳" in text:
@@ -393,18 +434,23 @@ def text_messages_handler(message):
         )
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("📸 ارسال رسید تصویری مدیریت", callback_data="upload_receipt"))
-        bot.send_message(message.chat.id, instructions, reply_markup=markup)
+        bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
 
     # 4. Support chat
     elif "پشتیبانی" in text or "Support" in text or "📞" in text:
-        support_txt = (
-            "📞 <b>پشتیبانی فنی دالتون سرور:</b>\n\n"
-            "مشتری گرامی! در صورت بروز هرگونه قطعی، کندی سرعت، ارورهای اتصال یا سوالات قبل از خرید با ما تماس بگیرید.\n\n"
-            "👤 اکانت ناظر فنی: @daltoon_owner\n"
-            "📢 کانال اطلاع‌رسانی پایداری شبکه: @daltoon_channel\n\n"
-            "پاسخگویی سریع فعال است: ۱۰ صبح الی ۳ شب"
-        )
-        bot.send_message(message.chat.id, support_txt)
+        cfg = get_config()
+        custom_support = cfg.get("SUPPORT_TEXT")
+        if custom_support:
+            support_txt = custom_support
+        else:
+            support_txt = (
+                "📞 <b>پشتیبانی فنی دالتون سرور:</b>\n\n"
+                "مشتری گرامی! در صورت بروز هرگونه قطعی، کندی سرعت، ارورهای اتصال یا سوالات قبل از خرید با ما تماس بگیرید.\n\n"
+                "👤 اکانت ناظر فنی: @daltoon_owner\n"
+                "📢 کانال اطلاع‌رسانی پایداری شبکه: @daltoon_channel\n\n"
+                "پاسخگویی سریع فعال است: ۱۰ صبح الی ۳ شب"
+            )
+        bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
         
     else:
         bot.reply_to(message, "گزینه ارسال شده معتبر نیست. لطفا از دکمه‌های کیبورد تپ کنید. 👇", reply_markup=get_custom_keyboard())

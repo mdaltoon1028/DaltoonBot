@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PanelSettings } from "../types";
+import { PanelSettings, CustomButton, VpnPlan } from "../types";
 import { Language, translations } from "../locales";
 import { 
   Settings, 
@@ -10,19 +10,29 @@ import {
   Save, 
   Check, 
   FileText, 
-  Cpu 
+  Cpu,
+  PlusCircle,
+  Plus,
+  Trash2,
+  Edit,
+  Sparkles,
+  Command
 } from "lucide-react";
 
 interface SettingsPanelProps {
   settings: PanelSettings;
   onSaveSettings: (settings: PanelSettings) => void;
   lang: Language;
+  customButtons: CustomButton[];
+  setCustomButtons: React.Dispatch<React.SetStateAction<CustomButton[]>>;
 }
 
 export default function SettingsPanel({
   settings,
   onSaveSettings,
-  lang
+  lang,
+  customButtons,
+  setCustomButtons
 }: SettingsPanelProps) {
   const t = translations[lang];
   // Form state
@@ -32,11 +42,131 @@ export default function SettingsPanel({
   const [panelUsername, setPanelUsername] = useState(settings.panelUsername);
   const [panelPassword, setPanelPassword] = useState(settings.panelPassword);
   const [ownerId, setOwnerId] = useState(settings.ownerId.toString());
-  const [cardNumber, setCardNumber] = useState("6037-9918-2831-8848");
-  const [bankName, setBankName] = useState(lang === "fa" ? "بانک ملی ایران" : "Melli Bank");
-  const [bankOwner, setBankOwner] = useState(lang === "fa" ? "شرکت فنی مهندسی دالتون" : "Daltoon Servers Ltd.");
+  
+  // Dashboard credentials, Port, and Admins management
+  const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
+  const [dashboardPassword, setDashboardPassword] = useState(settings.dashboardPassword || "Daltoon10");
+  const [serverPort, setServerPort] = useState(settings.serverPort || 3000);
+  const [adminsList, setAdminsList] = useState<Array<{id: string, userId: number, username: string, role: "admin" | "super_admin", createdAt: string}>>(() => {
+    return settings.admins || [
+      { id: "adm-1", userId: 6536288293, username: "daltoon_owner", role: "super_admin", createdAt: "2026-06-15" }
+    ];
+  });
+  const [newAdminUser, setNewAdminUser] = useState("");
+  const [newAdminId, setNewAdminId] = useState("");
+  const [newAdminRole, setNewAdminRole] = useState<"admin" | "super_admin">("admin");
+
+  const handleAddAdmin = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!newAdminUser.trim() || !newAdminId.trim()) return;
+
+    const added: typeof adminsList[0] = {
+      id: "adm-" + Date.now(),
+      userId: Number(newAdminId) || 0,
+      username: newAdminUser.replace("@", "").trim(),
+      role: newAdminRole,
+      createdAt: new Date().toISOString().split("T")[0]
+    };
+
+    setAdminsList(prev => [...prev, added]);
+    setNewAdminUser("");
+    setNewAdminId("");
+  };
+
+  const handleRemoveAdmin = (id: string) => {
+    setAdminsList(prev => prev.filter(adm => adm.id !== id));
+  };
+
+  // Custom Bot Configurable fields
+  const [cardNumber, setCardNumber] = useState(settings.cardNumber || "6037701194079627");
+  const [bankName, setBankName] = useState(settings.bankName || (lang === "fa" ? "بانک ملی ایران" : "Melli Bank"));
+  const [bankOwner, setBankOwner] = useState(settings.cardHolder || (lang === "fa" ? "فروشگاه دالتون استور" : "Daltoon Store"));
+
+  const [welcomeText, setWelcomeText] = useState(settings.welcomeText || `<b>🛍️ به فروشگاه دالتون استور (Daltoon Store) خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`);
+  
+  const [supportText, setSupportText] = useState(settings.supportText || `📞 <b>پشتیبانی دالتون استور (Daltoon Store):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @daltoon_support\n📢 کانال تلگرام دالتون استور: @daltoon_store\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`);
+
+  const [hideSupport, setHideSupport] = useState(!!settings.hideSupport);
+  const [hideBuy, setHideBuy] = useState(!!settings.hideBuy);
+  const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
+  const [hideWallet, setHideWallet] = useState(!!settings.hideWallet);
   
   const [saved, setSaved] = useState(false);
+
+  // States for adding custom buttons inside settings
+  const [btnText, setBtnText] = useState("");
+  const [btnReplyText, setBtnReplyText] = useState("");
+  const [buttonError, setButtonError] = useState("");
+  const [buttonSuccess, setButtonSuccess] = useState(false);
+  const [editingButtonId, setEditingButtonId] = useState<string | null>(null);
+
+
+  const handleAddButton = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setButtonError("");
+    setButtonSuccess(false);
+
+    if (!btnText.trim()) {
+      setButtonError(lang === "fa" ? "عنوان دکمه نمی‌تواند خالی باشد." : "Button text cannot be empty.");
+      return;
+    }
+    if (!btnReplyText.trim()) {
+      setButtonError(lang === "fa" ? "پاسخ ربات نمی‌تواند خالی باشد." : "Bot reply response text cannot be empty.");
+      return;
+    }
+
+    // Check duplicates but exclude current editing button
+    if (customButtons.some(b => b.text === btnText.trim() && b.id !== editingButtonId)) {
+      setButtonError(lang === "fa" ? "این دکمه قبلاً ایجاد شده است." : "A button with this exact label already exists.");
+      return;
+    }
+
+    const buttonIdToUse = editingButtonId || Math.random().toString(36).substring(2, 9);
+    const targetBtn: CustomButton = {
+      id: buttonIdToUse,
+      text: btnText.trim(),
+      replyText: btnReplyText.trim()
+    };
+
+    try {
+      const response = await fetch("/api/custom-buttons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(targetBtn)
+      });
+      if (response.ok) {
+        if (editingButtonId) {
+          setCustomButtons(prev => prev.map(b => b.id === editingButtonId ? targetBtn : b));
+          setEditingButtonId(null);
+        } else {
+          setCustomButtons(prev => [...prev, targetBtn]);
+        }
+        setBtnText("");
+        setBtnReplyText("");
+        setButtonSuccess(true);
+        setTimeout(() => setButtonSuccess(false), 3000);
+      } else {
+        setButtonError(lang === "fa" ? "خطا در برقراری ارتباط با دیتابیس." : "Failed to sync with the database.");
+      }
+    } catch (err) {
+      setButtonError(lang === "fa" ? "خطا در برقراری ارتباط با سرور." : "Network connection failed.");
+    }
+  };
+
+  const handleDeleteButton = async (id: string) => {
+    try {
+      const response = await fetch("/api/custom-buttons/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (response.ok) {
+        setCustomButtons(prev => prev.filter(b => b.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete button:", err);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +177,20 @@ export default function SettingsPanel({
       panelUsername,
       panelPassword,
       activeInboundIds: settings.activeInboundIds,
-      ownerId: parseInt(ownerId) || settings.ownerId
+      ownerId: parseInt(ownerId) || settings.ownerId,
+      cardNumber,
+      cardHolder: bankOwner,
+      bankName,
+      welcomeText,
+      supportText,
+      hideSupport,
+      hideBuy,
+      hideProfile,
+      hideWallet,
+      dashboardUsername,
+      dashboardPassword,
+      serverPort: Number(serverPort) || 3000,
+      admins: adminsList
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -154,6 +297,164 @@ export default function SettingsPanel({
           </div>
         </div>
 
+        {/* Dashboard Security and Admin Management */}
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
+          <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
+            <Lock className="w-5 h-5 text-indigo-400" />
+            {lang === "fa" ? "امنیت داشبورد و کنترل ادمین‌ها" : "Dashboard Security & Admins Control"}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {lang === "fa" 
+              ? "نام کاربری، رمز عبور ورود، پورت اجرایی سرور و ادمین‌های مجاز بات دالتون را تنظیم نمایید:" 
+              : "Set dashboard login, server listening port, and registered Telegram bot/dashboard sub-admins:"}
+          </p>
+          
+          {/* Main Credentials & Port Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-gray-800 pb-5">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "نام کاربری ورود داشبورد" : "Dashboard Login User"}</label>
+              <input
+                type="text"
+                required
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={dashboardUsername}
+                onChange={(e) => setDashboardUsername(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "رمز عبور ورود داشبورد" : "Dashboard Login Pass"}</label>
+              <input
+                type="text"
+                required
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={dashboardPassword}
+                onChange={(e) => setDashboardPassword(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "پورت سرور لینوکس" : "Linux Server Port"}
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                required
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={serverPort}
+                onChange={(e) => setServerPort(Number(e.target.value))}
+              />
+              <span className="text-[10px] text-gray-500 mt-1 block">
+                {lang === "fa" ? "تغییر پورت پس از راه‌اندازی مجدد سرور لینوکس اعمال می‌شود." : "Requires server binary restart to take effect."}
+              </span>
+            </div>
+          </div>
+
+          {/* Admin Management Section */}
+          <div className="space-y-4 pt-2">
+            <h4 className="text-sm font-semibold text-gray-300">
+              {lang === "fa" ? "👥 مدیریت ادمین‌های بات و دالتون استور" : "👥 Manage Bot & Dashboard Admins"}
+            </h4>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* Add form */}
+              <div className="lg:col-span-5 bg-[#0b101d] border border-gray-800/60 p-4 rounded-xl space-y-3.5">
+                <span className="text-xs font-bold text-gray-400 flex items-center gap-1.5 uppercase tracking-wider">
+                  {lang === "fa" ? "👤 ثبت ادمین جدید" : "👤 Register New Admin"}
+                </span>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "نام کاربری ادمین (بدون @)" : "Admin Username (No @)"}</label>
+                    <input
+                      type="text"
+                      className="w-full bg-[#13192e] border border-slate-800 rounded-lg p-2 text-xs text-white"
+                      placeholder="e.g. daltoon_admin"
+                      value={newAdminUser}
+                      onChange={(e) => setNewAdminUser(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "شناسه عددی تلگرام ادمین" : "Telegram User ID"}</label>
+                    <input
+                      type="text"
+                      className="w-full bg-[#13192e] border border-slate-800 rounded-lg p-2 text-xs text-white font-mono"
+                      placeholder="e.g. 504192821"
+                      value={newAdminId}
+                      onChange={(e) => setNewAdminId(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "سطح دسترسی" : "Admin Privilege Role"}</label>
+                    <select
+                      className="w-full bg-[#13192e] border border-slate-800 rounded-lg p-2 text-xs text-white outline-none cursor-pointer"
+                      value={newAdminRole}
+                      onChange={(e) => setNewAdminRole(e.target.value as "admin" | "super_admin")}
+                    >
+                      <option value="admin">{lang === "fa" ? "ادمین معمولی" : "General Admin"}</option>
+                      <option value="super_admin">{lang === "fa" ? "سوپر ادمین" : "Super Admin"}</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddAdmin}
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    {lang === "fa" ? "افزودن به لیست ادمین‌ها" : "Add to Admins List"}
+                  </button>
+                </div>
+              </div>
+
+              {/* List table */}
+              <div className="lg:col-span-7 bg-[#0b101d] border border-gray-800/60 p-4 rounded-xl flex flex-col justify-between max-h-[290px] overflow-y-auto">
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-gray-400 flex justify-between items-center uppercase tracking-wider">
+                    <span>{lang === "fa" ? "لیست ادمین‌های فعال" : "Registered Admins List"}</span>
+                    <span className="bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-mono">{adminsList.length}</span>
+                  </span>
+
+                  <div className="space-y-2 mt-2 max-h-[190px] overflow-y-auto no-scrollbar pr-1">
+                    {adminsList.map((adm) => (
+                      <div key={adm.id} className="bg-[#111827] border border-gray-800/80 p-2.5 rounded-lg flex items-center justify-between gap-3 shadow-xs">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white flex items-center gap-1">
+                            <span>@{adm.username}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase ${
+                              adm.role === "super_admin" 
+                                ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" 
+                                : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/25"
+                            }`}>
+                              {adm.role}
+                            </span>
+                          </p>
+                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">ID: {adm.userId} • {adm.createdAt}</p>
+                        </div>
+
+                        {adminsList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAdmin(adm.id)}
+                            className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer shrink-0"
+                            title="Remove Admin"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Card instruction parameters */}
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
           <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
@@ -191,6 +492,261 @@ export default function SettingsPanel({
                 value={bankOwner}
                 onChange={(e) => setBankOwner(e.target.value)}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Telegram Bot Message & Layout Customization */}
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
+          <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
+            <Settings className="w-5 h-5 text-indigo-400" />
+            {lang === "fa" ? "سفارشی‌سازی متن‌ها و دکمه‌های ربات تلگرام" : "Telegram Bot Message & Button Customization"}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {lang === "fa" 
+              ? "بدون نیاز به ویرایش فایل‌های پایتون در سرور لینوکس، متن‌های اصلی و دکمه‌های فعال ربات را سفارشی کنید." 
+              : "Customize primary bot responses and visibility of buttons without editing Python files directly."}
+          </p>
+
+          <div className="space-y-4 pt-2">
+            {/* Welcome text */}
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "متن خوش‌آمدگویی استارت ربات (/start)" : "Welcome Message Text (/start)"}
+              </label>
+              <textarea
+                rows={4}
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-yellow-100 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={welcomeText}
+                onChange={(e) => setWelcomeText(e.target.value)}
+              />
+              <span className="text-[10px] text-gray-500 mt-1 block">
+                {lang === "fa" 
+                  ? "نکته: می‌توانید از کدهای {tg_id} برای نمایش آیدی کاربری و {wallet_balance} برای نمایش مانده اعتبار استفاده کنید. قالب‌بندی HTML مجاز است."
+                  : "Tip: Use {tg_id} for user's ID and {wallet_balance} for wallet credit. HTML tags are supported."}
+              </span>
+            </div>
+
+            {/* Support text */}
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "متن دکمه پشتیبانی فنی" : "Support Button Content"}
+              </label>
+              <textarea
+                rows={4}
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-200 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={supportText}
+                onChange={(e) => setSupportText(e.target.value)}
+              />
+              <span className="text-[10px] text-gray-500 mt-1 block">
+                {lang === "fa" ? "نکته: قالب‌بندی HTML مجاز است." : "Tip: HTML tags are supported."}
+              </span>
+            </div>
+
+            {/* Configuration button visibility parameters */}
+            <div className="border-t border-gray-800 pt-4 mt-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">
+                {lang === "fa" ? "مخفی کردن منوهای پیش‌فرض ربات (در صورت نیاز به حذف):" : "Hide Default Bot Buttons (to disable/replace):"}
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                    checked={hideBuy}
+                    onChange={(e) => setHideBuy(e.target.checked)}
+                  />
+                  <div>
+                    <span className="block text-sm font-medium text-white">🛍️ {lang === "fa" ? "مخفی کردن خرید کانفیگ" : "Hide Buy Config"}</span>
+                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه خرید پلن‌ها پنهان می‌شود" : "Hides the config sales list button"}</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                    checked={hideProfile}
+                    onChange={(e) => setHideProfile(e.target.checked)}
+                  />
+                  <div>
+                    <span className="block text-sm font-medium text-white">👤 {lang === "fa" ? "مخفی کردن اطلاعات حساب" : "Hide My Profile"}</span>
+                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه پروفایل کاربری پنهان می‌شود" : "Hides user stats and keys list button"}</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                    checked={hideWallet}
+                    onChange={(e) => setHideWallet(e.target.checked)}
+                  />
+                  <div>
+                    <span className="block text-sm font-medium text-white">💳 {lang === "fa" ? "مخفی کردن شارژ کیف پول" : "Hide Wallet Top-up"}</span>
+                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه شارژ کارت‌به‌کارت پنهان می‌شود" : "Hides top-up information button"}</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                    checked={hideSupport}
+                    onChange={(e) => setHideSupport(e.target.checked)}
+                  />
+                  <div>
+                    <span className="block text-sm font-medium text-white">📞 {lang === "fa" ? "مخفی کردن پشتیبانی فنی" : "Hide Support"}</span>
+                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه پیش‌فرض پشتیبانی پنهان می‌شود" : "Hides the default support message button"}</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Telegram Custom Buttons Creator Section */}
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
+          <div className="flex items-center gap-3 border-b border-gray-800 pb-3 mb-3">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <Command className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-display font-medium text-lg text-white">
+                {lang === "fa" ? "افزودن، ویرایش و حذف دکمه‌های سفارشی کیبورد ربات تلگرام" : "Add, Edit & Delete Custom reply Buttons"}
+              </h3>
+              <p className="text-xs text-gray-400">
+                {lang === "fa" 
+                  ? "با افزودن دکمه‌های سفارشی، کاربران می‌توانند با کلیک روی آنها پاسخ‌های خودکار تنظیم‌شده شما را دریافت کنند." 
+                  : "Add custom interactive keyboard reply buttons for the live bot."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            {/* Input Form */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1 font-semibold">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  {lang === "fa" ? "عنوان دکمه (مثال: 🎁 تست رایگان)" : "Button Display Label"}
+                </label>
+                <input
+                  type="text"
+                  placeholder={lang === "fa" ? "🎁 دریافت کانفیگ مهلت‌دار" : "e.g. 🎁 Get Free Config"}
+                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  value={btnText}
+                  onChange={(e) => setBtnText(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1.5 font-semibold">
+                  {lang === "fa" ? "متن پاسخ ربات (فرمت HTML مجاز است)" : "Auto Reply Text (HTML tags allowed)"}
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder={lang === "fa" ? "سلام! جهت دریافت سرویس تست دکمه فعال شد:\nvless://test-configs-daltoon..." : "Hello! Here is your quick configuration..."}
+                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none leading-relaxed font-sans"
+                  value={btnReplyText}
+                  onChange={(e) => setBtnReplyText(e.target.value)}
+                />
+              </div>
+
+              {buttonError && (
+                <p className="text-xs text-rose-400 flex items-center gap-1 font-semibold">
+                  <span className="h-1.5 w-1.5 bg-rose-500 rounded-full"></span>
+                  {buttonError}
+                </p>
+              )}
+
+              {buttonSuccess && (
+                <p className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
+                  <Check className="w-3.5 h-3.5 text-emerald-400" /> 
+                  {lang === "fa" ? "✅ تغییرات دکمه با موفقیت همگام شد!" : "✅ Button state synchronized!"}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleAddButton}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-lg transition text-xs shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  {editingButtonId ? (lang === "fa" ? "ذخیره تغییرات دکمه" : "Save Modified Button") : (lang === "fa" ? "ذخیره و افزودن دکمه جدید" : "Create & Add Button")}
+                </button>
+                {editingButtonId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingButtonId(null);
+                      setBtnText("");
+                      setBtnReplyText("");
+                    }}
+                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs cursor-pointer"
+                  >
+                    {lang === "fa" ? "انصراف" : "Cancel"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* List and Actions */}
+            <div className="bg-[#0b0f19] border border-gray-800 rounded-xl p-4 flex flex-col justify-between max-h-[340px] overflow-y-auto">
+              <div>
+                <h4 className="text-xs uppercase font-mono border-b border-gray-800 pb-2 mb-3 text-gray-400 font-semibold tracking-wider flex justify-between items-center">
+                  <span>{lang === "fa" ? "دکمه‌های سفارشی فعال شده:" : "Live Custom reply Buttons:"}</span>
+                  <span className="bg-[#1f2937] text-indigo-400 px-2 py-0.5 rounded text-[10px] font-mono">{customButtons.length}</span>
+                </h4>
+
+                {customButtons.length === 0 ? (
+                  <div className="py-12 text-center flex flex-col items-center justify-center">
+                    <p className="text-xs text-gray-400 font-medium">
+                      {lang === "fa" ? "هیچ دکمه‌ی سفارشی ثبت نشده است." : "No custom buttons created yet."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[240px] overflow-y-auto no-scrollbar pr-1">
+                    {customButtons.map((btn) => (
+                      <div key={btn.id} className="bg-[#111827] border border-gray-800/80 p-2.5 rounded-lg flex items-start justify-between gap-3 shadow-sm hover:border-gray-700 transition">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 truncate max-w-full">
+                            {btn.text}
+                          </span>
+                          <p className="text-[10px] text-gray-400 leading-normal font-sans line-clamp-2 truncate">
+                            {btn.replyText}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingButtonId(btn.id);
+                              setBtnText(btn.text);
+                              setBtnReplyText(btn.replyText);
+                            }}
+                            className="text-indigo-400 hover:text-white hover:bg-indigo-500/15 p-1 rounded transition cursor-pointer"
+                            title="Edit button"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteButton(btn.id)}
+                            className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer"
+                            title="Remove button"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

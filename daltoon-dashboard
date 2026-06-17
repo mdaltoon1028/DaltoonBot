@@ -1,0 +1,202 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+
+const dbJsonPath = path.resolve(__dirname, "bot_database.json");
+
+function clearScreen() {
+  process.stdout.write('\x1Bc');
+}
+
+function printHeader() {
+  console.log("\x1b[36m====================================================\x1b[0m");
+  console.log("\x1b[1m\x1b[35m        🛠️  DALTOON STORE CLI CONFIGURATION PANEL     \x1b[0m");
+  console.log("\x1b[36m====================================================\x1b[0m");
+}
+
+function readDb() {
+  try {
+    if (fs.existsSync(dbJsonPath)) {
+      return JSON.parse(fs.readFileSync(dbJsonPath, 'utf8'));
+    }
+  } catch (e) {
+    // Return empty fallback
+  }
+  return { settings: {} };
+}
+
+function writeDb(db) {
+  try {
+    fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.log("\x1b[31mError saving database file:\x1b[0m", e.message);
+    return false;
+  }
+}
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+function ask(query) {
+  return new Promise((resolve) => {
+    rl.question(query, (ans) => {
+      resolve(ans);
+    });
+  });
+}
+
+async function mainMenu() {
+  while (true) {
+    clearScreen();
+    printHeader();
+    const db = readDb();
+    const config = db.settings && db.settings.panel_config ? JSON.parse(db.settings.panel_config) : {};
+    
+    const port = config.serverPort || 3000;
+    const user = config.dashboardUsername || "Daltoon";
+    const pass = config.dashboardPassword || "Daltoon10";
+    const admins = config.admins || [];
+    
+    console.log(`\x1b[33m[1]\x1b[0m 📝 View Current Config (نمایش تنظیمات فعلی)`);
+    console.log(`\x1b[33m[2]\x1b[0m 🔌 Change Port (تغییر پورت سرور) [Current: \x1b[32m${port}\x1b[0m]`);
+    console.log(`\x1b[33m[3]\x1b[0m 🔑 Change Dashboard Credentials (تغییر نام کاربری و رمز عبور داشبورد)`);
+    console.log(`\x1b[33m[4]\x1b[0m 👥 Add System/Bot Admin (افزودن ادمین جدید)`);
+    console.log(`\x1b[33m[5]\x1b[0m ❌ Remove Admin (حذف ادمین)`);
+    console.log(`\x1b[33m[6]\x1b[0m 🚪 Save & Exit (ذخیره و خروج)`);
+    console.log("\x1b[36m====================================================\x1b[0m");
+    
+    const choice = await ask("\x1b[1mSelect option [1-6]: \x1b[0m");
+    
+    if (choice === '1') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[32m=== CURRENT CONFIGURATION ===\x1b[0m");
+      console.log(`• Server Port:          \x1b[35m${port}\x1b[0m`);
+      console.log(`• Dashboard Username:   \x1b[35m${user}\x1b[0m`);
+      console.log(`• Dashboard Password:   \x1b[35m${pass}\x1b[0m`);
+      console.log(`• Telegram Bot Token:   \x1b[35m${config.botToken ? config.botToken.substring(0, 15) + "..." : "Not Set"}\x1b[0m`);
+      console.log(`• Active Inbounds:      \x1b[35m${config.activeInboundIds ? config.activeInboundIds.join(", ") : "None"}\x1b[0m`);
+      console.log(`• Admins Registered (\x1b[33m${admins.length}\x1b[0m):`);
+      admins.forEach((adm, i) => {
+        console.log(`  [${i+1}] @${adm.username} (ID: ${adm.userId}) [Role: ${adm.role}]`);
+      });
+      console.log("\x1b[36m=============================\x1b[0m");
+      await ask("\nPress ENTER to return to main menu...");
+    } 
+    else if (choice === '2') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[33m=== CHANGE SERVER PORT ===\x1b[0m");
+      console.log(`Current server port is: \x1b[35m${port}\x1b[0m`);
+      const newPortStr = await ask("Enter new server port (e.g. 5000): ");
+      const newPort = parseInt(newPortStr, 10);
+      if (newPort > 0 && newPort < 65536) {
+        config.serverPort = newPort;
+        db.settings.panel_config = JSON.stringify(config);
+        if (writeDb(db)) {
+          console.log(`\n\x1b[32m✔ Server Port successfully changed to ${newPort}!\x1b[0m`);
+          console.log(`Please restart the server to bind to this new port.`);
+        }
+      } else {
+        console.log("\n\x1b[31mInvalid port number!\x1b[0m Port must be between 1 and 65535.");
+      }
+      await ask("\nPress ENTER to return to main menu...");
+    }
+    else if (choice === '3') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[33m=== CHANGE DASHBOARD CREDENTIALS ===\x1b[0m");
+      console.log(`Current Username: \x1b[35m${user}\x1b[0m`);
+      console.log(`Current Password: \x1b[35m${pass}\x1b[0m`);
+      const newUsername = await ask("Enter new Username (Leave empty to keep current): ");
+      const newPassword = await ask("Enter new Password (Leave empty to keep current): ");
+      
+      let updated = false;
+      if (newUsername.trim()) {
+        config.dashboardUsername = newUsername.trim();
+        updated = true;
+      }
+      if (newPassword.trim()) {
+        config.dashboardPassword = newPassword.trim();
+        updated = true;
+      }
+      
+      if (updated) {
+        db.settings.panel_config = JSON.stringify(config);
+        if (writeDb(db)) {
+          console.log(`\n\x1b[32m✔ Dashboard credentials successfully updated!\x1b[0m`);
+        }
+      } else {
+        console.log("\nNo changes made.");
+      }
+      await ask("\nPress ENTER to return to main menu...");
+    }
+    else if (choice === '4') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[33m=== ADD SYSTEM/BOT ADMIN ===\x1b[0m");
+      const usernameInput = await ask("Enter Telegram Username (e.g. madi_admin) (without @): ");
+      const userIdInput = await ask("Enter Telegram User ID (numeric): ");
+      const roleChoice = await ask("Choose Role ([1] admin [2] super_admin) default: admin: ");
+      
+      if (usernameInput.trim() && userIdInput.trim()) {
+        const adminId = "adm-" + Date.now();
+        const role = roleChoice === '2' ? 'super_admin' : 'admin';
+        const newAdmin = {
+          id: adminId,
+          userId: Number(userIdInput),
+          username: usernameInput.replace('@', '').trim(),
+          role: role,
+          createdAt: new Date().toISOString().split('T')[0]
+        };
+        
+        if (!config.admins) config.admins = [];
+        config.admins.push(newAdmin);
+        db.settings.panel_config = JSON.stringify(config);
+        
+        if (writeDb(db)) {
+          console.log(`\n\x1b[32m✔ Admin @${newAdmin.username} added successfully!\x1b[0m`);
+        }
+      } else {
+        console.log("\n\x1b[31mError: Username and User ID are required!\x1b[0m");
+      }
+      await ask("\nPress ENTER to return to main menu...");
+    }
+    else if (choice === '5') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[33m=== REMOVE ADMIN ===\x1b[0m");
+      if (admins.length === 0) {
+        console.log("No admins registered to remove.");
+      } else {
+        admins.forEach((adm, i) => {
+          console.log(`\x1b[33m[${i+1}]\x1b[0m @${adm.username} (ID: ${adm.userId}) [${adm.role}]`);
+        });
+        const removeIndexStr = await ask("\nSelect Admin number to remove: ");
+        const removeIndex = parseInt(removeIndexStr, 10) - 1;
+        if (removeIndex >= 0 && removeIndex < admins.length) {
+          const removed = config.admins.splice(removeIndex, 1)[0];
+          db.settings.panel_config = JSON.stringify(config);
+          if (writeDb(db)) {
+            console.log(`\n\x1b[32m✔ Admin @${removed.username} removed successfully!\x1b[0m`);
+          }
+        } else {
+          console.log("\n\x1b[31mInvalid choice!\x1b[0m");
+        }
+      }
+      await ask("\nPress ENTER to return to main menu...");
+    }
+    else if (choice === '6') {
+      console.log("\n\x1b[32mSettings saved! System configured perfectly. Goodbye!\x1b[0m\n");
+      rl.close();
+      break;
+    }
+  }
+}
+
+mainMenu();

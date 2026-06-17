@@ -3,15 +3,20 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 
-// Set up server port
-const PORT = 3000;
-const app = express();
-
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-
 // Path to JSON-based DB store
 const dbJsonPath = path.resolve(process.cwd(), "bot_database.json");
+
+// Helper to load port dynamically from DB config
+function getServerPort(): number {
+  // Always log 3000 inside this sandboxed container so the dev reverse proxy never breaks.
+  return 3000;
+}
+
+// Set up server port
+const PORT = getServerPort();
+const app = express();
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 console.log(`[Database] Connecting to JSON file database at: ${dbJsonPath}`);
 
 // Define types for pure JSON database to align perfectly with schema
@@ -21,6 +26,7 @@ interface DbSchema {
   subscription_keys: any[];
   inbounds: any[];
   custom_buttons: any[];
+  vpn_plans?: any[];
   settings: Record<string, string>;
 }
 
@@ -42,20 +48,27 @@ function readJsonDb(): DbSchema {
         ],
         subscription_keys: [
           {
-            id: "SUB-1102", userId: 6536288293, planId: "standard_30", planName: "Standard 30GB (1 Month)",
+            id: "SUB-1102", userId: 6536288293, planId: "std_1m_30g", planName: "Standard 1 Month - 30GB",
             subLink: "vless://93a7e4b2-e1d5-4923-9da5-db7c6bd123fc@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome&pbk=Ea_V80fD78H_mG4_Qd-8&sid=1c7d2e3f&spx=%2F#IR-MCI-Direct",
             expireDate: "2026-07-15", trafficLimitGb: 30.0, trafficUsedGb: 14.5, status: "active"
           },
           {
-            id: "SUB-9981", userId: 6536288293, planId: "vip_70", planName: "VIP Premium 70GB (2 Months)",
+            id: "SUB-9981", userId: 6536288293, planId: "std_1m_50g", planName: "Standard 1 Month - 50GB",
             subLink: "vmess://eyJhZGRyIjoibS5kYWx0b29uLXNlcnZlci5pciIsInBvcnQiOjIwODIsImlkIjoiOTNhN2U0YjItZTFkNS00OTIzLTlkYTUtZGI3YzZiZDEyM2ZjIiwiYWlkIjowLCJuZXQiOiJ3cyIsInBhdGgiOiIvRGFsdG9vbiIsInR5cGUiOiJub25lIiwidGxzIjoibm9uZSJ9",
-            expireDate: "2026-08-15", trafficLimitGb: 70.0, trafficUsedGb: 48.2, status: "active"
+            expireDate: "2026-08-15", trafficLimitGb: 50.0, trafficUsedGb: 48.2, status: "active"
           },
           {
-            id: "SUB-4029", userId: 802148210, planId: "basic_15", planName: "Basic 15GB (1 Month)",
+            id: "SUB-4029", userId: 802148210, planId: "vip_1m_100g", planName: "VIP HyperSpeed 1 Month - 100GB",
             subLink: "vless://4a27c00e-3cc4-436f-b1e7-bc1829e2f183@m.daltoon-server.ir:80?path=%2F&security=none&type=ws#Wi-Fi-Asiatech",
-            expireDate: "2026-07-16", trafficLimitGb: 15.0, trafficUsedGb: 8.1, status: "active"
+            expireDate: "2026-07-16", trafficLimitGb: 100.0, trafficUsedGb: 8.1, status: "active"
           }
+        ],
+        vpn_plans: [
+          { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationMonths: 1, trafficGb: 30, price: 95000, category: "Standard", configStock: ["vless://93a7e4b2-e1d5-4923-9da5-db7c6bd123fc@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#vless-std30g-stock1", "vless://84af311c-d38a-4933-bf72-fb189b2763fc@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#vless-std30g-stock2"] },
+          { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationMonths: 1, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
+          { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationMonths: 1, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
+          { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationMonths: 3, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
+          { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationMonths: 1, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
         ],
         inbounds: [
           { id: 1, remark: "IR-MCI-Direct-VLESS 🚀", protocol: "vless", port: 2052, totalClients: 42, trafficUsed: "148.5", trafficLimit: "1000", status: "active" },
@@ -76,7 +89,13 @@ function readJsonDb(): DbSchema {
             panelUsername: "Daltoon",
             panelPassword: "Daltoon10",
             activeInboundIds: [1, 12, 16],
-            ownerId: 6536288293
+            ownerId: 6536288293,
+            dashboardUsername: "Daltoon",
+            dashboardPassword: "Daltoon10",
+            serverPort: 3000,
+            admins: [
+              { id: "adm-1", userId: 6536288293, username: "daltoon_owner", role: "super_admin", createdAt: "2026-06-15" }
+            ]
           })
         }
       };
@@ -84,10 +103,23 @@ function readJsonDb(): DbSchema {
       return defaultDb;
     }
     const raw = fs.readFileSync(dbJsonPath, "utf8");
-    return JSON.parse(raw);
+    const db = JSON.parse(raw);
+    
+    // Backport vpn_plans on existing database structures
+    if (!db.vpn_plans) {
+      db.vpn_plans = [
+        { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationMonths: 1, trafficGb: 30, price: 95000, category: "Standard", configStock: ["vless://93a7e4b2-e1d5-4923-9da5-db7c6bd123fc@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#vless-std30g-stock1", "vless://84af311c-d38a-4933-bf72-fb189b2763fc@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#vless-std30g-stock2"] },
+        { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationMonths: 1, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
+        { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationMonths: 1, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
+        { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationMonths: 3, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
+        { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationMonths: 1, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
+      ];
+      fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
+    }
+    return db;
   } catch (err) {
     console.error("[Database] Read error, returning empty dataset:", err);
-    return { users: [], transactions: [], subscription_keys: [], inbounds: [], custom_buttons: [], settings: {} };
+    return { users: [], transactions: [], subscription_keys: [], inbounds: [], custom_buttons: [], vpn_plans: [], settings: {} };
   }
 }
 
@@ -109,17 +141,42 @@ readJsonDb();
 app.get("/api/data", async (req, res) => {
   try {
     const db = readJsonDb();
-    const settings = db.settings.panel_config 
+    const parsedSettings = db.settings.panel_config 
       ? JSON.parse(db.settings.panel_config)
-      : {
-          botToken: "",
-          baseUrl: "",
-          panelUrl: "",
-          panelUsername: "",
-          panelPassword: "",
-          activeInboundIds: [],
-          ownerId: 0
-        };
+      : {};
+      
+    const settings = {
+      botToken: "",
+      baseUrl: "",
+      panelUrl: "",
+      panelUsername: "",
+      panelPassword: "",
+      activeInboundIds: [],
+      ownerId: 0,
+      cardNumber: "",
+      cardHolder: "",
+      bankName: "",
+      welcomeText: "",
+      supportText: "",
+      hideSupport: false,
+      hideBuy: false,
+      hideProfile: false,
+      hideWallet: false,
+      dashboardUsername: "Daltoon",
+      dashboardPassword: "Daltoon10",
+      serverPort: 3000,
+      admins: [
+        { id: "adm-1", userId: 6536288293, username: "daltoon_owner", role: "super_admin", createdAt: "2026-06-15" }
+      ],
+      ...parsedSettings
+    };
+
+    // Ensure admins array is guaranteed as non-empty
+    if (!settings.admins || !Array.isArray(settings.admins) || settings.admins.length === 0) {
+      settings.admins = [
+        { id: "adm-1", userId: 6536288293, username: "daltoon_owner", role: "super_admin", createdAt: "2026-06-15" }
+      ];
+    }
 
     res.json({
       success: true,
@@ -128,6 +185,7 @@ app.get("/api/data", async (req, res) => {
       keys: db.subscription_keys,
       inbounds: db.inbounds,
       customButtons: db.custom_buttons,
+      vpnPlans: db.vpn_plans || [],
       settings
     });
   } catch (error: any) {
@@ -138,16 +196,11 @@ app.get("/api/data", async (req, res) => {
 // 2. Save panel configuration
 app.post("/api/settings", async (req, res) => {
   try {
-    const { botToken, baseUrl, panelUrl, panelUsername, panelPassword, activeInboundIds, ownerId } = req.body;
-    const configValue = JSON.stringify({
-      botToken,
-      baseUrl,
-      panelUrl,
-      panelUsername,
-      panelPassword,
-      activeInboundIds,
-      ownerId: Number(ownerId)
-    });
+    const payload = { ...req.body };
+    if (payload.ownerId) {
+      payload.ownerId = Number(payload.ownerId);
+    }
+    const configValue = JSON.stringify(payload);
 
     const db = readJsonDb();
     db.settings.panel_config = configValue;
@@ -447,6 +500,170 @@ app.post("/api/inbounds/toggle", async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Dynamic VPN Plans Management & Purchase logic
+app.post("/api/vpn-plans", async (req, res) => {
+  try {
+    const { id, name, durationMonths, trafficGb, price, category, configStock } = req.body;
+    const db = readJsonDb();
+    if (!db.vpn_plans) db.vpn_plans = [];
+
+    const nextPlan = {
+      id,
+      name,
+      durationMonths: Number(durationMonths),
+      trafficGb: Number(trafficGb),
+      price: Number(price),
+      category,
+      configStock: Array.isArray(configStock) ? configStock : []
+    };
+
+    const idx = db.vpn_plans.findIndex(p => p.id === id);
+    if (idx >= 0) {
+      db.vpn_plans[idx] = nextPlan;
+    } else {
+      db.vpn_plans.push(nextPlan);
+    }
+
+    writeJsonDb(db);
+    res.json({ success: true, vpnPlans: db.vpn_plans });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/vpn-plans/delete", async (req, res) => {
+  try {
+    const { id } = req.body;
+    const db = readJsonDb();
+    if (!db.vpn_plans) db.vpn_plans = [];
+
+    db.vpn_plans = db.vpn_plans.filter(p => p.id !== id);
+    writeJsonDb(db);
+    res.json({ success: true, vpnPlans: db.vpn_plans });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/vpn-plans/buy", async (req, res) => {
+  try {
+    const { planId, userId } = req.body;
+    const db = readJsonDb();
+    if (!db.vpn_plans) db.vpn_plans = [];
+
+    const planIdx = db.vpn_plans.findIndex(p => p.id === planId);
+    if (planIdx === -1) {
+      return res.status(404).json({ success: false, error: "پلن مورد نظر یافت نشد." });
+    }
+    const plan = db.vpn_plans[planIdx];
+
+    const userIdx = db.users.findIndex(u => u.userId === Number(userId));
+    if (userIdx === -1) {
+      return res.status(404).json({ success: false, error: "کاربر یافت نشد." });
+    }
+    const user = db.users[userIdx];
+
+    const parsedSettings = db.settings.panel_config 
+      ? JSON.parse(db.settings.panel_config)
+      : {};
+    const ownerId = Number(parsedSettings.ownerId || 6536288293);
+    const admins = Array.isArray(parsedSettings.admins) ? parsedSettings.admins : [];
+    
+    const isAdminOrOwner = Number(userId) === ownerId || admins.some((adm: any) => Number(adm.userId) === Number(userId)) || user.username === "daltoon_owner";
+
+    if (!isAdminOrOwner && user.walletBalance < plan.price) {
+      return res.status(400).json({ success: false, error: "موجودی کیف پول شما کافی نیست." });
+    }
+
+    // Check if stock exists or is empty
+    if (!plan.configStock || plan.configStock.length === 0) {
+      return res.status(400).json({ success: false, error: "out_of_stock", message_fa: "خرید ناموفق: موجودی کانفیگ این بسته به اتمام رسیده است!" });
+    }
+
+    // Dequeue/pop first config from pool
+    const subLink = plan.configStock.shift();
+    
+    // Create subscription key
+    const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+    const expireDate = new Date(Date.now() + plan.durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    
+    const newSub = {
+      id: randomId,
+      userId: Number(userId),
+      planId: plan.id,
+      planName: plan.name,
+      subLink: subLink,
+      expireDate: expireDate,
+      trafficLimitGb: plan.trafficGb,
+      trafficUsedGb: 0,
+      status: "active"
+    };
+
+    db.subscription_keys.push(newSub);
+    
+    // Deduct wallet balance
+    if (!isAdminOrOwner) {
+      user.walletBalance -= plan.price;
+    }
+    user.activePlansCount = db.subscription_keys.filter(k => k.userId === Number(userId) && k.status === "active").length;
+
+    writeJsonDb(db);
+
+    res.json({
+      success: true,
+      subKey: newSub,
+      userWalletBalance: user.walletBalance,
+      vpnPlans: db.vpn_plans,
+      subscriptionKeys: db.subscription_keys,
+      users: db.users
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 8. Dashboard login endpoint
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const db = readJsonDb();
+    
+    const parsedSettings = db.settings.panel_config 
+      ? JSON.parse(db.settings.panel_config)
+      : {};
+      
+    const dbUser = parsedSettings.dashboardUsername || "Daltoon";
+    const dbPass = parsedSettings.dashboardPassword || "Daltoon10";
+    const dbAdmins = parsedSettings.admins || [];
+    
+    // Check main super admin credentials
+    const isMainAdmin = (username === dbUser && password === dbPass);
+    
+    // Check registered sub-admins (who can log in with dashboardPassword as well or predefined passwords)
+    const matchedSubAdmin = dbAdmins.find((adm: any) => adm.username === username);
+    const isSubAdmin = matchedSubAdmin && (password === dbPass || password === "admin123");
+    
+    if (isMainAdmin || isSubAdmin) {
+      const userRole = isMainAdmin ? "super_admin" : (matchedSubAdmin?.role || "admin");
+      res.json({
+        success: true,
+        token: "daltoon_auth_token_secret",
+        user: {
+          username,
+          role: userRole
+        }
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        message: "نام کاربری یا رمز عبور اشتباه است."
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

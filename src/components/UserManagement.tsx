@@ -61,6 +61,14 @@ export default function UserManagement({
   const [newUsername, setNewUsername] = useState("");
   const [newBalance, setNewBalance] = useState("");
 
+  // Secure modal confirmation for deletes
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string | number;
+    type: "user" | "key";
+    title: string;
+    message: string;
+  } | null>(null);
+
   const handleManualConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!addingConfigForUser) return;
@@ -255,12 +263,39 @@ export default function UserManagement({
                           {user.walletBalance.toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}
                         </div>
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-semibold ${
-                          userKeys.length > 0 ? "bg-indigo-500/10 text-indigo-300" : "bg-slate-800 text-gray-500"
-                        }`}>
-                          {userKeys.length} {lang === "fa" ? "کانفیگ" : "configs"}
-                        </span>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-col gap-1.5 max-w-[190px]">
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold inline-block text-center ${
+                            userKeys.length > 0 ? "bg-indigo-500/10 text-indigo-300" : "bg-slate-800/60 text-gray-500"
+                          }`}>
+                            {userKeys.length} {lang === "fa" ? "کانفیگ" : "configs"}
+                          </span>
+                          {userKeys.length > 0 && (
+                            <div className="space-y-1 max-h-[110px] overflow-y-auto no-scrollbar">
+                              {userKeys.map((key) => (
+                                <div key={key.id} className="flex items-center justify-between gap-1 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-[10px] transition">
+                                  <span className="truncate text-gray-300 font-mono font-medium" title={key.planName}>
+                                    {key.planName}
+                                  </span>
+                                  <button
+                                    onClick={() => setDeleteConfirm({
+                                      id: key.id,
+                                      type: "key",
+                                      title: lang === "fa" ? "تایید حذف کانفیگ" : "Confirm Delete Subscription",
+                                      message: lang === "fa"
+                                        ? `آیا از حذف دائم کانفیگ ${key.planName} (شناسه: ${key.id}) اطمینان دارید؟`
+                                        : `Are you sure you want to delete config ${key.planName} (ID: ${key.id})?`
+                                    })}
+                                    className="text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition shrink-0 cursor-pointer"
+                                    title={lang === "fa" ? "حذف این کانفیگ" : "Remove this key"}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4 font-mono text-xs text-gray-400">{user.joinDate}</td>
                       <td className="px-5 py-4">
@@ -316,7 +351,14 @@ export default function UserManagement({
                         </button>
 
                         <button
-                          onClick={() => deleteUser(user.userId)}
+                          onClick={() => setDeleteConfirm({
+                            id: user.userId,
+                            type: "user",
+                            title: lang === "fa" ? "تایید حذف کاربر" : "Confirm Delete User",
+                            message: lang === "fa"
+                              ? `آیا از حذف کامل کاربر @${user.username} و تمام سرویس‌ها و اکانت‌های فعال وی از دالتون استور اطمینان دارید؟`
+                              : `Are you sure you want to completely delete @${user.username} and all of their active subscription keys?`
+                          })}
                           className="p-1 px-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/30 text-rose-400 hover:text-white rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
                           title={lang === "fa" ? "حذف کامل کاربر" : "Delete User Completely"}
                         >
@@ -406,7 +448,15 @@ export default function UserManagement({
         <p className="text-xs text-gray-400 mb-4">{t.activeVpnKeysDesc}</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {keys.map((key) => {
+          {keys.filter(key => {
+            if (!searchTerm) return true;
+            const user = users.find(u => u.userId === key.userId);
+            return (
+              key.planName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              key.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (user && user.username.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+          }).map((key) => {
             const user = users.find(u => u.userId === key.userId);
             return (
               <div key={key.id} className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3 relative overflow-hidden group">
@@ -421,7 +471,14 @@ export default function UserManagement({
                       {key.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "منقضی" : "expired")}
                     </span>
                     <button
-                      onClick={() => deleteSubscriptionKey(key.id)}
+                      onClick={() => setDeleteConfirm({
+                        id: key.id,
+                        type: "key",
+                        title: lang === "fa" ? "تایید حذف کانفیگ" : "Confirm Delete Subscription",
+                        message: lang === "fa"
+                          ? `آیا از حذف دائم کانفیگ ${key.planName} (شناسه: ${key.id}) اطمینان دارید؟`
+                          : `Are you sure you want to delete config ${key.planName} (ID: ${key.id})?`
+                      })}
                       className="p-1 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition cursor-pointer"
                       title={lang === "fa" ? "حذف کانفیگ" : "Delete VPN Subscription"}
                     >
@@ -544,6 +601,44 @@ export default function UserManagement({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modern, state-based, non-blocking confirmation dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-sm w-full space-y-4 shadow-2xl">
+            <h3 className="font-display font-semibold text-base text-rose-400 flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-400 animate-pulse" />
+              {deleteConfirm.title}
+            </h3>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              {deleteConfirm.message}
+            </p>
+            <div className="flex gap-2 pt-2 justify-end text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteConfirm.type === "user") {
+                    deleteUser(deleteConfirm.id as number);
+                  } else {
+                    deleteSubscriptionKey(deleteConfirm.id as string);
+                  }
+                  setDeleteConfirm(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition cursor-pointer"
+              >
+                {lang === "fa" ? "تایید و حذف دائم" : "Yes, Permanently Delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition cursor-pointer"
+              >
+                {lang === "fa" ? "انصراف" : "Cancel"}
+              </button>
+            </div>
           </div>
         </div>
       )}

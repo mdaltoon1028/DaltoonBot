@@ -17,8 +17,11 @@ import {
 interface BotSimulatorProps {
   users: User[];
   plans: VpnPlan[];
+  setVpnPlans: React.Dispatch<React.SetStateAction<VpnPlan[]>>;
   transactions: Transaction[];
   keys: SubscriptionKey[];
+  setKeys: React.Dispatch<React.SetStateAction<SubscriptionKey[]>>;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   activeUserId: number;
   setActiveUserId: (id: number) => void;
   updateUserBalance: (userId: number, newBalance: number) => void;
@@ -40,8 +43,11 @@ interface ChatMessage {
 export default function BotSimulator({
   users,
   plans,
+  setVpnPlans,
   transactions,
   keys,
+  setKeys,
+  setUsers,
   activeUserId,
   setActiveUserId,
   updateUserBalance,
@@ -194,14 +200,14 @@ export default function BotSimulator({
     else if (text.includes("💳") || text.includes("شارژ") || text.includes("Top-up") || text.includes("top") || text.includes("Wallet")) {
       if (lang === "fa") {
         addBotReply(
-          `💳 آموزش شارژ کیف پول:\n\nلطفا مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n📥 شماره کارت:\n<code>6037-9918-2831-8848</code>\n🏦 بانک ملی ایران\n👤 به نام: دالتون سرورز\n\nپس از واریز، روی دکمه زیر کلیک کرده و مبلغ پرداختی به همراه تصویر فیش بانکی را برای ما ارسال کنید تا بررسی و تأیید شود. 👇`,
+          `💳 آموزش شارژ کیف پول:\n\nلطفا مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n📥 شماره کارت:\n<code>6037-9918-2831-8848</code>\n🏦 بانک ملی ایران\n👤 به نام: دالتون استور\n\nپس از واریز، روی دکمه زیر کلیک کرده و مبلغ پرداختی به همراه تصویر فیش بانکی را برای ما ارسال کنید تا بررسی و تأیید شود. 👇`,
           800,
           undefined,
           [{ text: "📸 ارسال فیش واریزی (Upload Slip)", action: "upload_receipt" }]
         );
       } else {
         addBotReply(
-          `💳 Deposit Wallet Guides:\n\nPlease transfer your desired amount to our bank card details below:\n\n📥 Card Number:\n<code>6037-9918-2831-8848</code>\n🏦 Bank Melli Iran\n👤 Holder: Daltoon Team\n\nAfter transferring, tap the button below to upload your digital payment receipt so admins can credit your balance. 👇`,
+          `💳 Deposit Wallet Guides:\n\nPlease transfer your desired amount to our bank card details below:\n\n📥 Card Number:\n<code>6037-9918-2831-8848</code>\n🏦 Bank Melli Iran\n👤 Holder: Daltoon Store\n\nAfter transferring, tap the button below to upload your digital payment receipt so admins can credit your balance. 👇`,
           800,
           undefined,
           [{ text: "📸 Upload Slip Receipt", action: "upload_receipt" }]
@@ -211,8 +217,8 @@ export default function BotSimulator({
     else if (text.includes("📞") || text.includes("پشتیبانی") || text.includes("Support") || text.includes("support")) {
       addBotReply(
         lang === "fa" 
-          ? "📞 بخش پشتیبانی دالتون سرور:\n\nبخش چت آنلاین در وب‌سایت هم‌اکنون در دسترس است.\n\nهمچنین با آیدی تلگرام @daltoon_owner در ارتباط باشید.\n\nساعات پاسخگویی: ۱۰ صبح الی ۲ بامداد"
-          : "📞 Customer Service Support:\n\nOur online system is live 24/7. Feel free to contact @daltoon_owner on Telegram directly for billing answers.",
+          ? "📞 بخش پشتیبانی دالتون استور:\n\nپاسخگویی سریع ۲۴ ساعته هم‌اکنون فعال است.\n\nبا آیدی تلگرام @daltoon_support در ارتباط باشید."
+          : "📞 Customer Service Support:\n\nOur service is live 24/7. Feel free to contact @daltoon_support on Telegram directly for answers.",
         500
       );
     } 
@@ -243,13 +249,18 @@ export default function BotSimulator({
       const matchedPlan = plans.find(p => p.id === planId);
       if (matchedPlan) {
         setSelectedPlanToBuy(matchedPlan);
-        const hasEnough = currentUser.walletBalance >= matchedPlan.price;
+        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const hasEnough = isUserAdminOrOwner || (currentUser.walletBalance >= matchedPlan.price);
         
         if (hasEnough) {
           addBotReply(
             lang === "fa"
-              ? `🛒 تأیید نهایی سفارش:\n\nکانفیگ انتخابی: ${matchedPlan.name}\nقیمت: ${matchedPlan.price.toLocaleString()} تومان\n\nکیف پول شما موجودی کافی دارد (${currentUser.walletBalance.toLocaleString()} تومان).\nآیا مایلید از کیف پول پرداخت کنید؟`
-              : `🛒 Confirm Purchase Order:\n\nSelected Config: ${matchedPlan.name}\nPrice: ${matchedPlan.price.toLocaleString()} Toman\n\nYour wallet balance is sufficient (${currentUser.walletBalance.toLocaleString()} Toman).\nProceed to checkout using your balance?`,
+              ? isUserAdminOrOwner
+                ? `🛒 تأیید نهایی سفارش (دسترسی ویژه ادمین - رایگان):\n\nکانفیگ انتخابی: ${matchedPlan.name}\nقیمت: رایگان برای مدیریت 👑\n\nشما به عنوان ادمین دسترسی نامحدود دارید و نیازی به کسر موجودی کیف پول نیست.\nآیا مایلید این بسته را فعال بسازید؟`
+                : `🛒 تأیید نهایی سفارش:\n\nکانفیگ انتخابی: ${matchedPlan.name}\nقیمت: ${matchedPlan.price.toLocaleString()} تومان\n\nکیف پول شما موجودی کافی دارد (${currentUser.walletBalance.toLocaleString()} تومان).\nآیا مایلید از کیف پول پرداخت کنید؟`
+              : isUserAdminOrOwner
+                ? `🛒 Confirm Purchase Order (Admin Special Access - Free):\n\nSelected Config: ${matchedPlan.name}\nPrice: FREE FOR ADMIN 👑\n\nAs an administrator, your orders are processed for free without wallet deduction.\nProceed to activate this package?`
+                : `🛒 Confirm Purchase Order:\n\nSelected Config: ${matchedPlan.name}\nPrice: ${matchedPlan.price.toLocaleString()} Toman\n\nYour wallet balance is sufficient (${currentUser.walletBalance.toLocaleString()} Toman).\nProceed to checkout using your balance?`,
             600,
             [
               [lang === "fa" ? "✅ بله، خرید نهایی شود" : "Yes, complete buy", lang === "fa" ? "❌ انصراف و برگشت به منو" : "Cancel and back"]
@@ -273,49 +284,98 @@ export default function BotSimulator({
   const handleKeyboardClick = (text: string) => {
     // If we are confirming checkout
     if ((text === "✅ بله، خرید نهایی شود" || text === "Yes, complete buy" || text === "✅ بله، خرید نهایی شود") && selectedPlanToBuy) {
-      if (currentUser.walletBalance >= selectedPlanToBuy.price) {
-        const newBal = currentUser.walletBalance - selectedPlanToBuy.price;
-        updateUserBalance(currentUser.userId, newBal);
-        
-        // Generate mock subscription link based on plan specs
-        const randomUUID = Math.random().toString(36).substring(2, 15) + "-" + Math.random().toString(36).substring(2, 10);
-        const mockSub: SubscriptionKey = {
-          id: "SUB-" + Math.floor(Math.random() * 9000 + 1000),
-          userId: currentUser.userId,
-          planId: selectedPlanToBuy.id,
-          planName: selectedPlanToBuy.name,
-          subLink: `vless://${randomUUID}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${selectedPlanToBuy.trafficGb}G`,
-          expireDate: new Date(Date.now() + selectedPlanToBuy.durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          trafficLimitGb: selectedPlanToBuy.trafficGb,
-          trafficUsedGb: 0,
-          status: "active"
-        };
-
-        addNewSubscriptionKey(mockSub);
-        setSelectedPlanToBuy(null);
-
-        // Add Bot message
-        const confirmMsg = lang === "fa"
-          ? `🎉 خرید شما با موفقیت انجام شد!\n\n💳 هزینه کسر شده: ${selectedPlanToBuy.price.toLocaleString()} تومان\n💰 موجودی باقیمانده: ${newBal.toLocaleString()} تومان\n\n🔑 کانفیگ VLESS اختصاصی شما صادر شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.`
-          : `🎉 VPN subscription purchased successfully!\n\n💳 Price Deducted: ${selectedPlanToBuy.price.toLocaleString()} Toman\n💰 Remaining Balance: ${newBal.toLocaleString()} Toman\n\n🔑 Your Dedicated VLESS Subscription Link:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in client apps like NapsternetV, v2rayNG, or Streisand.`;
-        
-        addBotReply(confirmMsg, 1000, [
-          [t.btnBuyPlan, t.btnMyAccount],
-          [t.btnTopUp, t.btnSupport]
-        ]);
-      } else {
+      const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+      if (!isUserAdminOrOwner && currentUser.walletBalance < selectedPlanToBuy.price) {
         setSelectedPlanToBuy(null);
         addBotReply(
           lang === "fa" 
-            ? "متأسفانه خطایی در پرداخت رخ داد. موجودی کیف پول خود را بررسی کنید." 
-            : "Sorry, checkout error occurred. Please verify wallet balance.", 
+            ? "متأسفانه خطایی در پرداخت رخ داد. موجودی کیف پول شما کافی نیست." 
+            : "Sorry, checkout error occurred. Insufficient wallet balance.", 
           500, 
           [
             [t.btnBuyPlan, t.btnMyAccount],
             [t.btnTopUp, t.btnSupport]
           ]
         );
+        return;
       }
+
+      // Check if stock exists locally first before hit
+      const currentPlanObj = plans.find(p => p.id === selectedPlanToBuy.id);
+      const stockLength = currentPlanObj?.configStock ? currentPlanObj.configStock.length : 0;
+      if (stockLength === 0) {
+        setSelectedPlanToBuy(null);
+        addBotReply(
+          lang === "fa" 
+            ? "⚠️ متأسفانه موجودی این پلن (کانفیگ آماده) در حال حاضر به اتمام رسیده است!\n\nلطفاً موضوع را به مدیریت اطلاع دهید تا انبار بسته‌ها را مجدداً شارژ نمایند."
+            : "⚠️ Out of Stock! No pre-built configurations are available for this plan right now.", 
+          500, 
+          [
+            [t.btnBuyPlan, t.btnMyAccount],
+            [t.btnTopUp, t.btnSupport]
+          ]
+        );
+        return;
+      }
+
+      // Call server backend to securely pop stock item, charge wallet and create sub key
+      fetch("/api/vpn-plans/buy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: selectedPlanToBuy.id,
+          userId: currentUser.userId
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          // Synchronize states
+          if (data.vpnPlans) setVpnPlans(data.vpnPlans);
+          if (data.subscriptionKeys) setKeys(data.subscriptionKeys);
+          if (data.users) setUsers(data.users);
+          
+          const newBal = data.userWalletBalance;
+          const mockSub = data.subKey;
+          setSelectedPlanToBuy(null);
+
+          // Add Bot message
+          const confirmMsg = lang === "fa"
+            ? isUserAdminOrOwner
+              ? `🎉 کانفیگ شما با موفقیت فعال شد (ویژه مدیریت - رایگان)!\n\n💳 هزینه کسر شده: ۰ تومان (رایگان) 👑\n💰 موجودی کیف پول: بدون تغییر (${newBal.toLocaleString()} تومان)\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.`
+              : `🎉 خرید شما با موفقیت انجام شد!\n\n💳 هزینه کسر شده: ${selectedPlanToBuy.price.toLocaleString()} تومان\n💰 موجودی جدید باقیمانده: ${newBal.toLocaleString()} تومان\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.`
+            : isUserAdminOrOwner
+              ? `🎉 VPN subscription activated successfully (Admin Free Access)!\n\n💳 Price Deducted: 0 Toman (Free) 👑\n💰 Wallet Balance: Unchanged (${newBal.toLocaleString()} Toman)\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.`
+              : `🎉 VPN subscription purchased successfully!\n\n💳 Price Deducted: ${selectedPlanToBuy.price.toLocaleString()} Toman\n💰 New Remaining Balance: ${newBal.toLocaleString()} Toman\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.`;
+          
+          addBotReply(confirmMsg, 1000, [
+            [t.btnBuyPlan, t.btnMyAccount],
+            [t.btnTopUp, t.btnSupport]
+          ]);
+        } else {
+          setSelectedPlanToBuy(null);
+          const errMsg = data.error === "out_of_stock" 
+            ? (lang === "fa" ? "⚠️ موجودی انبار آماده این بسته تمام شده است!" : "⚠️ Pre-built config stock depleted for this plan!")
+            : (lang === "fa" ? "پرداخت ناموفق بود: " + data.error : "Checkout failed: " + data.error);
+          
+          addBotReply(errMsg, 500, [
+            [t.btnBuyPlan, t.btnMyAccount],
+            [t.btnTopUp, t.btnSupport]
+          ]);
+        }
+      })
+      .catch(err => {
+        // Fallback for standalone mock
+        setSelectedPlanToBuy(null);
+        addBotReply(
+          lang === "fa" ? "خطایی در برقراری ارتباط با سرور رخ داد." : "Database connection lost during payment.",
+          500,
+          [
+            [t.btnBuyPlan, t.btnMyAccount],
+            [t.btnTopUp, t.btnSupport]
+          ]
+        );
+      });
       return;
     }
 
@@ -451,7 +511,7 @@ export default function BotSimulator({
                 DL
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white leading-tight">{lang === "fa" ? "ربات تلگرام دالتون 🤖" : "Daltoon VPN Bot 🤖"}</h4>
+                <h4 className="text-xs font-bold text-white leading-tight">{lang === "fa" ? "ربات تلگرام دالتون استور 🤖" : "Daltoon Store Bot 🤖"}</h4>
                 <p className="text-[10px] text-emerald-400 flex items-center gap-1 leading-none mt-0.5">
                   <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
                   {lang === "fa" ? "ربات فعال است (bot.py)" : "bot.py polling active"}
@@ -460,7 +520,7 @@ export default function BotSimulator({
             </div>
 
             <span className="text-[10px] font-mono font-semibold py-0.5 px-2 bg-slate-800 text-slate-400 rounded-md">
-              @daltoon_vpn_bot
+              @daltoon_store_bot
             </span>
           </div>
 

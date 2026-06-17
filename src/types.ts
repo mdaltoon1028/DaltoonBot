@@ -6,6 +6,25 @@ export interface PanelSettings {
   panelPassword: string;
   activeInboundIds: number[];
   ownerId: number;
+  cardNumber?: string;
+  cardHolder?: string;
+  bankName?: string;
+  welcomeText?: string;
+  supportText?: string;
+  hideSupport?: boolean;
+  hideBuy?: boolean;
+  hideProfile?: boolean;
+  hideWallet?: boolean;
+  dashboardUsername?: string;
+  dashboardPassword?: string;
+  serverPort?: number;
+  admins?: Array<{
+    id: string;
+    userId: number;
+    username: string;
+    role: "admin" | "super_admin";
+    createdAt: string;
+  }>;
 }
 
 export interface InboundInfo {
@@ -46,6 +65,7 @@ export interface VpnPlan {
   trafficGb: number;
   price: number; // in Toman
   category: "Standard" | "VIP" | "Unlimited VoIP";
+  configStock?: string[];
 }
 
 export interface SubscriptionKey {

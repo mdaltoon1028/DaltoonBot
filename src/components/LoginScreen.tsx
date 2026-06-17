@@ -1,0 +1,231 @@
+import React, { useState } from "react";
+import { Lock, User, KeyRound, Server, Eye, EyeOff, ShieldCheck, Globe } from "lucide-react";
+
+interface LoginScreenProps {
+  onLoginSuccess: () => void;
+  lang: "fa" | "en";
+  setLang: (lang: "fa" | "en") => void;
+}
+
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, setLang }) => {
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem("daltoon_remember_me") === "true";
+  });
+
+  const [username, setUsername] = useState(() => {
+    const remember = localStorage.getItem("daltoon_remember_me") === "true";
+    return remember ? (localStorage.getItem("daltoon_saved_username") || "") : "";
+  });
+
+  const [password, setPassword] = useState(() => {
+    const remember = localStorage.getItem("daltoon_remember_me") === "true";
+    return remember ? (localStorage.getItem("daltoon_saved_password") || "") : "";
+  });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const t = {
+    fa: {
+      title: "ورود به مدیریت دالتون استور",
+      subtitle: "لطفاً نام کاربری و رمز عبور مدیریت یا ادمین را وارد نمایید",
+      usernameLabel: "نام کاربری",
+      passwordLabel: "رمز عبور",
+      usernamePl: "مانند: Daltoon",
+      passwordPl: "•••",
+      loginBtn: "ورود به مدیریت",
+      loggingIn: "در حال بررسی اطلاعات...",
+      invalidCreds: "اطلاعات ورود اشتباه است، لطفاً به سرور لینوکس متصل شده یا مجدد تلاش کنید.",
+      rememberMe: "مرا به خاطر بسپار"
+    },
+    en: {
+      title: "Daltoon Store Admin Panel",
+      subtitle: "Please enter your administrative credentials to log in",
+      usernameLabel: "Username",
+      passwordLabel: "Password",
+      usernamePl: "e.g., Daltoon",
+      passwordPl: "•••",
+      loginBtn: "Sign In",
+      loggingIn: "Authenticating...",
+      invalidCreds: "Invalid credentials. Please verify your config or try again.",
+      rememberMe: "Remember Me"
+    }
+  }[lang];
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !password.trim()) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        localStorage.setItem("daltoon_dashboard_auth", "true");
+        localStorage.setItem("daltoon_dashboard_username", username);
+        localStorage.setItem("daltoon_dashboard_role", data.user?.role || "admin");
+
+        if (rememberMe) {
+          localStorage.setItem("daltoon_remember_me", "true");
+          localStorage.setItem("daltoon_saved_username", username.trim());
+          localStorage.setItem("daltoon_saved_password", password.trim());
+        } else {
+          localStorage.removeItem("daltoon_remember_me");
+          localStorage.removeItem("daltoon_saved_username");
+          localStorage.removeItem("daltoon_saved_password");
+        }
+
+        onLoginSuccess();
+      } else {
+        setError(data.message || t.invalidCreds);
+      }
+    } catch (err) {
+      setError(lang === "fa" ? "خطا در برقراری ارتباط با سرور." : "Could not reach full-stack server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#070913] text-gray-100 flex items-center justify-center p-4 relative overflow-hidden select-none" dir={lang === "fa" ? "rtl" : "ltr"}>
+      {/* Background Decorative Grids and Glowing Orbs */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-[110px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-600/10 rounded-full blur-[110px] pointer-events-none"></div>
+      
+      <div className="w-full max-w-md bg-[#0c0f1c] border border-slate-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-6 md:p-8 relative z-10 transition">
+        
+        {/* Language Selection floating in Card Corner */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2 text-indigo-400">
+            <Server className="w-5 h-5" />
+            <span className="font-mono text-xs font-bold tracking-wider">v2.0 PRO</span>
+          </div>
+          
+          <button
+            onClick={() => setLang(lang === "fa" ? "en" : "fa")}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs border border-slate-800 hover:border-slate-700 bg-slate-900 rounded-lg text-gray-400 hover:text-white transition cursor-pointer"
+          >
+            <Globe className="w-3.5 h-3.5 text-indigo-400" />
+            <span>{lang === "fa" ? "English" : "فارسی"}</span>
+          </button>
+        </div>
+
+        {/* Brand Banner */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center p-3.5 bg-gradient-to-tr from-indigo-500 to-violet-600 rounded-2xl shadow-[0_0_30px_rgba(99,102,241,0.25)] mb-4">
+            <Lock className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-xl md:text-2xl font-bold text-white tracking-wide">{t.title}</h2>
+          <p className="text-xs text-gray-400 mt-2 font-medium leading-relaxed">{t.subtitle}</p>
+        </div>
+
+        {/* error alert */}
+        {error && (
+          <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-start gap-2 animate-pulse">
+            <div className="shrink-0 mt-0.5 font-bold">⚠️</div>
+            <p className="leading-relaxed">{error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5 px-1">{t.usernameLabel}</label>
+            <div className="relative">
+              <div className={`absolute inset-y-0 ${lang === "fa" ? "right-3" : "left-3"} flex items-center pointer-events-none text-gray-400`}>
+                <User className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={t.usernamePl}
+                className={`w-full bg-[#111425] border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 py-2.5 ${
+                  lang === "fa" ? "pr-10 pl-4" : "pl-10 pr-4"
+                } rounded-xl text-sm font-medium font-mono placeholder:text-gray-500 text-gray-100 outline-none transition`}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5 px-1">{t.passwordLabel}</label>
+            <div className="relative">
+              <div className={`absolute inset-y-0 ${lang === "fa" ? "right-3" : "left-3"} flex items-center pointer-events-none text-gray-400`}>
+                <KeyRound className="w-4 h-4" />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t.passwordPl}
+                className={`w-full bg-[#111425] border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 py-2.5 ${
+                  lang === "fa" ? "pr-10 pl-11" : "pl-10 pr-11"
+                } rounded-xl text-sm font-medium font-mono text-gray-100 outline-none transition`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className={`absolute inset-y-0 ${lang === "fa" ? "left-3" : "right-3"} flex items-center text-gray-400 hover:text-indigo-400 transition cursor-pointer`}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-1 py-1">
+            <label className="flex items-center gap-2.5 text-xs text-gray-400 hover:text-gray-300 font-medium cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded border-slate-800 bg-[#111425] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 w-4 h-4 cursor-pointer transition"
+              />
+              <span>{t.rememberMe}</span>
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:bg-indigo-800 text-white font-medium text-sm py-3 px-4 rounded-xl shadow-[0_4px_20px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_20px_rgba(99,102,241,0.35)] transition duration-200 mt-6 cursor-pointer flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>{t.loggingIn}</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="w-4.5 h-4.5" />
+                <span>{t.loginBtn}</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-8 pt-4 border-t border-slate-900 text-center space-y-2">
+          <p className="text-[10px] text-gray-500 font-mono">
+            {lang === "fa" ? "رمز عبور و یوزرهای ادمین را با استفاده از دستور daltoon-dashboard بازیابی کنید." : "Modify credentials or add sub-admins anytime using the daltoon-dashboard server tool."}
+          </p>
+          <div className="inline-flex flex-wrap justify-center gap-2 items-center bg-[#111425] border border-slate-800/80 rounded-lg p-2 text-[11px] text-gray-400 font-mono">
+            <span>{lang === "fa" ? "یوزر پیش‌فرض:" : "Default User:"} <strong className="text-indigo-400 select-all">Daltoon</strong></span>
+            <span className="text-gray-600">|</span>
+            <span>{lang === "fa" ? "پسورد:" : "Pass:"} <strong className="text-indigo-400 select-all">Daltoon10</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -5,11 +5,11 @@ import {
   CheckSquare, 
   Bot, 
   Settings, 
-  Server, 
   RefreshCw, 
   Globe, 
+  Server,
   Heart,
-  Link2
+  LogOut
 } from "lucide-react";
 
 // Types & Data
@@ -29,9 +29,76 @@ import DashboardOverview from "./components/DashboardOverview";
 import UserManagement from "./components/UserManagement";
 import TransactionApproval from "./components/TransactionApproval";
 import BotSimulator from "./components/BotSimulator";
+import ServerManagement from "./components/ServerManagement";
 import SettingsPanel from "./components/SettingsPanel";
-import ConnectionGuide from "./components/ConnectionGuide";
-import XuiConnector from "./components/XuiConnector";
+import { LoginScreen } from "./components/LoginScreen";
+
+const LionAndSunFlag = () => (
+  <div className="inline-flex items-center select-none" title="پرچم شیر و خورشید ایران">
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" className="rounded-full overflow-hidden shadow-[0_0_12px_rgba(99,102,241,0.3)] border border-slate-700/60 bg-white">
+      <defs>
+        <clipPath id="circle-flag-clip">
+          <circle cx="18" cy="18" r="18" />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#circle-flag-clip)">
+        {/* Green Band (top) */}
+        <rect x="0" y="0" width="36" height="12" fill="#008B38" />
+        {/* White Band (middle) */}
+        <rect x="0" y="12" width="36" height="12" fill="#FFFFFF" />
+        {/* Red Band (bottom) */}
+        <rect x="0" y="24" width="36" height="12" fill="#DA291C" />
+        
+        {/* Elegant White Circular Emblem Plate Overlay */}
+        <circle cx="18" cy="18" r="10" fill="#FFFFFF" className="shadow-xs" />
+        
+        {/* High-Fidelity Correct Left-Facing Gold Lion and Sun Emblem group */}
+        <g transform="translate(18, 18) scale(0.85)">
+          {/* Sun background & rays */}
+          <circle cx="1.8" cy="-1.5" r="3.2" fill="#FFA000" />
+          <path d="M 1.8 -1.5 L 1.8 -9
+                   M -0.2 -2 L -3.8 -7
+                   M 3.8 -2 L 7.4 -7
+                   M -0.8 -0.5 L -5.8 -4
+                   M 4.4 -0.5 L 9.4 -4
+                   M 1.8 -1.5 L -1.2 -7
+                   M 1.8 -1.5 L 4.8 -7" stroke="#FFA000" strokeWidth="0.8" strokeLinecap="round" />
+          
+          {/* Pedestal Ground Line */}
+          <path d="M -9 6 L 9 6" stroke="#C59000" strokeWidth="0.9" strokeLinecap="round" />
+          
+          {/* Detailed Lion Tail */}
+          <path d="M 5 2 C 7.5 -0.5, 6.5 -5, 4.5 -4.5 C 3.5 -4, 4.5 -2, 4 -2.5" stroke="#D4AF37" strokeWidth="1" fill="none" strokeLinecap="round" />
+          <circle cx="4" cy="-5" r="0.6" fill="#D4AF37" />
+
+          {/* back legs for depth */}
+          <path d="M 3.5 2.5 L 4.5 6" stroke="#9E7815" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M -1.8 3 L -2.5 6" stroke="#9E7815" strokeWidth="1.5" strokeLinecap="round" />
+          
+          {/* Lion Body (facing left) */}
+          <path d="M -5.2 2.8 C -5.2 0.8, -1.5 0.5, 1 1 C 3 1.2, 5.2 1.5, 5.2 3 C 5.2 4.2, 3.2 5, -1 5 C -3.8 5, -5.2 4, -5.2 2.8 Z" fill="#D4AF37" />
+          
+          {/* Front standing leg */}
+          <path d="M -3.5 3 L -4.2 6" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M 2.2 3.5 L 2.8 6" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" />
+          
+          {/* Mane and Head */}
+          <circle cx="-4.5" cy="1" r="1.8" fill="#D4AF37" />
+          <circle cx="-3.8" cy="0.4" r="1.3" fill="#FFC107" />
+          
+          {/* Sword raising right arm */}
+          <path d="M -4 2 C -4 0.5, -4.8 -1.2, -4.5 -2" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          
+          {/* Sabre (Sword) - Raised high, curving backward over the head correctly */}
+          <path d="M -4.5 -2 C -7.5 -5.2, -5.5 -10, -2.5 -11.5" stroke="#ECEFF1" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+          <path d="M -4.5 -2 C -7.5 -5.2, -5.5 -10, -2.5 -11.5" stroke="#37474F" strokeWidth="0.4" strokeLinecap="round" fill="none" />
+          {/* Sword hilt */}
+          <path d="M -5.2 -1.6 L -3.8 -2.4" stroke="#FFA000" strokeWidth="1" strokeLinecap="round" />
+        </g>
+      </g>
+    </svg>
+  </div>
+);
 
 export default function App() {
   // State initialization with localStorage persistence
@@ -65,6 +132,15 @@ export default function App() {
     return cached ? JSON.parse(cached) : initialSubscriptionKeys;
   });
 
+  const [vpnPlans, setVpnPlans] = useState<VpnPlan[]>(() => {
+    const cached = localStorage.getItem("daltoon_vpn_plans");
+    return cached ? JSON.parse(cached) : initialPlans;
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem("daltoon_dashboard_auth") === "true";
+  });
+
   const [customButtons, setCustomButtons] = useState<CustomButton[]>(() => {
     const cached = localStorage.getItem("daltoon_custom_buttons");
     if (cached) return JSON.parse(cached);
@@ -74,7 +150,7 @@ export default function App() {
     ];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "settings" | "guide" | "xui_connector">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "settings" | "guide" | "xui_connector">("dashboard");
   const [simulatedUserId, setSimulatedUserId] = useState<number>(6536288293); // Admin is initial active
   const [apiOnline, setApiOnline] = useState(true);
 
@@ -106,6 +182,10 @@ export default function App() {
   }, [keys]);
 
   useEffect(() => {
+    localStorage.setItem("daltoon_vpn_plans", JSON.stringify(vpnPlans));
+  }, [vpnPlans]);
+
+  useEffect(() => {
     localStorage.setItem("daltoon_custom_buttons", JSON.stringify(customButtons));
   }, [customButtons]);
 
@@ -119,6 +199,7 @@ export default function App() {
           if (json.users && json.users.length > 0) setUsers(json.users);
           if (json.transactions) setTransactions(json.transactions);
           if (json.keys) setKeys(json.keys);
+          if (json.vpnPlans && json.vpnPlans.length > 0) setVpnPlans(json.vpnPlans);
           if (json.inbounds && json.inbounds.length > 0) setInbounds(json.inbounds);
           if (json.customButtons && json.customButtons.length > 0) setCustomButtons(json.customButtons);
           if (json.settings && json.settings.botToken) setSettings(json.settings);
@@ -194,40 +275,30 @@ export default function App() {
   };
 
   const deleteUser = (userId: number) => {
-    const confirmMsg = lang === "fa" 
-      ? "آیا از حذف این کاربر اطمینان دارید؟ تمام کانفیگ‌های مرتبط با این کاربر نیز از دیتابیس حذف خواهند شد."
-      : "Are you sure you want to delete this user? All associated VPN configs will also be deleted from the database.";
-    if (confirm(confirmMsg)) {
-      setUsers(prev => prev.filter(u => u.userId !== userId));
-      setKeys(prev => prev.filter(k => k.userId !== userId));
-      fetch("/api/users/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId })
-      }).catch(err => console.warn("Failed syncing deleted user:", err));
-    }
+    setUsers(prev => prev.filter(u => u.userId !== userId));
+    setKeys(prev => prev.filter(k => k.userId !== userId));
+    fetch("/api/users/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId })
+    }).catch(err => console.warn("Failed syncing deleted user:", err));
   };
 
   const deleteSubscriptionKey = (keyId: string) => {
-    const confirmMsg = lang === "fa"
-      ? "آیا از حذف این کانفیگ و ابطال اشتراک اطمینان دارید؟"
-      : "Are you sure you want to delete this subscription log and revoke access?";
-    if (confirm(confirmMsg)) {
-      const keyObj = keys.find(k => k.id === keyId);
-      setKeys(prev => prev.filter(k => k.id !== keyId));
-      setUsers(prev => prev.map(u => {
-        if (keyObj && u.userId === keyObj.userId) {
-          return { ...u, activePlansCount: Math.max(0, u.activePlansCount - 1) };
-        }
-        return u;
-      }));
-      if (keyObj) {
-        fetch("/api/subscription-keys/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: keyId, userId: keyObj.userId })
-        }).catch(err => console.warn("Failed syncing deleted sub config:", err));
+    const keyObj = keys.find(k => k.id === keyId);
+    setKeys(prev => prev.filter(k => k.id !== keyId));
+    setUsers(prev => prev.map(u => {
+      if (keyObj && u.userId === keyObj.userId) {
+        return { ...u, activePlansCount: Math.max(0, u.activePlansCount - 1) };
       }
+      return u;
+    }));
+    if (keyObj) {
+      fetch("/api/subscription-keys/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: keyId, userId: keyObj.userId })
+      }).catch(err => console.warn("Failed syncing deleted sub config:", err));
     }
   };
 
@@ -265,30 +336,20 @@ export default function App() {
   };
 
   const deleteTransaction = (txId: string) => {
-    const confirmMsg = lang === "fa"
-      ? "آیا از حذف این درخواست رسید از تاریخچه اطمینان دارید؟"
-      : "Are you sure you want to delete this transaction ledger entry?";
-    if (confirm(confirmMsg)) {
-      setTransactions(prev => prev.filter(t => t.id !== txId));
-      fetch("/api/transactions/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: txId })
-      }).catch(err => console.warn("Failed syncing deleted transaction:", err));
-    }
+    setTransactions(prev => prev.filter(t => t.id !== txId));
+    fetch("/api/transactions/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: txId })
+    }).catch(err => console.warn("Failed syncing deleted transaction:", err));
   };
 
   const clearTransactionHistory = () => {
-    const confirmMsg = lang === "fa"
-      ? "آیا از پاک کردن کامل تاریخچه تراکنش‌ها و فیش‌ها اطمینان دارید؟ این عمل غیرقابل بازگشت است."
-      : "Are you sure you want to completely clear the card receipt and transaction ledger? This action cannot be undone.";
-    if (confirm(confirmMsg)) {
-      setTransactions([]);
-      fetch("/api/transactions/clear-history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      }).catch(err => console.warn("Failed syncing cleared transactional logs:", err));
-    }
+    setTransactions([]);
+    fetch("/api/transactions/clear-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    }).catch(err => console.warn("Failed syncing cleared transactional logs:", err));
   };
 
   const saveSettings = (newSettings: PanelSettings) => {
@@ -330,13 +391,8 @@ export default function App() {
   };
 
   const handleResetData = () => {
-    const warningText = lang === "fa" 
-      ? "آیا از بازنشانی کامل دیتابیس و تنظیمات اولیه اطمینان دارید؟ تمام تغییرات شما از بین خواهد رفت." 
-      : "Are you sure you want to restore default initial database? This clears local changes.";
-    if (confirm(warningText)) {
-      localStorage.clear();
-      window.location.reload();
-    }
+    localStorage.clear();
+    window.location.reload();
   };
 
   // Metrics calculators
@@ -345,11 +401,21 @@ export default function App() {
     .filter(t => t.status === "approved")
     .reduce((acc, curr) => acc + curr.amount, 0);
 
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen 
+        onLoginSuccess={() => setIsAuthenticated(true)} 
+        lang={lang} 
+        setLang={setLang} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#070913] text-gray-100 flex flex-col font-sans select-none antialiased" dir={lang === "fa" ? "rtl" : "ltr"}>
       
       {/* Upper Navigation Header */}
-      <header className="bg-[#0b0f19] border-b border-[#1f2937] px-6 py-4 sticky top-0 z-40">
+      <header className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           
           {/* Logo Brand Header */}
@@ -360,6 +426,7 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-display font-bold text-xl tracking-wide text-white">{t.appTitle}</h1>
+                <LionAndSunFlag />
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-widest bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase">
                   v2.0 PRO
                 </span>
@@ -394,11 +461,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 text-xs bg-slate-900 border border-[#1f2937] px-3 py-1.5 rounded-lg font-mono">
-              <span className={`h-2 w-2 rounded-full ${apiOnline ? "bg-emerald-400 inline-block animate-pulse" : "bg-rose-500"}`}></span>
-              {t.portLabel}: <span className="text-indigo-300 font-semibold">3000 (LOCAL)</span>
-            </div>
-
+            {/* Left aligned reset & actions */}
             <button
               onClick={handleResetData}
               className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer"
@@ -407,13 +470,26 @@ export default function App() {
               <RefreshCw className="w-3.5 h-3.5" />
               {t.resetBtn}
             </button>
+
+            {/* Logout button */}
+            <button
+              onClick={() => {
+                localStorage.removeItem("daltoon_dashboard_auth");
+                setIsAuthenticated(false);
+              }}
+              className="p-1.5 px-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 hover:text-white hover:bg-rose-500/20 transition flex items-center gap-1.5 cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              {lang === "fa" ? "خروج" : "Logout"}
+            </button>
           </div>
 
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-5 space-y-5">
         
         {/* Navigation Tabs Bar */}
         <div className="flex overflow-x-auto border-b border-[#1f2937] no-scrollbar scroll-smooth">
@@ -472,6 +548,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("servers")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                activeTab === "servers" 
+                  ? "bg-indigo-600 text-white shadow-md" 
+                  : "text-gray-400 hover:text-white bg-transparent"
+              }`}
+            >
+              <Server className="w-4 h-4 text-slate-300" />
+              {t.tabServers}
+            </button>
+
+            <button
               onClick={() => setActiveTab("settings")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
                 activeTab === "settings" 
@@ -481,30 +569,6 @@ export default function App() {
             >
               <Settings className="w-4 h-4 text-slate-300" />
               {t.tabSettings}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("xui_connector")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "xui_connector" 
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Server className="w-4 h-4 text-slate-300" />
-              {lang === "fa" ? "اتصال به پنل ۳x-ui و دکمه‌ها" : "3x-ui Panel & Buttons"}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("guide")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "guide" 
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Link2 className="w-4 h-4 text-slate-300" />
-              {t.tabGuide}
             </button>
           </div>
         </div>
@@ -519,6 +583,7 @@ export default function App() {
               activeSubsCount={keys.filter(k => k.status === "active").length}
               totalIncome={totalVolume}
               pendingTransactionsCount={pendingTx.length}
+              transactions={transactions}
               lang={lang}
             />
           )}
@@ -552,9 +617,12 @@ export default function App() {
           {activeTab === "simulator" && (
             <BotSimulator 
               users={users}
-              plans={initialPlans}
+              plans={vpnPlans}
+              setVpnPlans={setVpnPlans}
               transactions={transactions}
               keys={keys}
+              setKeys={setKeys}
+              setUsers={setUsers}
               activeUserId={simulatedUserId}
               setActiveUserId={setSimulatedUserId}
               updateUserBalance={adjustUserWallet}
@@ -565,25 +633,21 @@ export default function App() {
             />
           )}
 
+          {activeTab === "servers" && (
+            <ServerManagement 
+              vpnPlans={vpnPlans}
+              setVpnPlans={setVpnPlans}
+              lang={lang}
+            />
+          )}
+
           {activeTab === "settings" && (
             <SettingsPanel 
               settings={settings}
               onSaveSettings={saveSettings}
               lang={lang}
-            />
-          )}
-
-          {activeTab === "xui_connector" && (
-            <XuiConnector 
-              lang={lang}
               customButtons={customButtons}
               setCustomButtons={setCustomButtons}
-            />
-          )}
-
-          {activeTab === "guide" && (
-            <ConnectionGuide 
-              lang={lang}
             />
           )}
         </div>

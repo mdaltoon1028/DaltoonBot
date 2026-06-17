@@ -34,6 +34,14 @@ export default function TransactionApproval({
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
+  // Custom state-based safe iframe modal confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id?: string;
+    type: "single" | "all";
+    title: string;
+    message: string;
+  } | null>(null);
+
   const filteredTransactions = transactions.filter(tx => {
     if (filterStatus === "all") return true;
     return tx.status === filterStatus;
@@ -79,7 +87,13 @@ export default function TransactionApproval({
           </div>
 
           <button
-            onClick={clearTransactionHistory}
+            onClick={() => setDeleteConfirm({
+              type: "all",
+              title: lang === "fa" ? "تایید حذف تاریخچه" : "Clear Receipts History",
+              message: lang === "fa"
+                ? "آیا از حذف کامل کل تاریخچه فیش‌های بارگذاری شده (شامل فیش‌های تایید شده، رد شده و معلق) از پایگاه داده دالتون استور اطمینان دارید؟ این عمل غیرقابل بازگشت است."
+                : "Are you sure you want to completely delete all transaction receipts (including approved, rejected, and pending logs) from Daltoon Store database? This cannot be undone."
+            })}
             className="px-3.5 py-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/10 text-rose-300 hover:text-white rounded-lg text-xs font-medium cursor-pointer transition flex items-center gap-1.5"
             title={lang === "fa" ? "حذف کل تاریخچه فیش‌ها" : "Truncate All Slip History Records"}
           >
@@ -163,7 +177,14 @@ export default function TransactionApproval({
                         )}
 
                         <button
-                          onClick={() => deleteTransaction(tx.id)}
+                          onClick={() => setDeleteConfirm({
+                            id: tx.id,
+                            type: "single",
+                            title: lang === "fa" ? "تایید حذف فیش" : "Confirm Delete Slip",
+                            message: lang === "fa"
+                              ? `آیا از حذف تراکنش کاربر @${tx.username} با شناسه ${tx.id} مطمئن هستید؟`
+                              : `Are you sure you want to delete receipt ${tx.id} for user @${tx.username}?`
+                          })}
                           className="p-1 px-2 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/20 text-rose-300 hover:text-white rounded text-xs transition inline-flex items-center gap-1 cursor-pointer"
                           title="Delete Receipt From History"
                         >
@@ -261,6 +282,44 @@ export default function TransactionApproval({
         </div>
 
       </div>
+
+      {/* Modern, state-based, non-blocking confirmation dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-sm w-full space-y-4 shadow-2xl">
+            <h3 className="font-display font-semibold text-base text-rose-400 flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-400 animate-pulse" />
+              {deleteConfirm.title}
+            </h3>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              {deleteConfirm.message}
+            </p>
+            <div className="flex gap-2 pt-2 justify-end text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteConfirm.type === "all") {
+                    clearTransactionHistory();
+                  } else if (deleteConfirm.id) {
+                    deleteTransaction(deleteConfirm.id);
+                  }
+                  setDeleteConfirm(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition cursor-pointer"
+              >
+                {lang === "fa" ? "تایید و حذف" : "Yes, Delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition cursor-pointer"
+              >
+                {lang === "fa" ? "انصراف" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

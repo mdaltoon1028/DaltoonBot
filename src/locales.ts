@@ -3,19 +3,20 @@ export type Language = "fa" | "en";
 export const translations = {
   en: {
     // Layout
-    appTitle: "DALTOON VPN",
-    appSubtitle: "3x-ui Telegram Bot Controller",
+    appTitle: "Daltoon Store",
+    appSubtitle: "VIP Client Account & Plan Management",
     portLabel: "PORT",
-    localCache: "Local Cache DB: sqlite3 'bot_database.db'",
+    localCache: "Local Database Cache",
     resetBtn: "Reset DB",
-    footerText: "© 2026 Daltoon VPN Engine. Built specifically for Sanaei 3x-ui Multi-Inbound Environments.",
-    craftedWith: "Crafted securely in full-stack server workspace.",
+    footerText: "© 2026 Daltoon Store. Premium services, secure encryption, and fast configurations.",
+    craftedWith: "Securely optimized for maximum system uptime.",
     
     // Tabs
     tabOverview: "Overview Dashboard",
     tabUsers: "Bot Users & Wallets",
     tabApprovals: "Manual Approvals",
     tabSimulator: "V2Ray Bot Emulator",
+    tabServers: "Server Management",
     tabSettings: "Bot Settings",
     tabGuide: "Connection Guide",
 
@@ -152,7 +153,7 @@ export const translations = {
     typeMessagePlaceholder: "Write a message...",
 
     // Bot Responses Flow (Translates simulated bot responses if needed)
-    welcomeBotMsg: "Hello dear user, welcome to Daltoon VPN bot! 🤖\n\nYou can buy high-speed subscriptions or top up your wallet right now.",
+    welcomeBotMsg: "Hello dear user, welcome to Daltoon Store bot! 🤖\n\nYou can buy high-speed subscriptions or top up your wallet right now.",
     btnBuyPlan: "🛍️ Buy Plan",
     btnMyAccount: "👤 My Account",
     btnTopUp: "💳 Top-up Wallet",
@@ -162,19 +163,20 @@ export const translations = {
   },
   fa: {
     // Layout
-    appTitle: "دالتون وی‌پی‌ان",
-    appSubtitle: "داشبورد مدیریت ربات تلگرام ۳x-ui",
+    appTitle: "دالتون استور",
+    appSubtitle: "سامانه مدیریت مشتریان و امور مالی",
     portLabel: "پورت",
-    localCache: "دیتابیس محلی کش: sqlite3 'bot_database.db'",
+    localCache: "کش دیتابیس محلی",
     resetBtn: "ریست دیتابیس",
-    footerText: "© ۲۰۲۶ موتور دالتون وی‌پی‌ان. طراحی شده مخصوص سرورهای دارای پنل ۳x-ui.",
-    craftedWith: "ساخته شده با امنیت بالا در وب سرور محلی سیستم.",
+    footerText: "© ۲۰۲۶ دالتون استور. ارائه برترین سرویس‌های رمزنگاری شده و پرسرعت.",
+    craftedWith: "بهینه‌سازی شده در سرور اختصاصی دالتون استور.",
 
     // Tabs
     tabOverview: "نمای عمومی داشبورد",
     tabUsers: "کاربران ربات و کیف پول",
     tabApprovals: "تایید فیش‌های واریزی",
     tabSimulator: "شبیه‌ساز ربات تلگرام",
+    tabServers: "مدیریت سرورها",
     tabSettings: "تنظیمات ربات",
     tabGuide: "راهنمای اتصال به سرور",
 
@@ -311,7 +313,7 @@ export const translations = {
     typeMessagePlaceholder: "پیام خود را بنویسید...",
 
     // Bot Responses Flow (simulated translations)
-    welcomeBotMsg: "سلام کاربر عزیز کلاینت دالتون وی‌پی‌ان خوش آمدید! 🤖\n\nبرای خرید اکانت پرسرعت با کارت با کارت از دکمه‌های زیر استفاده نمایید.",
+    welcomeBotMsg: "سلام کاربر عزیز، به دالتون استور خوش آمدید! 🤖\n\nبرای خرید اشتراک‌های پرسرعت و ارتقای موجودی کیف پول خود از دکمه‌های زیر استفاده نمایید.",
     btnBuyPlan: "🛍️ خرید اشتراک (Buy Plan)",
     btnMyAccount: "👤 حساب کاربری (My Account)",
     btnTopUp: "💳 شارژ کیف پول (Top-up Wallet)",
