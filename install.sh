@@ -38,17 +38,17 @@ if [ ! -f "package.json" ]; then
     echo -e "${YELLOW}No package.json detected in the current directory.${NC}"
     DEFAULT_REPO="https://github.com/mdaltoon1028/DaltoonBot"
     
-    # Read from /dev/tty because stdin is redirected when streaming via curl | bash
-    if [ -t 0 ]; then
-        read -p "Please enter your GitHub repository URL [Default: $DEFAULT_REPO]: " REPO_URL
-    else
-        read -p "Please enter your GitHub repository URL [Default: $DEFAULT_REPO]: " REPO_URL < /dev/tty
+    # Use the first command line argument as REPO_URL, otherwise fall back to DEFAULT_REPO
+    REPO_URL=${1:-$DEFAULT_REPO}
+
+    echo -e "${GREEN}[3/6] Cloning repository from $REPO_URL...${NC}"
+    
+    # Remove older clone if exists to prevent conflicts
+    if [ -d "/opt/daltoon-store" ]; then
+        echo -e "${YELLOW}Removing existing directory at /opt/daltoon-store...${NC}"
+        rm -rf /opt/daltoon-store
     fi
 
-    if [ -z "$REPO_URL" ]; then
-        REPO_URL=$DEFAULT_REPO
-    fi
-    echo -e "${GREEN}[3/6] Cloning repository from $REPO_URL...${NC}"
     git clone "$REPO_URL" /opt/daltoon-store
     cd /opt/daltoon-store || exit
 else
