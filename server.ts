@@ -368,12 +368,15 @@ app.post("/api/transactions", async (req, res) => {
 
 app.post("/api/transactions/approve", async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, amount } = req.body;
     const db = readJsonDb();
     
     const tx = db.transactions.find(t => t.id === id);
     if (tx) {
       tx.status = "approved";
+      if (amount !== undefined) {
+        tx.amount = Number(amount);
+      }
       
       const user = db.users.find(u => u.userId === Number(tx.userId));
       if (user) {

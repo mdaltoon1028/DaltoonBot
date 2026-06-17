@@ -7,7 +7,7 @@ export const translations = {
     appSubtitle: "VIP Client Account & Plan Management",
     portLabel: "PORT",
     localCache: "Local Database Cache",
-    resetBtn: "Reset DB",
+    resetBtn: "Refresh Data",
     footerText: "© 2026 Daltoon Store. Premium services, secure encryption, and fast configurations.",
     craftedWith: "Securely optimized for maximum system uptime.",
     
@@ -167,7 +167,7 @@ export const translations = {
     appSubtitle: "سامانه مدیریت مشتریان و امور مالی",
     portLabel: "پورت",
     localCache: "کش دیتابیس محلی",
-    resetBtn: "ریست دیتابیس",
+    resetBtn: "بروزرسانی",
     footerText: "© ۲۰۲۶ دالتون استور. ارائه برترین سرویس‌های رمزنگاری شده و پرسرعت.",
     craftedWith: "بهینه‌سازی شده در سرور اختصاصی دالتون استور.",
 

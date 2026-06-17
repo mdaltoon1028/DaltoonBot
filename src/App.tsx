@@ -189,27 +189,32 @@ export default function App() {
     localStorage.setItem("daltoon_custom_buttons", JSON.stringify(customButtons));
   }, [customButtons]);
 
-  // Fetch complete SQLite database state on mount
-  useEffect(() => {
-    async function fetchDb() {
-      try {
-        const response = await fetch("/api/data");
-        const json = await response.json();
-        if (json.success) {
-          if (json.users && json.users.length > 0) setUsers(json.users);
-          if (json.transactions) setTransactions(json.transactions);
-          if (json.keys) setKeys(json.keys);
-          if (json.vpnPlans && json.vpnPlans.length > 0) setVpnPlans(json.vpnPlans);
-          if (json.inbounds && json.inbounds.length > 0) setInbounds(json.inbounds);
-          if (json.customButtons && json.customButtons.length > 0) setCustomButtons(json.customButtons);
-          if (json.settings && json.settings.botToken) setSettings(json.settings);
-          console.log("[Full-Stack Sync] SQLite bot_database.db synced successfully.");
-        }
-      } catch (err) {
-        console.warn("[Full-Stack Sync] Failed connecting to Express Database. Running on local simulator cache.", err);
+  const refreshData = async () => {
+    try {
+      const response = await fetch("/api/data");
+      const json = await response.json();
+      if (json.success) {
+        if (json.users) setUsers(json.users);
+        if (json.transactions) setTransactions(json.transactions);
+        if (json.keys) setKeys(json.keys);
+        if (json.vpnPlans) setVpnPlans(json.vpnPlans);
+        if (json.inbounds) setInbounds(json.inbounds);
+        if (json.customButtons) setCustomButtons(json.customButtons);
+        if (json.settings && json.settings.botToken) setSettings(json.settings);
+        console.log("[Full-Stack Sync] SQLite bot_database.db refreshed successfully.");
       }
+    } catch (err) {
+      console.warn("[Full-Stack Sync] Failed connecting to Express Database.", err);
     }
-    fetchDb();
+  };
+
+  // Fetch complete SQLite database state on mount and update every 20 seconds automatically
+  useEffect(() => {
+    refreshData();
+    const interval = setInterval(() => {
+      refreshData();
+    }, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   // Database mutations & action handlers (with API sync triggers)
@@ -302,22 +307,34 @@ export default function App() {
     }
   };
 
-  const approveTransaction = (txId: string) => {
+  const approveTransaction = (txId: string, correctedAmount?: number) => {
     const tx = transactions.find(t => t.id === txId);
     if (!tx || tx.status !== "pending") return;
 
+    const finalAmount = correctedAmount !== undefined ? correctedAmount : tx.amount;
+
     setTransactions(prev => prev.map(t => {
       if (t.id === txId) {
-        return { ...t, status: "approved" as const, description: (t.description || "") + (lang === "fa" ? " - تایید و شارژ شد" : " - Approved and credited") };
+        return { 
+          ...t, 
+          status: "approved" as const, 
+          amount: finalAmount, 
+          description: (t.description || "") + (lang === "fa" ? " - تایید و شارژ شد" : " - Approved and credited") 
+        };
       }
       return t;
     }));
-    adjustUserWallet(tx.userId, tx.amount);
+    setUsers(prev => prev.map(u => {
+      if (u.userId === tx.userId) {
+        return { ...u, walletBalance: u.walletBalance + finalAmount };
+      }
+      return u;
+    }));
 
     fetch("/api/transactions/approve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: txId })
+      body: JSON.stringify({ id: txId, amount: finalAmount })
     }).catch(err => console.warn("Failed syncing approved transaction:", err));
   };
 
@@ -468,11 +485,11 @@ export default function App() {
 
             {/* Left aligned reset & actions */}
             <button
-              onClick={handleResetData}
+              onClick={refreshData}
               className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer"
-              title="Reset Cache Database"
+              title="Refresh Data"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin-hover" />
               {t.resetBtn}
             </button>
 

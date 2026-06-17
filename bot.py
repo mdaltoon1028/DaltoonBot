@@ -82,13 +82,25 @@ def get_config():
         "HIDE_PROFILE": False,
         "HIDE_WALLET": False,
         "KEYBOARD_LAYOUT": "stepped",
-        "PURCHASE_SUCCESS_NOTE": ""
+        "PURCHASE_SUCCESS_NOTE": "",
+        "BTN_BUY": "🛍️ خرید کانفیگ (Our Plans)",
+        "BTN_PROFILE": "👤 اطلاعات حساب (My Profile)",
+        "BTN_WALLET": "💳 شارژ کیف پول (Top-up Wallet)",
+        "BTN_SUPPORT": "📞 پشتیبانی فنی (Support)"
     }
     try:
         db = read_db_json()
         settings_str = db.get("settings", {}).get("panel_config")
         if settings_str:
             panel_cfg = json.loads(settings_str)
+            if panel_cfg.get("btnTextBuy"):
+                config["BTN_BUY"] = panel_cfg["btnTextBuy"]
+            if panel_cfg.get("btnTextProfile"):
+                config["BTN_PROFILE"] = panel_cfg["btnTextProfile"]
+            if panel_cfg.get("btnTextWallet"):
+                config["BTN_WALLET"] = panel_cfg["btnTextWallet"]
+            if panel_cfg.get("btnTextSupport"):
+                config["BTN_SUPPORT"] = panel_cfg["btnTextSupport"]
             if panel_cfg.get("botToken"):
                 config["BOT_TOKEN"] = panel_cfg["botToken"]
             if panel_cfg.get("baseUrl"):
@@ -207,6 +219,22 @@ def add_vpn_client_api(inbound_id, client_email, traffic_gb, duration_months):
     return None, None
 
 # --- User Management DB Queries ---
+def set_user_pending_charge(tg_id, amount):
+    db = read_db_json()
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        user["pendingChargeAmount"] = amount
+        write_db_json(db)
+
+def pop_user_pending_charge(tg_id):
+    db = read_db_json()
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        amount = user.pop("pendingChargeAmount", None)
+        write_db_json(db)
+        return amount
+    return None
+
 def register_tg_user(tg_id, username):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
@@ -282,13 +310,13 @@ def get_custom_keyboard():
 
     main_buttons = []
     if not hide_buy:
-        main_buttons.append(types.KeyboardButton("🛍️ خرید کانفیگ (Our Plans)"))
+        main_buttons.append(types.KeyboardButton(cfg.get("BTN_BUY", "🛍️ خرید کانفیگ (Our Plans)")))
     if not hide_profile:
-        main_buttons.append(types.KeyboardButton("👤 اطلاعات حساب (My Profile)"))
+        main_buttons.append(types.KeyboardButton(cfg.get("BTN_PROFILE", "👤 اطلاعات حساب (My Profile)")))
     if not hide_wallet:
-        main_buttons.append(types.KeyboardButton("💳 شارژ کیف پول (Top-up Wallet)"))
+        main_buttons.append(types.KeyboardButton(cfg.get("BTN_WALLET", "💳 شارژ کیف پول (Top-up Wallet)")))
     if not hide_support:
-        main_buttons.append(types.KeyboardButton("📞 پشتیبانی فنی (Support)"))
+        main_buttons.append(types.KeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی فنی (Support)")))
     
     try:
         db = read_db_json()
@@ -357,20 +385,9 @@ def text_messages_handler(message):
     user = get_user_data(tg_id)
     
     if user and user.get('status') == 'banned':
-        bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
-        return
-
-    try:
-        db = read_db_json()
-        match_btn = next((b for b in db.get("custom_buttons", []) if b["text"] == text), None)
-        if match_btn:
-            bot.send_message(message.chat.id, match_btn["replyText"], parse_mode="HTML")
-            return
-    except Exception as e:
-        print("Error serving custom content:", e)
-
-    # 1. Buy premium plan flow
-    if "خرید" in text or "Buy" in text or "🛍️" in text:
+        bot.send_message(message.chat.id, "❌ حساب شما مسدود شده اس�    # 1. Buy premium plan flow
+    cfg = get_config()
+    if text == cfg.get("BTN_BUY") or "خرید" in text or "Buy" in text or "🛍️" in text:
         plans = [
             {"id": "std_30g", "name": "Standard 30GB - ۱ ماهه", "price": 45000, "traffic": 30, "duration": 1},
             {"id": "vip_70g", "name": "VIP Premium 70GB - ۲ ماهه", "price": 95000, "traffic": 70, "duration": 2},
@@ -390,7 +407,7 @@ def text_messages_handler(message):
         )
 
     # 2. Account Profile Details
-    elif "اطلاعات حساب" in text or "Profile" in text or "👤" in text:
+    elif text == cfg.get("BTN_PROFILE") or "اطلاعات حساب" in text or "Profile" in text or "👤" in text:
         db = read_db_json()
         active_keys = [k for k in db.get("subscription_keys", []) if k["userId"] == tg_id]
         
@@ -401,7 +418,7 @@ def text_messages_handler(message):
                 config_lines += f"• <b>{k['planName']}</b>\n انقضا: {k['expireDate']} | حجم: {k['trafficLimitGb']} گیگابایت\n <code>{k['subLink']}</code>\n\n"
         else:
             config_lines = "\n\n❌ شما تا کنون هیچ سرویس اشتراکی از دالتون خریداری نکرده‌اید."
-
+ 
          # Check if walletBalance is missing (which default templates might have as floats or int)
         bal = user.get("walletBalance", 0)
         formatted_bal = f"{int(bal):,}" if bal is not None else "0"
@@ -416,19 +433,40 @@ def text_messages_handler(message):
         bot.send_message(message.chat.id, profile_text, parse_mode="HTML")
 
     # 3. Charger Wallet instructions
-    elif "شارژ" in text or "Wallet" in text or "💳" in text:
-        cfg = get_config()
+    elif text == cfg.get("BTN_WALLET") or "شارژ" in text or "Wallet" in text or "💳" in text:
         instructions = (
-            f"💳 <b>آموزش سریع شارژ کیف پول دالتون:</b>\n\n"
-            f"لطفا مبلغ دلخواه خود را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-            f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-            f"<code>{cfg['CARD_NUMBER']}</code>\n"
-            f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
-            f"پس از پرداخت، یک تصویر واضح از فیش یا رسید واریز کارت به کارت خود را جهت تایید و شارژ تمام خودکار به آی‌پی مدیریت بفرستید 👇\n"
-            f"یا برای ثبت نهایی شماره رسید تراکنش و فیش به وب‌داشبورد مراجعه کنید."
+            f"💳 <b>بخش شارژ و افزایش موجودی کیف پول دالتون:</b>\n\n"
+            f"لطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\n"
+            f"پس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود."
         )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("📸 ارسال رسید تصویری مدیریت", callback_data="upload_receipt"))
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            types.InlineKeyboardButton("💵 ۲۰۰,۰۰۰ تومان", callback_data="charge_amount_200000"),
+            types.InlineKeyboardButton("💵 ۳۰۰,۰۰۰ تومان", callback_data="charge_amount_300000")
+        )
+        markup.add(
+            types.InlineKeyboardButton("💵 ۴۰۰,۰۰۰ تومان", callback_data="charge_amount_400000"),
+            types.InlineKeyboardButton("💵 ۵۰۰,۰۰۰ تومان", callback_data="charge_amount_500000")
+        )
+        markup.add(
+            types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
+        )
+        bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
+
+    # 4. Support chat
+    elif text == cfg.get("BTN_SUPPORT") or "پشتیبانی" in text or "Support" in text or "📞" in text:
+        custom_support = cfg.get("SUPPORT_TEXT") = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            types.InlineKeyboardButton("💵 ۲۰۰,۰۰۰ تومان", callback_data="charge_amount_200000"),
+            types.InlineKeyboardButton("💵 ۳۰۰,۰۰۰ تومان", callback_data="charge_amount_300000")
+        )
+        markup.add(
+            types.InlineKeyboardButton("💵 ۴۰۰,۰۰۰ تومان", callback_data="charge_amount_400000"),
+            types.InlineKeyboardButton("💵 ۵۰۰,۰۰۰ تومان", callback_data="charge_amount_500000")
+        )
+        markup.add(
+            types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
+        )
         bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
 
     # 4. Support chat
@@ -534,10 +572,30 @@ def callback_handler(call):
         bot.send_message(call.message.chat.id, success_text)
         bot.answer_callback_query(call.id, "خرید با موفقیت تایید شد!")
 
+    elif call.data.startswith("charge_amount_"):
+        try:
+            amount = int(call.data.split("_")[-1])
+            tg_id = call.from_user.id
+            set_user_pending_charge(tg_id, amount)
+            
+            cfg = get_config()
+            text = (
+                f"💳 <b>درخواست شارژ حساب کاربری به مبلغ {amount:,} تومان:</b>\n\n"
+                f"لطفاً مبلغ دقیق <b>{amount:,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+                f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
+                f"<code>{cfg['CARD_NUMBER']}</code>\n"
+                f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
+                f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
+            )
+            bot.send_message(call.message.chat.id, text, parse_mode="HTML")
+            bot.answer_callback_query(call.id)
+        except Exception as e:
+            print(f"[Error Charge Amount Init] {e}")
+
     elif call.data == "upload_receipt":
         bot.send_message(
             call.message.chat.id, 
-            "📸 لطفا عکس رسید یا فیش پرداختی خود را همراه مبالغ به صورت متغیر ارسال کنید تا پس از تایید مدیریت وب‌داشبورد، کیف پول شما بلافاصله شارژ شود."
+            "📸 لطفا ابتدا از دکمه‌های بالا مبلغی را برای شارژ انتخاب کنید تا جزئیات پرداخت کارت برای شما فرستاده شود."
         )
         bot.answer_callback_query(call.id)
 
@@ -554,14 +612,17 @@ def handle_receipt_upload(message):
         bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
         return
 
-    # Extract digits for amount
-    import re
-    digits = re.findall(r'\d+', caption.replace(",", "").replace("，", ""))
-    extracted_amount = 50000  # Default fallback amount
-    if digits:
-         extracted_amount = int("".join(digits))
-         if extracted_amount < 1000 or extracted_amount > 100000000:
-              extracted_amount = 50000
+    # Look up selected amount or fallback to regex extraction or default
+    extracted_amount = pop_user_pending_charge(tg_id)
+    if not extracted_amount:
+        import re
+        digits = re.findall(r'\d+', caption.replace(",", "").replace("，", ""))
+        if digits:
+             extracted_amount = int("".join(digits))
+             if extracted_amount < 1000 or extracted_amount > 100000000:
+                  extracted_amount = 200000
+        else:
+             extracted_amount = 200000  # Default to 200k if unspecified
 
     try:
         file_id = None
@@ -580,7 +641,7 @@ def handle_receipt_upload(message):
             bot.reply_to(message, "⚠️ لطفا فیش واریزی خود را فقط به صورت عکس یا فایل تصویری (JPEG, PNG و...) بفرستید.")
             return
 
-        bot.send_message(message.chat.id, "⏳ در حال بررسی و انتقال تصویر رسید شما به داشبورد مدیریت...")
+        bot.send_message(message.chat.id, "⌛ در حال انتقال و بررسی رسید شما توسط ادمین هستیم. لطفا کمی صبور باشید.")
 
         file_info = bot.get_file(file_id)
         cfg = get_config()
@@ -607,7 +668,7 @@ def handle_receipt_upload(message):
                 "receiptImage": receipt_data_uri,
                 "status": "pending",
                 "date": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
-                "description": f"ثبت شده از فیش ارسالی ربات تلگرام. کپشن فیش: '{caption}'" if caption else "ثبت شده از فیش تصویری ارسالی ربات تلگرام بدون کپشن."
+                "description": f"شارژ انتخابی تلگرام. کپشن فیش: '{caption}'" if caption else f"شارژ انتخابی {extracted_amount:,} تومان بدون کپشن."
             }
             db["transactions"].insert(0, new_tx)
             write_db_json(db)
@@ -615,8 +676,8 @@ def handle_receipt_upload(message):
             reply_text = (
                 f"✅ <b>فیش پرداختی شما با موفقیت دریافت شد!</b>\n\n"
                 f"📌 شناسه تراکنش: <code>{tx_id}</code>\n"
-                f"💰 مبلغ فیش (پیش‌فرض/کپشن): <b>{extracted_amount:,} تومان</b>\n\n"
-                f"⏳ رسید فیش و کارت شما بلافاصله در داشبورد مدیریت دالتون برای بررسی و شارژ ثبت شد. پس از تایید نهایی توسط پشتیبان، اعتبار به کیف پول شما واریز شده و از همین‌جا پیام تاییدیه فرستاده می‌شود."
+                f"💰 مبلغ اعلامی: <b>{extracted_amount:,} تومان</b>\n\n"
+                f"⌛ در حال انتقال و بررسی رسید شما توسط ادمین هستیم. لطفا کمی صبور باشید."
             )
             bot.reply_to(message, reply_text, parse_mode="HTML")
             

@@ -15,7 +15,7 @@ import {
 
 interface TransactionApprovalProps {
   transactions: Transaction[];
-  approveTransaction: (id: string) => void;
+  approveTransaction: (id: string, correctedAmount?: number) => void;
   rejectTransaction: (id: string) => void;
   deleteTransaction: (id: string) => void;
   clearTransactionHistory: () => void;
@@ -33,6 +33,9 @@ export default function TransactionApproval({
   const t = translations[lang];
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  
+  // Track custom corrected amount per transaction ID
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
 
   // Custom state-based safe iframe modal confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -158,7 +161,11 @@ export default function TransactionApproval({
                         {tx.status === "pending" && (
                           <>
                             <button
-                              onClick={() => approveTransaction(tx.id)}
+                              onClick={() => {
+                                const valStr = customAmounts[tx.id];
+                                const correctedAmount = valStr !== undefined && valStr !== "" ? Number(valStr) : undefined;
+                                approveTransaction(tx.id, correctedAmount);
+                              }}
                               className="p-1 px-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded text-xs transition inline-flex items-center gap-0.5 cursor-pointer"
                               title="Approve & Credit Balance"
                             >
@@ -246,9 +253,24 @@ export default function TransactionApproval({
                         <span>{t.analyzerDepositor}:</span>
                         <span className="text-white font-medium">@{selectedTx.username} (ID: {selectedTx.userId})</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center bg-slate-950/40 p-1 rounded border border-slate-800/80">
                         <span>{t.analyzerCreditAmount}:</span>
-                        <span className="text-emerald-400 font-semibold font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Tomans"}</span>
+                        {selectedTx.status === "pending" ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={customAmounts[selectedTx.id] !== undefined ? customAmounts[selectedTx.id] : selectedTx.amount}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCustomAmounts(prev => ({ ...prev, [selectedTx.id]: val }));
+                              }}
+                              className="bg-slate-950 text-emerald-400 font-semibold font-display text-right w-24 py-0.5 px-1 rounded border border-slate-700 text-xs focus:outline-none focus:border-indigo-500"
+                            />
+                            <span className="text-[10px] text-gray-400">{lang === "fa" ? "تومان" : "Toman"}</span>
+                          </div>
+                        ) : (
+                          <span className="text-emerald-400 font-semibold font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Tomans"}</span>
+                        )}
                       </div>
                       <div className="flex justify-between">
                         <span>{t.analyzerReportingDate}:</span>
@@ -264,7 +286,9 @@ export default function TransactionApproval({
                       <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-800">
                         <button
                           onClick={() => {
-                            approveTransaction(selectedTx.id);
+                            const correctedVal = customAmounts[selectedTx.id];
+                            const correctedAmount = correctedVal !== undefined && correctedVal !== "" ? Number(correctedVal) : undefined;
+                            approveTransaction(selectedTx.id, correctedAmount);
                             setSelectedTx(null);
                           }}
                           className="inline-flex justify-center items-center gap-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
