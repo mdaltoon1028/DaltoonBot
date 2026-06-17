@@ -250,25 +250,22 @@ app.get("/api/data", async (req, res) => {
         params.append("password", settings.panelPassword);
 
         // 1. Authenticate with XUI panel
-        const loginRes = await fetch(`${cleanedUrl}/login`, {
+        const loginRes = await xuiFetch(`${cleanedUrl}/login`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: params.toString(),
-          signal: AbortSignal.timeout(5000)
-        });
+          body: params.toString()
+        }, 5000);
 
         if (loginRes.ok) {
           const cookie = loginRes.headers.get("set-cookie");
           if (cookie) {
             // 2. Fetch the active state of all inbounds
-            const listRes = await fetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+            const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
               method: "GET",
               headers: { 
-                "Cookie": cookie,
-                "Accept": "application/json"
-              },
-              signal: AbortSignal.timeout(5000)
-            });
+                "Cookie": cookie
+              }
+            }, 5000);
 
             if (listRes.ok) {
               const listText = await listRes.text();
@@ -348,6 +345,32 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
+// Robust fetch helper with timeout and standardized browser headers to bypass WAF / strict server security rules
+async function xuiFetch(url: string, options: any = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9,fa;q=0.8",
+    ...options.headers
+  };
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    return response;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
 function normalizeXuiUrl(url: string): string {
   let cleaned = `${url}`.trim();
   // Remove any trailing slashes
@@ -387,14 +410,15 @@ app.post("/api/xui/test-connection", async (req, res) => {
     params.append("username", panelUsername);
     params.append("password", panelPassword);
 
-    const checkRes = await fetch(loginUrl, {
+    console.log(`[Diagnostic] Connecting to login url: ${loginUrl}`);
+
+    const checkRes = await xuiFetch(loginUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
-      body: params.toString(),
-      signal: AbortSignal.timeout(6000)
-    });
+      body: params.toString()
+    }, 6000);
 
     const bodyText = await checkRes.text();
     let bodyJson: any = {};
@@ -404,19 +428,19 @@ app.post("/api/xui/test-connection", async (req, res) => {
       // Ignore JSON parse errors
     }
 
+    console.log(`[Diagnostic] Login status: ${checkRes.status}, success field: ${bodyJson?.success}`);
+
     if (checkRes.ok && bodyJson && bodyJson.success) {
       // Let's do an extra check of the list to confirm complete read API rights
       const cookie = checkRes.headers.get("set-cookie");
       if (cookie) {
         try {
-          const listRes = await fetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+          const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
             method: "GET",
             headers: { 
-              "Cookie": cookie,
-              "Accept": "application/json"
-            },
-            signal: AbortSignal.timeout(4000)
-          });
+              "Cookie": cookie
+            }
+          }, 4000);
           if (listRes.ok) {
             return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
           }
@@ -426,9 +450,11 @@ app.post("/api/xui/test-connection", async (req, res) => {
       }
       return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
     } else {
+      // If server returns an API-level error, present it directly
+      const apiErr = bodyJson?.msg || `کد خطا: ${checkRes.status}. نام کاربری یا رمز عبور پنل نادرست است.`;
       return res.json({ 
         success: false, 
-        error: bodyJson?.msg || "خطا در احراز هویت. نام کاربری یا رمز عبور پنل نادرست است." 
+        error: apiErr
       });
     }
   } catch (error: any) {

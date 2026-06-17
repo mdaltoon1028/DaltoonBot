@@ -173,6 +173,11 @@ except ImportError:
 # Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML")
 session = requests.Session()
+session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9,fa;q=0.8"
+})
 
 # Clean SSL Warnings inside Python requests
 import urllib3
