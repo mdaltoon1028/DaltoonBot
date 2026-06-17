@@ -9,13 +9,16 @@ import {
   Filter, 
   DollarSign, 
   AlertCircle, 
-  CreditCard 
+  CreditCard,
+  Trash2
 } from "lucide-react";
 
 interface TransactionApprovalProps {
   transactions: Transaction[];
   approveTransaction: (id: string) => void;
   rejectTransaction: (id: string) => void;
+  deleteTransaction: (id: string) => void;
+  clearTransactionHistory: () => void;
   lang: Language;
 }
 
@@ -23,6 +26,8 @@ export default function TransactionApproval({
   transactions,
   approveTransaction,
   rejectTransaction,
+  deleteTransaction,
+  clearTransactionHistory,
   lang
 }: TransactionApprovalProps) {
   const t = translations[lang];
@@ -54,22 +59,33 @@ export default function TransactionApproval({
           <p className="text-xs text-gray-400">{t.manualReceiptsDesc}</p>
         </div>
 
-        <div className="flex gap-2 bg-slate-900 p-1.5 rounded-lg border border-[#1f2937] self-start sm:self-auto">
-          {(["all", "pending", "approved", "rejected"] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize cursor-pointer transition ${
-                filterStatus === status 
-                  ? "bg-indigo-600 text-white" 
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              {status === "all" ? t.filterAll : 
-               status === "pending" ? t.filterPending : 
-               status === "approved" ? t.filterApproved : t.filterRejected}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto font-sans">
+          <div className="flex gap-2 bg-slate-900 p-1.5 rounded-lg border border-[#1f2937]">
+            {(["all", "pending", "approved", "rejected"] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize cursor-pointer transition ${
+                  filterStatus === status 
+                    ? "bg-indigo-600 text-white" 
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {status === "all" ? t.filterAll : 
+                 status === "pending" ? t.filterPending : 
+                 status === "approved" ? t.filterApproved : t.filterRejected}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={clearTransactionHistory}
+            className="px-3.5 py-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/10 text-rose-300 hover:text-white rounded-lg text-xs font-medium cursor-pointer transition flex items-center gap-1.5"
+            title={lang === "fa" ? "حذف کل تاریخچه فیش‌ها" : "Truncate All Slip History Records"}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {lang === "fa" ? "حذف تاریخچه فیش‌ها" : "Clear Receipts History"}
+          </button>
         </div>
       </div>
 
@@ -145,6 +161,14 @@ export default function TransactionApproval({
                             </button>
                           </>
                         )}
+
+                        <button
+                          onClick={() => deleteTransaction(tx.id)}
+                          className="p-1 px-2 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/20 text-rose-300 hover:text-white rounded text-xs transition inline-flex items-center gap-1 cursor-pointer"
+                          title="Delete Receipt From History"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))

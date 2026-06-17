@@ -109,14 +109,42 @@ export default function App() {
     localStorage.setItem("daltoon_custom_buttons", JSON.stringify(customButtons));
   }, [customButtons]);
 
-  // Database mutations & action handlers
+  // Fetch complete SQLite database state on mount
+  useEffect(() => {
+    async function fetchDb() {
+      try {
+        const response = await fetch("/api/data");
+        const json = await response.json();
+        if (json.success) {
+          if (json.users && json.users.length > 0) setUsers(json.users);
+          if (json.transactions) setTransactions(json.transactions);
+          if (json.keys) setKeys(json.keys);
+          if (json.inbounds && json.inbounds.length > 0) setInbounds(json.inbounds);
+          if (json.customButtons && json.customButtons.length > 0) setCustomButtons(json.customButtons);
+          if (json.settings && json.settings.botToken) setSettings(json.settings);
+          console.log("[Full-Stack Sync] SQLite bot_database.db synced successfully.");
+        }
+      } catch (err) {
+        console.warn("[Full-Stack Sync] Failed connecting to Express Database. Running on local simulator cache.", err);
+      }
+    }
+    fetchDb();
+  }, []);
+
+  // Database mutations & action handlers (with API sync triggers)
   const toggleInbound = (id: number) => {
+    const nextStatus = inbounds.find(ib => ib.id === id)?.status === "active" ? "inactive" : "active";
     setInbounds(prev => prev.map(ib => {
       if (ib.id === id) {
-        return { ...ib, status: ib.status === "active" ? "inactive" : "active" };
+        return { ...ib, status: nextStatus };
       }
       return ib;
     }));
+    fetch("/api/inbounds/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: nextStatus })
+    }).catch(err => console.warn("Failed syncing toggled inbound:", err));
   };
 
   const adjustUserWallet = (userId: number, amount: number) => {
@@ -127,15 +155,29 @@ export default function App() {
       }
       return u;
     }));
+    fetch("/api/users/adjust", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, amount })
+    }).catch(err => console.warn("Failed syncing adjusted wallet:", err));
   };
 
   const toggleUserBan = (userId: number) => {
+    let nextStatus: "active" | "banned" = "active";
     setUsers(prev => prev.map(u => {
       if (u.userId === userId) {
-        return { ...u, status: u.status === "active" ? "banned" : "active" };
+        nextStatus = u.status === "active" ? "banned" : "active";
+        return { ...u, status: nextStatus };
       }
       return u;
     }));
+    setTimeout(() => {
+      fetch("/api/users/ban", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, status: nextStatus })
+      }).catch(err => console.warn("Failed syncing banned user status:", err));
+    }, 100);
   };
 
   const addNewUser = (user: User) => {
@@ -144,22 +186,68 @@ export default function App() {
       return;
     }
     setUsers(prev => [user, ...prev]);
+    fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(user)
+    }).catch(err => console.warn("Failed syncing new user:", err));
+  };
+
+  const deleteUser = (userId: number) => {
+    const confirmMsg = lang === "fa" 
+      ? "آیا از حذف این کاربر اطمینان دارید؟ تمام کانفیگ‌های مرتبط با این کاربر نیز از دیتابیس حذف خواهند شد."
+      : "Are you sure you want to delete this user? All associated VPN configs will also be deleted from the database.";
+    if (confirm(confirmMsg)) {
+      setUsers(prev => prev.filter(u => u.userId !== userId));
+      setKeys(prev => prev.filter(k => k.userId !== userId));
+      fetch("/api/users/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId })
+      }).catch(err => console.warn("Failed syncing deleted user:", err));
+    }
+  };
+
+  const deleteSubscriptionKey = (keyId: string) => {
+    const confirmMsg = lang === "fa"
+      ? "آیا از حذف این کانفیگ و ابطال اشتراک اطمینان دارید؟"
+      : "Are you sure you want to delete this subscription log and revoke access?";
+    if (confirm(confirmMsg)) {
+      const keyObj = keys.find(k => k.id === keyId);
+      setKeys(prev => prev.filter(k => k.id !== keyId));
+      setUsers(prev => prev.map(u => {
+        if (keyObj && u.userId === keyObj.userId) {
+          return { ...u, activePlansCount: Math.max(0, u.activePlansCount - 1) };
+        }
+        return u;
+      }));
+      if (keyObj) {
+        fetch("/api/subscription-keys/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: keyId, userId: keyObj.userId })
+        }).catch(err => console.warn("Failed syncing deleted sub config:", err));
+      }
+    }
   };
 
   const approveTransaction = (txId: string) => {
     const tx = transactions.find(t => t.id === txId);
     if (!tx || tx.status !== "pending") return;
 
-    // 1. Update Transaction status
     setTransactions(prev => prev.map(t => {
       if (t.id === txId) {
         return { ...t, status: "approved" as const, description: (t.description || "") + (lang === "fa" ? " - تایید و شارژ شد" : " - Approved and credited") };
       }
       return t;
     }));
-
-    // 2. Add amount to user's wallet
     adjustUserWallet(tx.userId, tx.amount);
+
+    fetch("/api/transactions/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: txId })
+    }).catch(err => console.warn("Failed syncing approved transaction:", err));
   };
 
   const rejectTransaction = (txId: string) => {
@@ -169,10 +257,47 @@ export default function App() {
       }
       return t;
     }));
+    fetch("/api/transactions/reject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: txId })
+    }).catch(err => console.warn("Failed syncing rejected transaction:", err));
+  };
+
+  const deleteTransaction = (txId: string) => {
+    const confirmMsg = lang === "fa"
+      ? "آیا از حذف این درخواست رسید از تاریخچه اطمینان دارید؟"
+      : "Are you sure you want to delete this transaction ledger entry?";
+    if (confirm(confirmMsg)) {
+      setTransactions(prev => prev.filter(t => t.id !== txId));
+      fetch("/api/transactions/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: txId })
+      }).catch(err => console.warn("Failed syncing deleted transaction:", err));
+    }
+  };
+
+  const clearTransactionHistory = () => {
+    const confirmMsg = lang === "fa"
+      ? "آیا از پاک کردن کامل تاریخچه تراکنش‌ها و فیش‌ها اطمینان دارید؟ این عمل غیرقابل بازگشت است."
+      : "Are you sure you want to completely clear the card receipt and transaction ledger? This action cannot be undone.";
+    if (confirm(confirmMsg)) {
+      setTransactions([]);
+      fetch("/api/transactions/clear-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      }).catch(err => console.warn("Failed syncing cleared transactional logs:", err));
+    }
   };
 
   const saveSettings = (newSettings: PanelSettings) => {
     setSettings(newSettings);
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newSettings)
+    }).catch(err => console.warn("Failed syncing setting parameter overrides:", err));
   };
 
   const handleOpenSimulatedChat = (userId: number) => {
@@ -182,17 +307,26 @@ export default function App() {
 
   const addNewTransaction = (tx: Transaction) => {
     setTransactions(prev => [tx, ...prev]);
+    fetch("/api/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tx)
+    }).catch(err => console.warn("Failed syncing added transaction:", err));
   };
 
   const addNewSubscriptionKey = (key: SubscriptionKey) => {
     setKeys(prev => [key, ...prev]);
-    // increment count for user
     setUsers(prev => prev.map(u => {
       if (u.userId === key.userId) {
         return { ...u, activePlansCount: u.activePlansCount + 1 };
       }
       return u;
     }));
+    fetch("/api/subscription-keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(key)
+    }).catch(err => console.warn("Failed syncing added VPN sub config key:", err));
   };
 
   const handleResetData = () => {
@@ -396,6 +530,9 @@ export default function App() {
               adjustUserWallet={adjustUserWallet}
               toggleUserBan={toggleUserBan}
               addNewUser={addNewUser}
+              deleteUser={deleteUser}
+              deleteSubscriptionKey={deleteSubscriptionKey}
+              addNewSubscriptionKey={addNewSubscriptionKey}
               openSimulatedChat={handleOpenSimulatedChat}
               lang={lang}
             />
@@ -406,6 +543,8 @@ export default function App() {
               transactions={transactions}
               approveTransaction={approveTransaction}
               rejectTransaction={rejectTransaction}
+              deleteTransaction={deleteTransaction}
+              clearTransactionHistory={clearTransactionHistory}
               lang={lang}
             />
           )}

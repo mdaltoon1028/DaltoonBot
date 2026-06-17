@@ -1,6 +1,6 @@
 {
   "name": "Daltoon VPN Dashboard",
-  "description": "Bilingual administrative cockpit and Telegram emulator for managing Daltoon VPN bot users, wallet top-ups, manual receipts and Marzban configurations.",
+  "description": "Bilingual administrative cockpit and Telegram emulator for managing Daltoon VPN bot users, wallet top-ups, manual receipts and Sanaei 3x-ui configurations.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

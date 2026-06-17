@@ -99,7 +99,7 @@ export default function SettingsPanel({
           </div>
         </div>
 
-        {/* Marzban / XUI Credentials */}
+        {/* Sanaei 3x-ui Credentials */}
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
           <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
             <Cpu className="w-5 h-5 text-indigo-400" />

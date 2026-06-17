@@ -12,7 +12,9 @@ import {
   Activity, 
   Plus, 
   Minus,
-  MessageSquare
+  MessageSquare,
+  Trash2,
+  Link2
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -21,6 +23,9 @@ interface UserManagementProps {
   adjustUserWallet: (userId: number, amount: number) => void;
   toggleUserBan: (userId: number) => void;
   addNewUser: (user: User) => void;
+  deleteUser: (userId: number) => void;
+  deleteSubscriptionKey: (keyId: string) => void;
+  addNewSubscriptionKey: (key: SubscriptionKey) => void;
   openSimulatedChat: (userId: number) => void;
   lang: Language;
 }
@@ -31,6 +36,9 @@ export default function UserManagement({
   adjustUserWallet,
   toggleUserBan,
   addNewUser,
+  deleteUser,
+  deleteSubscriptionKey,
+  addNewSubscriptionKey,
   openSimulatedChat,
   lang
 }: UserManagementProps) {
@@ -41,10 +49,46 @@ export default function UserManagement({
   const [adjustType, setAdjustType] = useState<"add" | "sub">("add");
   const [showAddForm, setShowAddForm] = useState(false);
   
+  // Custom manual config addition form states
+  const [addingConfigForUser, setAddingConfigForUser] = useState<User | null>(null);
+  const [manualPlanName, setManualPlanName] = useState("");
+  const [manualSubLink, setManualSubLink] = useState("");
+  const [manualTrafficLimit, setManualTrafficLimit] = useState("50");
+  const [manualExpiryDays, setManualExpiryDays] = useState("30");
+
   // New User Form fields
   const [newUserId, setNewUserId] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [newBalance, setNewBalance] = useState("");
+
+  const handleManualConfigSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addingConfigForUser) return;
+
+    const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+    const expireDate = new Date(Date.now() + (parseInt(manualExpiryDays) || 30) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    
+    // Auto populate a default connection string if they didn't supply one, using sub domain layout
+    const generatedVless = manualSubLink.trim() || `vless://${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2)}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${manualPlanName || "Manual"}`;
+
+    addNewSubscriptionKey({
+      id: randomId,
+      userId: addingConfigForUser.userId,
+      planId: "custom",
+      planName: manualPlanName.trim() || "Account Normal",
+      subLink: generatedVless,
+      expireDate: expireDate,
+      trafficLimitGb: parseInt(manualTrafficLimit) || 50,
+      trafficUsedGb: 0,
+      status: "active"
+    });
+
+    setAddingConfigForUser(null);
+    setManualPlanName("");
+    setManualSubLink("");
+    setManualTrafficLimit("50");
+    setManualExpiryDays("30");
+  };
 
   const handleAdjustSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,38 +272,55 @@ export default function UserManagement({
                           {user.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "مسدود" : "banned")}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right space-x-1 whitespace-nowrap">
+                      <td className="px-5 py-4 text-right space-x-1 whitespace-nowrap flex items-center justify-end gap-1 font-sans">
                         <button
                           onClick={() => {
                             setAdjustingUser(user);
                             setAdjustType("add");
                           }}
-                          className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-gray-300 rounded text-xs transition inline-flex items-center gap-1 cursor-pointer"
+                          className="p-1 px-2 bg-slate-800 hover:bg-slate-700 hover:text-white text-gray-300 rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
                           title="Adjust Balance"
                         >
-                          <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                          <Plus className="w-3 h-3 text-emerald-400" />
                           {t.fundsAction}
                         </button>
 
                         <button
+                          onClick={() => setAddingConfigForUser(user)}
+                          className="p-1 px-2 bg-emerald-950/40 hover:bg-emerald-900 border border-emerald-500/10 text-emerald-300 rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
+                          title={lang === "fa" ? "افزودن کانفیگ دستی" : "Add Manual VPN Config"}
+                        >
+                          <Key className="w-3 h-3 text-emerald-400" />
+                          {lang === "fa" ? "➕ کانفیگ" : "+ Config"}
+                        </button>
+
+                        <button
                           onClick={() => openSimulatedChat(user.userId)}
-                          className="p-1 px-2 bg-indigo-900/50 hover:bg-indigo-900 text-indigo-300 rounded text-xs transition inline-flex items-center gap-1 cursor-pointer"
+                          className="p-1 px-2 bg-indigo-900/50 hover:bg-indigo-900 text-indigo-300 rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
                           title="Simulate Bot Chat"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" />
+                          <MessageSquare className="w-3 h-3" />
                           {t.chatAction}
                         </button>
 
                         <button
                           onClick={() => toggleUserBan(user.userId)}
-                          className={`p-1 px-2.5 rounded text-xs transition cursor-pointer inline-flex items-center gap-1 ${
+                          className={`p-1 px-2 rounded text-[11px] transition cursor-pointer inline-flex items-center gap-0.5 ${
                             user.status === "active"
                               ? "bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
                               : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                           }`}
                         >
-                          <Ban className="w-3.5 h-3.5" />
+                          <Ban className="w-3 h-3" />
                           {user.status === "active" ? t.banAction : t.unbanAction}
+                        </button>
+
+                        <button
+                          onClick={() => deleteUser(user.userId)}
+                          className="p-1 px-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/30 text-rose-400 hover:text-white rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
+                          title={lang === "fa" ? "حذف کامل کاربر" : "Delete User Completely"}
+                        >
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </td>
                     </tr>
@@ -355,9 +416,18 @@ export default function UserManagement({
                     <h4 className="font-semibold text-white text-sm">{key.planName}</h4>
                     <span className="text-[10px] text-gray-400 font-mono block">Key ID: {key.id}</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
-                    {key.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "منقضی" : "expired")}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
+                      {key.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "منقضی" : "expired")}
+                    </span>
+                    <button
+                      onClick={() => deleteSubscriptionKey(key.id)}
+                      className="p-1 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition cursor-pointer"
+                      title={lang === "fa" ? "حذف کانفیگ" : "Delete VPN Subscription"}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1 bg-slate-950/40 p-2.5 rounded text-xs select-all">
@@ -385,6 +455,98 @@ export default function UserManagement({
           })}
         </div>
       </div>
+
+      {/* Manual Configuration Adder Dialog Modal */}
+      {addingConfigForUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-md w-full space-y-4">
+            <h3 className="font-display font-semibold text-lg text-white flex items-center gap-2">
+              <Key className="w-5 h-5 text-indigo-400" />
+              {lang === "fa" ? "ثبت کانفیگ دستی جدید" : "Create Manual VPN Config"}
+            </h3>
+            <p className="text-xs text-gray-400">
+              {lang === "fa" 
+                ? "یک کانفیگ اختصاصی یا لینک اتصال دلخواه برای این کاربر ایجاد و ثبت کنید." 
+                : "Create a custom connection link or account subscription for this client."}
+              <br />
+              {lang === "fa" ? "کاربر هدف:" : "Target User:"}{" "}
+              <span className="text-indigo-400 font-semibold font-mono">@{addingConfigForUser.username} (ID: {addingConfigForUser.userId})</span>
+            </p>
+
+            <form onSubmit={handleManualConfigSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                  {lang === "fa" ? "نام پلن / مدت دوره" : "Plan Title / Label"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={lang === "fa" ? "مثلا: ۱ ماهه ۵۰ گیگ یا VIP" : "e.g. Monthly 50GB, VIP"}
+                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                  value={manualPlanName}
+                  onChange={(e) => setManualPlanName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                  {lang === "fa" ? "لینک کانکشن (Vless / Trojan / SS)" : "Connection Link (Vless / Trojan / SS)"}
+                </label>
+                <textarea
+                  placeholder={lang === "fa" ? "لینک تولید شده در x-ui را اینجا پیست کنید (در صورت خالی بودن، لینک تصادفی ساخته میشود)" : "Paste connection link here (if left empty, a mock link is generated)"}
+                  rows={3}
+                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 font-sans"
+                  value={manualSubLink}
+                  onChange={(e) => setManualSubLink(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                    {lang === "fa" ? "حجم مجاز (گیگابایت)" : "Traffic Cap (GB)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-sm text-white font-sans"
+                    value={manualTrafficLimit}
+                    onChange={(e) => setManualTrafficLimit(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                    {lang === "fa" ? "مدت زمان (روز)" : "Validity (Days)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-sm text-white font-sans"
+                    value={manualExpiryDays}
+                    onChange={(e) => setManualExpiryDays(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 font-sans">
+                <button
+                  type="submit"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition cursor-pointer"
+                >
+                  {lang === "fa" ? "ثبت کانفیگ" : "Create Subscription"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddingConfigForUser(null)}
+                  className="px-4 py-2 bg-slate-800 text-gray-300 rounded-lg text-sm hover:bg-slate-700 transition cursor-pointer"
+                >
+                  {t.formBtnCancel}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

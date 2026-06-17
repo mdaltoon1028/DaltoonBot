@@ -28,7 +28,7 @@ export default function ConnectionGuide({ lang }: ConnectionGuideProps) {
   };
 
   const codeSnippets = {
-    requirements: `pip install python-telegram-bot requests sqlite3`,
+    requirements: `pip install python-telegram-bot requests python-dotenv`,
     envConfig: `# .env configuration for 3x-ui v3.2 Bot
 BOT_TOKEN="6469257181:AAEFfE_C_zG_CM2F7x5dhPXd1IjEv2AuGjw"
 OWNER_ID=6536288293
