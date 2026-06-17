@@ -108,8 +108,13 @@ pm2 delete daltoon-store &> /dev/null
 pm2 delete daltoon-bot &> /dev/null
 
 # Start production server and python telegram bot
-pm2 start dist/server.cjs --name "daltoon-store"
-pm2 start bot.py --name "daltoon-bot" --interpreter python3
+INSTALL_DIR=$(pwd)
+if [ -d "/opt/daltoon-store" ]; then
+    INSTALL_DIR="/opt/daltoon-store"
+fi
+
+pm2 start "$INSTALL_DIR/dist/server.cjs" --name "daltoon-store" --cwd "$INSTALL_DIR"
+pm2 start "$INSTALL_DIR/bot.py" --name "daltoon-bot" --interpreter python3 --cwd "$INSTALL_DIR"
 pm2 save
 pm2 startup
 

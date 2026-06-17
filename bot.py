@@ -16,8 +16,9 @@ from dotenv import load_dotenv
 # Load Environment Variables
 load_dotenv()
 
-# Shared Database file path
-DB_FILE = "bot_database.json"
+# Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(SCRIPT_DIR, "bot_database.json")
 
 def write_db_json(data):
     """ Atomic save to prevent corruption """

@@ -3,8 +3,10 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 
-// Path to JSON-based DB store
-const dbJsonPath = path.resolve(process.cwd(), "bot_database.json");
+// Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
+const dbJsonPath = __dirname.endsWith("dist")
+  ? path.resolve(__dirname, "..", "bot_database.json")
+  : path.resolve(__dirname, "bot_database.json");
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {

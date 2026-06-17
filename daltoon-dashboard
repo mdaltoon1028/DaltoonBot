@@ -101,8 +101,11 @@ async function mainMenu() {
       console.log("\x1b[33m=== STARTING DALTOON SERVICES ===\x1b[0m");
       try {
         console.log("Starting Web Dashboard and Bot processes under PM2...");
-        try { execSync("pm2 start dist/server.cjs --name 'daltoon-store' || pm2 start daltoon-store || pm2 restart daltoon-store", { stdio: "inherit" }); } catch(e){}
-        try { execSync("pm2 start bot.py --name 'daltoon-bot' --interpreter python3 || pm2 start daltoon-bot || pm2 restart daltoon-bot", { stdio: "inherit" }); } catch(e){}
+        const serverPath = path.join(__dirname, "dist", "server.cjs");
+        const botPath = path.join(__dirname, "bot.py");
+        
+        try { execSync(`pm2 start "${serverPath}" --name 'daltoon-store' --cwd '${__dirname}' || pm2 restart daltoon-store`, { stdio: "inherit" }); } catch(e){}
+        try { execSync(`pm2 start "${botPath}" --name 'daltoon-bot' --interpreter python3 --cwd '${__dirname}' || pm2 restart daltoon-bot`, { stdio: "inherit" }); } catch(e){}
         
         console.log("\n\x1b[32m✔ Services started/restarted successfully via PM2!\x1b[0m");
       } catch (err) {
