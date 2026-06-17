@@ -34,6 +34,19 @@ else
 fi
 
 # 4. Check if we are running inside cloned folder or need to clone
+BACKUP_DIR="/tmp/daltoon_db_backup"
+mkdir -p "$BACKUP_DIR"
+
+# Backup databases if they exist anywhere to verify persistence
+if [ -f "/opt/daltoon-store/database.json" ]; then
+    echo -e "${GREEN}Backing up server database...${NC}"
+    cp /opt/daltoon-store/database.json "$BACKUP_DIR/database.json"
+fi
+if [ -f "/opt/daltoon-store/bot_database.json" ]; then
+    echo -e "${GREEN}Backing up bot database...${NC}"
+    cp /opt/daltoon-store/bot_database.json "$BACKUP_DIR/bot_database.json"
+fi
+
 if [ ! -f "package.json" ]; then
     echo -e "${YELLOW}No package.json detected in the current directory.${NC}"
     DEFAULT_REPO="https://github.com/mdaltoon1028/DaltoonBot"
@@ -41,18 +54,35 @@ if [ ! -f "package.json" ]; then
     # Use the first command line argument as REPO_URL, otherwise fall back to DEFAULT_REPO
     REPO_URL=${1:-$DEFAULT_REPO}
 
-    echo -e "${GREEN}[3/6] Cloning repository from $REPO_URL...${NC}"
-    
-    # Remove older clone if exists to prevent conflicts
-    if [ -d "/opt/daltoon-store" ]; then
-        echo -e "${YELLOW}Removing existing directory at /opt/daltoon-store...${NC}"
-        rm -rf /opt/daltoon-store
+    # If the directory exists and has a git repository, let's update it in-place!
+    if [ -d "/opt/daltoon-store/.git" ]; then
+        echo -e "${GREEN}[3/6] Existing installation found. Updating repository securely...${NC}"
+        cd /opt/daltoon-store || exit
+        git remote set-url origin "$REPO_URL" &> /dev/null
+        git fetch --all
+        git reset --hard origin/main || git reset --hard origin/master
+    else
+        echo -e "${GREEN}[3/6] Cloning repository from $REPO_URL...${NC}"
+        # Remove older clone if exists to prevent conflicts
+        if [ -d "/opt/daltoon-store" ]; then
+            echo -e "${YELLOW}Removing existing directory at /opt/daltoon-store...${NC}"
+            rm -rf /opt/daltoon-store
+        fi
+        git clone "$REPO_URL" /opt/daltoon-store
+        cd /opt/daltoon-store || exit
     fi
-
-    git clone "$REPO_URL" /opt/daltoon-store
-    cd /opt/daltoon-store || exit
 else
     echo -e "${GREEN}[3/6] package.json detected. Skipping git clone...${NC}"
+fi
+
+# Restore databases if backups exist
+if [ -f "$BACKUP_DIR/database.json" ]; then
+    echo -e "${GREEN}Restoring server database from backup...${NC}"
+    cp "$BACKUP_DIR/database.json" "database.json" 2>/dev/null || cp "$BACKUP_DIR/database.json" "/opt/daltoon-store/database.json"
+fi
+if [ -f "$BACKUP_DIR/bot_database.json" ]; then
+    echo -e "${GREEN}Restoring bot database from backup...${NC}"
+    cp "$BACKUP_DIR/bot_database.json" "bot_database.json" 2>/dev/null || cp "$BACKUP_DIR/bot_database.json" "/opt/daltoon-store/bot_database.json"
 fi
 
 # 5. Install Node-modules and Build project

@@ -390,7 +390,12 @@ export default function App() {
     }).catch(err => console.warn("Failed syncing added VPN sub config key:", err));
   };
 
-  const handleResetData = () => {
+  const handleResetData = async () => {
+    try {
+      await fetch("/api/database/reset", { method: "POST" });
+    } catch (e) {
+      console.warn("Failed reset command on server", e);
+    }
     localStorage.clear();
     window.location.reload();
   };

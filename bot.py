@@ -33,55 +33,24 @@ def read_db_json():
     """ Read core database structure and supply initial templates if newly established """
     if not os.path.exists(DB_FILE):
         default_db = {
-            "users": [
-                { "userId": 6536288293, "username": "daltoon_owner", "walletBalance": 75000, "activePlansCount": 2, "joinDate": "2026-06-15", "status": "active" },
-                { "userId": 504192821, "username": "reza_parsa", "walletBalance": 0, "activePlansCount": 0, "joinDate": "2026-06-16", "status": "active" },
-                { "userId": 802148210, "username": "madi_is_here", "walletBalance": 15000, "activePlansCount": 1, "joinDate": "2026-06-16", "status": "active" }
-            ],
-            "transactions": [
-                { "id": "TX-00912", "userId": 6536288293, "username": "daltoon_owner", "amount": 15000, "receiptImage": "", "status": "approved", "date": "2026-06-15T14:32:00Z", "description": "شارژ تستی پنل" },
-                { "id": "TX-32981", "userId": 504192821, "username": "reza_parsa", "amount": 50000, "receiptImage": "", "status": "pending", "date": "2026-06-17T01:22:00Z", "description": "خرید شارژ با فیش بانکی" },
-                { "id": "TX-21048", "userId": 802148210, "username": "madi_is_here", "amount": 25000, "receiptImage": "", "status": "rejected", "date": "2026-06-16T11:05:00Z", "description": "رسید نامعتبر - رد شد" }
-            ],
-            "subscription_keys": [
-                {
-                    "id": "SUB-1102", "userId": 6536288293, "planId": "standard_30", "planName": "Standard 30GB (1 Month)",
-                    "subLink": "vless://93a7e4b2-e1d5-4923-9da5-db7c6bd123fc@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome&pbk=Ea_V80fD78H_mG4_Qd-8&sid=1c7d2e3f&spx=%2F#IR-MCI-Direct",
-                    "expireDate": "2026-07-15", "trafficLimitGb": 30.0, "trafficUsedGb": 14.5, "status": "active"
-                },
-                {
-                    "id": "SUB-9981", "userId": 6536288293, "planId": "vip_70", "planName": "VIP Premium 70GB (2 Months)",
-                    "subLink": "vmess://eyJhZGRyIjoibS5kYWx0b29uLXNlcnZlci5pciIsInBvcnQiOjIwODIsImlkIjoiOTNhN2U0YjItZTFkNS00OTIzLTlkYTUtZGI3YzZiZDEyM2ZjIiwiYWlkIjowLCJuZXQiOiJ3cyIsInBhdGgiOiIvRGFsdG9vbiIsInR5cGUiOiJub25lIiwidGxzIjoibm9uZSJ9",
-                    "expireDate": "2026-08-15", "trafficLimitGb": 70.0, "trafficUsedGb": 48.2, "status": "active"
-                },
-                {
-                    "id": "SUB-4029", "userId": 802148210, "planId": "basic_15", "planName": "Basic 15GB (1 Month)",
-                    "subLink": "vless://4a27c00e-3cc4-436f-b1e7-bc1829e2f183@m.daltoon-server.ir:80?path=%2F&security=none&type=ws#Wi-Fi-Asiatech",
-                    "expireDate": "2026-07-16", "trafficLimitGb": 15.0, "trafficUsedGb": 8.1, "status": "active"
-                }
-            ],
-            "inbounds": [
-                { "id": 1, "remark": "IR-MCI-Direct-VLESS 🚀", "protocol": "vless", "port": 2052, "totalClients": 42, "trafficUsed": "148.5", "trafficLimit": "1000", "status": "active" },
-                { "id": 12, "remark": "IR-MTN-Tunnel-VMESS ⚡", "protocol": "vmess", "port": 2082, "totalClients": 85, "trafficUsed": "412.3", "trafficLimit": "2000", "status": "active" },
-                { "id": 16, "remark": "MCI-VIP-Trojan 💎", "protocol": "trojan", "port": 443, "totalClients": 19, "trafficUsed": "88.1", "trafficLimit": "500", "status": "active" },
-                { "id": 19, "remark": "Wi-Fi-Asiatech-Direct 🛜", "protocol": "vless", "port": 80, "totalClients": 33, "trafficUsed": "110.4", "trafficLimit": "1000", "status": "active" },
-                { "id": 24, "remark": "IR-MCI-VoIP-Optimized 📞", "protocol": "vless", "port": 8080, "totalClients": 11, "trafficUsed": "24.9", "trafficLimit": "300", "status": "active" }
-            ],
-            "custom_buttons": [
-                { "id": "cb_gift", "text": "🎁 تست رایگان ۲ ساعته", "replyText": "کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\n\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-GiftTest" },
-                { "id": "cb_channel", "text": "📢 کانال تلگرام", "replyText": "دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار روی پیوند زیر ضربه بزنید:\n\n👉 @daltoon_channel" }
-            ],
+            "users": [],
+            "transactions": [],
+            "subscription_keys": [],
+            "inbounds": [],
+            "custom_buttons": [],
             "settings": {
                 "panel_config": json.dumps({
-                    "botToken": "6469257181:AAEFfE_C_zG_CM2F7x5dhPXd1IjEv2AuGjw",
-                    "baseUrl": "https://m.daltoon-server.ir:8443/Daltoon",
-                    "panelUrl": "http://localhost:2053",
-                    "panelUsername": "Daltoon",
-                    "panelPassword": "Daltoon10",
-                    "activeInboundIds": [1, 12, 16],
-                    "ownerId": 6536288293,
-                    "cardNumber": "6037701194079627",
-                    "cardHolder": "Daltoon"
+                    "botToken": "",
+                    "baseUrl": "",
+                    "panelUrl": "",
+                    "panelUsername": "",
+                    "panelPassword": "",
+                    "activeInboundIds": [],
+                    "ownerId": 0,
+                    "dashboardUsername": "Daltoon",
+                    "dashboardPassword": "Daltoon10",
+                    "serverPort": 3000,
+                    "admins": []
                 })
             }
         }
