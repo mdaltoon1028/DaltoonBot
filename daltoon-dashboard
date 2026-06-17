@@ -87,7 +87,7 @@ async function mainMenu() {
         if (hasGit) {
           try {
             console.log("Pulling latest code changes from git repository...");
-            execSync("git pull", { stdio: "inherit" });
+            execSync("git pull", { cwd: __dirname, stdio: "inherit" });
           } catch (gitErr) {
             console.log("Notice: 'git pull' failed or was skipped. Proceeding anyway...");
           }
@@ -96,9 +96,9 @@ async function mainMenu() {
           console.log("We will proceed directly to re-compiling and optimizing dependencies.");
         }
         console.log("Installing npm node modules...");
-        execSync("npm install", { stdio: "inherit" });
+        execSync("npm install", { cwd: __dirname, stdio: "inherit" });
         console.log("Building production target bundles...");
-        execSync("npm run build", { stdio: "inherit" });
+        execSync("npm run build", { cwd: __dirname, stdio: "inherit" });
         console.log("\n\x1b[32m✔ Project built and updated successfully!\x1b[0m");
       } catch (err) {
         console.log("\x1b[31mError during update operations:\x1b[0m", err.message);

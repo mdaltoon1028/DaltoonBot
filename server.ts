@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import { spawn, ChildProcess } from "child_process";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
 const dbJsonPath = __dirname.endsWith("dist")
@@ -108,8 +109,67 @@ function writeJsonDb(data: DbSchema) {
   }
 }
 
+let botProcess: ChildProcess | null = null;
+
+function startPythonBot() {
+  if (botProcess) {
+    console.log("[Bot Manager] Stopping old Python bot process...");
+    botProcess.kill("SIGTERM");
+    botProcess = null;
+  }
+
+  // Load latest settings to check if BOT_TOKEN is empty
+  const db = readJsonDb();
+  let parsedSettings: any = {};
+  try {
+    parsedSettings = db.settings.panel_config 
+      ? JSON.parse(db.settings.panel_config)
+      : {};
+  } catch (e) {
+    console.warn("[Bot Manager] Could not parse panel_config:", e);
+  }
+
+  const token = parsedSettings.botToken;
+
+  if (!token || token === "DUMMY_TOKEN" || token.trim() === "") {
+    console.log("[Bot Manager] Bot token is empty or dummy. Python bot will not start.");
+    return;
+  }
+
+  console.log(`[Bot Manager] Starting Python Telegram Bot with token ${token.substring(0, 6)}...`);
+  try {
+    const pythonCmd = "python3";
+    const botScriptPath = path.resolve(process.cwd(), "bot.py");
+    
+    botProcess = spawn(pythonCmd, [botScriptPath], {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    });
+
+    botProcess.stdout?.on("data", (data) => {
+      console.log(`[Bot Output]: ${data.toString().trim()}`);
+    });
+
+    botProcess.stderr?.on("data", (data) => {
+      console.error(`[Bot Error]: ${data.toString().trim()}`);
+    });
+
+    botProcess.on("close", (code) => {
+      console.log(`[Bot Manager] Python bot process closed with code ${code}`);
+      botProcess = null;
+    });
+
+    botProcess.on("error", (err) => {
+      console.error("[Bot Manager] Failed to start Python bot process:", err);
+    });
+  } catch (err) {
+    console.error("[Bot Manager] Exception when spawning python:", err);
+  }
+}
+
 // Ensure database file gets seeded on startup
 readJsonDb();
+startPythonBot();
 
 // --- API Endpoints ---
 
@@ -190,6 +250,9 @@ app.post("/api/settings", async (req, res) => {
     const db = readJsonDb();
     db.settings.panel_config = configValue;
     writeJsonDb(db);
+
+    // Dynamic restart of the Python bot to reload newly added parameters/token
+    startPythonBot();
 
     res.json({ success: true, message: "Settings saved successfully to JSON store." });
   } catch (error: any) {
