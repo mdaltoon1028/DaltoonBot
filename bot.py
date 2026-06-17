@@ -79,7 +79,9 @@ def get_config():
         "HIDE_SUPPORT": False,
         "HIDE_BUY": False,
         "HIDE_PROFILE": False,
-        "HIDE_WALLET": False
+        "HIDE_WALLET": False,
+        "KEYBOARD_LAYOUT": "stepped",
+        "PURCHASE_SUCCESS_NOTE": ""
     }
     try:
         db = read_db_json()
@@ -114,6 +116,10 @@ def get_config():
                 config["HIDE_PROFILE"] = bool(panel_cfg["hideProfile"])
             if "hideWallet" in panel_cfg:
                 config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
+            if "keyboardLayout" in panel_cfg:
+                config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
+            if "purchaseSuccessNote" in panel_cfg:
+                config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
@@ -254,9 +260,19 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
     write_db_json(db)
 
 def get_custom_keyboard():
-    """ Load dynamic and static custom buttons with visibility toggles """
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    """ Load dynamic and static custom buttons with visibility toggles and custom layouts """
     cfg = get_config()
+    layout = cfg.get("KEYBOARD_LAYOUT", "stepped")
+
+    # Define row_width based on layout preference
+    if layout == "vertical":
+        row_width = 1
+    elif layout == "horizontal":
+        row_width = 2
+    else:  # stepped is default
+        row_width = 2
+        
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=row_width)
     
     hide_buy = cfg.get("HIDE_BUY", False)
     hide_profile = cfg.get("HIDE_PROFILE", False)
@@ -273,22 +289,31 @@ def get_custom_keyboard():
     if not hide_support:
         main_buttons.append(types.KeyboardButton("📞 پشتیبانی فنی (Support)"))
     
-    for i in range(0, len(main_buttons), 2):
-        markup.row(*main_buttons[i:i+2])
-
     try:
         db = read_db_json()
-        custom_row = []
         for r in db.get("custom_buttons", []):
-            custom_row.append(types.KeyboardButton(r['text']))
-            if len(custom_row) == 2:
-                markup.row(*custom_row)
-                custom_row = []
-        if custom_row:
-            markup.row(*custom_row)
+            main_buttons.append(types.KeyboardButton(r['text']))
     except Exception as e:
         print("Error fetching custom buttons:", e)
-        
+
+    # Apply layout structure
+    if layout == "vertical":
+        for btn in main_buttons:
+            markup.row(btn)
+    elif layout == "stepped":
+        idx = 0
+        while idx < len(main_buttons):
+            if idx % 3 == 0:
+                markup.row(main_buttons[idx])
+                idx += 1
+            else:
+                chunk = main_buttons[idx:idx+2]
+                markup.row(*chunk)
+                idx += len(chunk)
+    else:  # horizontal
+        for i in range(0, len(main_buttons), 2):
+            markup.row(*main_buttons[i:i+2])
+            
     return markup
 
 # --- Bot Command Handlers ---
@@ -494,6 +519,8 @@ def callback_handler(call):
             limit_gb=spec['traffic']
         )
         
+        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
+        note_append = f"\n\n{success_note}" if success_note else ""
         success_text = (
             f"🎉 <b>خرید شما با موفقیت تکمیل شد!</b>\n\n"
             f"💳 هزینه کسر شده: {spec['price']:,} تومان\n"
@@ -501,6 +528,7 @@ def callback_handler(call):
             f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n\n"
             f"<code>{sub_link}</code>\n\n"
             f"لینک بالا را کپی کرده و در کلاینت‌های اتصال خود V2rayNG / Sing-box وارد کنید."
+            f"{note_append}"
         )
         bot.send_message(call.message.chat.id, success_text)
         bot.answer_callback_query(call.id, "خرید با موفقیت تایید شد!")

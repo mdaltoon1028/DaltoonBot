@@ -195,6 +195,61 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
+// BROADCAST ENDPOINT
+app.post("/api/broadcast", async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ success: false, error: "Missing message text." });
+    }
+
+    const db = readJsonDb();
+    const parsedSettings = db.settings.panel_config 
+      ? JSON.parse(db.settings.panel_config)
+      : {};
+    
+    const botToken = parsedSettings.botToken;
+    const users = db.users || [];
+    let count = 0;
+
+    if (botToken) {
+      const https = await import("https");
+      for (const u of users) {
+        if (u.userId) {
+          const postData = JSON.stringify({
+            chat_id: u.userId,
+            text: text,
+            parse_mode: "HTML"
+          });
+          const reqOptions = {
+            hostname: "api.telegram.org",
+            port: 443,
+            path: `/bot${botToken}/sendMessage`,
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(postData)
+            }
+          };
+          const postReq = https.request(reqOptions, () => {});
+          postReq.on("error", (e) => {
+            console.error(`[Broadcast] Failed to send message to user ${u.userId}:`, e);
+          });
+          postReq.write(postData);
+          postReq.end();
+          count++;
+        }
+      }
+    } else {
+      count = users.length;
+    }
+
+    res.json({ success: true, count, message: "Broadcast dispatched." });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 3. User operations range
 app.post("/api/users", async (req, res) => {
   try {

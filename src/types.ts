@@ -18,6 +18,8 @@ export interface PanelSettings {
   dashboardUsername?: string;
   dashboardPassword?: string;
   serverPort?: number;
+  keyboardLayout?: "horizontal" | "vertical" | "stepped";
+  purchaseSuccessNote?: string;
   admins?: Array<{
     id: string;
     userId: number;

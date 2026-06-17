@@ -16,7 +16,8 @@ import {
   Trash2,
   Edit,
   Sparkles,
-  Command
+  Command,
+  Send
 } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -36,21 +37,28 @@ export default function SettingsPanel({
 }: SettingsPanelProps) {
   const t = translations[lang];
   // Form state
-  const [botToken, setBotToken] = useState(settings.botToken);
-  const [baseUrl, setBaseUrl] = useState(settings.baseUrl);
-  const [panelUrl, setPanelUrl] = useState(settings.panelUrl);
-  const [panelUsername, setPanelUsername] = useState(settings.panelUsername);
-  const [panelPassword, setPanelPassword] = useState(settings.panelPassword);
-  const [ownerId, setOwnerId] = useState(settings.ownerId.toString());
+  const [botToken, setBotToken] = useState(settings.botToken || "");
+  const [baseUrl, setBaseUrl] = useState(settings.baseUrl || "");
+  const [panelUrl, setPanelUrl] = useState(settings.panelUrl || "");
+  const [panelUsername, setPanelUsername] = useState(settings.panelUsername || "");
+  const [panelPassword, setPanelPassword] = useState(settings.panelPassword || "");
+  const [ownerId, setOwnerId] = useState(settings.ownerId ? settings.ownerId.toString() : "");
   
+  // Custom keyboard and notes states
+  const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
+  const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(settings.purchaseSuccessNote || "");
+
+  // Broadcast text states
+  const [broadcastText, setBroadcastText] = useState("");
+  const [broadcastStatus, setBroadcastStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+
   // Dashboard credentials, Port, and Admins management
   const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
   const [dashboardPassword, setDashboardPassword] = useState(settings.dashboardPassword || "Daltoon10");
   const [serverPort, setServerPort] = useState(settings.serverPort || 3000);
   const [adminsList, setAdminsList] = useState<Array<{id: string, userId: number, username: string, role: "admin" | "super_admin", createdAt: string}>>(() => {
-    return settings.admins || [
-      { id: "adm-1", userId: 6536288293, username: "daltoon_owner", role: "super_admin", createdAt: "2026-06-15" }
-    ];
+    return settings.admins || [];
   });
   const [newAdminUser, setNewAdminUser] = useState("");
   const [newAdminId, setNewAdminId] = useState("");
@@ -77,10 +85,46 @@ export default function SettingsPanel({
     setAdminsList(prev => prev.filter(adm => adm.id !== id));
   };
 
+  const handleSendBroadcast = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!broadcastText.trim()) return;
+    setIsBroadcasting(true);
+    setBroadcastStatus(null);
+    try {
+      const response = await fetch("/api/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: broadcastText.trim() })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setBroadcastStatus({
+          type: "success",
+          msg: lang === "fa" 
+            ? `📣 پیام همگانی با موفقیت برای تمامی کاربران فعال ارسال شد (${data.count || 0} پیام ارسالی).` 
+            : `📣 Broadcast message dispatched successfully to all ${data.count || 0} registered users!`
+        });
+        setBroadcastText("");
+      } else {
+        setBroadcastStatus({
+          type: "error",
+          msg: data.error || "Failed sending broadcast."
+        });
+      }
+    } catch (err) {
+      setBroadcastStatus({
+        type: "error",
+        msg: "Failed connecting to server."
+      });
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
+
   // Custom Bot Configurable fields
-  const [cardNumber, setCardNumber] = useState(settings.cardNumber || "6037701194079627");
-  const [bankName, setBankName] = useState(settings.bankName || (lang === "fa" ? "بانک ملی ایران" : "Melli Bank"));
-  const [bankOwner, setBankOwner] = useState(settings.cardHolder || (lang === "fa" ? "فروشگاه دالتون استور" : "Daltoon Store"));
+  const [cardNumber, setCardNumber] = useState(settings.cardNumber || "");
+  const [bankName, setBankName] = useState(settings.bankName || "");
+  const [bankOwner, setBankOwner] = useState(settings.cardHolder || "");
 
   const [welcomeText, setWelcomeText] = useState(settings.welcomeText || `<b>🛍️ به فروشگاه دالتون استور (Daltoon Store) خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`);
   
@@ -177,7 +221,7 @@ export default function SettingsPanel({
       panelUsername,
       panelPassword,
       activeInboundIds: settings.activeInboundIds,
-      ownerId: parseInt(ownerId) || settings.ownerId,
+      ownerId: parseInt(ownerId) || 0,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -190,6 +234,8 @@ export default function SettingsPanel({
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
+      keyboardLayout,
+      purchaseSuccessNote,
       admins: adminsList
     });
     setSaved(true);
@@ -198,6 +244,61 @@ export default function SettingsPanel({
 
   return (
     <div id="settings-tab" className="max-w-4xl mx-auto space-y-6">
+
+      {/* Broadcast Message Card */}
+      <div className="bg-gradient-to-r from-purple-950/20 to-indigo-950/20 border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-sm">
+        <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-indigo-400" />
+          {lang === "fa" ? "📣 ارسال اطلاعیه همگانی (برادکست)" : "📣 Send Telegram Broadcast Message"}
+        </h3>
+        <p className="text-xs text-gray-400">
+          {lang === "fa" 
+            ? "متن اطلاعیه، پیام یا بنر تبلیغاتی خود را بنویسید تا مستقیماً به چت تمام اعضای تعامل‌یافته با بازخورد سریع ربات ارسال گردد." 
+            : "Compose and dispatch an official announcement, discount code, or network status update to all registered Telegram bot users."}
+        </p>
+
+        <div className="space-y-3">
+          <textarea
+            rows={3}
+            placeholder={lang === "fa" ? "مثلا: 🚨 به روزرسانی سرورها انجام شد؛ برای دریافت اکانت جدید به پشتیبانی مراجعه فرمایید." : "e.g., Server maintenance completed successfully!"}
+            className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
+            value={broadcastText}
+            onChange={(e) => setBroadcastText(e.target.value)}
+          />
+
+          {broadcastStatus && (
+            <div className={`p-3 rounded-lg text-xs leading-relaxed ${
+              broadcastStatus.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
+            }`}>
+              {broadcastStatus.msg}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleSendBroadcast}
+              disabled={isBroadcasting || !broadcastText.trim()}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
+                broadcastText.trim()
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                  : "bg-gray-800 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              {isBroadcasting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  {lang === "fa" ? "در حال ارسال..." : "Broadcasting..."}
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  {lang === "fa" ? "ارسال پیام به تمامی اعضا" : "Broadcast Message to All"}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
       
       <form onSubmit={handleSubmit} className="space-y-6">
         
@@ -238,6 +339,21 @@ export default function SettingsPanel({
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 {t.pollingActive}
               </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "📥 چیدمان کلیدهای کیبورد تلگرام (کاستوم)" : "📥 Telegram Menu Keyboard Layout"}
+              </label>
+              <select
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500"
+                value={keyboardLayout}
+                onChange={(e) => setKeyboardLayout(e.target.value as any)}
+              >
+                <option value="stepped">{lang === "fa" ? "🔘 پلکانی (staggered - پیش فرض)" : "🔘 Stepped (Staggered - default)"}</option>
+                <option value="horizontal">{lang === "fa" ? "↔️ افقی (horizontal - گرید)" : "↔️ Horizontal (Grid)"}</option>
+                <option value="vertical">{lang === "fa" ? "↕️ عمودی (vertical - لیست ستونی)" : "↕️ Vertical (Single column list)"}</option>
+              </select>
             </div>
           </div>
         </div>
@@ -540,6 +656,25 @@ export default function SettingsPanel({
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
                 {lang === "fa" ? "نکته: قالب‌بندی HTML مجاز است." : "Tip: HTML tags are supported."}
+              </span>
+            </div>
+
+            {/* Purchase success note text */}
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "📝 توضیحات پیوست پس از تحویل اکانت به مشتری" : "📝 Config Delivery Success Note"}
+              </label>
+              <textarea
+                rows={3}
+                placeholder={lang === "fa" ? "مثلا: کانال آموزش کلاینت‌ها: @daltoon_setup" : "e.g., Client Tutorial Channel: @daltoon_setup"}
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-emerald-200 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={purchaseSuccessNote}
+                onChange={(e) => setPurchaseSuccessNote(e.target.value)}
+              />
+              <span className="text-[10px] text-gray-500 mt-1 block">
+                {lang === "fa" 
+                  ? "نکته: این متن به عنوان راهنما، بلافاصله در زیر کانفیگ صادر شده به مشتری تحویل داده می‌شود."
+                  : "Tip: This text will be appended automatically beneath the premium config link upon successful customer checkout."}
               </span>
             </div>
 

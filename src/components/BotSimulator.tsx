@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { User, VpnPlan, Transaction, SubscriptionKey, CustomButton } from "../types";
+import { User, VpnPlan, Transaction, SubscriptionKey, CustomButton, PanelSettings } from "../types";
 import { Language, translations } from "../locales";
 import { 
   Send, 
@@ -29,6 +29,7 @@ interface BotSimulatorProps {
   addNewSubscriptionKey: (key: SubscriptionKey) => void;
   lang: Language;
   customButtons: CustomButton[];
+  settings?: PanelSettings;
 }
 
 interface ChatMessage {
@@ -54,7 +55,8 @@ export default function BotSimulator({
   addNewTransaction,
   addNewSubscriptionKey,
   lang,
-  customButtons
+  customButtons,
+  settings
 }: BotSimulatorProps) {
   const t = translations[lang];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -322,13 +324,14 @@ export default function BotSimulator({
           setSelectedPlanToBuy(null);
 
           // Add Bot message
+          const deliveryNote = settings?.purchaseSuccessNote ? `\n\n${settings.purchaseSuccessNote}` : "";
           const confirmMsg = lang === "fa"
             ? isUserAdminOrOwner
-              ? `🎉 کانفیگ شما با موفقیت فعال شد (ویژه مدیریت - رایگان)!\n\n💳 هزینه کسر شده: ۰ تومان (رایگان) 👑\n💰 موجودی کیف پول: بدون تغییر (${newBal.toLocaleString()} تومان)\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.`
-              : `🎉 خرید شما با موفقیت انجام شد!\n\n💳 هزینه کسر شده: ${selectedPlanToBuy.price.toLocaleString()} تومان\n💰 موجودی جدید باقیمانده: ${newBal.toLocaleString()} تومان\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.`
+              ? `🎉 کانفیگ شما با موفقیت فعال شد (ویژه مدیریت - رایگان)!\n\n💳 هزینه کسر شده: ۰ تومان (رایگان) 👑\n💰 موجودی کیف پول: بدون تغییر (${newBal.toLocaleString()} تومان)\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.${deliveryNote}`
+              : `🎉 خرید شما با موفقیت انجام شد!\n\n💳 هزینه کسر شده: ${selectedPlanToBuy.price.toLocaleString()} تومان\n💰 موجودی جدید باقیمانده: ${newBal.toLocaleString()} تومان\n\n🔑 کانفیگ VLESS اختصاصی شما با موفقیت فعال شد:\n\n<code>${mockSub.subLink}</code>\n\nجهت استفاده، کانفیگ بالا را کپی کرده و در نرم‌افزار v2rayNG (اندروید) یا Sing-box / Streisand (آیفون) وارد نمایید.${deliveryNote}`
             : isUserAdminOrOwner
-              ? `🎉 VPN subscription activated successfully (Admin Free Access)!\n\n💳 Price Deducted: 0 Toman (Free) 👑\n💰 Wallet Balance: Unchanged (${newBal.toLocaleString()} Toman)\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.`
-              : `🎉 VPN subscription purchased successfully!\n\n💳 Price Deducted: ${selectedPlanToBuy.price.toLocaleString()} Toman\n💰 New Remaining Balance: ${newBal.toLocaleString()} Toman\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.`;
+              ? `🎉 VPN subscription activated successfully (Admin Free Access)!\n\n💳 Price Deducted: 0 Toman (Free) 👑\n💰 Wallet Balance: Unchanged (${newBal.toLocaleString()} Toman)\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.${deliveryNote}`
+              : `🎉 VPN subscription purchased successfully!\n\n💳 Price Deducted: ${selectedPlanToBuy.price.toLocaleString()} Toman\n💰 New Remaining Balance: ${newBal.toLocaleString()} Toman\n\n🔑 Your Dedicated VLESS Subscription Link has been activated:\n\n<code>${mockSub.subLink}</code>\n\nCopy the link above and paste it in napsternetV, v2rayNG or Streisand.${deliveryNote}`;
           
           addBotReply(confirmMsg, 1000, [
             [t.btnBuyPlan, t.btnMyAccount],
@@ -477,31 +480,31 @@ export default function BotSimulator({
 
       {/* Smartphone emulator frame */}
       <div className="lg:col-span-2 flex flex-col items-center justify-center">
-        <div className="w-full max-w-[420px] aspect-[9/18.5] bg-[#0c0d14] rounded-[44px] border-[8px] border-[#1e293b] shadow-[0_0_80px_rgba(0,0,0,0.8)] relative flex flex-col overflow-hidden">
+        <div className="w-full max-w-[370px] aspect-[9/18.5] bg-[#0c0d14] rounded-[38px] border-[5px] border-[#1e293b] shadow-[0_0_60px_rgba(0,0,0,0.7)] relative flex flex-col overflow-hidden">
           
           {/* Phone Top Notch Speaker */}
-          <div className="absolute top-0 inset-x-0 h-7 flex items-center justify-center z-30 pointer-events-none">
-            <div className="w-24 h-4 bg-[#1e293b] rounded-b-2xl flex justify-center items-center">
-              <div className="w-8 h-1 bg-black rounded-full mb-1"></div>
+          <div className="absolute top-0 inset-x-0 h-5 flex items-center justify-center z-30 pointer-events-none">
+            <div className="w-20 h-3 bg-[#1e293b] rounded-b-xl flex justify-center items-center">
+              <div className="w-6 h-0.5 bg-black rounded-full mb-0.5"></div>
             </div>
           </div>
 
           {/* Chat Header */}
-          <div className="bg-[#111827] border-b border-[#1f2937] pt-8 p-3 px-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+          <div className="bg-[#111827] border-b border-[#1f2937] pt-6 p-2 px-3 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs select-none">
                 DL
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white leading-tight">{lang === "fa" ? "ربات تلگرام دالتون استور 🤖" : "Daltoon Store Bot 🤖"}</h4>
-                <p className="text-[10px] text-emerald-400 flex items-center gap-1 leading-none mt-0.5">
-                  <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
+                <h4 className="text-[11px] font-bold text-white leading-tight">{lang === "fa" ? "ربات تلگرام دالتون استور 🤖" : "Daltoon Store Bot 🤖"}</h4>
+                <p className="text-[9px] text-emerald-400 flex items-center gap-1 leading-none mt-0.5">
+                  <span className="h-1 w-1 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
                   {lang === "fa" ? "ربات فعال است (bot.py)" : "bot.py polling active"}
                 </p>
               </div>
             </div>
 
-            <span className="text-[10px] font-mono font-semibold py-0.5 px-2 bg-slate-800 text-slate-400 rounded-md">
+            <span className="text-[9px] font-mono font-medium py-0.5 px-1.5 bg-slate-800 text-slate-400 rounded">
               @daltoon_store_bot
             </span>
           </div>
@@ -616,16 +619,29 @@ export default function BotSimulator({
           {/* Interactive Bot Navigation Menu Keyboard */}
           <div className="bg-[#111827] border-t border-[#1f2937] p-3 space-y-2 shrink-0 z-10 select-none">
             {messages.length > 0 && messages[messages.length - 1].keyboard ? (
-              <div className="grid grid-cols-2 gap-1.5">
-                {messages[messages.length - 1].keyboard?.flatMap(row => row).map((buttonText) => (
-                  <button
-                    key={buttonText}
-                    onClick={() => handleKeyboardClick(buttonText)}
-                    className="py-2.5 px-2 bg-slate-900 border border-slate-800 rounded-lg text-[10px] text-gray-200 font-semibold hover:bg-slate-800 hover:text-white transition cursor-pointer text-center"
-                  >
-                    {buttonText}
-                  </button>
-                ))}
+              <div className={
+                settings?.keyboardLayout === "vertical"
+                  ? "grid grid-cols-1 gap-1.5"
+                  : "grid grid-cols-2 gap-1.5"
+              }>
+                {(() => {
+                  const keyboardRows = messages[messages.length - 1].keyboard || [];
+                  const flatButtons = keyboardRows.flatMap(row => row);
+                  const isStepped = settings?.keyboardLayout === "stepped";
+                  
+                  return flatButtons.map((buttonText, idx) => {
+                    const colSpanClass = isStepped && idx % 3 === 0 ? "col-span-2" : "";
+                    return (
+                      <button
+                        key={buttonText}
+                        onClick={() => handleKeyboardClick(buttonText)}
+                        className={`py-2.5 px-2 bg-slate-900 border border-slate-800 rounded-lg text-[10px] text-gray-200 font-semibold hover:bg-slate-800 hover:text-white transition cursor-pointer text-center ${colSpanClass}`}
+                      >
+                        {buttonText}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             ) : null}
 

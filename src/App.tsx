@@ -635,6 +635,7 @@ export default function App() {
               addNewSubscriptionKey={addNewSubscriptionKey}
               lang={lang}
               customButtons={customButtons}
+              settings={settings}
             />
           )}
 
