@@ -244,7 +244,7 @@ app.get("/api/data", async (req, res) => {
     // REAL-TIME 3X-UI INBOUNDS MONITORING IMPLEMENTATION
     if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
       try {
-        const cleanedUrl = `${settings.baseUrl}`.trim().replace(/\/$/, "");
+        const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
         const params = new URLSearchParams();
         params.append("username", settings.panelUsername);
         params.append("password", settings.panelPassword);
@@ -348,6 +348,30 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
+function normalizeXuiUrl(url: string): string {
+  let cleaned = `${url}`.trim();
+  // Remove any trailing slashes
+  cleaned = cleaned.replace(/\/+$/, "");
+
+  // If there's an invalid or incomplete protocol (like ps://, ttps://, s://, tp://, etc.)
+  if (cleaned.includes("://")) {
+    const parts = cleaned.split("://");
+    const protocolGroup = parts[0].toLowerCase();
+    // If it's not http or https, normalize it to https or http
+    if (protocolGroup !== "http" && protocolGroup !== "https") {
+      if (protocolGroup.includes("http") || protocolGroup.endsWith("s") || protocolGroup.endsWith("ps")) {
+        cleaned = "https://" + parts.slice(1).join("://");
+      } else {
+        cleaned = "http://" + parts.slice(1).join("://");
+      }
+    }
+  } else {
+    // No protocol, default to https://
+    cleaned = "https://" + cleaned;
+  }
+  return cleaned;
+}
+
 // 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
@@ -356,7 +380,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
       return res.json({ success: false, error: "تمامی فیلدهای احراز هویت شامل آدرس هاست، نام کاربری و رمز عبور پنل ۳x-ui باید پر شده باشند." });
     }
 
-    const cleanedUrl = `${baseUrl}`.trim().replace(/\/$/, "");
+    const cleanedUrl = normalizeXuiUrl(baseUrl);
     const loginUrl = `${cleanedUrl}/login`;
 
     const params = new URLSearchParams();

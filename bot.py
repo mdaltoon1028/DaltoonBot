@@ -64,6 +64,22 @@ def read_db_json():
         print(f"[JSON Database Warning] Could not parse. Re-reading database files: {e}")
         return {"users": [], "transactions": [], "subscription_keys": [], "inbounds": [], "custom_buttons": [], "settings": {}}
 
+def normalize_xui_url(url):
+    if not url:
+        return ""
+    cleaned = url.strip().rstrip("/")
+    if "://" in cleaned:
+        parts = cleaned.split("://", 1)
+        protocol = parts[0].lower()
+        if protocol not in ["http", "https"]:
+            if "http" in protocol or protocol.endswith("s") or protocol.endswith("ps"):
+                cleaned = "https://" + parts[1]
+            else:
+                cleaned = "http://" + parts[1]
+    else:
+        cleaned = "https://" + cleaned
+    return cleaned
+
 # Load Dynamic Configurations
 def get_config():
     """ Load real-time configurations from bot_database.json or fallback to env vars """
@@ -106,9 +122,9 @@ def get_config():
             if panel_cfg.get("botToken"):
                 config["BOT_TOKEN"] = panel_cfg["botToken"]
             if panel_cfg.get("baseUrl"):
-                config["XUI_URL"] = panel_cfg["baseUrl"].rstrip("/")
+                config["XUI_URL"] = normalize_xui_url(panel_cfg["baseUrl"])
             elif panel_cfg.get("panelUrl"):
-                config["XUI_URL"] = panel_cfg["panelUrl"].rstrip("/")
+                config["XUI_URL"] = normalize_xui_url(panel_cfg["panelUrl"])
             if panel_cfg.get("panelUsername"):
                 config["XUI_USER"] = panel_cfg["panelUsername"]
             if panel_cfg.get("panelPassword"):

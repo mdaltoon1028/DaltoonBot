@@ -390,25 +390,15 @@ export default function SettingsPanel({
           )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.panelRestBaseHost}</label>
-              <input
-                type="url"
-                required
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-mono focus:ring-1 focus:ring-indigo-500"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.panelSubPath}</label>
               <input
                 type="text"
                 required
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-mono focus:ring-1 focus:ring-indigo-500"
-                value={panelUrl}
-                onChange={(e) => setPanelUrl(e.target.value)}
+                value={baseUrl}
+                placeholder="https://m.daltoon-server.ir:8443/Daltoon"
+                onChange={(e) => setBaseUrl(e.target.value)}
               />
             </div>
 
