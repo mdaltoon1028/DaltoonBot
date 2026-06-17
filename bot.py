@@ -67,8 +67,8 @@ def read_db_json():
 def get_config():
     """ Load real-time configurations from bot_database.json or fallback to env vars """
     config = {
-        "BOT_TOKEN": os.getenv("BOT_TOKEN", "6469257181:AAEFfE_C_zG_CM2F7x5dhPXd1IjEv2AuGjw"),
-        "OWNER_ID": int(os.getenv("OWNER_ID", "6536288293")),
+        "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
+        "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
         "XUI_URL": os.getenv("XUI_URL", "https://m.daltoon-server.ir:8443/Daltoon").rstrip("/"),
         "XUI_USER": os.getenv("XUI_USER", "Daltoon"),
         "XUI_PASS": os.getenv("XUI_PASS", "Daltoon10"),
@@ -135,8 +135,8 @@ except ImportError:
     print("Error: pyTelegramBotAPI package is not installed. Run: pip install pyTelegramBotAPI python-dotenv requests")
     sys.exit(1)
 
-# Initialize Bot with the configured token
-bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"], parse_mode="HTML")
+# Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
+bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML")
 session = requests.Session()
 
 # --- Sanaei 3x-ui Admin API Helpers ---
@@ -546,6 +546,19 @@ if __name__ == "__main__":
     print("Daltoon Telegram Bot core fully online on JSON synchronization database...")
     while True:
         try:
+            cfg = get_config()
+            token = cfg.get("BOT_TOKEN", "").strip()
+            if not token or token == "DUMMY_TOKEN" or token == "6469257181:AAEFfE_C_zG_CM2F7x5dhPXd1IjEv2AuGjw":
+                print("[Daltoon Bot Warning] No valid Telegram Bot Token configured yet! Please enter your token in the 'Settings' tab of the Web Dashboard (e.g., http://YOUR_IP:3000). Retrying in 10 seconds...")
+                time.sleep(10)
+                continue
+            
+            # Update the telebot token if configured on-the-fly
+            if bot.token != token:
+                print(f"[Daltoon Bot] Loaded new Bot Token from Web Dashboard: {token[:8]}...****")
+                bot.token = token
+                
+            print(f"[Daltoon Bot] Starting polling with active bot: {token[:8]}...")
             bot.polling(none_stop=True, interval=1, timeout=20)
         except Exception as e:
             print(f"[Error Polling Bot] Restarting thread in 5 seconds... error: {e}")
