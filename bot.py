@@ -455,23 +455,6 @@ def text_messages_handler(message):
 
     # 4. Support chat
     elif text == cfg.get("BTN_SUPPORT") or "پشتیبانی" in text or "Support" in text or "📞" in text:
-        custom_support = cfg.get("SUPPORT_TEXT") = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("💵 ۲۰۰,۰۰۰ تومان", callback_data="charge_amount_200000"),
-            types.InlineKeyboardButton("💵 ۳۰۰,۰۰۰ تومان", callback_data="charge_amount_300000")
-        )
-        markup.add(
-            types.InlineKeyboardButton("💵 ۴۰۰,۰۰۰ تومان", callback_data="charge_amount_400000"),
-            types.InlineKeyboardButton("💵 ۵۰۰,۰۰۰ تومان", callback_data="charge_amount_500000")
-        )
-        markup.add(
-            types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
-        )
-        bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
-
-    # 4. Support chat
-    elif "پشتیبانی" in text or "Support" in text or "📞" in text:
-        cfg = get_config()
         custom_support = cfg.get("SUPPORT_TEXT")
         if custom_support:
             support_txt = custom_support

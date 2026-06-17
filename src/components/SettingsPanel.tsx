@@ -135,6 +135,11 @@ export default function SettingsPanel({
   const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
   const [hideWallet, setHideWallet] = useState(!!settings.hideWallet);
   
+  const [btnTextBuy, setBtnTextBuy] = useState(settings.btnTextBuy || "🛍️ خرید کانفیگ (Our Plans)");
+  const [btnTextProfile, setBtnTextProfile] = useState(settings.btnTextProfile || "👤 اطلاعات حساب (My Profile)");
+  const [btnTextWallet, setBtnTextWallet] = useState(settings.btnTextWallet || "💳 شارژ کیف پول (Top-up Wallet)");
+  const [btnTextSupport, setBtnTextSupport] = useState(settings.btnTextSupport || "📞 پشتیبانی فنی (Support)");
+  
   const [saved, setSaved] = useState(false);
 
   // States for adding custom buttons inside settings
@@ -231,6 +236,10 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
+      btnTextBuy,
+      btnTextProfile,
+      btnTextWallet,
+      btnTextSupport,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
@@ -676,6 +685,55 @@ export default function SettingsPanel({
                   ? "نکته: این متن به عنوان راهنما، بلافاصله در زیر کانفیگ صادر شده به مشتری تحویل داده می‌شود."
                   : "Tip: This text will be appended automatically beneath the premium config link upon successful customer checkout."}
               </span>
+            </div>
+
+            {/* Custom default button labels */}
+            <div className="border-t border-gray-800 pt-5 mt-3">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-3 font-semibold">
+                {lang === "fa" ? "📝 سفارشی‌سازی عناوین دکمه‌های اصلی کیبورد ربات تلگرام:" : "📝 Custom Primary Bot Keyboard Buttons:"}
+              </label>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه خرید کانفیگ" : "Buy Config Button Label"}</label>
+                  <input
+                    type="text"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                    value={btnTextBuy}
+                    onChange={(e) => setBtnTextBuy(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه اطلاعات حساب" : "Account Profile Button Label"}</label>
+                  <input
+                    type="text"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                    value={btnTextProfile}
+                    onChange={(e) => setBtnTextProfile(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه شارژ کیف پول" : "Top-up Wallet Button Label"}</label>
+                  <input
+                    type="text"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                    value={btnTextWallet}
+                    onChange={(e) => setBtnTextWallet(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه پشتیبانی فنی" : "Support Button Label"}</label>
+                  <input
+                    type="text"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                    value={btnTextSupport}
+                    onChange={(e) => setBtnTextSupport(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Configuration button visibility parameters */}

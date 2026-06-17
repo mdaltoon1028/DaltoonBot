@@ -153,6 +153,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "settings" | "guide" | "xui_connector">("dashboard");
   const [simulatedUserId, setSimulatedUserId] = useState<number>(6536288293); // Admin is initial active
   const [apiOnline, setApiOnline] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const t = translations[lang];
 
@@ -190,6 +192,7 @@ export default function App() {
   }, [customButtons]);
 
   const refreshData = async () => {
+    setIsRefreshing(true);
     try {
       const response = await fetch("/api/data");
       const json = await response.json();
@@ -202,9 +205,20 @@ export default function App() {
         if (json.customButtons) setCustomButtons(json.customButtons);
         if (json.settings && json.settings.botToken) setSettings(json.settings);
         console.log("[Full-Stack Sync] SQLite bot_database.db refreshed successfully.");
+        
+        setToastMessage(lang === "fa" ? "✅ اطلاعات داشبورد با موفقیت بروزرسانی شد." : "✅ Dashboard data refreshed successfully.");
+        setTimeout(() => {
+          setToastMessage(null);
+        }, 3000);
       }
     } catch (err) {
       console.warn("[Full-Stack Sync] Failed connecting to Express Database.", err);
+      setToastMessage(lang === "fa" ? "❌ خطا در دریافت اطلاعات از سرور." : "❌ Failed refreshing data from server.");
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -335,6 +349,9 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: txId, amount: finalAmount })
+    }).then(() => {
+      setToastMessage(lang === "fa" ? `✅ فیش با موفقیت تایید و ${finalAmount.toLocaleString()} تومان شارژ شد.` : `✅ Receipt approved & ${finalAmount.toLocaleString()} Tomans credited.`);
+      setTimeout(() => setToastMessage(null), 3500);
     }).catch(err => console.warn("Failed syncing approved transaction:", err));
   };
 
@@ -349,6 +366,9 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: txId })
+    }).then(() => {
+      setToastMessage(lang === "fa" ? "❌ فیش پرداخت رد شد." : "❌ Payment receipt was rejected.");
+      setTimeout(() => setToastMessage(null), 3000);
     }).catch(err => console.warn("Failed syncing rejected transaction:", err));
   };
 
@@ -375,7 +395,14 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newSettings)
-    }).catch(err => console.warn("Failed syncing setting parameter overrides:", err));
+    }).then(() => {
+      setToastMessage(lang === "fa" ? "✅ تنظیمات با موفقیت ذخیره شد." : "✅ Settings saved successfully.");
+      setTimeout(() => setToastMessage(null), 3000);
+    }).catch(err => {
+      console.warn("Failed syncing setting parameter overrides:", err);
+      setToastMessage(lang === "fa" ? "❌ خطا در ذخیره تنظیمات." : "❌ Failed to save settings.");
+      setTimeout(() => setToastMessage(null), 3000);
+    });
   };
 
   const handleOpenSimulatedChat = (userId: number) => {
@@ -436,6 +463,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#070913] text-gray-100 flex flex-col font-sans select-none antialiased" dir={lang === "fa" ? "rtl" : "ltr"}>
       
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#0f172a]/95 text-white text-xs md:text-sm font-semibold rounded-xl px-5 py-3 border border-indigo-500/30 shadow-[0_4px_20px_rgba(99,102,241,0.25)] flex items-center gap-2 backdrop-blur-md animate-fade-in transition duration-300">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+      
       {/* Upper Navigation Header */}
       <header className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -486,11 +521,12 @@ export default function App() {
             {/* Left aligned reset & actions */}
             <button
               onClick={refreshData}
-              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer"
+              disabled={isRefreshing}
+              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
               title="Refresh Data"
             >
-              <RefreshCw className="w-3.5 h-3.5 animate-spin-hover" />
-              {t.resetBtn}
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-indigo-400" : "animate-spin-hover"}`} />
+              {isRefreshing ? (lang === "fa" ? "درحال بروزرسانی..." : "Refreshing...") : t.resetBtn}
             </button>
 
             {/* Logout button */}

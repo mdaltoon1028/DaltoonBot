@@ -15,6 +15,10 @@ export interface PanelSettings {
   hideBuy?: boolean;
   hideProfile?: boolean;
   hideWallet?: boolean;
+  btnTextBuy?: string;
+  btnTextProfile?: string;
+  btnTextWallet?: string;
+  btnTextSupport?: string;
   dashboardUsername?: string;
   dashboardPassword?: string;
   serverPort?: number;

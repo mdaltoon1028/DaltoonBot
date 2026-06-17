@@ -85,8 +85,12 @@ async function mainMenu() {
       try {
         const hasGit = fs.existsSync(path.resolve(__dirname, ".git")) || fs.existsSync(path.resolve(__dirname, "..", ".git"));
         if (hasGit) {
-          console.log("Pulling latest code changes from git repository...");
-          execSync("git pull", { stdio: "inherit" });
+          try {
+            console.log("Pulling latest code changes from git repository...");
+            execSync("git pull", { stdio: "inherit" });
+          } catch (gitErr) {
+            console.log("Notice: 'git pull' failed or was skipped. Proceeding anyway...");
+          }
         } else {
           console.log("Notice: No git repository format was detected (.git was missing). Skipping 'git pull'.");
           console.log("We will proceed directly to re-compiling and optimizing dependencies.");
