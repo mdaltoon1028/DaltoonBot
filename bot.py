@@ -541,6 +541,105 @@ def callback_handler(call):
         )
         bot.answer_callback_query(call.id)
 
+# --- Photo & Document Receipt Handler ---
+@bot.message_handler(content_types=['photo', 'document'])
+def handle_receipt_upload(message):
+    tg_id = message.from_user.id
+    username = message.from_user.username or f"user_{tg_id}"
+    caption = message.caption or ""
+    
+    # Check if user is banned
+    user = get_user_data(tg_id)
+    if user and user.get('status') == 'banned':
+        bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
+        return
+
+    # Extract digits for amount
+    import re
+    digits = re.findall(r'\d+', caption.replace(",", "").replace("，", ""))
+    extracted_amount = 50000  # Default fallback amount
+    if digits:
+         extracted_amount = int("".join(digits))
+         if extracted_amount < 1000 or extracted_amount > 100000000:
+              extracted_amount = 50000
+
+    try:
+        file_id = None
+        if message.content_type == 'photo':
+            file_id = message.photo[-1].file_id
+        elif message.content_type == 'document':
+            doc = message.document
+            if doc.mime_type and doc.mime_type.startswith("image/"):
+                file_id = doc.file_id
+            else:
+                fn = doc.file_name.lower() if doc.file_name else ""
+                if fn.endswith(('.jpg', '.jpeg', '.png', '.webp', '.heic')):
+                    file_id = doc.file_id
+                    
+        if not file_id:
+            bot.reply_to(message, "⚠️ لطفا فیش واریزی خود را فقط به صورت عکس یا فایل تصویری (JPEG, PNG و...) بفرستید.")
+            return
+
+        bot.send_message(message.chat.id, "⏳ در حال بررسی و انتقال تصویر رسید شما به داشبورد مدیریت...")
+
+        file_info = bot.get_file(file_id)
+        cfg = get_config()
+        token = cfg.get("BOT_TOKEN", "").strip()
+        download_url = f"https://api.telegram.org/file/bot{token}/{file_info.file_path}"
+        
+        response = requests.get(download_url, timeout=15)
+        if response.status_code == 200:
+            import base64
+            img_base64 = base64.b64encode(response.content).decode('utf-8')
+            receipt_data_uri = f"data:image/jpeg;base64,{img_base64}"
+            
+            # Save transaction to JSON database
+            db = read_db_json()
+            if "transactions" not in db:
+                db["transactions"] = []
+                
+            tx_id = f"TX-{int(time.time())}"
+            new_tx = {
+                "id": tx_id,
+                "userId": int(tg_id),
+                "username": username,
+                "amount": int(extracted_amount),
+                "receiptImage": receipt_data_uri,
+                "status": "pending",
+                "date": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                "description": f"ثبت شده از فیش ارسالی ربات تلگرام. کپشن فیش: '{caption}'" if caption else "ثبت شده از فیش تصویری ارسالی ربات تلگرام بدون کپشن."
+            }
+            db["transactions"].insert(0, new_tx)
+            write_db_json(db)
+            
+            reply_text = (
+                f"✅ <b>فیش پرداختی شما با موفقیت دریافت شد!</b>\n\n"
+                f"📌 شناسه تراکنش: <code>{tx_id}</code>\n"
+                f"💰 مبلغ فیش (پیش‌فرض/کپشن): <b>{extracted_amount:,} تومان</b>\n\n"
+                f"⏳ رسید فیش و کارت شما بلافاصله در داشبورد مدیریت دالتون برای بررسی و شارژ ثبت شد. پس از تایید نهایی توسط پشتیبان، اعتبار به کیف پول شما واریز شده و از همین‌جا پیام تاییدیه فرستاده می‌شود."
+            )
+            bot.reply_to(message, reply_text, parse_mode="HTML")
+            
+            # Send notification to owner/admin if configured
+            owner_id = cfg.get("OWNER_ID")
+            if owner_id and owner_id > 0:
+                try:
+                    admin_msg = (
+                        f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
+                        f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
+                        f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
+                        f"🆔 شناسه: <code>{tx_id}</code>\n\n"
+                        f"لطفا جهت تایید به داشبورد مدیریت دالتون سرور مراجعه کنید."
+                    )
+                    bot.send_message(owner_id, admin_msg, parse_mode="HTML")
+                except Exception as ex:
+                    print(f"[Admin Notify Warning] {ex}")
+        else:
+            bot.reply_to(message, "❌ خطا در دانلود فایل تصویر فیش از سرورهای تلگرام. لطفا مجدد تلاش کنید.")
+    except Exception as e:
+        print(f"[Error Processing Telegram Receipt] {e}")
+        bot.reply_to(message, "❌ خطا در پردازش فایل ارسالی. لطفا مطمئن شوید حجم فیش مناسب است.")
+
 # Initialize JSON DB on startup
 if __name__ == "__main__":
     read_db_json()

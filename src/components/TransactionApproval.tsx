@@ -209,64 +209,82 @@ export default function TransactionApproval({
             <p className="text-xs text-gray-400">{t.analyzerDesc}</p>
 
             {selectedTx ? (
-              <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-900/60 p-4 space-y-4">
-                <div className={`w-full aspect-video rounded-md relative ${selectedTx.receiptImage} flex items-center justify-center text-white overflow-hidden p-4`}>
-                  <div className="absolute inset-0 bg-black/35 backdrop-blur-xs"></div>
-                  <div className="z-10 text-center space-y-1 font-mono text-xs">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">{t.bankReportHeader}</p>
-                    <p className="text-xl font-bold font-display text-emerald-400">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "TOMAN"}</p>
-                    <p className="text-[10px]">Reference: 90281-39482</p>
-                    <p className="text-[10px]">Recipient Card: 6037-xxxx-xxxx-8848</p>
-                    <div className="pt-2">
-                      <span className="px-2 py-0.5 rounded bg-black/50 text-[9px] uppercase border border-slate-700">
-                        {t.digitalVerificationSlip}
-                      </span>
+              (() => {
+                const isRealImage = selectedTx.receiptImage && (
+                  selectedTx.receiptImage.startsWith("data:") || 
+                  selectedTx.receiptImage.startsWith("http") || 
+                  selectedTx.receiptImage.startsWith("/") || 
+                  selectedTx.receiptImage.includes(".")
+                );
+                return (
+                  <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-900/60 p-4 space-y-4">
+                    <div className={`w-full aspect-video rounded-md relative flex items-center justify-center text-white overflow-hidden p-4 ${isRealImage ? 'bg-slate-950' : selectedTx.receiptImage}`}>
+                      {isRealImage && (
+                        <img 
+                          src={selectedTx.receiptImage} 
+                          alt="Receipt Preview" 
+                          className="absolute inset-0 w-full h-full object-contain z-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-black/35 backdrop-blur-xs"></div>
+                      <div className="z-10 text-center space-y-1 font-mono text-xs">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider">{t.bankReportHeader}</p>
+                        <p className="text-xl font-bold font-display text-emerald-400">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "TOMAN"}</p>
+                        <p className="text-[10px]">Reference: {selectedTx.id.replace("TX-", "")}</p>
+                        <p className="text-[10px]">Recipient Card: 6037-xxxx-xxxx-8848</p>
+                        <div className="pt-2">
+                          <span className="px-2 py-0.5 rounded bg-black/50 text-[9px] uppercase border border-slate-700">
+                            {t.digitalVerificationSlip}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="text-xs space-y-2 pt-2 text-gray-400">
-                  <div className="flex justify-between">
-                    <span>{t.analyzerDepositor}:</span>
-                    <span className="text-white font-medium">@{selectedTx.username} (ID: {selectedTx.userId})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t.analyzerCreditAmount}:</span>
-                    <span className="text-emerald-400 font-semibold font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Tomans"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t.analyzerReportingDate}:</span>
-                    <span>{new Date(selectedTx.date).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t.analyzerDescription}:</span>
-                    <span className="text-gray-300 font-mono text-[10px]">{selectedTx.description || "N/A"}</span>
-                  </div>
-                </div>
+                    <div className="text-xs space-y-2 pt-2 text-gray-400">
+                      <div className="flex justify-between">
+                        <span>{t.analyzerDepositor}:</span>
+                        <span className="text-white font-medium">@{selectedTx.username} (ID: {selectedTx.userId})</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t.analyzerCreditAmount}:</span>
+                        <span className="text-emerald-400 font-semibold font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Tomans"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t.analyzerReportingDate}:</span>
+                        <span>{new Date(selectedTx.date).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t.analyzerDescription}:</span>
+                        <span className="text-gray-300 font-mono text-[10px]">{selectedTx.description || "N/A"}</span>
+                      </div>
+                    </div>
 
-                {selectedTx.status === "pending" && (
-                  <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-800">
-                    <button
-                      onClick={() => {
-                        approveTransaction(selectedTx.id);
-                        setSelectedTx(null);
-                      }}
-                      className="inline-flex justify-center items-center gap-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
-                    >
-                      <Check className="w-3.5 h-3.5" /> {t.approveSlipBtn}
-                    </button>
-                    <button
-                      onClick={() => {
-                        rejectTransaction(selectedTx.id);
-                        setSelectedTx(null);
-                      }}
-                      className="inline-flex justify-center items-center gap-1.5 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" /> {t.rejectSlipBtn}
-                    </button>
+                    {selectedTx.status === "pending" && (
+                      <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-800">
+                        <button
+                          onClick={() => {
+                            approveTransaction(selectedTx.id);
+                            setSelectedTx(null);
+                          }}
+                          className="inline-flex justify-center items-center gap-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" /> {t.approveSlipBtn}
+                        </button>
+                        <button
+                          onClick={() => {
+                            rejectTransaction(selectedTx.id);
+                            setSelectedTx(null);
+                          }}
+                          className="inline-flex justify-center items-center gap-1.5 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" /> {t.rejectSlipBtn}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()
             ) : (
               <div className="border border-dashed border-[#1f2937] rounded-lg p-10 text-center text-gray-500 text-xs flex flex-col items-center justify-center gap-2">
                 <Clock className="w-8 h-8 text-slate-600 animate-pulse" />

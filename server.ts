@@ -381,6 +381,41 @@ app.post("/api/transactions/approve", async (req, res) => {
       }
       
       writeJsonDb(db);
+
+      // Try to notify the user via Telegram Bot API on success
+      try {
+        const configStr = db.settings?.panel_config;
+        if (configStr) {
+          const cfg = JSON.parse(configStr);
+          const botToken = cfg.botToken;
+          if (botToken) {
+            const messageText = `✅ <b>تراکنش شما تایید شد!</b>\n\n💰 مبلغ <b>${tx.amount.toLocaleString()} تومان</b> به کیف پول شما در ربات دالتون استور افزوده شد.\n\n💰 موجودی جدید: <b>${user ? user.walletBalance.toLocaleString() : "0"} تومان</b>\n\n🛍️ هم اکنون می‌توانید از منوی ربات اقدام به خرید اشتراک فرمایید!`;
+            const https = require("https");
+            const postData = JSON.stringify({
+              chat_id: tx.userId,
+              text: messageText,
+              parse_mode: "HTML"
+            });
+            const options = {
+              hostname: 'api.telegram.org',
+              port: 443,
+              path: `/bot${botToken}/sendMessage`,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
+              }
+            };
+            const reqNotify = https.request(options);
+            reqNotify.on('error', (e: any) => console.warn("Telegram approve notify error:", e));
+            reqNotify.write(postData);
+            reqNotify.end();
+          }
+        }
+      } catch (notifyErr) {
+        console.warn("Error notifying user of approval:", notifyErr);
+      }
+
       res.json({ success: true, message: "Transaction approved and credited user wallet." });
     } else {
       res.status(404).json({ success: false, message: "Transaction not found." });
@@ -399,6 +434,40 @@ app.post("/api/transactions/reject", async (req, res) => {
     if (tx) {
       tx.status = "rejected";
       writeJsonDb(db);
+
+      // Try to notify the user via Telegram Bot API on reject
+      try {
+        const configStr = db.settings?.panel_config;
+        if (configStr) {
+          const cfg = JSON.parse(configStr);
+          const botToken = cfg.botToken;
+          if (botToken) {
+            const messageText = `❌ <b>تراکنش شما پذیرفته نشد!</b>\n\nفیش ارسالی شما با شناسه <code>${tx.id}</code> توسط مدیریت بررسی و رد گردید.\n\n⚠️ علت رد تراکنش ممکن است ناخوانا بودن رسید، مغایرت مبلغ و یا تکراری بودن فیش باشد. لطفا در صورت بروز مشکل با پشتیبان ارتباط برقرار کنید.`;
+            const https = require("https");
+            const postData = JSON.stringify({
+              chat_id: tx.userId,
+              text: messageText,
+              parse_mode: "HTML"
+            });
+            const options = {
+              hostname: 'api.telegram.org',
+              port: 443,
+              path: `/bot${botToken}/sendMessage`,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
+              }
+            };
+            const reqNotify = https.request(options);
+            reqNotify.on('error', (e: any) => console.warn("Telegram reject notify error:", e));
+            reqNotify.write(postData);
+            reqNotify.end();
+          }
+        }
+      } catch (notifyErr) {
+        console.warn("Error notifying user of rejection:", notifyErr);
+      }
     }
     
     res.json({ success: true });
