@@ -245,27 +245,16 @@ app.get("/api/data", async (req, res) => {
     if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
       try {
         const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-        const params = new URLSearchParams();
-        params.append("username", settings.panelUsername);
-        params.append("password", settings.panelPassword);
+        const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
 
-        // 1. Authenticate with XUI panel
-        const loginRes = await xuiFetch(`${cleanedUrl}/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: params.toString()
-        }, 5000);
-
-        if (loginRes.ok) {
-          const cookie = loginRes.headers.get("set-cookie");
-          if (cookie) {
-            // 2. Fetch the active state of all inbounds
-            const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
-              method: "GET",
-              headers: { 
-                "Cookie": cookie
-              }
-            }, 5000);
+        if (loginResult.success && loginResult.cookie) {
+          // 2. Fetch the active state of all inbounds
+          const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+            method: "GET",
+            headers: { 
+              "Cookie": loginResult.cookie
+            }
+          }, 5000);
 
             if (listRes.ok) {
               const listText = await listRes.text();
@@ -302,7 +291,6 @@ app.get("/api/data", async (req, res) => {
               }
             }
           }
-        }
       } catch (e: any) {
         console.warn("[Background 3x-ui Sync Warning]:", e.message);
       }
@@ -395,6 +383,74 @@ function normalizeXuiUrl(url: string): string {
   return cleaned;
 }
 
+// Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
+async function loginXuiPanel(cleanedUrl: string, username: string, password: string): Promise<{ success: boolean; cookie: string | null; error?: string }> {
+  try {
+    console.log(`[Diagnostic] Executing initial GET handshake to: ${cleanedUrl}`);
+    // 1. Initial GET request to retrieve cookies and CSRF token if present
+    const getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 5000).catch(() => null);
+
+    let initialCookie = "";
+    let csrfToken = "";
+
+    if (getRes && getRes.ok) {
+      const getCookieHeader = getRes.headers.get("set-cookie") || "";
+      initialCookie = getCookieHeader.split(";")[0] || "";
+      const html = await getRes.text();
+      const match = html.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
+      if (match) {
+        csrfToken = match[1];
+        console.log(`[CSRF] CSRF token successfully extracted: ${csrfToken}`);
+      }
+    }
+
+    // 2. Perform the POST login request
+    const loginUrl = `${cleanedUrl}/login`;
+    const params = new URLSearchParams();
+    params.append("username", username);
+    params.append("password", password);
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/x-www-form-urlencoded"
+    };
+    if (initialCookie) {
+      headers["Cookie"] = initialCookie;
+    }
+    if (csrfToken) {
+      headers["X-Csrf-Token"] = csrfToken;
+    }
+
+    console.log(`[Diagnostic] Executing POST login to: ${loginUrl}`);
+    const loginRes = await xuiFetch(loginUrl, {
+      method: "POST",
+      headers,
+      body: params.toString()
+    }, 6000);
+
+    const bodyText = await loginRes.text();
+    let bodyJson: any = {};
+    try {
+      bodyJson = JSON.parse(bodyText);
+    } catch (e) {
+      // Ignore
+    }
+
+    console.log(`[Diagnostic] XUI response status: ${loginRes.status}, body: ${bodyText.substring(0, 150)}`);
+
+    if (loginRes.ok && bodyJson && bodyJson.success) {
+      const loginCookieHeader = loginRes.headers.get("set-cookie") || "";
+      const loginCookie = loginCookieHeader.split(";")[0] || initialCookie;
+      return { success: true, cookie: loginCookie };
+    } else {
+      const errMsg = bodyJson?.msg || `کد خطا: ${loginRes.status}. نام کاربری یا رمز عبور پنل نادرست است.`;
+      return { success: false, cookie: null, error: errMsg };
+    }
+  } catch (err: any) {
+    console.error(`[Diagnostic] XUI login encountered error:`, err);
+    return { success: false, cookie: null, error: err.message };
+  }
+}
+
 // 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
@@ -404,57 +460,29 @@ app.post("/api/xui/test-connection", async (req, res) => {
     }
 
     const cleanedUrl = normalizeXuiUrl(baseUrl);
-    const loginUrl = `${cleanedUrl}/login`;
+    const loginResult = await loginXuiPanel(cleanedUrl, panelUsername, panelPassword);
 
-    const params = new URLSearchParams();
-    params.append("username", panelUsername);
-    params.append("password", panelPassword);
-
-    console.log(`[Diagnostic] Connecting to login url: ${loginUrl}`);
-
-    const checkRes = await xuiFetch(loginUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: params.toString()
-    }, 6000);
-
-    const bodyText = await checkRes.text();
-    let bodyJson: any = {};
-    try {
-      bodyJson = JSON.parse(bodyText);
-    } catch (e) {
-      // Ignore JSON parse errors
-    }
-
-    console.log(`[Diagnostic] Login status: ${checkRes.status}, success field: ${bodyJson?.success}`);
-
-    if (checkRes.ok && bodyJson && bodyJson.success) {
-      // Let's do an extra check of the list to confirm complete read API rights
-      const cookie = checkRes.headers.get("set-cookie");
-      if (cookie) {
-        try {
-          const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
-            method: "GET",
-            headers: { 
-              "Cookie": cookie
-            }
-          }, 4000);
-          if (listRes.ok) {
-            return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
+    if (loginResult.success && loginResult.cookie) {
+      // Confirm read access rights on the list api
+      try {
+        const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+          method: "GET",
+          headers: { 
+            "Cookie": loginResult.cookie
           }
-        } catch (err: any) {
+        }, 4000);
+        if (listRes.ok) {
+          return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
+        } else {
           return res.json({ success: true, message: "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید." });
         }
+      } catch (err: any) {
+        return res.json({ success: true, message: "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید." });
       }
-      return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
     } else {
-      // If server returns an API-level error, present it directly
-      const apiErr = bodyJson?.msg || `کد خطا: ${checkRes.status}. نام کاربری یا رمز عبور پنل نادرست است.`;
       return res.json({ 
         success: false, 
-        error: apiErr
+        error: loginResult.error || "خطا در احراز هویت. نام کاربری یا رمز عبور پنل نادرست است."
       });
     }
   } catch (error: any) {

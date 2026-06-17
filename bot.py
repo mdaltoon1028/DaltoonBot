@@ -185,23 +185,56 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Sanaei 3x-ui Admin API Helpers ---
 def login_xui():
-    """ Authenticate session with Sanaei X-UI administrator credentials """
+    """ Authenticate session with Sanaei X-UI administrator credentials supporting classic & CSRF-enabled panels """
     cfg = get_config()
-    login_url = f"{cfg['XUI_URL']}/login"
-    login_data = {
-        "username": cfg['XUI_USER'],
-        "password": cfg['XUI_PASS']
-    }
+    base_url = cfg['XUI_URL']
+    if not base_url:
+        print("[Sanaei X-UI API] Panel XUI_URL is empty.")
+        return False
+
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
     try:
-        response = session.post(login_url, data=login_data, timeout=8, verify=False)
-        res_json = response.json()
+        # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
+        print(f"[Sanaei X-UI API] Connecting to handshake URL: {base_url}")
+        get_res = session.get(base_url, timeout=8, verify=False)
+        
+        csrf_token = ""
+        import re
+        match = re.search(r'<meta\s+name="csrf-token"\s+content="([^"]+)"', get_res.text)
+        if match:
+            csrf_token = match.group(1)
+            print(f"[Sanaei X-UI API] CSRF token detected: {csrf_token}")
+
+        # 2. Login POST request
+        login_url = f"{base_url}/login"
+        login_data = {
+            "username": cfg['XUI_USER'],
+            "password": cfg['XUI_PASS']
+        }
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": f"{base_url}/"
+        }
+        if csrf_token:
+            headers["X-Csrf-Token"] = csrf_token
+
+        print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
+        response = session.post(login_url, data=login_data, headers=headers, timeout=8, verify=False)
+        try:
+            res_json = response.json()
+        except Exception:
+            res_json = {}
+
         if res_json.get("success"):
             print("[Sanaei X-UI API] Authenticated successfully with the panel.")
             return True
         else:
             print(f"[Sanaei X-UI API] Login rejected: {response.text}")
     except Exception as e:
-        print(f"[Sanaei X-UI API] Handshake error at {login_url}: {e}")
+        print(f"[Sanaei X-UI API] Handshake error during authentication: {e}")
     return False
 
 def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=None):
