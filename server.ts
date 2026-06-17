@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, exec } from "child_process";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
 const dbJsonPath = __dirname.endsWith("dist")
@@ -112,6 +112,21 @@ function writeJsonDb(data: DbSchema) {
 let botProcess: ChildProcess | null = null;
 
 function startPythonBot() {
+  // Check if we are running in PM2 environment
+  const isPM2 = process.env.PM2_HOME !== undefined || process.env.pm_id !== undefined || process.env.name === "daltoon-store";
+
+  if (isPM2) {
+    console.log("[Bot Manager] Running in PM2 environment. Delegating bot restart to PM2 daemon to avoid duplicate polling conflicts...");
+    exec("pm2 restart daltoon-bot", (err, stdout, stderr) => {
+      if (err) {
+        console.error("[Bot Manager] Failed to restart daltoon-bot via PM2:", err.message);
+      } else {
+        console.log("[Bot Manager] daltoon-bot process restarted successfully via PM2.");
+      }
+    });
+    return;
+  }
+
   if (botProcess) {
     console.log("[Bot Manager] Stopping old Python bot process...");
     botProcess.kill("SIGTERM");

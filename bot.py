@@ -692,7 +692,7 @@ if __name__ == "__main__":
         try:
             cfg = get_config()
             token = cfg.get("BOT_TOKEN", "").strip()
-            if not token or token == "DUMMY_TOKEN" or token == "6469257181:AAEFfE_C_zG_CM2F7x5dhPXd1IjEv2AuGjw":
+            if not token or token.upper() == "DUMMY_TOKEN":
                 print("[Daltoon Bot Warning] No valid Telegram Bot Token configured yet! Please enter your token in the 'Settings' tab of the Web Dashboard (e.g., http://YOUR_IP:3000). Retrying in 10 seconds...")
                 time.sleep(10)
                 continue
