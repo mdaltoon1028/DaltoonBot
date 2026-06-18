@@ -508,31 +508,26 @@ app.post("/api/broadcast", async (req, res) => {
     let count = 0;
 
     if (botToken) {
-      const https = await import("https");
       for (const u of users) {
         if (u.userId) {
-          const postData = JSON.stringify({
-            chat_id: u.userId,
-            text: text,
-            parse_mode: "HTML"
-          });
-          const reqOptions = {
-            hostname: "api.telegram.org",
-            port: 443,
-            path: `/bot${botToken}/sendMessage`,
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Content-Length": Buffer.byteLength(postData)
-            }
-          };
-          const postReq = https.request(reqOptions, () => {});
-          postReq.on("error", (e) => {
+          try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                chat_id: u.userId,
+                text: text,
+                parse_mode: "HTML"
+              })
+            });
+            count++;
+            // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          } catch (e: any) {
             console.error(`[Broadcast] Failed to send message to user ${u.userId}:`, e);
-          });
-          postReq.write(postData);
-          postReq.end();
-          count++;
+          }
         }
       }
     } else {

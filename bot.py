@@ -104,13 +104,16 @@ def get_config():
         "BTN_BUY": "🛍️ خرید کانفیگ (Our Plans)",
         "BTN_PROFILE": "👤 اطلاعات حساب (My Profile)",
         "BTN_WALLET": "💳 شارژ کیف پول (Top-up Wallet)",
-        "BTN_SUPPORT": "📞 پشتیبانی فنی (Support)"
+        "BTN_SUPPORT": "📞 پشتیبانی فنی (Support)",
+        "ADMINS": []
     }
     try:
         db = read_db_json()
         settings_str = db.get("settings", {}).get("panel_config")
         if settings_str:
             panel_cfg = json.loads(settings_str)
+            if "admins" in panel_cfg and isinstance(panel_cfg["admins"], list):
+                config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
             if panel_cfg.get("btnTextBuy"):
                 config["BTN_BUY"] = panel_cfg["btnTextBuy"]
             if panel_cfg.get("btnTextProfile"):
@@ -361,6 +364,13 @@ def update_user_wallet_balance(tg_id, amount):
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["walletBalance"] = max(0.0, float(user.get("walletBalance", 0.0)) + float(amount))
+        write_db_json(db)
+
+def update_user_balance(tg_id, new_balance):
+    db = read_db_json()
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        user["walletBalance"] = max(0.0, float(new_balance))
         write_db_json(db)
 
 def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb):
@@ -618,14 +628,22 @@ def process_purchase_username(message, plan_id, spec):
     
     # Deduct balance
     user = get_user_data(tg_id)
-    new_balance = int(user['walletBalance']) - spec['price']
+    cfg = get_config()
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
+    
+    if is_privileged:
+        new_balance = int(user['walletBalance'])
+    else:
+        new_balance = int(user['walletBalance']) - spec['price']
+        
     update_user_balance(tg_id, new_balance)
 
     # Add client to X-UI panel
     client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
     if not sub_link:
         # Fallback simulated dynamic link
-        cfg = get_config()
         client_uuid = str(uuid.uuid4())
         sub_link = f"{cfg['XUI_URL']}/sub/{username_input}" if cfg.get('XUI_URL') else f"https://m.daltoon-server.ir:8443/sub/{username_input}"
         print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
@@ -643,13 +661,14 @@ def process_purchase_username(message, plan_id, spec):
         limit_gb=spec['traffic']
     )
 
-    cfg = get_config()
     success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
     note_append = f"\n\n{success_note}" if success_note else ""
+    price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
+    
     success_text = (
         f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
         f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
-        f"💳 هزینه کسر شده: {spec['price']:,} تومان\n"
+        f"💳 هزینه کسر شده: {price_charged_display}\n"
         f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
         f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
         f"• مسیر اشتراک (در V2rayNG وارد کنید):\n"
@@ -705,7 +724,12 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "خطای نامشخص بانک اطلاعاتی.")
             return
             
-        if user['walletBalance'] < spec['price']:
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if not is_privileged and user['walletBalance'] < spec['price']:
             bot.send_message(
                 call.message.chat.id, 
                 f"❌ <b>موجودی کیف پول شما کافی نیست!</b>\n\nمبلغ پلان: {spec['price']:,} تومان\nموجودی فعلی شما: {int(user['walletBalance']):,} تومان\n\nجهت خرید لطفا ابتدا حساب خود را شارژ کنید."
@@ -714,11 +738,12 @@ def callback_handler(call):
             return
             
         # Ask user what name they want on the panel config
+        price_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
         msg = bot.send_message(
             call.message.chat.id,
             f"✍️ <b>لطفاً نام یا شناسه انگلیسی دلخواه خود را برای کانفیگ بفرستید:</b>\n\n"
             f"• طرح انتخابی: <code>{spec['name']}</code>\n"
-            f"• هزینه طرح: <code>{spec['price']:,}</code> تومان\n\n"
+            f"• هزینه طرح: <code>{price_display}</code>\n\n"
             f"⚠️ قوانین نام‌گذاری:\n"
             f"۱. فقط از حروف انگلیسی و اعداد استفاده کنید (مثال: <code>aria_vpn</code>)\n"
             f"۲. از فاصله، حروفی مانند @، یا کلمات فارسی استفاده نکنید.\n"
