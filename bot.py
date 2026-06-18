@@ -577,6 +577,9 @@ def text_messages_handler(message):
         markup.add(
             types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
         )
+        markup.add(
+            types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount")
+        )
         bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
 
     # 4. Support chat
@@ -834,6 +837,70 @@ def callback_handler(call):
         )
         bot.answer_callback_query(call.id)
 
+    elif call.data == "charge_custom_amount":
+        try:
+            tg_id = call.from_user.id
+            msg = bot.send_message(
+                call.message.chat.id,
+                "✍️ <b>مبلغ مورد نظر خود را برای شارژ به تومان ارسال کنید:</b>\n\n"
+                "• برای مثال جهت شارژ ۱۵۰,۰۰۰ تومان، عدد <code>150000</code> را بفرستید.\n"
+                "• جهت انصراف کلمه <code>انصراف</code> را ارسال کنید.\n\n"
+                "⚠️ لطفاً فقط عدد انگلیسی وارد کنید:",
+                parse_mode="HTML"
+            )
+            bot.register_next_step_handler(msg, process_custom_charge_amount)
+            bot.answer_callback_query(call.id)
+        except Exception as e:
+            print(f"[Error Charge Custom Init] {e}")
+
+def process_custom_charge_amount(message):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text:
+        bot.send_message(message.chat.id, "❌ درخواست افزایش موجودی دلخواه لغو شد.")
+        return
+    
+    import re
+    cleaned_text = text.replace(",", "").replace("，", "").replace(" ", "").replace("_", "").replace("-", "")
+    digits = re.findall(r'\d+', cleaned_text)
+    
+    if not digits:
+        msg = bot.send_message(
+            message.chat.id,
+            "⚠️ <b>مبلغ وارد شده معتبر نیست!</b>\n\n"
+            "لطفاً مبلغ مورد نظر خود را فقط به صورت عدد انگلیسی بفرستید (مثال: <code>250000</code>):\n"
+            "<i>یا کلمه «انصراف» را جهت لغو ارسال کنید.</i>",
+            parse_mode="HTML"
+        )
+        bot.register_next_step_handler(msg, process_custom_charge_amount)
+        return
+        
+    amount = int("".join(digits))
+    if amount < 1000 or amount > 100000000:
+        msg = bot.send_message(
+            message.chat.id,
+            "⚠️ <b>مبلغ وارد شده مجاز نیست!</b>\n\n"
+            "حداقل مبلغ مجاز ۱,۰۰۰ تومان و حداکثر ۱۰۰,۰۰۰,۰۰۰ تومان است.\n"
+            "لطفاً مبلغ معتبری بنویسید (یا «انصراف» بفرستید):",
+            parse_mode="HTML"
+        )
+        bot.register_next_step_handler(msg, process_custom_charge_amount)
+        return
+        
+    set_user_pending_charge(tg_id, amount)
+    
+    cfg = get_config()
+    text_response = (
+        f"💳 <b>درخواست شارژ حساب کاربری به مبلغ {amount:,} تومان:</b>\n\n"
+        f"لطفاً مبلغ دقیق <b>{amount:,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+        f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
+        f"<code>{cfg['CARD_NUMBER']}</code>\n"
+        f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
+        f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
+    )
+    bot.send_message(message.chat.id, text_response, parse_mode="HTML")
+
 # --- Photo & Document Receipt Handler ---
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_receipt_upload(message):
@@ -916,20 +983,27 @@ def handle_receipt_upload(message):
             )
             bot.reply_to(message, reply_text, parse_mode="HTML")
             
-            # Send notification to owner/admin if configured
+            # Send notification to owner and all admins if configured
+            targets = set()
             owner_id = cfg.get("OWNER_ID")
             if owner_id and owner_id > 0:
+                targets.add(owner_id)
+            for adm_id in cfg.get("ADMINS", []):
+                if adm_id and adm_id > 0:
+                    targets.add(adm_id)
+            
+            for target_id in targets:
                 try:
                     admin_msg = (
                         f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
                         f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
                         f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
                         f"🆔 شناسه: <code>{tx_id}</code>\n\n"
-                        f"لطفا جهت تایید به داشبورد مدیریت دالتون سرور مراجعه کنید."
+                        f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت دالتون سرور مراجعه کنید."
                     )
-                    bot.send_message(owner_id, admin_msg, parse_mode="HTML")
+                    bot.send_message(target_id, admin_msg, parse_mode="HTML")
                 except Exception as ex:
-                    print(f"[Admin Notify Warning] {ex}")
+                    print(f"[Admin Notify Warning for chat_id {target_id}] {ex}")
         else:
             bot.reply_to(message, "❌ خطا در دانلود فایل تصویر فیش از سرورهای تلگرام. لطفا مجدد تلاش کنید.")
     except Exception as e:

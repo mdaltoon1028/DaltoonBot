@@ -321,8 +321,52 @@ app.post("/api/settings", async (req, res) => {
     const configValue = JSON.stringify(payload);
 
     const db = readJsonDb();
+    
+    // Compare admins list to find newly added ones
+    const prevSettings = db.settings.panel_config ? JSON.parse(db.settings.panel_config) : {};
+    const prevAdmins = prevSettings.admins || [];
+    const newAdmins = payload.admins || [];
+    
+    const addedAdmins = newAdmins.filter((newAdm: any) => 
+      newAdm.userId && !prevAdmins.some((prevAdm: any) => Number(prevAdm.userId) === Number(newAdm.userId))
+    );
+
     db.settings.panel_config = configValue;
     writeJsonDb(db);
+
+    // Notify newly appointed admins via Telegram Bot
+    const botToken = payload.botToken || prevSettings.botToken;
+    if (botToken && addedAdmins.length > 0) {
+      for (const adm of addedAdmins) {
+        try {
+          const roleText = adm.role === "super_admin" ? "سوپر ادمین (مدیر ارشد)" : "ادمین معمولی (مدیریت پشتیبانی)";
+          const htmlMsg = `👑 <b>انتصاب شایسته شما به عنوان مدیریت سیستم</b>\n\n` +
+            `کاربر گرامی <b>@${adm.username || "کاربر"}</b> (شناسه: <code>${adm.userId}</code>)؛\n` +
+            `با سلام و احترام،\n\n` +
+            `بدین‌وسیله به اطلاع می‌رساند دسترسی مدیریتی شما به عنوان <b>${roleText}</b> در ربات دالتون استور با موفقیت فعال گردید.\n\n` +
+            `🛡️ <b>برخی از مزایا و وظایف سطح دسترسی ادمین:</b>\n` +
+            `🔹 <b>بررسی و تایید واریزی‌ها:</b> دسترسی به لیست فیش‌های ارسالی کاربران در بخش «تایید تراکنش‌ها» جهت شارژ خودکار کیف پول.\n` +
+            `🔹 <b>مدیریت اعضا:</b> امکان ویرایش، افزایش و یا کاهش موجودی کاربران، مسدودسازی و رفع مسدودیت اعضا.\n` +
+            `🔹 <b>پلان‌های ادمین:</b> استفاده رایگان از پلان‌ها بدون کسر موجودی جهت بررسی و کنترل کیفی سرورها.\n` +
+            `🔹 <b>اعلان‌های هوشمند:</b> رصد و دریافت فوری اطلاعات فیش‌های ارسالی اعضا به محض بارگذاری در ربات.\n\n` +
+            `<i>مفتخریم که در تیم توسعه و مدیریت دالتون حضور دارید. با آرزوی موفقیت و همکاری مستمر.</i>\n\n` +
+            `✨ <b>تیم پشتیبانی و فنی دالتون استور</b>`;
+
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: adm.userId,
+              text: htmlMsg,
+              parse_mode: "HTML"
+            })
+          });
+          console.log(`[Admin Welcomed] Successfully welcomed new admin ID: ${adm.userId}`);
+        } catch (err) {
+          console.error(`[Admin Welcome Error] Failed to welcome admin ${adm.userId}:`, err);
+        }
+      }
+    }
 
     // Dynamic restart of the Python bot to reload newly added parameters/token
     startPythonBot();
