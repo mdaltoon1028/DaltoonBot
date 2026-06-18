@@ -33,6 +33,7 @@ export default function TransactionApproval({
   const t = translations[lang];
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   
   // Track custom corrected amount per transaction ID
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
@@ -225,28 +226,39 @@ export default function TransactionApproval({
                 );
                 return (
                   <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-900/60 p-4 space-y-4">
-                    <div className={`w-full aspect-video rounded-md relative flex items-center justify-center text-white overflow-hidden p-4 ${isRealImage ? 'bg-slate-950' : selectedTx.receiptImage}`}>
-                      {isRealImage && (
+                    {isRealImage ? (
+                      <div className="w-full h-80 rounded-md relative flex items-center justify-center bg-slate-950 overflow-hidden border border-slate-800 group">
                         <img 
                           src={selectedTx.receiptImage} 
                           alt="Receipt Preview" 
-                          className="absolute inset-0 w-full h-full object-contain z-0"
+                          className="w-full h-full object-contain cursor-pointer transition duration-300 group-hover:scale-[1.02]"
                           referrerPolicy="no-referrer"
+                          onClick={() => setLightboxOpen(true)}
                         />
-                      )}
-                      <div className="absolute inset-0 bg-black/35 backdrop-blur-xs"></div>
-                      <div className="z-10 text-center space-y-1 font-mono text-xs">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wider">{t.bankReportHeader}</p>
-                        <p className="text-xl font-bold font-display text-emerald-400">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "TOMAN"}</p>
-                        <p className="text-[10px]">Reference: {selectedTx.id.replace("TX-", "")}</p>
-                        <p className="text-[10px]">Recipient Card: 6037-xxxx-xxxx-8848</p>
-                        <div className="pt-2">
-                          <span className="px-2 py-0.5 rounded bg-black/50 text-[9px] uppercase border border-slate-700">
-                            {t.digitalVerificationSlip}
-                          </span>
+                        <div 
+                          className="absolute bottom-2.5 right-2.5 bg-black/75 hover:bg-black/90 text-white backdrop-blur-md px-2.5 py-1.5 rounded-lg text-[10px] font-sans flex items-center gap-1.5 cursor-pointer transition shadow-lg border border-slate-700/50" 
+                          onClick={() => setLightboxOpen(true)}
+                        >
+                          <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                          {lang === "fa" ? "بزرگنمایی فیش" : "Zoom Receipt"}
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className={`w-full aspect-video rounded-md relative flex items-center justify-center text-white overflow-hidden p-4 ${selectedTx.receiptImage}`}>
+                        <div className="absolute inset-0 bg-black/35 backdrop-blur-xs"></div>
+                        <div className="z-10 text-center space-y-1 font-mono text-xs">
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wider">{t.bankReportHeader}</p>
+                          <p className="text-xl font-bold font-display text-emerald-400">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "TOMAN"}</p>
+                          <p className="text-[10px]">Reference: {selectedTx.id.replace("TX-", "")}</p>
+                          <p className="text-[10px]">Recipient Card: 6037-xxxx-xxxx-8848</p>
+                          <div className="pt-2">
+                            <span className="px-2 py-0.5 rounded bg-black/50 text-[9px] uppercase border border-slate-700">
+                              {t.digitalVerificationSlip}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="text-xs space-y-2 pt-2 text-gray-400">
                       <div className="flex justify-between">
@@ -359,6 +371,46 @@ export default function TransactionApproval({
                 {lang === "fa" ? "انصراف" : "Cancel"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* High-Resolution Lightbox Modal */}
+      {lightboxOpen && selectedTx && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 z-50 animate-fade-in font-sans"
+          onClick={() => setLightboxOpen(false)}
+        >
+          {/* Close button top right */}
+          <button 
+            onClick={() => setLightboxOpen(false)} 
+            className="absolute top-4 right-4 p-2.5 bg-slate-900/80 hover:bg-slate-800 text-gray-300 hover:text-white rounded-full transition border border-slate-700 cursor-pointer z-50"
+            title={lang === "fa" ? "بستن" : "Close"}
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Full Screen Image */}
+          <div 
+            className="relative max-w-4xl max-h-[80vh] w-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+          >
+            <img 
+              src={selectedTx.receiptImage} 
+              alt="Receipt Lightbox" 
+              className="max-h-[80vh] max-w-full object-contain rounded-lg border border-slate-800 shadow-2xl"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+
+          {/* Info footer */}
+          <div 
+            className="mt-4 bg-[#111827] border border-[#1f2937] rounded-xl px-5 py-3 max-w-md w-full text-center space-y-1 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white font-medium text-sm">@{selectedTx.username} (ID: {selectedTx.userId})</p>
+            <p className="text-emerald-400 font-bold text-base font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}</p>
+            <p className="text-[10px] text-gray-400 font-mono">Reference: {selectedTx.id}</p>
           </div>
         </div>
       )}
