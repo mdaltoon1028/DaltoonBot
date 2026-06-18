@@ -674,8 +674,9 @@ def process_purchase_username(message, plan_id, spec):
         f"💳 هزینه کسر شده: {price_charged_display}\n"
         f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
         f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
-        f"• مسیر اشتراک (در V2rayNG وارد کنید):\n"
+        f"• مسیر اشتراک (در Happ وارد کنید):\n\n"
         f"<code>{sub_link}</code>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
         f"این نام کاربری به صورت همزمان بر روی تمامی اینباندهای فعال (سرعت فوق‌العاده) تنظیم گردید."
         f"{note_append}"
     )
@@ -794,8 +795,9 @@ def callback_handler(call):
             f"💳 هزینه کسر شده: {price_charged_display}\n"
             f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
             f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
-            f"• مسیر اشتراک (در V2rayNG وارد کنید):\n"
-            f"<code>{sub_link}</code>\n"
+            f"• مسیر اشتراک (در Happ وارد کنید):\n\n"
+            f"<code>{sub_link}</code>\n\n"
+            f"━━━━━━━━━━━━━━━━━━━"
             f"{note_append}"
         )
 
