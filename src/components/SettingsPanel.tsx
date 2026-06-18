@@ -106,13 +106,71 @@ export default function SettingsPanel({
       createdAt: new Date().toISOString().split("T")[0]
     };
 
-    setAdminsList(prev => [...prev, added]);
+    const nextAdmins = [...adminsList, added];
+    setAdminsList(nextAdmins);
     setNewAdminUser("");
     setNewAdminId("");
+
+    // Auto-save on admin addition
+    onSaveSettings({
+      ...settings,
+      botToken,
+      baseUrl,
+      panelUrl,
+      panelUsername,
+      panelPassword,
+      ownerId: parseInt(ownerId) || 0,
+      cardNumber,
+      cardHolder: bankOwner,
+      bankName,
+      welcomeText,
+      supportText,
+      tgChannel,
+      supportHandle,
+      hideSupport,
+      hideBuy,
+      hideProfile,
+      hideWallet,
+      panelConnectionActive,
+      dashboardUsername,
+      dashboardPassword,
+      serverPort: Number(serverPort) || 3000,
+      purchaseSuccessNote,
+      admins: nextAdmins
+    });
   };
 
   const handleRemoveAdmin = (id: string) => {
-    setAdminsList(prev => prev.filter(adm => adm.id !== id));
+    const nextAdmins = adminsList.filter(adm => adm.id !== id);
+    setAdminsList(nextAdmins);
+
+    // Auto-save on admin removal
+    onSaveSettings({
+      ...settings,
+      botToken,
+      baseUrl,
+      panelUrl,
+      panelUsername,
+      panelPassword,
+      ownerId: parseInt(ownerId) || 0,
+      cardNumber,
+      cardHolder: bankOwner,
+      bankName,
+      welcomeText,
+      supportText,
+      tgChannel,
+      supportHandle,
+      hideSupport,
+      hideBuy,
+      hideProfile,
+      hideWallet,
+      panelConnectionActive,
+      dashboardUsername,
+      dashboardPassword,
+      serverPort: Number(serverPort) || 3000,
+      purchaseSuccessNote,
+      admins: nextAdmins
+    });
   };
 
   const handleSendBroadcast = async (e: React.MouseEvent) => {

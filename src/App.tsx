@@ -152,8 +152,14 @@ export default function App() {
     ];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "buttons" | "settings" | "guide" | "xui_connector">("dashboard");
-  const [simulatedUserId, setSimulatedUserId] = useState<number>(6536288293); // Admin is initial active
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "buttons" | "settings" | "guide" | "xui_connector">(() => {
+    const cached = localStorage.getItem("daltoon_active_tab");
+    return (cached as any) || "dashboard";
+  });
+  const [simulatedUserId, setSimulatedUserId] = useState<number>(() => {
+    const cached = localStorage.getItem("daltoon_simulated_user_id");
+    return cached ? Number(cached) : 6536288293;
+  });
   const [apiOnline, setApiOnline] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -161,6 +167,14 @@ export default function App() {
   const t = translations[lang];
 
   // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem("daltoon_active_tab", activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem("daltoon_simulated_user_id", String(simulatedUserId));
+  }, [simulatedUserId]);
+
   useEffect(() => {
     localStorage.setItem("daltoon_lang", lang);
   }, [lang]);
