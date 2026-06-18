@@ -67,45 +67,78 @@ async function mainMenu() {
     const pass = config.dashboardPassword || "Daltoon10";
     
     console.log(`\x1b[33m[1]\x1b[0m 🔄 Update Project Services`);
-    console.log(`\x1b[33m[2]\x1b[0m 🚀 Start (Run Dashboard & Bot via PM2)`);
-    console.log(`\x1b[33m[3]\x1b[0m 🛑 Stop Services`);
-    console.log(`\x1b[33m[4]\x1b[0m ♻️  Restart Services`);
-    console.log(`\x1b[33m[5]\x1b[0m 🔑 Change Username & Password`);
-    console.log(`\x1b[33m[6]\x1b[0m 🔌 Change Port [Current: \x1b[32m${port}\x1b[0m]`);
-    console.log(`\x1b[33m[7]\x1b[0m 🚪 Exit`);
+    console.log(`\x1b[33m[2]\x1b[0m 📊 View Services Status (status)`);
+    console.log(`\x1b[33m[3]\x1b[0m 🚀 Start (Run Dashboard & Bot via PM2)`);
+    console.log(`\x1b[33m[4]\x1b[0m 🛑 Stop Services`);
+    console.log(`\x1b[33m[5]\x1b[0m ♻️  Restart Services`);
+    console.log(`\x1b[33m[6]\x1b[0m 🔑 Change Username & Password`);
+    console.log(`\x1b[33m[7]\x1b[0m 🔌 Change Port [Current: \x1b[32m${port}\x1b[0m]`);
+    console.log(`\x1b[33m[8]\x1b[0m 🚪 Exit`);
     console.log("\x1b[36m====================================================\x1b[0m");
     
-    const choice = await ask("\x1b[1mSelect option [1-7]: \x1b[0m");
+    const choice = await ask("\x1b[1mSelect option [1-8]: \x1b[0m");
     
     if (choice === '1') {
       clearScreen();
       printHeader();
-      console.log("\x1b[33m=== UPDATING DALTOON PROJECT ===\x1b[0m");
-      console.log("Checking environment and executing update operations...");
+      console.log("\x1b[33m=== EXECUTING SYSTEM INSTALLATION SCRIPT ===\x1b[0m");
+      console.log("Fetching and executing official installation curl script...\n");
       try {
-        const hasGit = fs.existsSync(path.resolve(__dirname, ".git")) || fs.existsSync(path.resolve(__dirname, "..", ".git"));
-        if (hasGit) {
-          try {
-            console.log("Pulling latest code changes from git repository...");
-            execSync("git pull", { cwd: __dirname, stdio: "inherit" });
-          } catch (gitErr) {
-            console.log("Notice: 'git pull' failed or was skipped. Proceeding anyway...");
-          }
-        } else {
-          console.log("Notice: No git repository format was detected (.git was missing). Skipping 'git pull'.");
-          console.log("We will proceed directly to re-compiling and optimizing dependencies.");
-        }
-        console.log("Installing npm node modules...");
-        execSync("npm install", { cwd: __dirname, stdio: "inherit" });
-        console.log("Building production target bundles...");
-        execSync("npm run build", { cwd: __dirname, stdio: "inherit" });
-        console.log("\n\x1b[32m✔ Project built and updated successfully!\x1b[0m");
+        execSync("bash <(curl -s link https://raw.githubusercontent.com/mdaltoon1028/DaltoonBot/main/install.sh || curl -s https://raw.githubusercontent.com/mdaltoon1028/DaltoonBot/main/install.sh)", { cwd: __dirname, stdio: "inherit", shell: "/bin/bash" });
+        console.log("\n\x1b[32m✔ Installer script finished execution!\x1b[0m");
       } catch (err) {
         console.log("\x1b[31mError during update operations:\x1b[0m", err.message);
       }
       await ask("\nPress ENTER to return to main menu...");
     } 
     else if (choice === '2') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[33m=== SERVICES STATUS & HEALTH MONITOR ===\x1b[0m");
+      console.log("Reading system statistics and daemon process structures...\n");
+      
+      let storeStatusHtml = "\x1b[31m🔴 OFFLINE\x1b[0m";
+      let botStatusHtml = "\x1b[31m🔴 OFFLINE\x1b[0m";
+      
+      try {
+        const pm2ListOutput = execSync("pm2 jlist", { encoding: 'utf8' });
+        const pm2Processes = JSON.parse(pm2ListOutput);
+        
+        const storeProc = pm2Processes.find(p => p.name === 'daltoon-store' || p.name === 'daltoon-dashboard' || p.name === 'daltoon-dashboard-server');
+        const botProc = pm2Processes.find(p => p.name === 'daltoon-bot');
+        
+        if (storeProc && storeProc.pm2_env && storeProc.pm2_env.status === 'online') {
+          const cpu = storeProc.monit ? `${storeProc.monit.cpu}%` : '0%';
+          const mem = storeProc.monit ? `${(storeProc.monit.memory / 1024 / 1024).toFixed(1)}MB` : '0MB';
+          storeStatusHtml = `\x1b[32m🟢 ONLINE (Fork Mode)\x1b[0m | CPU: \x1b[36m${cpu}\x1b[0m | RAM: \x1b[36m${mem}\x1b[0m`;
+        }
+        
+        if (botProc && botProc.pm2_env && botProc.pm2_env.status === 'online') {
+          const cpu = botProc.monit ? `${botProc.monit.cpu}%` : '0%';
+          const mem = botProc.monit ? `${(botProc.monit.memory / 1024 / 1024).toFixed(1)}MB` : '0MB';
+          botStatusHtml = `\x1b[32m🟢 ONLINE (Fork Mode)\x1b[0m | CPU: \x1b[36m${cpu}\x1b[0m | RAM: \x1b[36m${mem}\x1b[0m`;
+        }
+      } catch (e) {
+        storeStatusHtml = "\x1b[33m⚠️ UNKNOWN (PM2 failed or inactive)\x1b[0m";
+        botStatusHtml = "\x1b[33m⚠️ UNKNOWN (PM2 failed or inactive)\x1b[0m";
+      }
+      
+      console.log("┌────────────────────────────────────────────────────────┐");
+      console.log(`│ 🌐 Web Dashboard: ${storeStatusHtml}`);
+      console.log(`│ 🤖 Telegram Bot:  ${botStatusHtml}`);
+      console.log("└────────────────────────────────────────────────────────┘");
+      console.log();
+      
+      console.log("\x1b[35m📊 PM2 Fork System Status Graph / Monitor Table:\x1b[0m");
+      try {
+        execSync("pm2 status", { stdio: "inherit" });
+      } catch (err) {
+        console.log("PM2 is not active. Run option [3] to boot services manually.");
+      }
+      
+      await ask("\nPress ENTER to return to main menu...");
+    }
+    else if (choice === '3') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== STARTING DALTOON SERVICES ===\x1b[0m");
@@ -123,7 +156,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '3') {
+    else if (choice === '4') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== STOPPING SERVICES ===\x1b[0m");
@@ -137,7 +170,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '4') {
+    else if (choice === '5') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== RESTARTING SERVICES ===\x1b[0m");
@@ -152,7 +185,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '5') {
+    else if (choice === '6') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== CHANGE DASHBOARD CREDENTIALS ===\x1b[0m");
@@ -181,7 +214,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '6') {
+    else if (choice === '7') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== CHANGE PORT ===\x1b[0m");
@@ -200,7 +233,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '7') {
+    else if (choice === '8') {
       console.log("\n\x1b[32mGoodbye!\x1b[0m\n");
       rl.close();
       break;

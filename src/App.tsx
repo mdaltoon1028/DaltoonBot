@@ -238,12 +238,12 @@ export default function App() {
     }
   };
 
-  // Fetch complete SQLite database state on mount and update every 20 seconds automatically
+  // Fetch complete SQLite database state on mount and update every 2 minutes automatically
   useEffect(() => {
     refreshData();
     const interval = setInterval(() => {
       refreshData();
-    }, 20000);
+    }, 120000);
     return () => clearInterval(interval);
   }, []);
 
