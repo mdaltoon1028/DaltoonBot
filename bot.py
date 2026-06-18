@@ -718,6 +718,25 @@ def callback_handler(call):
         if not spec:
             bot.answer_callback_query(call.id, "خطا در پیدا کردن مشخصات پلان.")
             return
+
+        if not db_plan:
+            bot.send_message(
+                call.message.chat.id,
+                f"❌ <b>بسته پیدا نشد! مشخصات این بسته در دیتابیس ثبت نشده یا حذف شده است.</b>",
+                parse_mode="HTML"
+            )
+            bot.answer_callback_query(call.id)
+            return
+
+        stock = db_plan.get("configStock", [])
+        if not stock or len(stock) == 0:
+            bot.send_message(
+                call.message.chat.id,
+                f"❌ <b>ظرفیت طرح «{spec['name']}» در حال حاضر به اتمام رسیده است و فاقد کانفیگ آماده می‌باشد.</b>\n\nلطفاً به پشتیبانی اطلاع دهید تا انبار بسته را شارژ نمایند.",
+                parse_mode="HTML"
+            )
+            bot.answer_callback_query(call.id, "بسته ناموجود است.")
+            return
             
         user = get_user_data(tg_id)
         if not user:
@@ -737,21 +756,56 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "موجودی ناکافی!")
             return
             
-        # Ask user what name they want on the panel config
-        price_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
-        msg = bot.send_message(
-            call.message.chat.id,
-            f"✍️ <b>لطفاً نام یا شناسه انگلیسی دلخواه خود را برای کانفیگ بفرستید:</b>\n\n"
-            f"• طرح انتخابی: <code>{spec['name']}</code>\n"
-            f"• هزینه طرح: <code>{price_display}</code>\n\n"
-            f"⚠️ قوانین نام‌گذاری:\n"
-            f"۱. فقط از حروف انگلیسی و اعداد استفاده کنید (مثال: <code>aria_vpn</code>)\n"
-            f"۲. از فاصله، حروفی مانند @، یا کلمات فارسی استفاده نکنید.\n"
-            f"۳. حداقل ۳ و حداکثر ۱۵ حرف باشد.",
-            parse_mode="HTML"
+        # Deduct balance
+        new_balance = int(user['walletBalance'])
+        if not is_privileged:
+            new_balance = int(user['walletBalance']) - spec['price']
+            update_user_balance(tg_id, new_balance)
+
+        # Pop the first manual config from stock
+        sub_link = stock.pop(0)
+        db_plan["configStock"] = stock
+        write_db_json(db)
+
+        # Create subscription key
+        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))
+
+        create_sub_key(
+            key_id=sub_id, 
+            tg_id=tg_id, 
+            plan_id=plan_id, 
+            plan_name=spec['name'], 
+            sub_link=sub_link, 
+            expire_date=expire_date, 
+            limit_gb=spec['traffic']
         )
-        bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
-        bot.answer_callback_query(call.id)
+
+        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
+        note_append = f"\n\n{success_note}" if success_note else ""
+        price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
+
+        success_text = (
+            f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
+            f"📦 طرح خریداری شده: <code>{spec['name']}</code>\n"
+            f"💳 هزینه کسر شده: {price_charged_display}\n"
+            f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
+            f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
+            f"• مسیر اشتراک (در V2rayNG وارد کنید):\n"
+            f"<code>{sub_link}</code>\n"
+            f"{note_append}"
+        )
+
+        # Send QR Code photo or fallback to text message
+        try:
+            import urllib.parse
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            bot.send_photo(call.message.chat.id, qr_url, caption=success_text, parse_mode="HTML")
+        except Exception as e:
+            print(f"[Bot Warning] Failed to send QR Photo: {e}")
+            bot.send_message(call.message.chat.id, success_text, parse_mode="HTML")
+
+        bot.answer_callback_query(call.id, "خرید با موفقیت انجام شد!")
 
     elif call.data.startswith("charge_amount_"):
         try:

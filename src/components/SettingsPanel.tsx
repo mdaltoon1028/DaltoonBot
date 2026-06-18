@@ -305,124 +305,52 @@ export default function SettingsPanel({
           </div>
         </div>
 
-        {/* Sanaei 3x-ui Credentials */}
-        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
-          <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-indigo-400" />
-            {t.panelAuthTitle}
-          </h3>
-          <p className="text-xs text-gray-400">{t.panelAuthDesc}</p>
-
-          {/* Active Integration status and Always-ON toggle */}
-          <div className="bg-[#0b0f19] border border-gray-800 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-full ${
-                panelConnectionActive 
-                  ? "bg-emerald-500/10 text-emerald-400" 
-                  : "bg-gray-800 text-gray-500"
-              }`}>
-                <Power className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="block text-sm font-bold text-white">
-                  {lang === "fa" ? "🔌 وضعیت فعالیت اتصال پس‌زمینه پنل ۳x-ui" : "🔌 Always-ON Background Sync"}
-                </span>
-                <span className="block text-xs text-gray-400 mt-0.5">
-                  {lang === "fa" 
-                    ? "در صورت فعال بودن (روشن)، اتصال به سرور‌های ۳x-ui در پس‌زمینه زنده نگه‌داشته می‌شود." 
-                    : "If active (ON), keeps the API connection and status always ON in the background."}
-                </span>
-              </div>
+        {/* Manual Configuration Delivery notice instead of disabled 3x-ui credentials */}
+        <div className="bg-gradient-to-br from-[#0c1020] to-[#121c35] border border-indigo-500/20 p-6 rounded-2xl space-y-4 shadow-lg shadow-black/40">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
+              <Cpu className="w-6 h-6 animate-pulse" />
             </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-              <button
-                type="button"
-                onClick={async () => {
-                  const nextVal = !panelConnectionActive;
-                  setPanelConnectionActive(nextVal);
-                  if (nextVal) {
-                    await handleTestConnection();
-                  } else {
-                    setTestStatus({ type: "idle", message: "" });
-                  }
-                }}
-                className={`w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center justify-center gap-2 ${
-                  panelConnectionActive
-                    ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/10"
-                    : "bg-gray-800 hover:bg-gray-700 text-gray-300"
-                }`}
-              >
-                <Power className="w-4 h-4" />
-                {panelConnectionActive 
-                  ? (lang === "fa" ? "اتصال فعال (روشن 🟢)" : "Connected (ON 🟢)") 
-                  : (lang === "fa" ? "اتصال غیرفعال (خاموش ⚪)" : "Disconnected (OFF ⚪)")
-                }
-              </button>
-
-              {panelConnectionActive && (
-                <button
-                  type="button"
-                  onClick={() => handleTestConnection()}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-lg text-xs font-semibold select-none cursor-pointer transition flex items-center justify-center gap-1.5"
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  {lang === "fa" ? "بررسی و تست ارتباط" : "Test Connectivity"}
-                </button>
-              )}
+            <div>
+              <h3 className="font-display font-bold text-lg text-white">
+                {lang === "fa" ? "📦 ویژگی تحویل و فروش اتوماتیک کانفیگ‌های دستی" : "📦 Manual Config Automated Delivery Mode"}
+              </h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {lang === "fa" 
+                  ? "سیستم به طور کامل در وضعیت فروش منحصربفرد و آفلاین کانفیگ‌های دستی تنظیم گردیده است."
+                  : "The backend is fully listening to the manual config queue stored inside each package spec."}
+              </p>
             </div>
           </div>
 
-          {/* Test Status feedback block */}
-          {testStatus.type !== "idle" && (
-            <div className={`p-3 rounded-lg text-xs leading-relaxed font-sans ${
-              testStatus.type === "loading" ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" :
-              testStatus.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-              "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-            }`}>
-              <div className="flex items-center gap-2 font-medium">
-                {testStatus.type === "loading" && <span className="h-2 w-2 rounded-full bg-indigo-400 animate-ping"></span>}
-                {testStatus.type === "success" && <span className="h-2 w-2 rounded-full bg-emerald-400"></span>}
-                {testStatus.type === "error" && <span className="h-2 w-2 rounded-full bg-rose-400"></span>}
-                <span>{testStatus.message}</span>
-              </div>
-            </div>
-          )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.panelRestBaseHost}</label>
-              <input
-                type="text"
-                required
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-mono focus:ring-1 focus:ring-indigo-500"
-                value={baseUrl}
-                placeholder="https://m.daltoon-server.ir:8443/Daltoon"
-                onChange={(e) => setBaseUrl(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.panelUsernameLabel}</label>
-              <input
-                type="text"
-                required
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500"
-                value={panelUsername}
-                onChange={(e) => setPanelUsername(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.panelPasswordLabel}</label>
-              <input
-                type="password"
-                required
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500"
-                value={panelPassword}
-                onChange={(e) => setPanelPassword(e.target.value)}
-              />
-            </div>
+          <div className="text-sm leading-relaxed text-gray-300 bg-slate-950/60 border border-slate-900 rounded-xl p-4 space-y-3 font-sans">
+            <p>
+              {lang === "fa" 
+                ? "💡 قوانین و نحوه کارکرد این حالت:" 
+                : "💡 How Manual Delivery works on client purchase:"}
+            </p>
+            <ul className="list-disc list-inside space-y-2 text-xs text-gray-400">
+              <li>
+                {lang === "fa" 
+                  ? "شما برای هر پلن، کانفیگ‌های آماده شده خود را به صورت سنترال یا تک تک در بخش «مدیریت سرور» (Server Management) اضافه می‌کنید." 
+                  : "You add your pre-made configurations per plan within the 'Server Management' tab."}
+              </li>
+              <li>
+                {lang === "fa" 
+                  ? "هنگامی که مشتری بسته‌ای را خریداری می‌نماید، ربات اولین کانفیگ موجود در انبار آن بسته را برای کاربر ارسال و همان لحظه آن را از انبار حذف می‌کند تا به دست خریدار بعدی نرسد." 
+                  : "When a customer buys, the bot immediately shifts (pops) and delivers the first config link, safely deleting it from queue."}
+              </li>
+              <li>
+                {lang === "fa" 
+                  ? "دیگر نیازی به ورود دستی نام کاربری توسط مشتری، ساخت اکانت روی پنل‌های نامطمئن و طول کشیدن زمان اتصال API وجود ندارد." 
+                  : "No more slow third-party API configurations or asking users for customized english letters."}
+              </li>
+              <li>
+                {lang === "fa" 
+                  ? "جهت شارژ انبار هر بسته، به منوی مدیریت سرور مراجعه کرده و کادر افزودن کانفیگ را پر کنید." 
+                  : "Simply check the Server Management view to top-up any out of stock subscription package."}
+              </li>
+            </ul>
           </div>
         </div>
 
