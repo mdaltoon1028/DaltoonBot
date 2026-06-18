@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { VpnPlan } from "../types";
 import { Language } from "../locales";
 import { 
@@ -30,6 +30,15 @@ export default function ServerManagement({
 }: ServerManagementProps) {
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showAddForm && formRef.current) {
+      setTimeout(() => {
+        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [showAddForm, editingPlanId]);
 
   // Form states for the VPN package
   const [planName, setPlanName] = useState("");
@@ -293,7 +302,7 @@ export default function ServerManagement({
 
         {/* New Plan / Edit Plan Form */}
         {showAddForm && (
-          <div className="bg-[#111827] border-2 border-indigo-500/30 p-5 rounded-2xl space-y-4 shadow-xl">
+          <div ref={formRef} className="bg-[#111827] border-2 border-indigo-500/30 p-5 rounded-2xl space-y-4 shadow-xl">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
