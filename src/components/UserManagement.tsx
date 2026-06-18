@@ -500,6 +500,29 @@ export default function UserManagement({
                     <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
                       {key.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "منقضی" : "expired")}
                     </span>
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(key.subLink);
+                        setCopiedKeyId(key.id);
+                        setTimeout(() => setCopiedKeyId(null), 1500);
+                      }}
+                      className="px-2 py-0.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/40 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                      title={lang === "fa" ? "کپی لینک کانفیگ" : "Copy subscription link"}
+                    >
+                      {copiedKeyId === key.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400 animate-bounce" />
+                          <span>{lang === "fa" ? "کپی شد" : "Copied"}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-indigo-400" />
+                          <span>{lang === "fa" ? "کپی" : "Copy"}</span>
+                        </>
+                      )}
+                    </button>
+
                     <button
                       onClick={() => setDeleteConfirm({
                         id: key.id,
