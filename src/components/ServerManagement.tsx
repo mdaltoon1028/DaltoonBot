@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { VpnPlan } from "../types";
 import { Language } from "../locales";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { 
   Server, 
   Layers, 
@@ -81,7 +82,7 @@ export default function ServerManagement({
   };
 
   const handleCopyConfig = (link: string, idx: number) => {
-    navigator.clipboard.writeText(link);
+    copyTextToClipboard(link);
     setCopiedIndex(idx);
     setTimeout(() => setCopiedIndex(null), 1500);
   };

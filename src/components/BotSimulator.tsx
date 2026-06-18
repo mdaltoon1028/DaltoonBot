@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { User, VpnPlan, Transaction, SubscriptionKey, CustomButton, PanelSettings } from "../types";
 import { Language, translations } from "../locales";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { 
   Send, 
   Smartphone, 
@@ -583,7 +584,7 @@ export default function BotSimulator({
                                 <code 
                                   key={i} 
                                   onClick={() => {
-                                    navigator.clipboard.writeText(part);
+                                    copyTextToClipboard(part);
                                   }}
                                   className="bg-slate-900/95 text-pink-400 px-1.5 py-0.5 rounded font-mono text-[10px] break-all border border-slate-800 select-all hover:bg-slate-805 cursor-pointer block mt-1 mb-1 shadow-inner text-center"
                                   title="Copy code"

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { User, SubscriptionKey } from "../types";
 import { Language, translations } from "../locales";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { 
   Search, 
   Wallet, 
@@ -286,7 +287,7 @@ export default function UserManagement({
                                     <div className="flex items-center gap-1 shrink-0">
                                       <button
                                         onClick={() => {
-                                          navigator.clipboard.writeText(key.subLink);
+                                          copyTextToClipboard(key.subLink);
                                           setCopiedKeyId(key.id);
                                           setTimeout(() => setCopiedKeyId(null), 1500);
                                         }}
@@ -503,7 +504,7 @@ export default function UserManagement({
 
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(key.subLink);
+                        copyTextToClipboard(key.subLink);
                         setCopiedKeyId(key.id);
                         setTimeout(() => setCopiedKeyId(null), 1500);
                       }}
@@ -545,7 +546,7 @@ export default function UserManagement({
                     <span className="text-gray-400 block text-[10px] uppercase font-mono tracking-wider font-semibold">{t.keySubLinkLabel}</span>
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(key.subLink);
+                        copyTextToClipboard(key.subLink);
                         setCopiedKeyId(key.id);
                         setTimeout(() => setCopiedKeyId(null), 1500);
                       }}
