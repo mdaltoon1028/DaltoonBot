@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { User, SubscriptionKey } from "../types";
+import React, { useState, useEffect } from "react";
+import { User, SubscriptionKey, PanelSettings } from "../types";
 import { Language, translations } from "../locales";
 import { copyTextToClipboard } from "../utils/clipboard";
 import { 
@@ -18,7 +18,10 @@ import {
   Link2,
   Copy,
   Check,
-  Eye
+  Eye,
+  Settings,
+  RefreshCw,
+  Sparkles
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -32,6 +35,7 @@ interface UserManagementProps {
   addNewSubscriptionKey: (key: SubscriptionKey) => void;
   openSimulatedChat: (userId: number) => void;
   lang: Language;
+  settings?: PanelSettings;
 }
 
 export default function UserManagement({
@@ -44,7 +48,8 @@ export default function UserManagement({
   deleteSubscriptionKey,
   addNewSubscriptionKey,
   openSimulatedChat,
-  lang
+  lang,
+  settings
 }: UserManagementProps) {
   const t = translations[lang];
   const [searchTerm, setSearchTerm] = useState("");
@@ -59,6 +64,19 @@ export default function UserManagement({
   const [manualSubLink, setManualSubLink] = useState("");
   const [manualTrafficLimit, setManualTrafficLimit] = useState("50");
   const [manualExpiryDays, setManualExpiryDays] = useState("30");
+
+  // Multi-mode configuration creation state
+  const [creationMode, setCreationMode] = useState<"panel" | "manual">("manual");
+  const [isSubmittingConfig, setIsSubmittingConfig] = useState(false);
+  const [configErrorMessage, setConfigErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (settings?.panelConnectionActive) {
+      setCreationMode("panel");
+    } else {
+      setCreationMode("manual");
+    }
+  }, [settings?.panelConnectionActive, addingConfigForUser]);
 
   // New User Form fields
   const [newUserId, setNewUserId] = useState("");
@@ -78,14 +96,52 @@ export default function UserManagement({
   const handleManualConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!addingConfigForUser) return;
+    setConfigErrorMessage("");
 
+    const parsedExpiryDays = parseInt(manualExpiryDays) || 30;
+
+    if (creationMode === "panel") {
+      setIsSubmittingConfig(true);
+      fetch("/api/subscription-keys/auto-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: addingConfigForUser.userId,
+          clientName: manualPlanName.trim() || addingConfigForUser.username || "user_" + Math.random().toString(36).substring(2, 8),
+          trafficLimitGb: Number(manualTrafficLimit) || 50,
+          expiryDays: parsedExpiryDays,
+          planName: manualPlanName.trim() || `Auto Plan (${manualTrafficLimit}GB)`
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        setIsSubmittingConfig(false);
+        if (data.success) {
+          addNewSubscriptionKey(data.subKey);
+          setAddingConfigForUser(null);
+          setManualPlanName("");
+          setManualSubLink("");
+          setManualTrafficLimit("50");
+          setManualExpiryDays("30");
+        } else {
+          setConfigErrorMessage(data.error || "خطا در ساخت کانفیگ روی پنل");
+        }
+      })
+      .catch(err => {
+        setIsSubmittingConfig(false);
+        setConfigErrorMessage(lang === "fa" ? "خطا در ارتباط با سرور" : "Server connection failure");
+      });
+      return;
+    }
+
+    // Traditional Manual Registration
     const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
-    const expireDate = new Date(Date.now() + (parseInt(manualExpiryDays) || 30) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const expireDate = new Date(Date.now() + parsedExpiryDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     
     // Auto populate a default connection string if they didn't supply one, using sub domain layout
-    const generatedVless = manualSubLink.trim() || `vless://${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2)}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${manualPlanName || "Manual"}`;
+    const generatedVless = manualSubLink.trim() || `vless://${Math.random().toString(36).substring(2)}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${manualPlanName || "Manual"}`;
 
-    addNewSubscriptionKey({
+    const newKey = {
       id: randomId,
       userId: addingConfigForUser.userId,
       planId: "custom",
@@ -94,7 +150,20 @@ export default function UserManagement({
       expireDate: expireDate,
       trafficLimitGb: parseInt(manualTrafficLimit) || 50,
       trafficUsedGb: 0,
-      status: "active"
+      status: "active" as const
+    };
+
+    // Call server to persist the key in database to prevent loss
+    fetch("/api/subscription-keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newKey)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        addNewSubscriptionKey(newKey);
+      }
     });
 
     setAddingConfigForUser(null);
@@ -259,9 +328,46 @@ export default function UserManagement({
                   
                   return (
                     <tr key={user.userId} className="hover:bg-slate-900/40 transition">
-                      <td className="px-5 py-4 font-mono text-xs">{user.userId}</td>
-                      <td className="px-5 py-4 font-medium text-white flex items-center gap-1">
-                        <span className="text-indigo-400">@</span>{user.username}
+                      <td className="px-5 py-4 font-mono text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span>{user.userId}</span>
+                          <button
+                            onClick={() => {
+                              copyTextToClipboard(String(user.userId));
+                              setCopiedKeyId("uid_" + user.userId);
+                              setTimeout(() => setCopiedKeyId(null), 1500);
+                            }}
+                            className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer"
+                            title={lang === "fa" ? "کپی شناسه تلگرام" : "Copy Telegram ID"}
+                          >
+                            {copiedKeyId === "uid_" + user.userId ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 font-medium text-white">
+                        <div className="flex items-center gap-1">
+                          <span className="text-indigo-400">@</span>
+                          <span>{user.username}</span>
+                          <button
+                            onClick={() => {
+                              copyTextToClipboard(user.username);
+                              setCopiedKeyId("uname_" + user.userId);
+                              setTimeout(() => setCopiedKeyId(null), 1500);
+                            }}
+                            className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer ml-1"
+                            title={lang === "fa" ? "کپی نام کاربری" : "Copy Username"}
+                          >
+                            {copiedKeyId === "uname_" + user.userId ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5 font-display text-emerald-400 font-semibold">
@@ -590,44 +696,90 @@ export default function UserManagement({
           <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-md w-full space-y-4">
             <h3 className="font-display font-semibold text-lg text-white flex items-center gap-2">
               <Key className="w-5 h-5 text-indigo-400" />
-              {lang === "fa" ? "ثبت کانفیگ دستی جدید" : "Create Manual VPN Config"}
+              {lang === "fa" ? (creationMode === "panel" ? "ایجاد کانفیگ خودکار روی پنل" : "ثبت کانفیگ دستی جدید") : (creationMode === "panel" ? "Auto-Create Client in X-UI" : "Create Manual VPN Config")}
             </h3>
             <p className="text-xs text-gray-400">
               {lang === "fa" 
-                ? "یک کانفیگ اختصاصی یا لینک اتصال دلخواه برای این کاربر ایجاد و ثبت کنید." 
-                : "Create a custom connection link or account subscription for this client."}
+                ? (creationMode === "panel" ? "مشخصات کلاینت را بنویسید تا سیستم به صورت خودکار کاربر را در پنل ۳x-ui بسازد." : "یک کانفیگ اختصاصی یا لینک اتصال دلخواه برای این کاربر ایجاد و ثبت کنید.")
+                : (creationMode === "panel" ? "Enter client details. The system will automatically add the user directly to the X-UI panel." : "Create a custom connection link or account subscription for this client.")}
               <br />
               {lang === "fa" ? "کاربر هدف:" : "Target User:"}{" "}
-              <span className="text-indigo-400 font-semibold font-mono">@{addingConfigForUser.username} (ID: {addingConfigForUser.userId})</span>
+              <span className="text-indigo-400 font-semibold font-mono">@{addingConfigForUser.username || "بدون آیدی"} (ID: {addingConfigForUser.userId})</span>
             </p>
+
+            {/* Mode Toggle with Active Connection Status */}
+            {settings?.panelConnectionActive && (
+              <div className="flex bg-[#1a2234] p-1 rounded-lg gap-1 border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setCreationMode("panel"); setConfigErrorMessage(""); }}
+                  className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium text-center transition flex items-center justify-center gap-1 cursor-pointer ${
+                    creationMode === "panel"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {lang === "fa" ? "ساخت خودکار روی پنل" : "Panel Auto-Create"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCreationMode("manual"); setConfigErrorMessage(""); }}
+                  className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium text-center transition flex items-center justify-center gap-1 cursor-pointer ${
+                    creationMode === "manual"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  {lang === "fa" ? "ثبت دستی لینک" : "Manual Link"}
+                </button>
+              </div>
+            )}
+
+            {configErrorMessage && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs rounded-lg font-sans">
+                ⚠️ {configErrorMessage}
+              </div>
+            )}
 
             <form onSubmit={handleManualConfigSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa" ? "نام پلن / مدت دوره" : "Plan Title / Label"}
+                  {creationMode === "panel" 
+                    ? (lang === "fa" ? "نام کاربری کلاینت (به انگلیسی، حداقل ۳ کاراکتر)" : "Client Email / Name (English, min 3 chars)")
+                    : (lang === "fa" ? "نام پلن / مدت دوره" : "Plan Title / Label")}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder={lang === "fa" ? "مثلا: ۱ ماهه ۵۰ گیگ یا VIP" : "e.g. Monthly 50GB, VIP"}
+                  placeholder={creationMode === "panel" 
+                    ? (lang === "fa" ? "مثلا: active-vless" : "e.g. active-vless")
+                    : (lang === "fa" ? "مثلا: ۱ ماهه ۵۰ گیگ یا VIP" : "e.g. Monthly 50GB, VIP")}
                   className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-sans"
                   value={manualPlanName}
                   onChange={(e) => setManualPlanName(e.target.value)}
                 />
               </div>
 
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa" ? "لینک کانکشن (Vless / Trojan / SS)" : "Connection Link (Vless / Trojan / SS)"}
-                </label>
-                <textarea
-                  placeholder={lang === "fa" ? "لینک تولید شده در x-ui را اینجا پیست کنید (در صورت خالی بودن، لینک تصادفی ساخته میشود)" : "Paste connection link here (if left empty, a mock link is generated)"}
-                  rows={3}
-                  className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 font-sans"
-                  value={manualSubLink}
-                  onChange={(e) => setManualSubLink(e.target.value)}
-                />
-              </div>
+              {creationMode === "manual" ? (
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                    {lang === "fa" ? "لینک کانکشن (Vless / Trojan / SS)" : "Connection Link (Vless / Trojan / SS)"}
+                  </label>
+                  <textarea
+                    placeholder={lang === "fa" ? "لینک تولید شده در x-ui را اینجا پیست کنید (در صورت خالی بودن، لینک تصادفی ساخته میشود)" : "Paste connection link here (if left empty, a mock link is generated)"}
+                    rows={3}
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 font-sans"
+                    value={manualSubLink}
+                    onChange={(e) => setManualSubLink(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-[11px] text-indigo-300 font-sans leading-relaxed">
+                  📢 {lang === "fa" ? "نحوه کارکرد پنل: سیستم به طور هوشمند کاربر تعریف‌شده را روی تمامی اینباندهای فعال چندگانه در هسته 3x-ui تعریف کرده و لینک جامع سابسکریپشن را تولید و در صفحه کاربری او فعال خواهد کرد. نیازی به ورود دستی هیچ کدی نیست!" : "How it works: System will define client in all active 3x-ui panel inbounds & dynamically register the unified subscription link automatically."}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -659,13 +811,28 @@ export default function UserManagement({
               <div className="flex gap-2 pt-2 font-sans">
                 <button
                   type="submit"
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition cursor-pointer"
+                  disabled={isSubmittingConfig}
+                  className={`flex-1 text-white font-semibold py-2 px-4 rounded-lg text-sm transition flex items-center justify-center gap-1 cursor-pointer ${
+                    isSubmittingConfig
+                      ? "bg-indigo-800 cursor-not-allowed opacity-80"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  }`}
                 >
-                  {lang === "fa" ? "ثبت کانفیگ" : "Create Subscription"}
+                  {isSubmittingConfig ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{lang === "fa" ? "در حال ایجاد در پنل..." : "Generating on Panel..."}</span>
+                    </>
+                  ) : (
+                    <span>{lang === "fa" ? "ثبت کانفیگ" : "Create Subscription"}</span>
+                  )}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAddingConfigForUser(null)}
+                  onClick={() => {
+                    setAddingConfigForUser(null);
+                    setConfigErrorMessage("");
+                  }}
                   className="px-4 py-2 bg-slate-800 text-gray-300 rounded-lg text-sm hover:bg-slate-700 transition cursor-pointer"
                 >
                   {t.formBtnCancel}

@@ -1,13 +1,21 @@
 export function copyTextToClipboard(text: string): boolean {
-  // Try modern navigator.clipboard first
-  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-    navigator.clipboard.writeText(text).catch((err) => {
-      console.warn("navigator.clipboard.writeText failed, falling back", err);
-      fallbackCopyText(text);
-    });
+  // Try synchronous manual selection first as it strictly preserves the synchronous user activation gesture
+  const syncSuccess = fallbackCopyText(text);
+  if (syncSuccess) {
     return true;
   }
-  return fallbackCopyText(text);
+
+  // If synchronous copy fails, fall back to navigator.clipboard
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      console.warn("navigator.clipboard.writeText failed", err);
+    }
+  }
+
+  return false;
 }
 
 function fallbackCopyText(text: string): boolean {

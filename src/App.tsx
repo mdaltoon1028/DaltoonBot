@@ -686,6 +686,7 @@ export default function App() {
               addNewSubscriptionKey={addNewSubscriptionKey}
               openSimulatedChat={handleOpenSimulatedChat}
               lang={lang}
+              settings={settings}
             />
           )}
 

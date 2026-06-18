@@ -495,6 +495,120 @@ async function loginXuiPanel(cleanedUrl: string, username: string, password: str
   }
 }
 
+// Node.js implementation of Python bot's add_vpn_client_api helper
+async function addVpnClientApi(
+  clientEmail: string,
+  trafficGb: number,
+  durationMonths: number,
+  settings: any,
+  clientUuid?: string
+): Promise<{ success: boolean; clientUuid?: string; subLink?: string; error?: string }> {
+  try {
+    if (!settings.baseUrl || !settings.panelUsername || !settings.panelPassword) {
+      return { success: false, error: "تنظیمات اتصال به پنل کامل نیست." };
+    }
+    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+    if (!loginResult.success || !loginResult.cookie) {
+      return { success: false, error: "ورود به پنل با خطا مواجه شد: " + (loginResult.error || "خطای نامشخص") };
+    }
+
+    const uuid = clientUuid || Math.random().toString(36).substring(2, 10) + "-" + Math.random().toString(36).substring(2, 6);
+    const totalBytes = Math.floor(trafficGb * 1024 * 1024 * 1024);
+    const expiryTimeMs = Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000;
+
+    const clientConfig = {
+      id: uuid,
+      email: clientEmail,
+      limitIp: 0,
+      totalGB: totalBytes,
+      expiryTime: expiryTimeMs,
+      enable: true,
+      tgId: "",
+      subId: clientEmail
+    };
+
+    // Determine inbound_ids
+    let inboundIds: number[] = [];
+    if (Array.isArray(settings.activeInboundIds) && settings.activeInboundIds.length > 0) {
+      inboundIds = settings.activeInboundIds.map((id: any) => Number(id)).filter(id => !isNaN(id));
+    }
+
+    // Fallback: fetch dynamically if none specified
+    if (inboundIds.length === 0) {
+      const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+        method: "GET",
+        headers: { 
+          "Cookie": loginResult.cookie
+        }
+      }, 5000);
+      if (listRes.ok) {
+        const listText = await listRes.text();
+        const listJson = JSON.parse(listText);
+        if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+          inboundIds = listJson.obj.map((item: any) => Number(item.id)).filter((id: number) => !isNaN(id));
+          console.log(`[Sanaei API] Dynamically retrieved ${inboundIds.length} inbound IDs for user ${clientEmail}`);
+        }
+      }
+    }
+
+    if (inboundIds.length === 0) {
+      // absolute fallback to inbound ID 1
+      inboundIds = [1];
+    }
+
+    let successCount = 0;
+    let lastError = "";
+
+    for (const inboundId of inboundIds) {
+      const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
+      const payload = {
+        id: inboundId,
+        settings: JSON.stringify({ clients: [clientConfig] })
+      };
+
+      try {
+        const addRes = await xuiFetch(addUrl, {
+          method: "POST",
+          headers: {
+            "Cookie": loginResult.cookie,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify(payload)
+        }, 8000);
+
+        if (addRes.ok) {
+          const addText = await addRes.text();
+          const addJson = JSON.parse(addText);
+          if (addJson && addJson.success) {
+            successCount++;
+            console.log(`[Sanaei API Sync] Created user '${clientEmail}' on inbound ${inboundId} successfully.`);
+          } else {
+            console.warn(`[Sanaei API Response] Creation error on inbound ${inboundId}: ${addText}`);
+            lastError = addJson?.msg || addText;
+          }
+        } else {
+          lastError = `HTTP ${addRes.status}`;
+        }
+      } catch (err: any) {
+        console.error(`[Sanaei API Error] inbound ${inboundId}: ${err.message}`);
+        lastError = err.message;
+      }
+    }
+
+    if (successCount > 0) {
+      const subLink = `${cleanedUrl}/sub/${clientEmail}`;
+      return { success: true, clientUuid: uuid, subLink };
+    }
+
+    return { success: false, error: "تعریف کلاینت بر روی هیچ اینباندی موفق نبود. خطا: " + lastError };
+  } catch (e: any) {
+    console.error("[addVpnClientApi] helper crash:", e);
+    return { success: false, error: e.message };
+  }
+}
+
 // 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
@@ -837,6 +951,87 @@ app.post("/api/transactions/clear-history", async (req, res) => {
   }
 });
 
+// Auto-create subscription key on 3x-ui panel directly
+app.post("/api/subscription-keys/auto-create", async (req, res) => {
+  try {
+    const { userId, clientName, trafficLimitGb, expiryDays, planName } = req.body;
+    const db = readJsonDb();
+
+    const parsedSettings = db.settings.panel_config 
+      ? JSON.parse(db.settings.panel_config)
+      : {};
+    const settings = {
+      botToken: "",
+      baseUrl: "",
+      panelUrl: "",
+      panelUsername: "",
+      panelPassword: "",
+      activeInboundIds: [],
+      ownerId: 0,
+      cardNumber: "",
+      cardHolder: "",
+      bankName: "",
+      welcomeText: "",
+      supportText: "",
+      hideSupport: false,
+      hideBuy: false,
+      hideProfile: false,
+      hideWallet: false,
+      dashboardUsername: "Daltoon",
+      dashboardPassword: "Daltoon10",
+      serverPort: 3000,
+      admins: [],
+      panelConnectionActive: false,
+      ...parsedSettings
+    };
+
+    if (!settings.panelConnectionActive) {
+      return res.status(400).json({ success: false, error: "اتصال به پنل ۳x-ui در تنظیمات غیرفعال است." });
+    }
+
+    const durationMonths = Number(expiryDays) / 30 || 1;
+    const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
+
+    const vpnResult = await addVpnClientApi(cleanClientName, Number(trafficLimitGb), durationMonths, settings);
+
+    if (vpnResult.success && vpnResult.subLink) {
+      const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+      const expireDate = new Date(Date.now() + Number(expiryDays) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      const newSub = {
+        id: randomId,
+        userId: Number(userId),
+        planId: "manual_" + Math.random().toString(36).substring(2, 8),
+        planName: planName || `Manual Plan (${trafficLimitGb}GB)`,
+        subLink: vpnResult.subLink,
+        expireDate: expireDate,
+        trafficLimitGb: Number(trafficLimitGb),
+        trafficUsedGb: 0,
+        status: "active" as const
+      };
+
+      db.subscription_keys.push(newSub);
+
+      const user = db.users.find(u => u.userId === Number(userId));
+      if (user) {
+        user.activePlansCount = db.subscription_keys.filter(k => k.userId === Number(userId) && k.status === "active").length;
+      }
+
+      writeJsonDb(db);
+      return res.json({ 
+        success: true, 
+        subKey: newSub, 
+        subscriptionKeys: db.subscription_keys, 
+        users: db.users 
+      });
+    } else {
+      return res.status(400).json({ success: false, error: "خطا در برقراری ارتباط با ۳x-ui: " + (vpnResult.error || "خطای نامشخص") });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 5. Subscription Keys operations
 app.post("/api/subscription-keys", async (req, res) => {
   try {
@@ -1048,11 +1243,21 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
 
     const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
 
-    if (!plan.configStock || plan.configStock.length === 0) {
-      return res.status(400).json({ success: false, error: "این پلن در حال حاضر فاقد کانفیگ در انبار است. ابتدا انبار آن را در بخش مدیریت سرور شارژ کنید." });
+    let subLink = "";
+    if (settings.panelConnectionActive) {
+      console.log(`[Buy API] Connection active, creating user '${cleanClientName}' on panel...`);
+      const apiResult = await addVpnClientApi(cleanClientName, plan.trafficGb, plan.durationMonths, settings);
+      if (apiResult.success && apiResult.subLink) {
+        subLink = apiResult.subLink;
+      } else {
+        return res.status(400).json({ success: false, error: "ساخت کلاینت در پنل ۳x-ui با خطا مواجه شد: " + (apiResult.error || "خطای نامشخص") });
+      }
+    } else {
+      if (!plan.configStock || plan.configStock.length === 0) {
+        return res.status(400).json({ success: false, error: "این پلن در حال حاضر فاقد کانفیگ در انبار است. ابتدا انبار آن را در بخش مدیریت سرور شارژ کنید." });
+      }
+      subLink = plan.configStock.shift() || "";
     }
-
-    const subLink = plan.configStock.shift() || "";
     
     // Create subscription key
     const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
