@@ -751,11 +751,12 @@ def callback_handler(call):
             return
 
         # Prompt for English client name without spaces
+        cost_display = "رایگان (ویژه مدیریت 👑)" if is_privileged else f"{spec['price']:,} تومان"
         msg = bot.send_message(
             call.message.chat.id,
             f"✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>\n\n"
             f"• طرح انتخابی: <code>{spec['name']}</code>\n"
-            f"• هزینه طرح: {'رایگان (ویژه مدیریت 👑)' if is_privileged else f'{spec[\'price\']:,} تومان'}\n\n"
+            f"• هزینه طرح: {cost_display}\n\n"
             f"⚠️ نام کاربری نباید شامل فاصله یا حروف فارسی یا کاراکترهای خاص باشد. مثلاً: <code>smart_vpn</code>",
             parse_mode="HTML"
         )
