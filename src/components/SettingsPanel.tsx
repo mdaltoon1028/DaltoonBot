@@ -29,8 +29,6 @@ interface SettingsPanelProps {
   lang: Language;
   customButtons: CustomButton[];
   setCustomButtons: React.Dispatch<React.SetStateAction<CustomButton[]>>;
-  inbounds: InboundInfo[];
-  setInbounds: React.Dispatch<React.SetStateAction<InboundInfo[]>>;
 }
 
 export default function SettingsPanel({
@@ -38,62 +36,15 @@ export default function SettingsPanel({
   onSaveSettings,
   lang,
   customButtons,
-  setCustomButtons,
-  inbounds,
-  setInbounds
+  setCustomButtons
 }: SettingsPanelProps) {
   const t = translations[lang];
   // Form state
   const [botToken, setBotToken] = useState(settings.botToken || "");
-  const [baseUrl, setBaseUrl] = useState(settings.baseUrl || "");
-  const [panelUrl, setPanelUrl] = useState(settings.panelUrl || "");
-  const [panelUsername, setPanelUsername] = useState(settings.panelUsername || "");
-  const [panelPassword, setPanelPassword] = useState(settings.panelPassword || "");
   const [ownerId, setOwnerId] = useState(settings.ownerId ? settings.ownerId.toString() : "");
   
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(settings.purchaseSuccessNote || "");
   
-  // Real-time 3x-ui connection states
-  const [panelConnectionActive, setPanelConnectionActive] = useState<boolean>(!!settings.panelConnectionActive);
-  const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
-  
-  const [checkedInboundIds, setCheckedInboundIds] = useState<number[]>(() => {
-    return settings.activeInboundIds || [];
-  });
-
-  const handleTestConnection = async (forceUrlCheck?: string, forceUserCheck?: string, forcePassCheck?: string) => {
-    setTestStatus({ type: "loading", message: lang === "fa" ? "در حال اتصال به پنل و بررسی احراز هویت..." : "Connecting to panel and validating authentication..." });
-    try {
-      const response = await fetch("/api/xui/test-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseUrl: forceUrlCheck || baseUrl,
-          panelUsername: forceUserCheck || panelUsername,
-          panelPassword: forcePassCheck || panelPassword
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setTestStatus({ type: "success", message: data.message });
-        if (Array.isArray(data.inbounds)) {
-          setInbounds(data.inbounds);
-          // If no active inbounds were selected, auto-select all found ones
-          if (checkedInboundIds.length === 0) {
-            setCheckedInboundIds(data.inbounds.map((ib: any) => ib.id));
-          }
-        }
-        return true;
-      } else {
-        setTestStatus({ type: "error", message: data.error });
-        return false;
-      }
-    } catch (err: any) {
-      setTestStatus({ type: "error", message: lang === "fa" ? "خطا در برقراری ارتباط با هاست سرور." : "Could not connect to host server." });
-      return false;
-    }
-  };
-
   // Broadcast text states
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastStatus, setBroadcastStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
@@ -131,10 +82,6 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
-      baseUrl,
-      panelUrl,
-      panelUsername,
-      panelPassword,
       ownerId: parseInt(ownerId) || 0,
       cardNumber,
       cardHolder: bankOwner,
@@ -147,8 +94,6 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
-      panelConnectionActive,
-      activeInboundIds: checkedInboundIds,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
@@ -165,10 +110,6 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
-      baseUrl,
-      panelUrl,
-      panelUsername,
-      panelPassword,
       ownerId: parseInt(ownerId) || 0,
       cardNumber,
       cardHolder: bankOwner,
@@ -181,8 +122,6 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
-      panelConnectionActive,
-      activeInboundIds: checkedInboundIds,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
@@ -251,10 +190,6 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
-      baseUrl,
-      panelUrl,
-      panelUsername,
-      panelPassword,
       ownerId: parseInt(ownerId) || 0,
       cardNumber,
       cardHolder: bankOwner,
@@ -267,8 +202,6 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
-      panelConnectionActive,
-      activeInboundIds: checkedInboundIds,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
@@ -380,205 +313,6 @@ export default function SettingsPanel({
 
 
           </div>
-        </div>
-
-        {/* Sanaei 3x-ui Panel direct API integration setup */}
-        <div className="bg-gradient-to-br from-[#0c1020] to-[#121c35] border border-indigo-500/20 p-6 rounded-2xl space-y-6 shadow-lg shadow-black/40">
-          <div className="flex items-center justify-between border-b border-gray-800 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
-                <Cpu className="w-6 h-6 animate-pulse" />
-              </div>
-              <div>
-                <h3 className="font-display font-bold text-lg text-white">
-                  {lang === "fa" ? "🔌 تنظیمات و احراز هویت پنل ۳x-ui" : "🔌 Sanaei 3x-ui Panel Direct API Connection"}
-                </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {lang === "fa" 
-                    ? "اطلاعات پنل سنایی نسخه ۳x-ui را برای ساخت خودکار و فوری اکانت‌های سابسکریپشن کلاینت وارد کنید."
-                    : "Configure direct integration with your Sanaei 3x-ui panel to automate instant outbound client subscription deliveries."}
-                </p>
-              </div>
-            </div>
-
-            {/* Toggle switch for panel mode */}
-            <label className="relative inline-flex items-center cursor-pointer select-none">
-              <input 
-                type="checkbox" 
-                className="sr-only peer"
-                checked={panelConnectionActive}
-                onChange={(e) => setPanelConnectionActive(e.target.checked)}
-              />
-              <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              <span className="mr-2 ml-2 text-xs font-semibold text-gray-300">
-                {lang === "fa" ? "وضعیت سرویس" : "Service Status"}
-              </span>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-3">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa" ? "آدرس کامل پنل (همراه با پورت و آدرس اخصاصی)" : "Panel Base URL (including Port & Path prefix)"}
-              </label>
-              <input
-                type="text"
-                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                placeholder="e.g. https://m.daltoon-server.ir:8443/Daltoon"
-                value={baseUrl}
-                onChange={(e) => {
-                  setBaseUrl(e.target.value);
-                  setPanelUrl(e.target.value); // Sync with panelUrl
-                }}
-              />
-              <span className="text-[10px] text-gray-500 mt-1 block">
-                {lang === "fa" ? "نکته: حتماً پروتکل (http/https)، پورت و در صورت وجود، آدرس فرعی (مثل Daltoon/) را بنویسید." : "Note: Must include protocol, port, and any URL path prefix exactly as defined in your panel."}
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa" ? "نام کاربری پنل (Username)" : "Panel Username"}
-              </label>
-              <input
-                type="text"
-                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-                placeholder="admin"
-                value={panelUsername}
-                onChange={(e) => setPanelUsername(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa" ? "کلمه عبور پنل (Password) یا توکن" : "Panel Password or Token"}
-              </label>
-              <input
-                type="password"
-                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-                placeholder="••••••••"
-                value={panelPassword}
-                onChange={(e) => setPanelPassword(e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => handleTestConnection()}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 border border-indigo-400/20"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`} />
-                {lang === "fa" ? "استعلام و اتصال به پنل" : "Check & Connect Panel"}
-              </button>
-            </div>
-          </div>
-
-          {/* Test connection status alert feedback box */}
-          {testStatus.type !== "idle" && (
-            <div className={`p-3 rounded-lg text-xs leading-relaxed ${
-              testStatus.type === "success" 
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25" 
-                : testStatus.type === "loading"
-                ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 animate-pulse"
-                : "bg-rose-500/10 text-rose-400 border border-rose-500/25"
-            }`}>
-              <div className="flex items-center gap-1.5 font-medium">
-                {testStatus.type === "success" && <Check className="w-4 h-4 shrink-0 text-emerald-400" />}
-                {testStatus.type === "loading" && <span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0"></span>}
-                <span>{testStatus.message}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Direct 3x-ui Inbounds selection checklist */}
-          {panelConnectionActive && (
-            <div className="bg-slate-950/50 rounded-xl p-4 border border-indigo-500/10 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-2">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <Activity className="w-4 h-4 text-indigo-400" />
-                    {lang === "fa" ? "اینباندهای فعال برای ساخت اکانت کلاینت" : "Selected Active Outbounds for Clients"}
-                  </h4>
-                  <p className="text-[10px] text-gray-500 mt-0.5">
-                    {lang === "fa" 
-                      ? "تیک بزنید تا اکانت کلاینت به طور همزمان روی تمامی اینباندهای تیک‌خورده ساخته شود." 
-                      : "Check the inbounds that the customer should be automatically configured on."}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setCheckedInboundIds(inbounds.map(ib => ib.id))}
-                    className="text-[9px] px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded cursor-pointer transition"
-                  >
-                    {lang === "fa" ? "گزینش همه" : "Select All"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCheckedInboundIds([])}
-                    className="text-[9px] px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 border border-gray-700 rounded cursor-pointer transition"
-                  >
-                    {lang === "fa" ? "لغو همه" : "Deselect All"}
-                  </button>
-                </div>
-              </div>
-
-              {inbounds.length === 0 ? (
-                <div className="text-center py-6">
-                  <p className="text-xs text-gray-500">
-                    {lang === "fa" 
-                      ? "⚠️ هیچ اینباندی دریافت نشد. برای لود مجدد، روی دکمه «استعلام و اتصال به پنل» بالا کلیک کنید." 
-                      : "⚠️ No inbounds retrieved yet. Click 'Check & Connect Panel' to sync live ones."}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto no-scrollbar pr-1 pt-1">
-                  {inbounds.map((ib) => {
-                    const isChecked = checkedInboundIds.includes(ib.id);
-                    return (
-                      <label 
-                        key={ib.id} 
-                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${
-                          isChecked 
-                            ? "bg-indigo-950/20 border-indigo-500/40 shadow-xs shadow-indigo-500/5 hover:border-indigo-500/60" 
-                            : "bg-[#111827] border-gray-800 hover:border-gray-700"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-1 rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setCheckedInboundIds(prev => [...prev, ib.id]);
-                            } else {
-                              setCheckedInboundIds(prev => prev.filter(id => id !== ib.id));
-                            }
-                          }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-xs text-white truncate font-display">{ib.remark}</span>
-                            <span className="px-1.5 py-0.5 bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 text-[8px] font-bold font-mono rounded uppercase">
-                              {ib.protocol}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 mt-2 text-[9px] text-gray-500 font-mono leading-tight">
-                            <div>Port: <span className="text-indigo-400 font-bold">{ib.port}</span></div>
-                            <div>Clients: <span className="text-white">{ib.totalClients}</span></div>
-                            <div className="col-span-2">Used: <span className="text-amber-400">{ib.trafficUsed} GB</span> / {ib.trafficLimit === "unlimited" ? (lang === "fa" ? "نامحدود" : "unlimited") : `${ib.trafficLimit} GB`}</div>
-                          </div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Dashboard Security and Admin Management */}

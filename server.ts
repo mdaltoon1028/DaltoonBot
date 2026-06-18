@@ -1281,8 +1281,11 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
 
     const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
 
+    const isMockSimulator = req.body.isSimulator === true || req.body.isSimulator === "true";
     let subLink = "";
-    if (settings.panelConnectionActive) {
+    if (isMockSimulator) {
+      subLink = `vless://${cleanClientName}_test_id@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_${cleanClientName}_Test`;
+    } else if (settings.panelConnectionActive) {
       console.log(`[Buy API] Connection active, creating user '${cleanClientName}' on panel...`);
       const apiResult = await addVpnClientApi(cleanClientName, plan.trafficGb, plan.durationMonths, settings);
       if (apiResult.success && apiResult.subLink) {

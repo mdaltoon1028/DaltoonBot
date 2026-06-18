@@ -186,7 +186,8 @@ export default function BotSimulator({
         body: JSON.stringify({
           planId: selectedPlanToBuy.id,
           userId: currentUser.userId,
-          clientName: clientNameInput
+          clientName: clientNameInput,
+          isSimulator: true
         })
       })
       .then(res => res.json())
@@ -282,22 +283,60 @@ export default function BotSimulator({
       let subDetails = "";
       if (lang === "fa") {
         if (activeUserKeys.length > 0) {
-          subDetails = "\n\n🔑 کانفیگ‌های فعال شما:\n" + activeUserKeys.map((k, i) => `${i+1}. ${k.planName}\n⏳ انقضا: ${k.expireDate}\n⚙️ ${k.status.toUpperCase()}`).join("\n\n");
+          subDetails = "\n\n🔑 <b>کانفیگ‌های فعال شما در پنل دالتون:</b>\n" + activeUserKeys.map((k, i) => {
+            const total = k.trafficLimitGb || 50;
+            const used = k.trafficUsedGb || 0;
+            const remaining = Math.max(0, total - used);
+            
+            // Calculate remaining days
+            const expDate = new Date(k.expireDate);
+            const now = new Date();
+            const diffTime = expDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const timeStr = diffDays > 0 ? `<b>${diffDays} روز</b> باقی‌مانده` : "<b>منقضی شده ❌</b>";
+
+            return `📊 <b>سرویس ${i + 1}: ${k.planName}</b>\n` +
+                   `🔗 سابسکریپشن:\n<code>${k.subLink}</code>\n` +
+                   `⏳ زمان باقی‌مانده: ${timeStr} (${k.expireDate})\n` +
+                   `📥 حجم استفاده شده: <b>${used.toFixed(2)} GB</b>\n` +
+                   `🔋 ترافیک باقی‌مانده: <b>${remaining.toFixed(2)} GB</b>\n` +
+                   `💿 حجم کل سرویس: <b>${total} GB</b>\n` +
+                   `⚙️ وضعیت اتصال: <b>${k.status === "active" ? "فعال ✅" : "قطع شده ❌"}</b>`;
+          }).join("\n\n────────────────\n\n");
         } else {
-          subDetails = "\n\n❌ شما تا کنون اشتراک فعالی از این ربات خریداری نکرده‌اید.";
+          subDetails = "\n\n❌ شما تا کنون کانفیگ یا اشتراک فعالی از این ربات خریداری نکرده‌اید.";
         }
         addBotReply(
-          `👤 اطلاعات حساب Daltoon شما:\n\n🆔 شناسه کاربری: ${currentUser.userId}\n🏷️ نام کاربری: @${currentUser.username}\n💰 موجودی کیف پول: ${currentUser.walletBalance.toLocaleString()} تومان${subDetails}`,
+          `👤 <b>اطلاعات حساب دالتون شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}\n💰 موجودی کیف پول: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>${subDetails}`,
           600
         );
       } else {
         if (activeUserKeys.length > 0) {
-          subDetails = "\n\n🔑 Your Active Subscriptions:\n" + activeUserKeys.map((k, i) => `${i+1}. ${k.planName}\n⏳ Expired: ${k.expireDate}\n⚙️ Status: ${k.status.toUpperCase()}`).join("\n\n");
+          subDetails = "\n\n🔑 <b>Your Active Subscriptions:</b>\n" + activeUserKeys.map((k, i) => {
+            const total = k.trafficLimitGb || 50;
+            const used = k.trafficUsedGb || 0;
+            const remaining = Math.max(0, total - used);
+            
+            // Calculate remaining days
+            const expDate = new Date(k.expireDate);
+            const now = new Date();
+            const diffTime = expDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const timeStr = diffDays > 0 ? `<b>${diffDays} days</b> left` : "<b>Expired ❌</b>";
+
+            return `📊 <b>Service #${i + 1}: ${k.planName}</b>\n` +
+                   `🔗 subscription link:\n<code>${k.subLink}</code>\n` +
+                   `⏳ Time Remaining: ${timeStr} (${k.expireDate})\n` +
+                   `📥 Used Volume: <b>${used.toFixed(2)} GB</b>\n` +
+                   `🔋 Remaining Volume: <b>${remaining.toFixed(2)} GB</b>\n` +
+                   `💿 Total Limit: <b>${total} GB</b>\n` +
+                   `⚙️ Status: <b>${k.status === "active" ? "ACTIVE ✅" : "INACTIVE ❌"}</b>`;
+          }).join("\n\n────────────────\n\n");
         } else {
-          subDetails = "\n\n❌ You have no active VPN subscription keys on this bot.";
+          subDetails = "\n\n❌ You have no active premium configs or subscription keys.";
         }
         addBotReply(
-          `👤 My Account Details:\n\n🆔 User ID: ${currentUser.userId}\n🏷️ Handle: @${currentUser.username}\n💰 Wallet Balance: ${currentUser.walletBalance.toLocaleString()} Toman${subDetails}`,
+          `👤 <b>My Account Wallet Details:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}\n💰 Wallet Balance: <b>${currentUser.walletBalance.toLocaleString()} Toman</b>${subDetails}`,
           600
         );
       }

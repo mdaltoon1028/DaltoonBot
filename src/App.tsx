@@ -726,6 +726,10 @@ export default function App() {
               vpnPlans={vpnPlans}
               setVpnPlans={setVpnPlans}
               lang={lang}
+              settings={settings}
+              onSaveSettings={saveSettings}
+              inbounds={inbounds}
+              setInbounds={setInbounds}
             />
           )}
 
@@ -746,8 +750,6 @@ export default function App() {
               lang={lang}
               customButtons={customButtons}
               setCustomButtons={setCustomButtons}
-              inbounds={inbounds}
-              setInbounds={setInbounds}
             />
           )}
         </div>
