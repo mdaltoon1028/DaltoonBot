@@ -14,7 +14,10 @@ import {
   Minus,
   MessageSquare,
   Trash2,
-  Link2
+  Link2,
+  Copy,
+  Check,
+  Eye
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -68,6 +71,8 @@ export default function UserManagement({
     title: string;
     message: string;
   } | null>(null);
+
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   const handleManualConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,26 +276,51 @@ export default function UserManagement({
                             {userKeys.length} {lang === "fa" ? "کانفیگ" : "configs"}
                           </span>
                           {userKeys.length > 0 && (
-                            <div className="space-y-1 max-h-[110px] overflow-y-auto no-scrollbar">
+                            <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pt-1">
                               {userKeys.map((key) => (
-                                <div key={key.id} className="flex items-center justify-between gap-1 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-[10px] transition">
-                                  <span className="truncate text-gray-300 font-mono font-medium" title={key.planName}>
-                                    {key.planName}
-                                  </span>
-                                  <button
-                                    onClick={() => setDeleteConfirm({
-                                      id: key.id,
-                                      type: "key",
-                                      title: lang === "fa" ? "تایید حذف کانفیگ" : "Confirm Delete Subscription",
-                                      message: lang === "fa"
-                                        ? `آیا از حذف دائم کانفیگ ${key.planName} (شناسه: ${key.id}) اطمینان دارید؟`
-                                        : `Are you sure you want to delete config ${key.planName} (ID: ${key.id})?`
-                                    })}
-                                    className="text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition shrink-0 cursor-pointer"
-                                    title={lang === "fa" ? "حذف این کانفیگ" : "Remove this key"}
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
+                                <div key={key.id} className="flex flex-col gap-1 bg-slate-950/80 hover:bg-slate-950 border border-slate-800/80 p-1.5 rounded text-[10px] transition">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="truncate text-indigo-300 font-medium font-sans max-w-[120px]" title={key.planName}>
+                                      {key.planName}
+                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(key.subLink);
+                                          setCopiedKeyId(key.id);
+                                          setTimeout(() => setCopiedKeyId(null), 1500);
+                                        }}
+                                        className="text-gray-400 hover:text-indigo-400 hover:bg-indigo-500/10 p-0.5 rounded transition cursor-pointer"
+                                        title={lang === "fa" ? "کپی لینک کانکشن" : "Copy connection link"}
+                                      >
+                                        {copiedKeyId === key.id ? (
+                                          <Check className="w-3 h-3 text-emerald-400" />
+                                        ) : (
+                                          <Copy className="w-3 h-3" />
+                                        )}
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteConfirm({
+                                          id: key.id,
+                                          type: "key",
+                                          title: lang === "fa" ? "تایید حذف کانفیگ" : "Confirm Delete Subscription",
+                                          message: lang === "fa"
+                                            ? `آیا از حذف دائم کانفیگ ${key.planName} (شناسه: ${key.id}) اطمینان دارید؟`
+                                            : `Are you sure you want to delete config ${key.planName} (ID: ${key.id})?`
+                                        })}
+                                        className="text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition shrink-0 cursor-pointer"
+                                        title={lang === "fa" ? "حذف این کانفیگ" : "Remove this key"}
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-1 bg-[#111827] border border-slate-800 px-1 py-0.5 rounded-sm select-all">
+                                    <span className="font-mono text-[9px] text-gray-400 truncate grow" title={key.subLink}>
+                                      {key.subLink}
+                                    </span>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -487,12 +517,29 @@ export default function UserManagement({
                   </div>
                 </div>
 
-                <div className="space-y-1 bg-slate-950/40 p-2.5 rounded text-xs select-all">
-                  <span className="text-gray-400 block text-[10px] uppercase font-mono tracking-wider font-semibold">{t.keySubLinkLabel}</span>
+                <div className="space-y-1 bg-slate-950/40 p-2.5 rounded text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 block text-[10px] uppercase font-mono tracking-wider font-semibold">{t.keySubLinkLabel}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(key.subLink);
+                        setCopiedKeyId(key.id);
+                        setTimeout(() => setCopiedKeyId(null), 1500);
+                      }}
+                      className="text-indigo-400 hover:text-indigo-300 p-0.5 rounded transition cursor-pointer"
+                      title={lang === "fa" ? "کپی لینک" : "Copy Link"}
+                    >
+                      {copiedKeyId === key.id ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
                   <input
                     type="text"
                     readOnly
-                    className="bg-transparent border-none text-[10px] text-indigo-300 font-mono w-full focus:outline-none"
+                    className="bg-transparent border-none text-[10px] text-indigo-300 font-mono w-full focus:outline-none select-all"
                     value={key.subLink}
                   />
                 </div>
