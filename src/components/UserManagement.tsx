@@ -21,7 +21,8 @@ import {
   Eye,
   Settings,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  QrCode
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -92,6 +93,7 @@ export default function UserManagement({
   } | null>(null);
 
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+  const [activeQrKey, setActiveQrKey] = useState<SubscriptionKey | null>(null);
 
   const handleManualConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -631,6 +633,15 @@ export default function UserManagement({
                     </button>
 
                     <button
+                      onClick={() => setActiveQrKey(key)}
+                      className="px-2 py-0.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 hover:border-violet-500/40 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                      title={lang === "fa" ? "نمایش بارکد QR" : "Show QR Code"}
+                    >
+                      <QrCode className="w-3 h-3 text-violet-400" />
+                      <span>{lang === "fa" ? "بارکد" : "QR"}</span>
+                    </button>
+
+                    <button
                       onClick={() => setDeleteConfirm({
                         id: key.id,
                         type: "key",
@@ -876,6 +887,68 @@ export default function UserManagement({
               >
                 {lang === "fa" ? "انصراف" : "Cancel"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* State-based QR Code Modal Display */}
+      {activeQrKey && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-[#0f1424] border border-violet-500/30 p-6 rounded-2xl max-w-sm w-full space-y-6 shadow-2xl shadow-violet-500/5 relative">
+            <button
+              onClick={() => setActiveQrKey(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="text-center space-y-2">
+              <h3 className="font-display font-medium text-lg text-white">
+                {lang === "fa" ? "🖼️ بارکد QR اتصال کلاینت" : "🖼️ Client Connection QR Code"}
+              </h3>
+              <p className="text-xs text-indigo-300 font-mono">
+                {activeQrKey.planName}
+              </p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl flex items-center justify-center border-4 border-violet-500/20 max-w-[240px] mx-auto shadow-inner">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(activeQrKey.subLink)}`}
+                alt="VPN Connection QR Code"
+                className="w-full h-auto aspect-square rounded select-none"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-slate-950/60 border border-slate-900 rounded-xl p-3 text-center space-y-1">
+                <span className="text-[10px] text-gray-500 block">
+                  {lang === "fa" ? "لینک هوشمند سابسکریپشن کلاینت:" : "Unified Client Subscription Link:"}
+                </span>
+                <span className="text-xs font-mono text-indigo-400 break-all select-all font-semibold block">
+                  {activeQrKey.subLink}
+                </span>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    copyTextToClipboard(activeQrKey.subLink);
+                  }}
+                  className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg text-xs transition cursor-pointer text-center"
+                >
+                  {lang === "fa" ? "کپی مجدد لینک" : "Copy Link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveQrKey(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded-lg transition cursor-pointer"
+                >
+                  {lang === "fa" ? "بستن" : "Close"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

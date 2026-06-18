@@ -746,6 +746,8 @@ export default function App() {
               lang={lang}
               customButtons={customButtons}
               setCustomButtons={setCustomButtons}
+              inbounds={inbounds}
+              setInbounds={setInbounds}
             />
           )}
         </div>

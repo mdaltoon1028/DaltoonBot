@@ -630,9 +630,47 @@ app.post("/api/xui/test-connection", async (req, res) => {
           }
         }, 4000);
         if (listRes.ok) {
+          const listText = await listRes.text();
+          const listJson = JSON.parse(listText);
+          if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+            const freshInbounds = listJson.obj.map((item: any) => {
+              let totalClientsCount = 0;
+              try {
+                const settingsObj = typeof item.settings === "string" ? JSON.parse(item.settings) : item.settings;
+                if (settingsObj && Array.isArray(settingsObj.clients)) {
+                  totalClientsCount = settingsObj.clients.length;
+                }
+              } catch (e) {}
+
+              const usedGb = ((Number(item.up || 0) + Number(item.down || 0)) / (1024 * 1024 * 1024)).toFixed(1);
+              const limitGb = item.total ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0) : "unlimited";
+
+              return {
+                id: item.id,
+                remark: item.remark || `Inbound #${item.id}`,
+                protocol: item.protocol || "vless",
+                port: item.port || 1234,
+                totalClients: totalClientsCount,
+                trafficUsed: usedGb,
+                trafficLimit: limitGb,
+                status: item.enable ? "active" : "inactive"
+              };
+            });
+
+            // Persist the synced inbounds to cache database
+            const db = readJsonDb();
+            db.inbounds = freshInbounds;
+            writeJsonDb(db);
+
+            return res.json({ 
+              success: true, 
+              message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و لیست اینباندها دریافت گردید!",
+              inbounds: freshInbounds 
+            });
+          }
           return res.json({ success: true, message: "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!" });
         } else {
-          return res.json({ success: true, message: "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید." });
+          return res.json({ success: false, error: "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید." });
         }
       } catch (err: any) {
         return res.json({ success: true, message: "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید." });
