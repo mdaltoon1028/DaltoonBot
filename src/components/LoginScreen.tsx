@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Lock, User, KeyRound, Server, Eye, EyeOff, ShieldCheck, Globe } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Lock, User, KeyRound, Server, Eye, EyeOff, ShieldCheck, Globe, Layers, Sparkles } from "lucide-react";
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -8,6 +8,19 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, setLang }) => {
+  const [plans, setPlans] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/vpn-plans")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.success && Array.isArray(data.vpnPlans)) {
+          setPlans(data.vpnPlans);
+        }
+      })
+      .catch((err) => console.error("Error fetching packages on login", err));
+  }, []);
+
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem("daltoon_remember_me") === "true";
   });
@@ -95,7 +108,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, 
   };
 
   return (
-    <div className="min-h-screen bg-[#070913] text-gray-100 flex items-center justify-center p-4 relative overflow-hidden select-none" dir={lang === "fa" ? "rtl" : "ltr"}>
+    <div className="min-h-screen bg-[#070913] text-gray-100 flex flex-col items-center justify-center py-10 px-4 gap-6 relative overflow-hidden select-none" dir={lang === "fa" ? "rtl" : "ltr"}>
       {/* Background Decorative Grids and Glowing Orbs */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-[110px] pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-600/10 rounded-full blur-[110px] pointer-events-none"></div>
@@ -220,6 +233,55 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, 
             {lang === "fa" ? "رمز عبور و یوزرهای ادمین را با استفاده از دستور daltoon-dashboard بازیابی کنید." : "Modify credentials or add sub-admins anytime using the daltoon-dashboard server tool."}
           </p>
         </div>
+      </div>
+
+      {/* Defined Packages list under the login panel */}
+      <div className="w-full max-w-md bg-[#0c0f1c]/90 border border-indigo-500/10 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.4)] p-5 space-y-4 relative z-10 transition">
+        <div className="flex items-center gap-3 pb-3 border-b border-indigo-500/15">
+          <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/15">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-white tracking-wider flex items-center gap-1.5">
+              {lang === "fa" ? "📦 بسته‌های تعریف شده جهت دستور خودکار ربات" : "📦 Configured Plan Packages for Robot"}
+              <span className="bg-[#1f2937] text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">{plans.length}</span>
+            </h4>
+            <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
+              {lang === "fa" 
+                ? "ربات تلگرام مستقیماً به پنل دستور می‌دهد کانفیگ را با حجم و روز زیر بسازد:" 
+                : "The Telegram bot commands the panel to generate configurations with this traffic and validity:"}
+            </p>
+          </div>
+        </div>
+
+        {plans.length === 0 ? (
+          <div className="text-center py-5 bg-slate-950/20 rounded-xl border border-dashed border-gray-800">
+            <p className="text-xs text-gray-500 font-medium">
+              {lang === "fa" ? "هیچ بسته‌ای ثبت نشده است." : "No packages defined inside the administrative panel."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5 max-h-[220px] overflow-y-auto no-scrollbar pr-0.5">
+            {plans.map((p) => (
+              <div key={p.id} className="bg-[#111425]/70 border border-slate-900 rounded-xl p-3 flex items-center justify-between transition hover:border-indigo-500/10 hover:bg-[#13192f]/70">
+                <div className="space-y-1">
+                  <span className="text-xs font-bold text-white">{p.name}</span>
+                  <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-mono">
+                    <span className="bg-indigo-500/15 text-indigo-400 px-1.5 py-0.2 rounded border border-indigo-500/10 uppercase font-extrabold text-[9px]">{p.category}</span>
+                    <span>•</span>
+                    <span className="text-gray-300 font-semibold">{p.trafficGb} GB</span>
+                    <span>•</span>
+                    <span className="text-indigo-300 font-semibold">{p.durationMonths} {lang === "fa" ? "ماه" : "M"}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-yellow-400 font-mono">{(p.price).toLocaleString()}</span>
+                  <span className="text-[10px] text-gray-500 font-semibold"> {lang === "fa" ? "تومان" : "T"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

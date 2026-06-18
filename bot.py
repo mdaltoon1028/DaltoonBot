@@ -732,16 +732,6 @@ def callback_handler(call):
             bot.answer_callback_query(call.id)
             return
 
-        stock = db_plan.get("configStock", [])
-        if not stock or len(stock) == 0:
-            bot.send_message(
-                call.message.chat.id,
-                f"❌ <b>ظرفیت طرح «{spec['name']}» در حال حاضر به اتمام رسیده است و فاقد کانفیگ آماده می‌باشد.</b>\n\nلطفاً به پشتیبانی اطلاع دهید تا انبار بسته را شارژ نمایند.",
-                parse_mode="HTML"
-            )
-            bot.answer_callback_query(call.id, "بسته ناموجود است.")
-            return
-            
         user = get_user_data(tg_id)
         if not user:
             bot.answer_callback_query(call.id, "خطای نامشخص بانک اطلاعاتی.")
@@ -759,58 +749,18 @@ def callback_handler(call):
             )
             bot.answer_callback_query(call.id, "موجودی ناکافی!")
             return
-            
-        # Deduct balance
-        new_balance = int(user['walletBalance'])
-        if not is_privileged:
-            new_balance = int(user['walletBalance']) - spec['price']
-            update_user_balance(tg_id, new_balance)
 
-        # Pop the first manual config from stock
-        sub_link = stock.pop(0)
-        db_plan["configStock"] = stock
-        write_db_json(db)
-
-        # Create subscription key
-        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
-        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))
-
-        create_sub_key(
-            key_id=sub_id, 
-            tg_id=tg_id, 
-            plan_id=plan_id, 
-            plan_name=spec['name'], 
-            sub_link=sub_link, 
-            expire_date=expire_date, 
-            limit_gb=spec['traffic']
+        # Prompt for English client name without spaces
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>\n\n"
+            f"• طرح انتخابی: <code>{spec['name']}</code>\n"
+            f"• هزینه طرح: {'رایگان (ویژه مدیریت 👑)' if is_privileged else f'{spec[\'price\']:,} تومان'}\n\n"
+            f"⚠️ نام کاربری نباید شامل فاصله یا حروف فارسی یا کاراکترهای خاص باشد. مثلاً: <code>smart_vpn</code>",
+            parse_mode="HTML"
         )
-
-        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
-        note_append = f"\n\n{success_note}" if success_note else ""
-        price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
-
-        success_text = (
-            f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
-            f"📦 طرح خریداری شده: <code>{spec['name']}</code>\n"
-            f"💳 هزینه کسر شده: {price_charged_display}\n"
-            f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
-            f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
-            f"• مسیر اشتراک (در Happ وارد کنید):\n\n"
-            f"<code>{sub_link}</code>\n\n"
-            f"━━━━━━━━━━━━━━━━━━━"
-            f"{note_append}"
-        )
-
-        # Send QR Code photo or fallback to text message
-        try:
-            import urllib.parse
-            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-            bot.send_photo(call.message.chat.id, qr_url, caption=success_text, parse_mode="HTML")
-        except Exception as e:
-            print(f"[Bot Warning] Failed to send QR Photo: {e}")
-            bot.send_message(call.message.chat.id, success_text, parse_mode="HTML")
-
-        bot.answer_callback_query(call.id, "خرید با موفقیت انجام شد!")
+        bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
+        bot.answer_callback_query(call.id)
 
     elif call.data.startswith("charge_amount_"):
         try:
