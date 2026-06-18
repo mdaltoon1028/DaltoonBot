@@ -672,7 +672,7 @@ def callback_handler(call):
     tg_id = call.from_user.id
     
     if call.data.startswith("buy_"):
-        plan_id = call.data.split("_")[1]
+        plan_id = call.data[4:]
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
