@@ -636,7 +636,7 @@ def handle_main_menu_callback(call):
         markup = types.InlineKeyboardMarkup()
         if packages:
             for p in packages:
-                btn_text = f"📦 {p['title']} - {int(p['price']):,} تومان ({p['durationDays']} روز)"
+                btn_text = f"📦 {p['title']} - {int(p['price']):,} تومان ({p['trafficGb']} گیگابایت - بدون محدودیت زمانی)"
                 markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
         markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
         markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
@@ -1050,8 +1050,6 @@ def callback_handler(call):
         if not db.get("colleague_accounts"):
             db["colleague_accounts"] = []
             
-        expire_dt = datetime.now() + timedelta(days=package["durationDays"])
-        
         new_acc = {
             "id": str(uuid.uuid4()),
             "userId": tg_id,
@@ -1060,7 +1058,7 @@ def callback_handler(call):
             "packageId": package["id"],
             "packageTitle": package["title"],
             "createdAt": datetime.now().strftime("%Y-%m-%d"),
-            "expireDate": expire_dt.strftime("%Y-%m-%d"),
+            "trafficGb": package["trafficGb"],
             "status": "active"
         }
         
@@ -1287,7 +1285,7 @@ def process_colleague_login_password(message, acc):
 
     bot.send_message(
         message.chat.id, 
-        f"✅ <b>ورود موفقیت آمیز!</b>\n\nشما به حساب همکار <b>{acc['packageTitle']}</b> وارد شدید.\n\nانقضا: <code>{acc['expireDate']}</code>", 
+        f"✅ <b>ورود موفقیت آمیز!</b>\n\nشما به حساب همکار <b>{acc['packageTitle']}</b> وارد شدید.\n\nحجم تخصیص یافته: <code>{acc['trafficGb']} گیگابایت</code>", 
         parse_mode="HTML", 
         reply_markup=get_custom_keyboard()
     )

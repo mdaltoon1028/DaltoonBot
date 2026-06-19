@@ -19,7 +19,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
   const [editPackageId, setEditPackageId] = useState<string | null>(null);
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
-  const [pDays, setPDays] = useState("");
+  const [pTraffic, setPTraffic] = useState("");
   const [pDesc, setPDesc] = useState("");
 
   const resetPackageForm = () => {
@@ -27,12 +27,12 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
     setEditPackageId(null);
     setPTitle("");
     setPPrice("");
-    setPDays("");
+    setPTraffic("");
     setPDesc("");
   };
 
   const savePackage = async () => {
-    if (!pTitle || !pPrice || !pDays) return;
+    if (!pTitle || !pPrice || !pTraffic) return;
     setLoading(true);
     try {
       const res = await fetch("/api/colleague-packages/save", {
@@ -42,7 +42,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
           id: editPackageId || crypto.randomUUID(),
           title: pTitle,
           price: Number(pPrice),
-          durationDays: Number(pDays),
+          trafficGb: Number(pTraffic),
           description: pDesc
         })
       });
@@ -145,8 +145,8 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <input type="number" value={pPrice} onChange={e => setPPrice(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "مدت زمان (روز)" : "Duration (Days)"}</label>
-                  <input type="number" value={pDays} onChange={e => setPDays(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "حجم (گیگابایت)" : "Traffic (GB)"}</label>
+                  <input type="number" value={pTraffic} onChange={e => setPTraffic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
                 </div>
                 <div className="md:col-span-2 lg:col-span-3">
                   <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "توضیحات پکیج (نمایش به کاربر)" : "Description"}</label>
@@ -186,7 +186,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                     setEditPackageId(p.id);
                     setPTitle(p.title);
                     setPPrice(String(p.price));
-                    setPDays(String(p.durationDays));
+                    setPTraffic(String(p.trafficGb));
                     setPDesc(p.description || "");
                     setShowAddPackage(true);
                   }}
@@ -197,7 +197,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                 <h4 className="text-white font-bold text-lg pr-4">{p.title}</h4>
                 <div className="flex gap-4 mt-2 text-sm text-gray-300">
                   <span>💰 {p.price.toLocaleString()} تومان</span>
-                  <span>⏳ {p.durationDays} روز</span>
+                  <span>🗄️ {p.trafficGb} گیگابایت</span>
                 </div>
                 <p className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">{p.description}</p>
               </div>
@@ -220,7 +220,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پکیج" : "Package"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "یوزرنیم" : "Username"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "نشان عبور" : "Password"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "انقضا" : "Expiry"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "حجم تخصیصی" : "Traffic"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "وضعیت" : "Status"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs"></th>
               </tr>
@@ -232,7 +232,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <td className="px-4 py-3 text-sm text-white font-bold">{acc.packageTitle}</td>
                   <td className="px-4 py-3 text-sm text-indigo-300 font-mono">{acc.username}</td>
                   <td className="px-4 py-3 text-sm text-amber-300 font-mono tracking-wider">{acc.password}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400 font-mono">{acc.expireDate}</td>
+                  <td className="px-4 py-3 text-sm text-gray-400 font-mono">{acc.trafficGb} GB</td>
                   <td className="px-4 py-3 text-sm">
                     {acc.status === "active" ? (
                       <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md text-xs">{lang === 'fa' ? 'فعال' : 'Active'}</span>

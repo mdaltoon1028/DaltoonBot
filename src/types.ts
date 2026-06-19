@@ -136,7 +136,7 @@ export interface ColleaguePackage {
   id: string;
   title: string;
   price: number;
-  durationDays: number;
+  trafficGb: number;
   description: string;
 }
 
@@ -148,7 +148,7 @@ export interface ColleagueAccount {
   packageId: string;
   packageTitle: string;
   createdAt: string;
-  expireDate: string;
+  trafficGb: number;
   status: "active" | "expired" | "suspended";
 }
 
