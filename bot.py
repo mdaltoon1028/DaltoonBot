@@ -605,7 +605,10 @@ def text_messages_handler(message):
             btn_text = f"⚡ {p['name']} | {p['price']:,} تومان"
             markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
         
-        markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+        )
             
         bot.send_message(
             message.chat.id, 
@@ -630,14 +633,17 @@ def text_messages_handler(message):
             f"💰 موجودی: {formatted_bal} تومان\n"
             f"👤 آیدی عددی: <code>{tg_id}</code>\n"
             f"📦 تعداد سرویس ها: {len(active_keys)}\n"
-            f"🗓 تاریخ ورود به بات: به زودی\n"
+            f"🗓 تاریخ ورود به بات: به زودی\n\n"
+            f"🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید."
         )
         
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(
-            types.InlineKeyboardButton("💵 افزایش موجودی", callback_data="btn_wallet_shortcut"),
-            types.InlineKeyboardButton("🎁 اعمال کد هدیه", callback_data="btn_gift_code"),
-            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home")
+            types.InlineKeyboardButton("🎁 اعمال کد هدیه", callback_data="btn_gift_code")
+        )
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
         )
 
         bot.send_message(message.chat.id, profile_text, parse_mode="HTML", reply_markup=markup)
@@ -701,8 +707,11 @@ def text_messages_handler(message):
             types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
         )
         markup.add(
-            types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount"),
-            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home")
+            types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount")
+        )
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
         )
         bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
 

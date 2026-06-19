@@ -39,7 +39,7 @@ interface ChatMessage {
   text: string;
   timestamp: string;
   keyboard?: string[][]; // Custom Telegram reply keyboard
-  inlineButtons?: { text: string; action: string }[]; // Custom Telegram inline markup
+  inlineButtons?: ({ text: string; action: string } | { text: string; action: string }[])[]; // Custom Telegram inline markup
   imageUrl?: string; // Optional dynamic QR Code image
 }
 
@@ -155,7 +155,7 @@ export default function BotSimulator({
     setShowInvoiceUpload(false);
   }, [activeUserId, lang, customButtons, settings]);
 
-  const addBotReply = (text: string, delayMs = 600, keyboard?: string[][], inlineButtons?: { text: string; action: string }[]) => {
+  const addBotReply = (text: string, delayMs = 600, keyboard?: string[][], inlineButtons?: ({ text: string; action: string } | { text: string; action: string }[])[]) => {
     setIsTyping(true);
     setTimeout(() => {
       setIsTyping(false);
@@ -304,10 +304,14 @@ export default function BotSimulator({
     }
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
-      const inlinePlans = plans.map(p => ({
+      const inlinePlans: any[] = plans.map(p => ({
         text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
         action: `buy_${p.id}`
       }));
+      inlinePlans.push([
+        { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+        { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+      ]);
       addBotReply(
         lang === "fa" 
           ? "لطفا یکی از پلان‌های زیر را برای خرید انتخاب کنید:\n\n⚠️ هزینه از کیف پول شما کسر خواهد شد." 
@@ -322,13 +326,16 @@ export default function BotSimulator({
       // Profile Info (without active plans details string, we'll keep it simple profile)
       addBotReply(
         lang === "fa"
-          ? `👤 <b>اطلاعات حساب کاربری شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}`
-          : `👤 <b>My Account Profile:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}`,
+          ? `📄 <b>اطلاعات حساب کاربری شما:</b>\n\n💰 موجودی: ${(currentUser.walletBalance || 0).toLocaleString()} تومان\n👤 آیدی عددی: <code>${currentUser.userId}</code>\n📦 تعداد سرویس ها: ${activeUserKeys.length}\n🗓 تاریخ ورود به بات: به زودی\n\n🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید.`
+          : `📄 <b>My Account Profile:</b>\n\n💰 Balance: ${(currentUser.walletBalance || 0).toLocaleString()} T\n👤 User ID: <code>${currentUser.userId}</code>\n📦 Active Services: ${activeUserKeys.length}\n🗓 Join Date: Soon\n\n🔹 To recharge your wallet, please refer to the Wallet section in the main menu.`,
         600,
         undefined,
         [
-          { text: "🎁 اعمال کد هدیه", action: "btn_gift_code" },
-          { text: "🔙 بازگشت", action: "btn_back_home" }
+          { text: lang === "fa" ? "🎁 اعمال کد هدیه" : "🎁 Redeem Code", action: "btn_gift_code" },
+          [
+            { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+            { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+          ]
         ]
       );
     }
@@ -424,14 +431,21 @@ export default function BotSimulator({
           800,
           undefined,
           [
-            { text: "💵 ۱۰۰,۰۰۰ تومان", action: "charge_100000" },
-            { text: "💵 ۲۰۰,۰۰۰ تومان", action: "charge_200000" },
-            { text: "💵 ۳۰۰,۰۰۰ تومان", action: "charge_300000" },
-            { text: "💵 ۵۰۰,۰۰۰ تومان", action: "charge_500000" },
+            [
+              { text: "💵 ۱۰۰,۰۰۰ تومان", action: "charge_100000" },
+              { text: "💵 ۲۰۰,۰۰۰ تومان", action: "charge_200000" }
+            ],
+            [
+              { text: "💵 ۳۰۰,۰۰۰ تومان", action: "charge_300000" },
+              { text: "💵 ۵۰۰,۰۰۰ تومان", action: "charge_500000" }
+            ],
             { text: "🔥 ۱,۰۰۰,۰۰۰ تومان", action: "charge_1000000" },
             { text: "🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", action: "charge_custom_amount" },
-            { text: "🔙 بازگشت", action: "btn_back_home" }
-          ]
+            [
+              { text: "🔙 بازگشت", action: "btn_back_home" },
+              { text: "🏠 منوی اصلی", action: "btn_back_home" }
+            ]
+          ] as any
         );
       } else {
         addBotReply(
@@ -439,14 +453,21 @@ export default function BotSimulator({
           800,
           undefined,
           [
-            { text: "💵 100k Toman", action: "charge_100000" },
-            { text: "💵 200k Toman", action: "charge_200000" },
-            { text: "💵 300k Toman", action: "charge_300000" },
-            { text: "💵 500k Toman", action: "charge_500000" },
+            [
+              { text: "💵 100k Toman", action: "charge_100000" },
+              { text: "💵 200k Toman", action: "charge_200000" }
+            ],
+            [
+              { text: "💵 300k Toman", action: "charge_300000" },
+              { text: "💵 500k Toman", action: "charge_500000" }
+            ],
             { text: "🔥 1M Toman", action: "charge_1000000" },
             { text: "🔗 Custom Amount", action: "charge_custom_amount" },
-            { text: "🔙 Back", action: "btn_back_home" }
-          ]
+            [
+              { text: "🔙 Back", action: "btn_back_home" },
+              { text: "🏠 Main Menu", action: "btn_back_home" }
+            ]
+          ] as any
         );
       }
     } 
@@ -783,16 +804,34 @@ export default function BotSimulator({
                 {/* Render inline buttons inside chat if bot posted them */}
                 {m.sender === "bot" && m.inlineButtons && m.inlineButtons.length > 0 && (
                   <div className="flex flex-col gap-1 max-w-[85%] mt-1 pl-2">
-                    {m.inlineButtons.map((btn, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleInlineClick(btn.action)}
-                        className="w-full text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 font-semibold rounded-lg text-[11px] border border-slate-800 cursor-pointer transition flex items-center justify-center gap-1.5"
-                      >
-                        {btn.text.includes("ارسال") || btn.text.includes("Upload") || btn.text.includes("upload") ? <Camera className="w-3.5 h-3.5 text-emerald-400" /> : null}
-                        {btn.text}
-                      </button>
-                    ))}
+                    {m.inlineButtons.map((btn, index) => {
+                      if (Array.isArray(btn)) {
+                        return (
+                          <div key={index} className="flex gap-1 w-full">
+                            {btn.map((subBtn, subIndex) => (
+                              <button
+                                key={subIndex}
+                                onClick={() => handleInlineClick(subBtn.action)}
+                                className="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 font-semibold rounded-lg text-[11px] border border-slate-800 cursor-pointer transition flex items-center justify-center gap-1.5"
+                              >
+                                {subBtn.text.includes("ارسال") || subBtn.text.includes("Upload") || subBtn.text.includes("upload") ? <Camera className="w-3.5 h-3.5 text-emerald-400" /> : null}
+                                {subBtn.text}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => handleInlineClick(btn.action)}
+                          className="w-full text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 font-semibold rounded-lg text-[11px] border border-slate-800 cursor-pointer transition flex items-center justify-center gap-1.5"
+                        >
+                          {btn.text.includes("ارسال") || btn.text.includes("Upload") || btn.text.includes("upload") ? <Camera className="w-3.5 h-3.5 text-emerald-400" /> : null}
+                          {btn.text}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
