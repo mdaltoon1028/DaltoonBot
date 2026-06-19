@@ -39,7 +39,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editPackageId || crypto.randomUUID(),
+          id: editPackageId || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
           title: pTitle,
           price: Number(pPrice),
           trafficGb: Number(pTraffic),
