@@ -326,7 +326,7 @@ export default function UserManagement({
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
-                  const userKeys = keys.filter(k => k.userId === user.userId);
+                  const userKeys = keys.filter(k => k.userId === user.userId && !k.planName.includes("تست رایگان"));
                   
                   return (
                     <tr key={user.userId} className="hover:bg-slate-900/40 transition">

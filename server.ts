@@ -1502,7 +1502,91 @@ app.post("/api/login", async (req, res) => {
 });
 
 // Integrate Vite developer server in development environment
+// --- CRON JOBS ---
+async function autoCleanExpiredFreeTrials() {
+  try {
+    const db = readJsonDb();
+    const now = new Date();
+    // Allow 1 day buffer or strict? The user said "تست های رایگان بعد از تموم شدن مستقیم پاک بشن"
+    // So if expireDate is yesterday or earlier, delete.
+    now.setHours(0, 0, 0, 0);
+
+    const keysToKeep = [];
+    const keysToDelete = [];
+
+    for (let k of db.subscription_keys || []) {
+      if (k.planName && k.planName.includes("تست رایگان")) {
+        const expDate = new Date(k.expireDate);
+        if (expDate < now) {
+          keysToDelete.push(k);
+          continue;
+        }
+      }
+      keysToKeep.push(k);
+    }
+
+    if (keysToDelete.length === 0) return;
+
+    console.log(`[Auto Cleanup] Found ${keysToDelete.length} expired free trials. Deleting...`);
+
+    const parsedSettings = db.settings.panel_config ? JSON.parse(db.settings.panel_config) : null;
+    if (parsedSettings && parsedSettings.panelConnectionActive && parsedSettings.baseUrl) {
+      const cleanedUrl = normalizeXuiUrl(parsedSettings.baseUrl);
+      const loginResult = await loginXuiPanel(cleanedUrl, parsedSettings.panelUsername, parsedSettings.panelPassword);
+
+      if (loginResult.success && loginResult.cookie) {
+        const headers: Record<string, string> = {
+          "Cookie": loginResult.cookie,
+          "Accept": "application/json"
+        };
+        if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+        for (let k of keysToDelete) {
+           let uuid = "";
+           if (k.subLink) {
+              const match = k.subLink.match(/(vless|vmess|trojan):\/\/([^@]+)@/);
+              if (match && match[2]) uuid = match[2];
+           }
+
+           if (uuid) {
+               // Global delete client (Sanaei modern API)
+               await xuiFetch(`${cleanedUrl}/panel/api/client/${uuid}/del`, { method: "POST", headers }, 4000).catch(()=>{});
+               
+               // Fallback: delete client by UUID from each inbound specifically (Sanaei traditional API)
+               try {
+                 const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 4000);
+                 if (inbRes.ok) {
+                   const inbJson = await inbRes.json();
+                   if (inbJson.success && Array.isArray(inbJson.obj)) {
+                     for (let inb of inbJson.obj) {
+                       await xuiFetch(`${cleanedUrl}/panel/api/inbounds/${inb.id}/delClient/${uuid}`, { method: "POST", headers }, 3000).catch(()=>{});
+                     }
+                   }
+                 }
+               } catch(err) {}
+           }
+        }
+      }
+    }
+
+    db.subscription_keys = keysToKeep;
+    
+    for (let u of db.users || []) {
+       u.activePlansCount = (db.subscription_keys || []).filter((sk: any) => sk.userId === u.userId && sk.status === "active" && !sk.planName.includes("تست رایگان")).length;
+    }
+
+    writeJsonDb(db);
+    console.log(`[Auto Cleanup] Successfully deleted ${keysToDelete.length} expired free trials from Panel and Local DB.`);
+  } catch (err) {
+    console.error("[Auto Cleanup Error]", err);
+  }
+}
+
 async function startServer() {
+  // Start the background cron job for auto cleaning expired trials
+  setInterval(autoCleanExpiredFreeTrials, 10 * 60 * 1000);
+  setTimeout(autoCleanExpiredFreeTrials, 10000); // Also run shortly after startup
+
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Mount dev Vite middleware mode.");
     

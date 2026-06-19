@@ -770,7 +770,7 @@ export default function App() {
               inbounds={inbounds}
               toggleInbound={toggleInbound}
               usersCount={users.length}
-              activeSubsCount={keys.filter(k => k.status === "active").length}
+              activeSubsCount={keys.filter(k => k.status === "active" && !k.planName.includes("تست رایگان")).length}
               totalIncome={totalVolume}
               pendingTransactionsCount={pendingTx.length}
               transactions={transactions}
