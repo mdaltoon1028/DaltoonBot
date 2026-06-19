@@ -54,6 +54,8 @@ export default function SettingsPanel({
   const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
   const [dashboardPassword, setDashboardPassword] = useState(settings.dashboardPassword || "Daltoon10");
   const [serverPort, setServerPort] = useState(settings.serverPort || 3000);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState(settings.autoRefreshInterval || 0);
+
   const [adminsList, setAdminsList] = useState<Array<{id: string, userId: number, username: string, role: "admin" | "super_admin", createdAt: string}>>(() => {
     return settings.admins || [];
   });
@@ -97,6 +99,7 @@ export default function SettingsPanel({
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
+      autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
       admins: nextAdmins
     });
@@ -125,6 +128,7 @@ export default function SettingsPanel({
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
+      autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
       admins: nextAdmins
     });
@@ -205,6 +209,7 @@ export default function SettingsPanel({
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
+      autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
       admins: adminsList
     });
@@ -365,7 +370,24 @@ export default function SettingsPanel({
                 onChange={(e) => setServerPort(Number(e.target.value))}
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
-                {lang === "fa" ? "تغییر پورت پس از راه‌اندازی مجدد سرور لینوکس اعمال می‌شود." : "Requires server binary restart to take effect."}
+                {lang === "fa" ? "تغییر پورت پس از اجرای مجدد." : "Requires restart."}
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "رفرش خودکار داشبورد (ثانیه)" : "Auto Refresh (Seconds)"}
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="3600"
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value) || 0)}
+              />
+              <span className="text-[10px] text-gray-500 mt-1 block">
+                {lang === "fa" ? "صفر یعنی غیرفعال" : "0 means disabled"}
               </span>
             </div>
           </div>

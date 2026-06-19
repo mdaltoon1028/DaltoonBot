@@ -583,6 +583,8 @@ def text_messages_handler(message):
         for p in plans_data:
             btn_text = f"⚡ {p['name']} | {p['price']:,} تومان"
             markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
+        
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
             
         bot.send_message(
             message.chat.id, 
@@ -614,7 +616,7 @@ def text_messages_handler(message):
         markup.add(
             types.InlineKeyboardButton("💵 افزایش موجودی", callback_data="btn_wallet_shortcut"),
             types.InlineKeyboardButton("🎁 اعمال کد هدیه", callback_data="btn_gift_code"),
-            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home")
         )
 
         bot.send_message(message.chat.id, profile_text, parse_mode="HTML", reply_markup=markup)
@@ -678,7 +680,8 @@ def text_messages_handler(message):
             types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
         )
         markup.add(
-            types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount")
+            types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount"),
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home")
         )
         bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
 
@@ -989,7 +992,7 @@ def callback_handler(call):
                 self.chat = chat
                 self.text = text
         fake_msg = FakeMessage(call.from_user, call.message.chat, "شارژ")
-        handle_text_messages(fake_msg)
+        text_messages_handler(fake_msg)
 
     elif call.data == "btn_gift_code":
         bot.answer_callback_query(call.id)

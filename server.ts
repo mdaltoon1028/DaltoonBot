@@ -355,6 +355,31 @@ app.post("/api/gift-codes/delete", (req, res) => {
   res.json({ success: true });
 });
 
+app.post("/api/gift-codes/edit", (req, res) => {
+  const db = readJsonDb();
+  if (!db.gift_codes) db.gift_codes = [];
+  const { id, code, amount, maxUsage } = req.body;
+  if (!id || !code || amount === undefined || maxUsage === undefined) {
+    return res.status(400).json({ error: "Missing fields" });
+  }
+
+  let updatedCode = null;
+  db.gift_codes = db.gift_codes.map(c => {
+    if (c.id === id) {
+      updatedCode = { ...c, code, amount: parseInt(amount, 10), maxUsage: parseInt(maxUsage, 10) };
+      return updatedCode;
+    }
+    return c;
+  });
+
+  if (updatedCode) {
+    writeJsonDb(db);
+    res.json({ success: true, item: updatedCode });
+  } else {
+    res.status(404).json({ error: "Code not found" });
+  }
+});
+
 app.post("/api/settings", async (req, res) => {
   try {
     const payload = { ...req.body };

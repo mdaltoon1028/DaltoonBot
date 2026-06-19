@@ -1,26 +1,47 @@
 import React, { useState } from 'react';
-import { Gift, Trash2, Plus, Users } from 'lucide-react';
+import { Gift, Trash2, Plus, Users, Edit2, Check, X } from 'lucide-react';
 import { GiftCode } from '../types';
 
 interface GiftCodeManagerProps {
   giftCodes: GiftCode[];
   onAddCode: (code: string, amount: number, maxUsage: number) => void;
   onDeleteCode: (id: string) => void;
+  onEditCode?: (id: string, code: string, amount: number, maxUsage: number) => void;
 }
 
-export default function GiftCodeManager({ giftCodes, onAddCode, onDeleteCode }: GiftCodeManagerProps) {
+export default function GiftCodeManager({ giftCodes, onAddCode, onDeleteCode, onEditCode }: GiftCodeManagerProps) {
   const [code, setCode] = useState('');
   const [amount, setAmount] = useState('');
   const [maxUsage, setMaxUsage] = useState('1');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (code && amount && maxUsage) {
-      onAddCode(code, parseInt(amount, 10), parseInt(maxUsage, 10));
+      if (editingId && onEditCode) {
+        onEditCode(editingId, code, parseInt(amount, 10), parseInt(maxUsage, 10));
+        setEditingId(null);
+      } else {
+        onAddCode(code, parseInt(amount, 10), parseInt(maxUsage, 10));
+      }
       setCode('');
       setAmount('');
       setMaxUsage('1');
     }
+  };
+
+  const handleEdit = (gc: GiftCode) => {
+    setEditingId(gc.id);
+    setCode(gc.code);
+    setAmount(gc.amount.toString());
+    setMaxUsage(gc.maxUsage.toString());
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setCode('');
+    setAmount('');
+    setMaxUsage('1');
   };
 
   return (
@@ -70,13 +91,25 @@ export default function GiftCodeManager({ giftCodes, onAddCode, onDeleteCode }: 
               required
             />
           </div>
-          <button
-            type="submit"
-            className="w-full bg-purple-500 hover:bg-purple-600 text-white rounded-xl px-4 py-2.5 font-medium transition-all flex items-center justify-center space-x-2 space-x-reverse"
-          >
-            <Plus className="w-5 h-5" />
-            <span>ایجاد کد</span>
-          </button>
+          <div className="flex gap-2">
+            {editingId && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="w-14 items-center justify-center flex bg-slate-700 hover:bg-slate-600 text-white rounded-xl px-2 py-2.5 transition-all"
+                title="لغو ویرایش"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+            <button
+              type="submit"
+              className={`flex-1 ${editingId ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-purple-500 hover:bg-purple-600'} text-white rounded-xl px-4 py-2.5 font-medium transition-all flex items-center justify-center space-x-2 space-x-reverse`}
+            >
+              {editingId ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+              <span>{editingId ? "ذخیره تغییرات" : "ایجاد کد"}</span>
+            </button>
+          </div>
         </form>
       </div>
 
@@ -115,7 +148,14 @@ export default function GiftCodeManager({ giftCodes, onAddCode, onDeleteCode }: 
                     {new Date(gc.createdAt).toLocaleDateString('fa-IR')}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex justify-center">
+                    <div className="flex justify-center items-center space-x-2 space-x-reverse">
+                      <button
+                        onClick={() => handleEdit(gc)}
+                        className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
+                        title="ویرایش کد"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => onDeleteCode(gc.id)}
                         className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all"

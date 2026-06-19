@@ -312,7 +312,13 @@ export default function BotSimulator({
         lang === "fa"
           ? `👤 <b>اطلاعات حساب مس کاربری شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}\n💰 موجودی کیف پول: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>`
           : `👤 <b>My Account Wallet Details:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}\n💰 Wallet Balance: <b>${currentUser.walletBalance.toLocaleString()} Toman</b>`,
-        600
+        600,
+        undefined,
+        [
+          [{ text: "💵 افزایش موجودی", action: "btn_wallet_shortcut" }],
+          [{ text: "🎁 اعمال کد هدیه", action: "btn_gift_code" }],
+          [{ text: "🔙 بازگشت", action: "btn_back_home" }]
+        ]
       );
     }
     else if (text === (settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید") || text.includes("اشتراک های من") || text.includes("🗂")) {
@@ -368,17 +374,31 @@ export default function BotSimulator({
     else if (text === "💳 شارژ کیف پول" || text.includes("شارژ") || text.includes("Wallet")) {
       if (lang === "fa") {
         addBotReply(
-          `💳 آموزش شارژ کیف پول:\n\nلطفا مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n📥 شماره کارت:\n<code>6037-9918-2831-8848</code>\n🏦 بانک ملی ایران\n👤 به نام: دالتون بات\n\nپس از واریز، روی دکمه زیر کلیک کرده و مبلغ پرداختی به همراه تصویر فیش بانکی را برای ما ارسال کنید تا بررسی و تأیید شود. 👇`,
+          `💳 <b>بخش شارژ و افزایش موجودی کیف پول دالتون:</b>\n\nلطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\nپس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود.`,
           800,
           undefined,
-          [{ text: "📸 ارسال فیش واریزی (Upload Slip)", action: "upload_receipt" }]
+          [
+            [
+              { text: "💵 ۲۰۰,۰۰۰ تومان", action: "charge_200000" },
+              { text: "💵 ۳۰۰,۰۰۰ تومان", action: "charge_300000" }
+            ],
+            [
+              { text: "💵 ۴۰۰,۰۰۰ تومان", action: "charge_400000" },
+              { text: "💵 ۵۰۰,۰۰۰ تومان", action: "charge_500000" }
+            ],
+            [
+              { text: "🔥 ۱,۰۰۰,۰۰۰ تومان", action: "charge_1000000" }
+            ],
+            [
+              { text: "🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", action: "charge_custom_amount" },
+              { text: "🔙 بازگشت", action: "btn_back_home" }
+            ]
+          ]
         );
       } else {
         addBotReply(
-          `💳 Deposit Wallet Guides:\n\nPlease transfer your desired amount to our bank card details below:\n\n📥 Card Number:\n<code>6037-9918-2831-8848</code>\n🏦 Bank Melli Iran\n👤 Holder: Daltoon Store\n\nAfter transferring, tap the button below to upload your digital payment receipt so admins can credit your balance. 👇`,
-          800,
-          undefined,
-          [{ text: "📸 Upload Slip Receipt", action: "upload_receipt" }]
+          `💳 Deposit Wallet Guides:\n\nPlease select logic.`,
+          800
         );
       }
     } 
@@ -409,6 +429,33 @@ export default function BotSimulator({
     // Mimic clicking standard inline telegram button
     if (action === "upload_receipt") {
       setShowInvoiceUpload(true);
+      return;
+    }
+
+    if (action === "btn_wallet_shortcut") {
+      handleUserAction("💳 شارژ کیف پول");
+      return;
+    }
+
+    if (action === "btn_gift_code") {
+      addBotReply(lang === "fa" ? "🎁 قابلیت اعمال کد هدیه در شبیه‌ساز غیرفعال است." : "Gift codes not available in demo.", 500);
+      return;
+    }
+
+    if (action === "btn_back_home") {
+      addBotReply(lang === "fa" ? "✔️ شما به منوی اصلی بازگشتید." : "Returned to main menu.", 500, getKeyboard());
+      return;
+    }
+
+    if (action.startsWith("charge_")) {
+      addBotReply(
+        lang === "fa"
+          ? `📸 شما در حال شارژ حساب هستید. لطفاً وجه را به کارت بانکی واریز و فیش آن را بارگذاری کنید.`
+          : `📸 Please transfer the funds and upload your digital receipt below.`,
+        600,
+        undefined,
+        [{ text: "📸 بارگذاری فیش (Upload Slip)", action: "upload_receipt" }]
+      );
       return;
     }
 

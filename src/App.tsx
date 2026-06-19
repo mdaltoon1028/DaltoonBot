@@ -258,14 +258,19 @@ export default function App() {
     }
   };
 
-  // Fetch complete SQLite database state on mount and update every 2 minutes automatically
+  // Fetch complete SQLite database state on mount and update automatically
   useEffect(() => {
     refreshData();
-    const interval = setInterval(() => {
-      refreshData();
-    }, 120000);
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (settings?.autoRefreshInterval && settings.autoRefreshInterval > 0) {
+      const interval = setInterval(() => {
+        refreshData();
+      }, settings.autoRefreshInterval * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [settings?.autoRefreshInterval]);
 
   // Database mutations & action handlers (with API sync triggers)
   const toggleInbound = (id: number) => {
@@ -527,6 +532,13 @@ export default function App() {
               {t.appTitle}
               <LionAndSunFlag />
             </h2>
+            <button 
+              onClick={refreshData}
+              className="p-1.5 ml-2 bg-gray-800/50 hover:bg-gray-700/60 rounded-full text-indigo-400 hover:text-indigo-300 transition shadow-sm border border-gray-700/50"
+              title={lang === 'fa' ? 'بروزرسانی داده‌ها' : 'Refresh Data'}
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-white" : ""}`} />
+            </button>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white transition cursor-pointer p-1">
             <X className="w-5 h-5" />
@@ -668,9 +680,18 @@ export default function App() {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer">
               <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
-              <LionAndSunFlag />
-              <h1 className="font-display font-bold text-xl tracking-wide text-white block">{t.appTitle}</h1>
+            <div className="flex items-center gap-2">
+              <div className="cursor-pointer flex items-center gap-2" onClick={() => setIsSidebarOpen(true)}>
+                <LionAndSunFlag />
+                <h1 className="font-display font-bold text-xl tracking-wide text-white block">{t.appTitle}</h1>
+              </div>
+              <button 
+                onClick={refreshData}
+                className="p-1.5 ml-1 bg-gray-800/50 hover:bg-gray-700/60 rounded-full text-indigo-400 hover:text-indigo-300 transition shadow-sm border border-gray-700/50"
+                title={lang === 'fa' ? 'بروزرسانی داده‌ها' : 'Refresh Data'}
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-white" : ""}`} />
+              </button>
             </div>
           </div>
 
@@ -813,6 +834,17 @@ export default function App() {
                 const data = await response.json();
                 if (data.success) {
                   setGiftCodes(prev => [...prev, data.item]);
+                }
+              }}
+              onEditCode={async (id, code, amount, maxUsage) => {
+                const response = await fetch("/api/gift-codes/edit", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id, code, amount, maxUsage })
+                });
+                const data = await response.json();
+                if (data.success) {
+                  setGiftCodes(prev => prev.map(c => c.id === id ? data.item : c));
                 }
               }}
               onDeleteCode={async (id) => {

@@ -33,6 +33,7 @@ export interface PanelSettings {
   dashboardUsername?: string;
   dashboardPassword?: string;
   serverPort?: number;
+  autoRefreshInterval?: number;
   keyboardLayout?: "horizontal" | "vertical" | "stepped";
   purchaseSuccessNote?: string;
   panelConnectionActive?: boolean;
