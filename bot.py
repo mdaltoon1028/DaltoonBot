@@ -251,6 +251,20 @@ def login_xui():
         print(f"[Sanaei X-UI API] Handshake error during authentication: {e}")
     return False
 
+def check_client_exists(client_email):
+    cfg = get_config()
+    if not login_xui():
+        return False
+    try:
+        url = f"{cfg['XUI_URL']}/panel/api/inbounds/getClientTraffics/{client_email}"
+        response = session.get(url, timeout=5, verify=False)
+        data = response.json()
+        if data.get("success") and data.get("obj"):
+            return True
+    except Exception as e:
+        print(f"[Panel Check Error] {e}")
+    return False
+
 def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
     """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
@@ -613,6 +627,69 @@ def text_messages_handler(message):
             )
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
         
+    # 5. Free Test
+    elif "تست" in text and "رایگان" in text:
+        db = read_db_json()
+        users = db.get("users", [])
+        user_idx = next((i for i, u in enumerate(users) if u["tgId"] == tg_id), -1)
+        if user_idx >= 0 and users[user_idx].get("hasReceivedFreeTest"):
+            bot.send_message(message.chat.id, "❌ <b>شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!</b>\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.", parse_mode="HTML")
+            return
+            
+        bot.send_message(message.chat.id, "⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱۰۰ مگابایت) از پنل سرور دالتون... لطفاً چند لحظه صبر کنید.")
+        
+        import string
+        import random
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        free_username = f"test_{random_suffix}"
+        
+        # In case test_xxxx exists, loop (rare but good practice)
+        while check_client_exists(free_username):
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            free_username = f"test_{random_suffix}"
+            
+        client_uuid, sub_link = add_vpn_client_api(free_username, 0.1, 1) # 0.1 GB (102.4 MB), 1 day
+        
+        if not sub_link:
+            bot.send_message(message.chat.id, "⚠️ متأسفانه در ارتباط با سرور مشکلی پیش آمده است. لطفاً بعداً دوباره امتحان کنید.")
+            return
+            
+        # Update user record
+        if user_idx >= 0:
+            users[user_idx]["hasReceivedFreeTest"] = True
+            db["users"] = users
+            with open("bot_database.json", "w", encoding="utf-8") as f:
+                json.dump(db, f, ensure_ascii=False, indent=2)
+                
+        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 1 * 24 * 60 * 60))
+        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+
+        create_sub_key(
+            key_id=sub_id, 
+            tg_id=tg_id, 
+            plan_id="free_test", 
+            plan_name="تست رایگان ۱ روزه", 
+            sub_link=sub_link, 
+            expire_date=expire_date, 
+            limit_gb=0.1
+        )
+        
+        success_text = (
+            f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
+            f"👤 نام کاربری تست: <code>{free_username}</code>\n"
+            f"⏳ اعتبار: ۱ روز\n"
+            f"📊 حجم: ۱۰۰ مگابایت\n\n"
+            f"🔑 <b>مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):</b>\n\n"
+            f"<code>{sub_link}</code>\n"
+        )
+        
+        try:
+            import urllib.parse
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML")
+        except:
+            bot.send_message(message.chat.id, success_text, parse_mode="HTML")
+
     else:
         db = read_db_json()
         custom_btn = next((b for b in db.get("custom_buttons", []) if b["text"] == text or text in b["text"]), None)
@@ -639,7 +716,18 @@ def process_purchase_username(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
         return
 
-    # Check if this name is already taken in our active keys (local prevention check)
+    # Check if this name is already taken in our active keys or panel (local prevention check)
+    if check_client_exists(username_input):
+        msg = bot.send_message(
+            message.chat.id,
+            "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n\n"
+            "لطفاً از یک نام کاربری دیگر استفاده کنید (برای مثال در انتهای آن یک عدد اضافه کنید).\n\n"
+            "لطفاً نام جدیدی ارسال کنید:",
+            parse_mode="HTML"
+        )
+        bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
+        return
+
     db = read_db_json()
     keys = db.get("subscription_keys", [])
     
@@ -690,10 +778,9 @@ def process_purchase_username(message, plan_id, spec):
         f"💳 هزینه کسر شده: {price_charged_display}\n"
         f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
         f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
-        f"• مسیر اشتراک (در Happ وارد کنید):\n\n"
+        f"• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n"
         f"<code>{sub_link}</code>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-        f"این نام کاربری به صورت همزمان بر روی تمامی اینباندهای فعال (سرعت فوق‌العاده) تنظیم گردید."
+        f"━━━━━━━━━━━━━━━━━━━\n"
         f"{note_append}"
     )
     
@@ -773,7 +860,7 @@ def callback_handler(call):
             f"✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>\n\n"
             f"• طرح انتخابی: <code>{spec['name']}</code>\n"
             f"• هزینه طرح: {cost_display}\n\n"
-            f"⚠️ نام کاربری نباید شامل فاصله یا حروف فارسی یا کاراکترهای خاص باشد. مثلاً: <code>smart_vpn</code>",
+            f"⚠️ نام کاربری نباید شامل فاصله یا حروف فارسی یا کاراکترهای خاص باشد. مثلاً: <code>Daltoon</code>",
             parse_mode="HTML"
         )
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)

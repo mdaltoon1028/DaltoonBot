@@ -210,16 +210,17 @@ export default function BotSimulator({
               `👤 نام کاربری سرویس شما: <code>${clientNameInput}</code>\n` +
               `💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : selectedPlanToBuy.price.toLocaleString() + " تومان"}\n` +
               `💰 موجودی جدید باقیمانده کیف پول: ${newBal.toLocaleString()} تومان\n\n` +
-              `🔑 <b>سابسکریپشن اختصاصی شما با موفقیت فعال شد:</b>\n` +
+              `🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n` +
+              `• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n` +
               `<code>${mockSub.subLink}</code>\n\n` +
-              `این نام کاربری به صورت همزمان بر روی تمامی اینباندهای فعال (سرعت فوق‌العاده) تنظیم گردید. جهت استفاده، آدرس بالا را کپی کرده و در کلاینت خود ایمپورت کنید یا کارت QR زیر را اسکن فرمایید.${deliveryNote}`
+              `جهت استفاده، جستجوی بالا را کپی کرده و در کلاینت خود ایمپورت کنید یا کارت QR زیر را اسکن فرمایید.${deliveryNote}`
             : `🎉 VPN subscription purchased successfully!\n\n` +
               `👤 Username: <code>${clientNameInput}</code>\n` +
               `💳 Price Deducted: ${isUserAdminOrOwner ? "0 (Admin Free 👑)" : selectedPlanToBuy.price.toLocaleString() + " Toman"}\n` +
               `💰 New Balance: ${newBal.toLocaleString()} Toman\n\n` +
               `🔑 <b>Your dedicated subscription link has been generated:</b>\n` +
               `<code>${mockSub.subLink}</code>\n\n` +
-              `This client was added to all active panel inbounds. Import the link above or scan the QR code below.${deliveryNote}`;
+              `Import the link above or scan the QR code below.${deliveryNote}`;
 
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockSub.subLink)}`;
 

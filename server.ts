@@ -547,6 +547,26 @@ async function addVpnClientApi(
       }
     }
 
+    // Check if client already exists on panel
+    try {
+      const checkRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/getClientTraffics/${clientEmail}`, {
+        method: "GET",
+        headers: {
+          "Cookie": loginResult.cookie,
+          "Accept": "application/json"
+        }
+      }, 5000);
+      if (checkRes.ok) {
+        const checkJson = await checkRes.json();
+        // If obj exists and corresponds to our email, it is taken
+        if (checkJson && checkJson.success && checkJson.obj) {
+          return { success: false, error: "این نام کاربری از قبل در لیست کاربران سرور موجود است. لطفاً نام دیگری انتخاب کنید." };
+        }
+      }
+    } catch (err) {
+      console.warn("[Sanaei API Sync] Could not check client existence:", err);
+    }
+
     // Fetch all inbounds from panel to ensure valid IDs
     try {
       const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {

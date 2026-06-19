@@ -10,7 +10,9 @@ import {
   Server,
   Heart,
   LogOut,
-  Command
+  Command,
+  Menu,
+  X
 } from "lucide-react";
 
 // Types & Data
@@ -163,6 +165,12 @@ export default function App() {
   const [apiOnline, setApiOnline] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar on tab change
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [activeTab]);
 
   const t = translations[lang];
 
@@ -487,29 +495,158 @@ export default function App() {
         </div>
       )}
       
-      {/* Upper Navigation Header */}
-      <header className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          
-          {/* Logo Brand Header */}
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-              <Server className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-display font-bold text-xl tracking-wide text-white">{t.appTitle}</h1>
-                <LionAndSunFlag />
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-widest bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase">
-                  v2.0 PRO
+      {/* Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Drawer */}
+      <div 
+        className={`fixed top-0 bottom-0 ${lang === "fa" ? "right-0 border-l" : "left-0 border-r"} w-72 bg-[#0b0f19] border-[#1f2937] z-50 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl ${
+          isSidebarOpen ? "translate-x-0" : (lang === "fa" ? "translate-x-full" : "-translate-x-full")
+        }`}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-[#1f2937]">
+          <div className="flex items-center gap-2">
+            <Server className="w-5 h-5 text-indigo-400" />
+            <h2 className="font-display font-bold text-white tracking-wider">{t.appTitle}</h2>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white transition cursor-pointer p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "dashboard" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              {t.tabOverview}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("users")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "users" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              {t.tabUsers}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("transactions")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition relative ${
+                activeTab === "transactions" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <CheckSquare className="w-4 h-4" />
+              {t.tabApprovals}
+              {pendingTx.length > 0 && (
+                <span className={`absolute ${lang === "fa" ? "left-4" : "right-4"} bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce`}>
+                  {pendingTx.length}
                 </span>
-              </div>
-              <p className="text-xs text-gray-400 font-medium">{t.appSubtitle}</p>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("simulator")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "simulator" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              {t.tabSimulator}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("servers")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "servers" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Server className="w-4 h-4" />
+              {t.tabServers}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("buttons")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "buttons" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Command className="w-4 h-4" />
+              {t.tabBotButtons}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "settings" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              {t.tabSettings}
+            </button>
+        </div>
+
+        <div className="p-4 border-t border-[#1f2937]">
+          <button
+            onClick={() => {
+              localStorage.removeItem("daltoon_dashboard_auth");
+              setIsAuthenticated(false);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            {lang === "fa" ? "خروج" : "Logout"}
+          </button>
+        </div>
+      </div>
+
+      {/* Upper Navigation Header */}
+      <header className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-30 shadow-sm">
+        <div className={`max-w-7xl mx-auto flex items-center justify-between gap-4 ${lang === "fa" ? "flex-row-reverse" : "flex-row"}`}>
+          
+          {/* Logo Brand Header & Hamburger */}
+          <div className={`flex items-center gap-3 flex-1 ${lang === "fa" ? "justify-end flex-row-reverse" : "justify-start"}`}>
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer">
+              <Menu className="w-6 h-6" />
+            </button>
+            <div className="p-2 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded flex items-center justify-center -rotate-3 hover:translate-y-px transition shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+              <Server className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display font-bold text-xl tracking-wide text-white hidden sm:block">{t.appTitle}</h1>
+              <LionAndSunFlag />
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-widest bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase hidden sm:inline-block">
+                v2.0 PRO
+              </span>
             </div>
           </div>
 
           {/* Sync / State actions Panel */}
-          <div className="flex items-center gap-3 self-end md:self-auto">
+          <div className={`flex items-center gap-3 flex-1 ${lang === "fa" ? "justify-start" : "justify-end"}`}>
             {/* Language Selection Buttons */}
             <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs">
               <button
@@ -520,7 +657,7 @@ export default function App() {
                     : "text-gray-400 hover:text-white"
                 }`}
               >
-                فارسی
+                فا
               </button>
               <button
                 onClick={() => setLang("en")}
@@ -534,130 +671,22 @@ export default function App() {
               </button>
             </div>
 
-            {/* Left aligned reset & actions */}
+            {/* Refresh */}
             <button
               onClick={refreshData}
               disabled={isRefreshing}
-              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
+              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed hidden sm:flex"
               title="Refresh Data"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-indigo-400" : "animate-spin-hover"}`} />
               {isRefreshing ? (lang === "fa" ? "درحال بروزرسانی..." : "Refreshing...") : t.resetBtn}
             </button>
-
-            {/* Logout button */}
-            <button
-              onClick={() => {
-                localStorage.removeItem("daltoon_dashboard_auth");
-                setIsAuthenticated(false);
-              }}
-              className="p-1.5 px-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 hover:text-white hover:bg-rose-500/20 transition flex items-center gap-1.5 cursor-pointer"
-              title="Logout"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              {lang === "fa" ? "خروج" : "Logout"}
-            </button>
           </div>
-
         </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-5 space-y-5">
-        
-        {/* Navigation Tabs Bar */}
-        <div className="flex overflow-x-auto border-b border-[#1f2937] no-scrollbar scroll-smooth">
-          <div className={`p-1 bg-slate-950 rounded-xl border border-slate-900 flex ${lang === "fa" ? "space-x-reverse" : "space-x"} space-x-1 min-w-max`}>
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "dashboard" 
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4 text-slate-300" />
-              {t.tabOverview}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("users")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "users" 
-                  ? "bg-indigo-600 text-white shadow-md" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Users className="w-4 h-4 text-slate-300" />
-              {t.tabUsers}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("transactions")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition relative ${
-                activeTab === "transactions" 
-                  ? "bg-indigo-600 text-white shadow-md" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <CheckSquare className="w-4 h-4 text-slate-300" />
-              {t.tabApprovals}
-              {pendingTx.length > 0 && (
-                <span className={`absolute -top-1 ${lang === "fa" ? "-left-1" : "-right-1"} bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-bounce`}>
-                  {pendingTx.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("simulator")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "simulator" 
-                  ? "bg-indigo-600 text-white shadow-md" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Bot className="w-4 h-4 text-slate-300" />
-              {t.tabSimulator}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("servers")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "servers" 
-                  ? "bg-indigo-600 text-white shadow-md" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Server className="w-4 h-4 text-slate-300" />
-              {t.tabServers}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("buttons")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "buttons" 
-                  ? "bg-indigo-600 text-white shadow-md" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Command className="w-4 h-4 text-slate-300" />
-              {t.tabBotButtons}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                activeTab === "settings" 
-                  ? "bg-indigo-600 text-white shadow-md" 
-                  : "text-gray-400 hover:text-white bg-transparent"
-              }`}
-            >
-              <Settings className="w-4 h-4 text-slate-300" />
-              {t.tabSettings}
-            </button>
-          </div>
-        </div>
 
         {/* Tab Content Renderer Selector */}
         <div className="min-h-[400px]">
