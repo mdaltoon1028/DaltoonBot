@@ -37,6 +37,7 @@ export interface PanelSettings {
   botTelegramHandle?: string;
   referralRewardAmount?: number;
   referralRewardPercent?: number;
+  referralBaseAmount?: number;
   referralMessage?: string;
   dashboardUsername?: string;
   dashboardPassword?: string;

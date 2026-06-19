@@ -88,9 +88,10 @@ export default function BotSimulator({
   // Construct reply keyboard dynamically with custom menu buttons
   const getKeyboard = () => {
     const layout = settings?.keyboardLayout || "stepped";
-    const order = settings?.mainButtonsOrder || [
+    const defaultOrder = [
       "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
     ];
+    let order = [...(settings?.mainButtonsOrder || defaultOrder)];
     
     if (!order.includes("btnWallet")) order.push("btnWallet");
     if (!order.includes("btnReferral")) order.push("btnReferral");
@@ -152,7 +153,7 @@ export default function BotSimulator({
     ]);
     setSelectedPlanToBuy(null);
     setShowInvoiceUpload(false);
-  }, [activeUserId, lang, customButtons]);
+  }, [activeUserId, lang, customButtons, settings]);
 
   const addBotReply = (text: string, delayMs = 600, keyboard?: string[][], inlineButtons?: { text: string; action: string }[]) => {
     setIsTyping(true);
@@ -384,27 +385,26 @@ export default function BotSimulator({
     else if (text === (settings?.btnTextReferral || "👥 زیرمجموعه گیری") || text.includes("👥") || text.includes("زیرمجموعه")) {
       const botUsername = settings?.botTelegramHandle || "your_bot_id";
       const percent = settings?.referralRewardPercent ?? 5;
-      const amount = settings?.referralRewardAmount ?? 0;
+      const amount = settings?.referralBaseAmount ?? 100000;
+      const calculatedReward = Math.max(0, Math.round((amount * percent) / 100));
       const uid = currentUser.userId;
       const link = `https://t.me/${botUsername}?start=${uid}`;
       
       let defaultMsgFa = `برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n` + 
           `در ضمن کد معرف اختصاصی شما {uid} می باشد.\n\n` + 
           `{link}\n\n` +
-          `🎁 با ورود هر یک از دوستان شما {amount} تومان موجودی دریافت میکنید و همچنین با هر خرید موفق آنها {percent}% از مبلغ خرید هدیه دریافت میکنید.\n\n` + 
+          `🎁 با دعوت از هر دوست، {reward} تومان (معادل {percent}% مبلغ پایه) پاداش دریافت می‌کنید.\n\n` + 
           `📊 آمار دعوت شما\n` + 
           `• افراد وارد شده با لینک: 0\n` + 
-          `• تعداد خرید ها: 0\n` + 
-          `• مبلغ خرید ها در یک ماه گذشته: 0 تومان`;
+          `• پاداش دریافت شده: 0 تومان`;
           
       let defaultMsgEn = `To earn rewards, invite your friends with your dedicated link 👥\n\n` +
           `Your Referral ID is {uid}.\n\n` +
           `{link}\n\n` +
-          `🎁 For every successful invite, you get {amount} Toman, and for every purchase by them, you get {percent}%.\n\n` +
+          `🎁 For every successful invite, you get {reward} Toman (equivalent to {percent}% of base amount).\n\n` +
           `📊 Referral Stats:\n` +
           `• Invited Users: 0\n` +
-          `• Total Purchases: 0\n` +
-          `• Last Month Volume: 0`;
+          `• Total Rewards: 0`;
 
       let rawTemplate = settings?.referralMessage || (lang === "fa" ? defaultMsgFa : defaultMsgEn);
       
@@ -412,7 +412,8 @@ export default function BotSimulator({
         .replace(/{uid}/g, uid.toString())
         .replace(/{link}/g, link)
         .replace(/{percent}/g, percent.toString())
-        .replace(/{amount}/g, amount.toLocaleString());
+        .replace(/{amount}/g, amount.toLocaleString())
+        .replace(/{reward}/g, calculatedReward.toLocaleString());
 
       addBotReply(replyText, 600);
     }
