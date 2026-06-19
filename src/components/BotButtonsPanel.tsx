@@ -12,7 +12,9 @@ import {
   Save, 
   Database,
   Columns,
-  Power
+  Power,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
