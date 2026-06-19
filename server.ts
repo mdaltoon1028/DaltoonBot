@@ -164,12 +164,18 @@ function startPythonBot() {
       stdio: "pipe",
     });
 
+    const logStream = fs.createWriteStream("bot_dev.log", { flags: "a" });
+    
     botProcess.stdout?.on("data", (data) => {
-      console.log(`[Bot Output]: ${data.toString().trim()}`);
+      const msg = data.toString();
+      console.log(`[Bot Output]: ${msg.trim()}`);
+      logStream.write(`[STDOUT] ${msg}`);
     });
 
     botProcess.stderr?.on("data", (data) => {
-      console.error(`[Bot Error]: ${data.toString().trim()}`);
+      const msg = data.toString();
+      console.error(`[Bot Error]: ${msg.trim()}`);
+      logStream.write(`[STDERR] ${msg}`);
     });
 
     botProcess.on("close", (code) => {

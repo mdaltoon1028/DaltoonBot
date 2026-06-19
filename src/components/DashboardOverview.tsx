@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { InboundInfo, Transaction } from "../types";
 import { Language, translations } from "../locales";
 import SystemResourceMonitor from "./SystemResourceMonitor";
@@ -59,78 +60,18 @@ export default function DashboardOverview({
       .reduce((acc, curr) => acc + curr.amount, 0);
   };
 
-  // Generate chart configurations for periods
-  const getChartData = () => {
-    // Basic dynamic seeds to combine with actual database approved logs
-    const dbApprovedSum = approvedTx.reduce((sum, tx) => sum + tx.amount, 0);
-
-    switch (activePeriod) {
-      case "daily":
-        return {
-          labels: lang === "fa" 
-            ? ["شنبه", "۱شنبه", "۲شنبه", "۳شنبه", "۴شنبه", "۵شنبه", "جمعه"]
-            : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-          values: [
-            Math.max(120000, sumApprovedForDaysAgo(7, 6)),
-            Math.max(180000, sumApprovedForDaysAgo(6, 5)),
-            Math.max(150000, sumApprovedForDaysAgo(5, 4)),
-            Math.max(220000, sumApprovedForDaysAgo(4, 3)),
-            Math.max(310000, sumApprovedForDaysAgo(3, 2)),
-            Math.max(280000 + (dbApprovedSum > 0 ? dbApprovedSum * 0.3 : 40000), sumApprovedForDaysAgo(2, 1)),
-            Math.max(350000 + (dbApprovedSum > 0 ? dbApprovedSum * 0.7 : 120000), sumApprovedForDaysAgo(1, 0))
-          ],
-          title: lang === "fa" ? "فروش روزانه (تومان)" : "Daily Sales Report (Toman)"
-        };
-      case "weekly":
-        return {
-          labels: lang === "fa"
-            ? ["هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴"]
-            : ["Week 1", "Week 2", "Week 3", "Week 4"],
-          values: [
-            Math.max(980000, sumApprovedForDaysAgo(28, 21)),
-            Math.max(1250000, sumApprovedForDaysAgo(21, 14)),
-            Math.max(1100000, sumApprovedForDaysAgo(14, 7)),
-            Math.max(1650000 + dbApprovedSum, sumApprovedForDaysAgo(7, 0))
-          ],
-          title: lang === "fa" ? "فروش هفتگی (تومان)" : "Weekly Sales Report (Toman)"
-        };
-      case "monthly":
-        return {
-          labels: lang === "fa"
-            ? ["مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
-            : ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar"],
-          values: [
-            4200000,
-            4800000,
-            5100000,
-            4600000,
-            5900000,
-            6800000 + dbApprovedSum
-          ],
-          title: lang === "fa" ? "فروش ماهیانه (تومان)" : "Monthly Sales Report (Toman)"
-        };
-      case "yearly":
-        return {
-          labels: lang === "fa"
-            ? ["۱۴۰۳", "۱۴۰۴", "۱۴۰۵"]
-            : ["2024", "2025", "2026"],
-          values: [
-            38500000,
-            49200000,
-            58000000 + dbApprovedSum
-          ],
-          title: lang === "fa" ? "فروش سالانه (تومان)" : "Yearly Sales Report (Toman)"
-        };
-    }
-  };
-
-  const chart = getChartData();
-  const maxVal = Math.max(...chart.values) || 1;
-
-  // Bandwidth statistics
-  const totalTrafficLimit = inbounds.reduce((acc, curr) => acc + parseFloat(curr.trafficLimit), 0);
-  const totalTrafficUsed = inbounds.reduce((acc, curr) => acc + parseFloat(curr.trafficUsed), 0);
-  const trafficPercentage = ((totalTrafficUsed / totalTrafficLimit) * 100).toFixed(1);
+  // Aggregate approved transactions for the last 30 days
+  const last30DaysData = Array.from({ length: 30 }).map((_, i) => {
+    const daysAgo = 29 - i;
+    const date = new Date(new Date().getTime() - daysAgo * 24 * 60 * 60 * 1000);
+    const dateString = `${date.getMonth() + 1}/${date.getDate()}`;
+    const value = sumApprovedForDaysAgo(daysAgo + 1, daysAgo);
+    
+    return {
+      date: dateString,
+      revenue: value
+    };
+  });
 
   return (
     <div id="dashboard-tab" className="space-y-6">
@@ -188,6 +129,41 @@ export default function DashboardOverview({
           <div className={`p-3 rounded-lg ${pendingTransactionsCount > 0 ? "bg-amber-500/20 text-amber-400 animate-pulse" : "bg-gray-800 text-gray-500"}`}>
             <ShieldAlert className="w-6 h-6" />
           </div>
+        </div>
+      </div>
+
+      {/* 30-day Revenue Line Chart */}
+      <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl">
+        <h3 className="text-lg font-bold mb-4 font-display text-gray-200">
+          {lang === "fa" ? "درآمد ۳۰ روز اخیر (تومان)" : "Last 30 Days Revenue (Toman)"}
+        </h3>
+        <div className="h-64 w-full" dir="ltr">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={last30DaysData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+              <XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis 
+                stroke="#6b7280" 
+                fontSize={12} 
+                tickLine={false} 
+                axisLine={false} 
+                tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toLocaleString()}k` : val} 
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', color: '#f3f4f6' }}
+                itemStyle={{ color: '#8b5cf6' }}
+                formatter={(value: number) => [value.toLocaleString(), lang === "fa" ? "درآمد" : "Revenue"]}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="revenue" 
+                stroke="#8b5cf6" 
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#111827", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

@@ -87,6 +87,7 @@ def get_config():
         "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
         "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
         "XUI_URL": os.getenv("XUI_URL", "https://m.daltoon-server.ir:8443/Daltoon").rstrip("/"),
+        "SUB_URL": "https://m.daltoon-server.ir:8443",
         "XUI_USER": os.getenv("XUI_USER", "Daltoon"),
         "XUI_PASS": os.getenv("XUI_PASS", "Daltoon10"),
         "CARD_NUMBER": os.getenv("CARD_NUMBER", "6037701194079627"),
@@ -128,6 +129,15 @@ def get_config():
                 config["XUI_URL"] = normalize_xui_url(panel_cfg["baseUrl"])
             elif panel_cfg.get("panelUrl"):
                 config["XUI_URL"] = normalize_xui_url(panel_cfg["panelUrl"])
+                
+            from urllib.parse import urlparse
+            p = urlparse(config["XUI_URL"])
+            
+            if panel_cfg.get("subUrl") and panel_cfg["subUrl"].strip():
+                config["SUB_URL"] = normalize_xui_url(panel_cfg["subUrl"])
+            else:
+                config["SUB_URL"] = f"{p.scheme}://{p.netloc}"
+                
             if panel_cfg.get("panelUsername"):
                 config["XUI_USER"] = panel_cfg["panelUsername"]
             if panel_cfg.get("panelPassword"):
@@ -247,8 +257,14 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
 
+    import random
+    import string
+    
     if not client_uuid:
          client_uuid = str(uuid.uuid4())
+         
+    xui_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+
     total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
     # Expiry timestamp in milliseconds
     expiry_time_ms = int((time.time() + (duration_months * 30 * 24 * 60 * 60)) * 1000)
@@ -261,7 +277,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
         "expiryTime": expiry_time_ms,
         "enable": True,
         "tgId": "",
-        "subId": client_email
+        "subId": xui_sub_id
     }
 
     # Dynamic inbound IDs selection
@@ -313,7 +329,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
             print(f"[Sanaei API Request Error] Bound {inbound_id} timeout or error: {e}")
 
     if success_count > 0:
-        sub_link = f"{cfg['XUI_URL']}/sub/{client_email}"
+        sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
         return client_uuid, sub_link
     
     return None, None
@@ -648,7 +664,9 @@ def process_purchase_username(message, plan_id, spec):
     if not sub_link:
         # Fallback simulated dynamic link
         client_uuid = str(uuid.uuid4())
-        sub_link = f"{cfg['XUI_URL']}/sub/{username_input}" if cfg.get('XUI_URL') else f"https://m.daltoon-server.ir:8443/sub/{username_input}"
+        import random, string
+        fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+        sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
         print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
 
     expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))

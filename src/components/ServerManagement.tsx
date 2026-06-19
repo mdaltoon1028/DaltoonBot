@@ -65,6 +65,7 @@ export default function ServerManagement({
 
   // 3x-ui Panel connection states
   const [baseUrl, setBaseUrl] = useState(settings.baseUrl || "");
+  const [subUrl, setSubUrl] = useState(settings.subUrl || "");
   const [panelUsername, setPanelUsername] = useState(settings.panelUsername || "");
   const [panelPassword, setPanelPassword] = useState(settings.panelPassword || "");
   const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
@@ -110,6 +111,7 @@ export default function ServerManagement({
           onSaveSettings({
             ...settings,
             baseUrl,
+            subUrl,
             panelUrl: baseUrl,
             panelUsername,
             panelPassword,
@@ -120,6 +122,7 @@ export default function ServerManagement({
           onSaveSettings({
             ...settings,
             baseUrl,
+            subUrl,
             panelUrl: baseUrl,
             panelUsername,
             panelPassword,
@@ -338,6 +341,22 @@ export default function ServerManagement({
             />
             <span className="text-[10px] text-gray-500 mt-1 block leading-relaxed">
               {lang === "fa" ? "نکته مهم: حتماً پروتکل (http/https)، پورت سرور و در صورت وجود، آدرس فرعی (مثل Daltoon/) را دقیقاً مشابه تصویر بنویسید." : "Note: Must include protocol (http/https), port, and path prefix exactly as defined in your panel login."}
+            </span>
+          </div>
+
+          <div className="md:col-span-3">
+            <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
+              {lang === "fa" ? "لینک سابسکریپشن (اختیاری)" : "Subscription URL Prefix (Optional)"}
+            </label>
+            <input
+              type="text"
+              className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              placeholder="e.g. https://tr.sub-daltoon.ir:2096"
+              value={subUrl}
+              onChange={(e) => setSubUrl(e.target.value)}
+            />
+            <span className="text-[10px] text-gray-500 mt-1 block leading-relaxed">
+              {lang === "fa" ? "در صورتی که ساب دامین مجزا برای سابسکریپشن دارید وارد کنید (پورت یادتان نرود)." : "Enter your custom subscription domain + port if you have one."}
             </span>
           </div>
 
