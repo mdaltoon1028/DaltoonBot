@@ -533,8 +533,11 @@ export default function App() {
               <LionAndSunFlag />
             </h2>
             <button 
-              onClick={refreshData}
-              className="p-1.5 ml-2 bg-gray-800/50 hover:bg-gray-700/60 rounded-full text-indigo-400 hover:text-indigo-300 transition shadow-sm border border-gray-700/50"
+              onClick={() => {
+                refreshData();
+                setIsSidebarOpen(false);
+              }}
+              className="p-1.5 ms-2 bg-gray-800/50 hover:bg-gray-700/60 rounded-full text-indigo-400 hover:text-indigo-300 transition shadow-sm border border-gray-700/50"
               title={lang === 'fa' ? 'بروزرسانی داده‌ها' : 'Refresh Data'}
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-white" : ""}`} />
@@ -672,7 +675,7 @@ export default function App() {
       </div>
 
       {/* Upper Navigation Header */}
-      <header dir="ltr" className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-30 shadow-sm">
+      <header dir={lang === "fa" ? "rtl" : "ltr"} className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo Brand Header & Hamburger */}
@@ -685,13 +688,6 @@ export default function App() {
                 <LionAndSunFlag />
                 <h1 className="font-display font-bold text-xl tracking-wide text-white block">{t.appTitle}</h1>
               </div>
-              <button 
-                onClick={refreshData}
-                className="p-1.5 ml-1 bg-gray-800/50 hover:bg-gray-700/60 rounded-full text-indigo-400 hover:text-indigo-300 transition shadow-sm border border-gray-700/50"
-                title={lang === 'fa' ? 'بروزرسانی داده‌ها' : 'Refresh Data'}
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-white" : ""}`} />
-              </button>
             </div>
           </div>
 
@@ -720,17 +716,6 @@ export default function App() {
                 EN
               </button>
             </div>
-
-            {/* Refresh */}
-            <button
-              onClick={refreshData}
-              disabled={isRefreshing}
-              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed hidden sm:flex flex-shrink-0"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-indigo-400" : "animate-spin-hover"}`} />
-              {isRefreshing ? (lang === "fa" ? "درحال بروزرسانی..." : "Refreshing...") : t.resetBtn}
-            </button>
           </div>
         </div>
       </header>

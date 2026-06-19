@@ -53,8 +53,9 @@ export default function SettingsPanel({
   // Dashboard credentials, Port, and Admins management
   const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
   const [dashboardPassword, setDashboardPassword] = useState(settings.dashboardPassword || "Daltoon10");
-  const [serverPort, setServerPort] = useState(settings.serverPort || 3000);
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState(settings.autoRefreshInterval || 0);
+  const [serverPort, setServerPort] = useState<number | string>(settings.serverPort || 3000);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number | string>(settings.autoRefreshInterval !== undefined ? settings.autoRefreshInterval : 0);
+
 
   const [adminsList, setAdminsList] = useState<Array<{id: string, userId: number, username: string, role: "admin" | "super_admin", createdAt: string}>>(() => {
     return settings.admins || [];
@@ -367,7 +368,7 @@ export default function SettingsPanel({
                 required
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
                 value={serverPort}
-                onChange={(e) => setServerPort(Number(e.target.value))}
+                onChange={(e) => setServerPort(e.target.value === "" ? "" : Number(e.target.value))}
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
                 {lang === "fa" ? "تغییر پورت پس از اجرای مجدد." : "Requires restart."}
@@ -384,10 +385,17 @@ export default function SettingsPanel({
                 max="3600"
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
                 value={autoRefreshInterval}
-                onChange={(e) => setAutoRefreshInterval(Number(e.target.value) || 0)}
+                onChange={(e) => setAutoRefreshInterval(e.target.value === "" ? "" : Number(e.target.value))}
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
                 {lang === "fa" ? "صفر یعنی غیرفعال" : "0 means disabled"}
+                {autoRefreshInterval !== "" && Number(autoRefreshInterval) > 0 && typeof autoRefreshInterval === "number" && (
+                  <span className="text-emerald-400 font-medium block mt-1">
+                    {lang === "fa" 
+                      ? `${Math.floor(autoRefreshInterval / 60) > 0 ? `${Math.floor(autoRefreshInterval / 60)} دقیقه ` : ""}${autoRefreshInterval % 60 > 0 ? `${autoRefreshInterval % 60} ثانیه` : ""}`
+                      : `${Math.floor(autoRefreshInterval / 60) > 0 ? `${Math.floor(autoRefreshInterval / 60)} min ` : ""}${autoRefreshInterval % 60 > 0 ? `${autoRefreshInterval % 60} sec` : ""}`}
+                  </span>
+                )}
               </span>
             </div>
           </div>
