@@ -11,7 +11,8 @@ import {
   Plus, 
   Save, 
   Database,
-  Columns
+  Columns,
+  Power
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
@@ -31,11 +32,19 @@ export default function BotButtonsPanel({
 }: BotButtonsPanelProps) {
   const t = translations[lang];
 
-  // Primary buttons text states
+  // Primary buttons text & visibility states
   const [btnTextBuy, setBtnTextBuy] = useState(settings.btnTextBuy || "🛍️ خرید کانفیگ (Our Plans)");
   const [btnTextProfile, setBtnTextProfile] = useState(settings.btnTextProfile || "👤 اطلاعات حساب (My Profile)");
   const [btnTextWallet, setBtnTextWallet] = useState(settings.btnTextWallet || "💳 شارژ کیف پول (Top-up Wallet)");
   const [btnTextSupport, setBtnTextSupport] = useState(settings.btnTextSupport || "📞 پشتیبانی فنی (Support)");
+  const [btnTextFreeTest, setBtnTextFreeTest] = useState(settings.btnTextFreeTest || "🎁 تست رایگان");
+  
+  const [hideBuy, setHideBuy] = useState(!!settings.hideBuy);
+  const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
+  const [hideWallet, setHideWallet] = useState(!!settings.hideWallet);
+  const [hideSupport, setHideSupport] = useState(!!settings.hideSupport);
+  const [hideFreeTest, setHideFreeTest] = useState(!!settings.hideFreeTest);
+
   const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
 
   // Custom reply buttons states
@@ -125,6 +134,12 @@ export default function BotButtonsPanel({
       btnTextProfile,
       btnTextWallet,
       btnTextSupport,
+      btnTextFreeTest,
+      hideBuy,
+      hideProfile,
+      hideWallet,
+      hideSupport,
+      hideFreeTest,
       keyboardLayout
     });
     setSaved(true);
@@ -219,42 +234,127 @@ export default function BotButtonsPanel({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
               <div>
                 <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه خرید کانفیگ" : "Buy Config Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextBuy}
-                  onChange={(e) => setBtnTextBuy(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={hideBuy}
+                    className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${hideBuy ? "opacity-50" : ""}`}
+                    value={btnTextBuy}
+                    onChange={(e) => setBtnTextBuy(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setHideBuy(!hideBuy)}
+                    title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
+                    className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                      !hideBuy 
+                        ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
+                        : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه اطلاعات حساب" : "Account Profile Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextProfile}
-                  onChange={(e) => setBtnTextProfile(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={hideProfile}
+                    className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${hideProfile ? "opacity-50" : ""}`}
+                    value={btnTextProfile}
+                    onChange={(e) => setBtnTextProfile(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setHideProfile(!hideProfile)}
+                    title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
+                    className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                      !hideProfile 
+                        ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
+                        : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه شارژ کیف پول" : "Top-up Wallet Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextWallet}
-                  onChange={(e) => setBtnTextWallet(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={hideWallet}
+                    className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${hideWallet ? "opacity-50" : ""}`}
+                    value={btnTextWallet}
+                    onChange={(e) => setBtnTextWallet(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setHideWallet(!hideWallet)}
+                    title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
+                    className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                      !hideWallet 
+                        ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
+                        : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه پشتیبانی فنی" : "Support Button Label"}</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={btnTextSupport}
-                  onChange={(e) => setBtnTextSupport(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={hideSupport}
+                    className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${hideSupport ? "opacity-50" : ""}`}
+                    value={btnTextSupport}
+                    onChange={(e) => setBtnTextSupport(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setHideSupport(!hideSupport)}
+                    title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
+                    className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                      !hideSupport 
+                        ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
+                        : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-gray-400 mb-1">{lang === "fa" ? "عنوان دکمه تست رایگان" : "Free Test Button Label"}</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={hideFreeTest}
+                    className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${hideFreeTest ? "opacity-50" : ""}`}
+                    value={btnTextFreeTest}
+                    onChange={(e) => setBtnTextFreeTest(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setHideFreeTest(!hideFreeTest)}
+                    title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
+                    className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                      !hideFreeTest 
+                        ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
+                        : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

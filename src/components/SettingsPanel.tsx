@@ -608,42 +608,6 @@ export default function SettingsPanel({
                   : "Tip: This text will be appended automatically beneath the premium config link upon successful customer checkout."}
               </span>
             </div>
-
-            {/* Configuration button visibility parameters */}
-            <div className="border-t border-gray-800 pt-4 mt-2">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">
-                {lang === "fa" ? "مخفی کردن منوهای پیش‌فرض ربات (در صورت نیاز به حذف):" : "Hide Default Bot Buttons (to disable/replace):"}
-              </label>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                    checked={hideBuy}
-                    onChange={(e) => setHideBuy(e.target.checked)}
-                  />
-                  <div>
-                    <span className="block text-sm font-medium text-white">🛍️ {lang === "fa" ? "مخفی کردن خرید کانفیگ" : "Hide Buy Config"}</span>
-                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه خرید پلن‌ها پنهان می‌شود" : "Hides the config sales list button"}</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-3 bg-[#1f2937] p-3 rounded-lg border border-gray-800 cursor-pointer hover:border-gray-700 select-none">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                    checked={hideProfile}
-                    onChange={(e) => setHideProfile(e.target.checked)}
-                  />
-                  <div>
-                    <span className="block text-sm font-medium text-white">👤 {lang === "fa" ? "مخفی کردن اطلاعات حساب" : "Hide My Profile"}</span>
-                    <span className="block text-[10px] text-gray-500">{lang === "fa" ? "دکمه پروفایل کاربری پنهان می‌شود" : "Hides user stats and keys list button"}</span>
-                  </div>
-                </label>
-
-              </div>
-            </div>
           </div>
         </div>
 

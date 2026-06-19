@@ -123,6 +123,17 @@ def get_config():
                 config["BTN_WALLET"] = panel_cfg["btnTextWallet"]
             if panel_cfg.get("btnTextSupport"):
                 config["BTN_SUPPORT"] = panel_cfg["btnTextSupport"]
+            if panel_cfg.get("btnTextFreeTest"):
+                config["BTN_FREETEST"] = panel_cfg["btnTextFreeTest"]
+            else:
+                config["BTN_FREETEST"] = "🎁 تست رایگان"
+
+            config["HIDE_BUY"] = bool(panel_cfg.get("hideBuy", False))
+            config["HIDE_PROFILE"] = bool(panel_cfg.get("hideProfile", False))
+            config["HIDE_WALLET"] = bool(panel_cfg.get("hideWallet", False))
+            config["HIDE_SUPPORT"] = bool(panel_cfg.get("hideSupport", False))
+            config["HIDE_FREETEST"] = bool(panel_cfg.get("hideFreeTest", False))
+
             if panel_cfg.get("botToken"):
                 config["BOT_TOKEN"] = panel_cfg["botToken"]
             if panel_cfg.get("baseUrl"):
@@ -453,6 +464,7 @@ def get_custom_keyboard():
     hide_profile = cfg.get("HIDE_PROFILE", False)
     hide_wallet = cfg.get("HIDE_WALLET", False)
     hide_support = cfg.get("HIDE_SUPPORT", False)
+    hide_free_test = cfg.get("HIDE_FREETEST", False)
 
     main_buttons = []
     if not hide_buy:
@@ -463,6 +475,8 @@ def get_custom_keyboard():
         main_buttons.append(types.KeyboardButton(cfg.get("BTN_WALLET", "💳 شارژ کیف پول (Top-up Wallet)")))
     if not hide_support:
         main_buttons.append(types.KeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی فنی (Support)")))
+    if not hide_free_test:
+        main_buttons.append(types.KeyboardButton(cfg.get("BTN_FREETEST", "🎁 تست رایگان")))
     
     try:
         db = read_db_json()
@@ -649,7 +663,7 @@ def text_messages_handler(message):
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
         
     # 5. Free Test
-    elif "تست" in text and "رایگان" in text:
+    elif text == cfg.get("BTN_FREETEST", "🎁 تست رایگان"):
         db = read_db_json()
         users = db.get("users", [])
         user_idx = next((i for i, u in enumerate(users) if u["tgId"] == tg_id), -1)

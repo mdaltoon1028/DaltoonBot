@@ -638,10 +638,10 @@ export default function App() {
 
       {/* Upper Navigation Header */}
       <header className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-30 shadow-sm">
-        <div className={`max-w-7xl mx-auto flex items-center justify-between gap-4 ${lang === "fa" ? "flex-row-reverse" : "flex-row"}`}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo Brand Header & Hamburger */}
-          <div className={`flex items-center gap-3 flex-1 ${lang === "fa" ? "justify-end flex-row-reverse" : "justify-start"}`}>
+          <div className="flex items-center gap-3 flex-1 justify-start">
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer">
               <Menu className="w-6 h-6" />
             </button>
@@ -652,7 +652,7 @@ export default function App() {
           </div>
 
           {/* Sync / State actions Panel */}
-          <div className={`flex items-center gap-3 flex-1 ${lang === "fa" ? "justify-start" : "justify-end"}`}>
+          <div className="flex items-center gap-3 flex-1 justify-end">
             {/* Language Selection Buttons */}
             <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs flex-shrink-0">
               <button
