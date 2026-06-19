@@ -36,6 +36,7 @@ interface DbSchema {
   gift_codes?: any[];
   colleague_packages?: any[];
   colleague_accounts?: any[];
+  logs?: any[];
   settings: Record<string, string>;
 }
 
@@ -319,6 +320,7 @@ app.get("/api/data", async (req, res) => {
       giftCodes: db.gift_codes || [],
       colleaguePackages: db.colleague_packages || [],
       colleagueAccounts: db.colleague_accounts || [],
+      logs: db.logs || [],
       settings
     });
   } catch (error: any) {
@@ -1584,6 +1586,80 @@ app.post("/api/login", async (req, res) => {
     }
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 9. System auto-update endpoints
+app.get("/api/system/version", (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      res.json({ success: true, version: pkg.version || "1.0.0" });
+    } else {
+      res.json({ success: true, version: "2.0.0" });
+    }
+  } catch (err: any) {
+    res.json({ success: false, error: err.message, version: "2.0.0" });
+  }
+});
+
+app.get("/api/system/check-update", async (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    // Fetch latest from remote (this is light and safe)
+    execSync('git fetch', { stdio: 'ignore' });
+    
+    // Check if local branch is behind origin/main (or origin/master)
+    // We get the number of commits we are behind
+    const branchInfo = execSync('git rev-list HEAD...@{u} --count', { encoding: 'utf8' }).trim();
+    
+    // Check local package version
+    const fs = require('fs');
+    const path = require('path');
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    let version = "2.0.0";
+    if (fs.existsSync(pkgPath)) {
+      version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version || version;
+    }
+    
+    const updateAvailable = parseInt(branchInfo, 10) > 0;
+    
+    res.json({ success: true, updateAvailable, version });
+  } catch (err: any) {
+    // Graceful fallback if not a git repository
+    res.json({ success: false, updateAvailable: false, error: err.message });
+  }
+});
+
+app.post("/api/system/update", async (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    // Run git pull to get latest updates
+    console.log("[Auto-Update] Running git pull...");
+    execSync('git pull', { stdio: 'pipe' });
+    
+    console.log("[Auto-Update] Running npm install...");
+    execSync('npm install', { stdio: 'pipe' });
+
+    console.log("[Auto-Update] Running build...");
+    execSync('npm run build', { stdio: 'pipe' });
+
+    res.json({ success: true, message: "به‌روزرسانی با موفقیت انجام شد. سیستم در حال راه‌اندازی مجدد است..." });
+    
+    // Allow response to send, then exit process to trigger restart by PM2/Docker
+    setTimeout(() => {
+      console.log("[Auto-Update] Restarting process...");
+      process.exit(1);
+    }, 2000);
+  } catch (err: any) {
+    console.error("[Auto-Update Error]", err.message);
+    let errMsg = err.message;
+    if (err.stdout) errMsg += "\n" + err.stdout.toString();
+    if (err.stderr) errMsg += "\n" + err.stderr.toString();
+    res.status(500).json({ success: false, error: errMsg });
   }
 });
 

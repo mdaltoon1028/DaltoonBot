@@ -443,6 +443,27 @@ def update_user_balance(tg_id, new_balance):
         user["walletBalance"] = max(0.0, float(new_balance))
         write_db_json(db)
 
+def log_action(tg_id, username, action, details):
+    import uuid
+    from datetime import datetime
+    db = read_db_json()
+    if not db.get("logs"):
+        db["logs"] = []
+    
+    log = {
+        "id": str(uuid.uuid4()),
+        "date": datetime.now().isoformat(),
+        "userId": tg_id,
+        "username": username,
+        "action": action,
+        "details": details
+    }
+    # Keep only last 1000 logs to prevent infinite growth
+    if len(db["logs"]) > 1000:
+        db["logs"] = db["logs"][-1000:]
+    db["logs"].append(log)
+    write_db_json(db)
+
 def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name=""):
     db = read_db_json()
     new_sub = {
@@ -965,6 +986,13 @@ def process_purchase_username(message, plan_id, spec):
     note_append = f"\n\n{success_note}" if success_note else ""
     price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
     
+    log_action(
+        tg_id, 
+        message.from_user.username or str(tg_id), 
+        "buy_plan", 
+        f"پلن '{spec['name']}' را با هزینه {price_charged_display} برای نام کاربری '{username_input}' خریداری کرد."
+    )
+    
     success_text = (
         f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
         f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
@@ -1457,6 +1485,13 @@ def process_col_create_days(message, acc, name, gb):
     
     write_db_json(db)
     
+    log_action(
+        message.from_user.id, 
+        message.from_user.username or str(message.from_user.id), 
+        "colleague_create_config", 
+        f"همکار کانفیگی با نام '{full_name}' ({gb} گیگ - {days} روز) ایجاد کرد."
+    )
+    
     bot.send_message(message.chat.id, "✅ کانفیگ در پنل X-UI ایجاد شد.", reply_markup=get_custom_keyboard())
     
     text_msg = f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n👤 <b>نام:</b> {full_name}\n🗄 <b>حجم:</b> {gb} گیگابایت\n⏳ <b>اعتبار:</b> {days} روز\n\n🔗 <code>{sub_link}</code>"
@@ -1510,6 +1545,13 @@ def process_colleague_prefix(message, package):
     
     db["colleague_accounts"].append(new_acc)
     write_db_json(db)
+    
+    log_action(
+        tg_id, 
+        message.from_user.username or str(tg_id), 
+        "buy_colleague_package", 
+        f"بسته همکار '{package['title']}' را با هزینه {package['price']} تومان خریداری کرد. (پسوند: {text})"
+    )
     
     bot.send_message(
         tg_id,
@@ -1590,6 +1632,13 @@ def process_gift_code(message):
         user["walletBalance"] = user.get("walletBalance", 0) + code_obj["amount"]
         
     write_db_json(db)
+    
+    log_action(
+        tg_id, 
+        message.from_user.username or str(tg_id), 
+        "use_gift_code", 
+        f"کد هدیه '{code_obj['code']}' را استفاده کرد و {code_obj['amount']} تومان دریافت کرد."
+    )
     
     bot.send_message(
         message.chat.id, 

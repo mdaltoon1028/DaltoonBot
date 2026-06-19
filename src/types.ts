@@ -156,3 +156,12 @@ export interface ColleagueAccount {
   status: "active" | "expired" | "suspended";
 }
 
+export interface BotActionLog {
+  id: string;
+  date: string;
+  userId?: number;
+  username?: string;
+  action: string;
+  details: string;
+}
+

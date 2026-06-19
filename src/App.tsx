@@ -14,7 +14,8 @@ import {
   Gift,
   Menu,
   Briefcase,
-  X
+  X,
+  Clock
 } from "lucide-react";
 
 // Types & Data
@@ -39,6 +40,7 @@ import ColleaguesManagement from "./components/ColleaguesManagement";
 import SettingsPanel from "./components/SettingsPanel";
 import BotButtonsPanel from "./components/BotButtonsPanel";
 import GiftCodeManager from "./components/GiftCodeManager";
+import BotLogs from "./components/BotLogs";
 import { LoginScreen } from "./components/LoginScreen";
 
 const LionAndSunFlag = () => (
@@ -155,6 +157,11 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
+  const [logs, setLogs] = useState<any[]>(() => {
+    const cached = localStorage.getItem("daltoon_logs");
+    return cached ? JSON.parse(cached) : [];
+  });
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const isAuth = localStorage.getItem("daltoon_dashboard_auth") === "true";
     const lastInteraction = parseInt(localStorage.getItem("daltoon_last_interaction") || "0", 10);
@@ -180,7 +187,7 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleagues" | "buttons" | "giftcodes" | "settings" | "guide" | "xui_connector">(() => {
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleagues" | "buttons" | "giftcodes" | "logs" | "settings" | "guide" | "xui_connector">(() => {
     const cached = localStorage.getItem("daltoon_active_tab");
     return (cached as any) || "dashboard";
   });
@@ -191,6 +198,41 @@ export default function App() {
   const [apiOnline, setApiOnline] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  
+  const [appVersion, setAppVersion] = useState("2.0.0");
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/system/check-update")
+      .then(res => res.json())
+      .then(data => {
+        if (data.version) setAppVersion(data.version);
+        if (data.updateAvailable) setUpdateAvailable(true);
+      })
+      .catch(err => console.warn("Check update failed", err));
+  }, []);
+
+  const handleUpdate = () => {
+    if (!window.confirm(lang === "fa" ? "آیا از بروزرسانی سیستم مطمئن هستید؟" : "Are you sure you want to update?")) return;
+    setIsUpdating(true);
+    setToastMessage(lang === "fa" ? "در حال بروزرسانی..." : "Updating...");
+    fetch("/api/system/update", { method: "POST" })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setToastMessage(lang === "fa" ? "✅ بروزرسانی موفق. در حال راه‌اندازی مجدد..." : "✅ Update success. Restarting...");
+          setTimeout(() => window.location.reload(), 4000);
+        } else {
+          setToastMessage(lang === "fa" ? "❌ خطا در بروزرسانی: " + (data.error || "") : "❌ Update failed.");
+          setIsUpdating(false);
+        }
+      })
+      .catch((err) => {
+        setToastMessage(lang === "fa" ? "❌ خطا در برقراری ارتباط برای بروزرسانی" : "❌ Communication error during update.");
+        setIsUpdating(false);
+      });
+  };
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [lastInteraction, setLastInteraction] = useState(() => {
     return parseInt(localStorage.getItem("daltoon_last_interaction") || String(Date.now()), 10);
@@ -286,6 +328,10 @@ export default function App() {
     localStorage.setItem("daltoon_colleague_accounts", JSON.stringify(colleagueAccounts));
   }, [colleagueAccounts]);
 
+  useEffect(() => {
+    localStorage.setItem("daltoon_logs", JSON.stringify(logs));
+  }, [logs]);
+
   const refreshData = async () => {
     setIsRefreshing(true);
     try {
@@ -301,6 +347,7 @@ export default function App() {
         if (json.giftCodes) setGiftCodes(json.giftCodes);
         if (json.colleaguePackages) setColleaguePackages(json.colleaguePackages);
         if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
+        if (json.logs) setLogs(json.logs);
         if (json.settings && json.settings.botToken) setSettings(json.settings);
         console.log("[Full-Stack Sync] SQLite bot_database.db refreshed successfully.");
         
@@ -712,6 +759,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("logs")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "logs" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              {lang === "fa" ? "وضعیت (لاگ‌ها)" : "Status (Logs)"}
+            </button>
+
+            <button
               onClick={() => setActiveTab("settings")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
                 activeTab === "settings" 
@@ -725,19 +784,31 @@ export default function App() {
         </div>
 
         <div className="p-4 border-t border-[#1f2937]">
-          <button
-            onClick={() => {
-              localStorage.removeItem("daltoon_dashboard_auth");
-              setIsAuthenticated(false);
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition cursor-pointer mb-4"
-          >
-            <LogOut className="w-4 h-4" />
-            {lang === "fa" ? "خروج" : "Logout"}
-          </button>
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => {
+                localStorage.removeItem("daltoon_dashboard_auth");
+                setIsAuthenticated(false);
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              {lang === "fa" ? "خروج" : "Logout"}
+            </button>
+
+            {updateAvailable && (
+              <button
+                onClick={handleUpdate}
+                disabled={isUpdating}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer border border-emerald-500/30 animate-pulse"
+              >
+                {isUpdating ? (lang === "fa" ? "کمی صبر..." : "Wait...") : (lang === "fa" ? "آپدیت ⬇" : "Update ⬇")}
+              </button>
+            )}
+          </div>
           
           <div className="text-center space-y-1">
-            <div className="text-gray-500 text-xs font-mono">v2.0 PRO</div>
+            <div className="text-gray-500 text-xs font-mono">v{appVersion} PRO</div>
             <div className="text-gray-400 text-xs">
               {lang === "fa" ? "توسعه دهنده توسط " : "Developer by "}
               <a href="https://t.me/mDaltoon" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors">
@@ -933,6 +1004,10 @@ export default function App() {
               onSaveSettings={saveSettings}
               lang={lang}
             />
+          )}
+
+          {activeTab === "logs" && (
+            <BotLogs logs={logs} lang={lang} />
           )}
 
           {activeTab === "settings" && (

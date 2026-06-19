@@ -304,9 +304,9 @@ export default function UserManagement({
 
       {/* Users table */}
       <div className="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
           <table className="w-full text-left text-sm text-gray-300">
-            <thead className="text-xs text-gray-400 uppercase bg-slate-900 border-b border-[#1f2937]">
+            <thead className="text-xs text-gray-400 uppercase bg-slate-900 border-b border-[#1f2937] sticky top-0 z-10">
               <tr>
                 <th className="px-5 py-3">{t.tableColTelegramId}</th>
                 <th className="px-5 py-3">{t.tableColHandle}</th>
@@ -586,9 +586,10 @@ export default function UserManagement({
         </h3>
         <p className="text-xs text-gray-400 mb-4">{t.activeVpnKeysDesc}</p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {keys.filter(key => {
-            if (!searchTerm) return true;
+        <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {keys.filter(key => {
+              if (!searchTerm) return true;
             const user = users.find(u => u.userId === key.userId);
             return (
               key.planName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -707,6 +708,7 @@ export default function UserManagement({
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
