@@ -309,30 +309,25 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
     if not inbound_ids:
         inbound_ids = [1, 12, 16, 19, 24, 26]
 
-    success_count = 0
-
-    for inbound_id in inbound_ids:
-        payload = {
-            "id": inbound_id,
-            "settings": json.dumps({"clients": [client_config]})
-        }
-        add_url = f"{cfg['XUI_URL']}/panel/api/inbounds/addClient"
-        try:
-            headers = {"Accept": "application/json", "Content-Type": "application/json"}
-            response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
-            res_json = response.json()
-            if res_json.get("success"):
-                print(f"[Sanaei API Sync] Created user '{client_email}' on inbound {inbound_id} successfully.")
-                success_count += 1
-            else:
-                print(f"[Sanaei API Response] Creation error on inbound {inbound_id}: {response.text}")
-        except Exception as e:
-            print(f"[Sanaei API Request Error] Bound {inbound_id} timeout or error: {e}")
-
-    if success_count > 0:
-        sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
-        return client_uuid, sub_link
+    add_url = f"{cfg['XUI_URL']}/panel/api/clients/add"
+    payload = {
+        "client": client_config,
+        "inboundIds": inbound_ids
+    }
     
+    try:
+        headers = {"Accept": "application/json"}
+        response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
+        res_json = response.json()
+        if res_json.get("success"):
+            print(f"[Sanaei API Sync] Created user '{client_email}' globally on inbounds successfully.")
+            sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
+            return client_uuid, sub_link
+        else:
+            print(f"[Sanaei API Response] Creation error: {response.text}")
+    except Exception as e:
+        print(f"[Sanaei API Request Error] Global client add timeout or error: {e}")
+
     return None, None
 
 # --- User Management DB Queries ---

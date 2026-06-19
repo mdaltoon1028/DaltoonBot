@@ -434,7 +434,7 @@ function normalizeXuiUrl(url: string): string {
 }
 
 // Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
-async function loginXuiPanel(cleanedUrl: string, username: string, password: string): Promise<{ success: boolean; cookie: string | null; error?: string }> {
+async function loginXuiPanel(cleanedUrl: string, username: string, password: string): Promise<{ success: boolean; cookie: string | null; csrfToken?: string | null; error?: string }> {
   try {
     console.log(`[Diagnostic] Executing initial GET handshake to: ${cleanedUrl}`);
     // 1. Initial GET request to retrieve cookies and CSRF token if present
@@ -490,14 +490,14 @@ async function loginXuiPanel(cleanedUrl: string, username: string, password: str
     if (loginRes.ok && bodyJson && bodyJson.success) {
       const loginCookieHeader = loginRes.headers.get("set-cookie") || "";
       const loginCookie = loginCookieHeader.split(";")[0] || initialCookie;
-      return { success: true, cookie: loginCookie };
+      return { success: true, cookie: loginCookie, csrfToken };
     } else {
       const errMsg = bodyJson?.msg || `کد خطا: ${loginRes.status}. نام کاربری یا رمز عبور پنل نادرست است.`;
-      return { success: false, cookie: null, error: errMsg };
+      return { success: false, cookie: null, csrfToken: null, error: errMsg };
     }
   } catch (err: any) {
     console.error(`[Diagnostic] XUI login encountered error:`, err);
-    return { success: false, cookie: null, error: err.message };
+    return { success: false, cookie: null, csrfToken: null, error: err.message };
   }
 }
 
@@ -522,17 +522,6 @@ async function addVpnClientApi(
     const uuid = clientUuid || Math.random().toString(36).substring(2, 10) + "-" + Math.random().toString(36).substring(2, 6);
     const totalBytes = Math.floor(trafficGb * 1024 * 1024 * 1024);
     const expiryTimeMs = Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000;
-
-    const clientConfig = {
-      id: uuid,
-      email: clientEmail,
-      limitIp: 0,
-      totalGB: totalBytes,
-      expiryTime: expiryTimeMs,
-      enable: true,
-      tgId: "",
-      subId: clientEmail
-    };
 
     // Determine inbound_ids
     let inboundIds: number[] = [];
@@ -563,52 +552,59 @@ async function addVpnClientApi(
       inboundIds = [1];
     }
 
-    let successCount = 0;
+    const addUrl = `${cleanedUrl}/panel/api/clients/add`;
+    const payload = {
+      client: {
+        id: uuid,
+        email: clientEmail,
+        limitIp: 0,
+        totalGB: totalBytes,
+        expiryTime: expiryTimeMs,
+        enable: true,
+        tgId: "",
+        subId: clientEmail
+      },
+      inboundIds: inboundIds
+    };
+
+    const headers: Record<string, string> = {
+      "Cookie": loginResult.cookie,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
+
+    if (loginResult.csrfToken) {
+      headers["X-Csrf-Token"] = loginResult.csrfToken;
+    }
+
     let lastError = "";
+    try {
+      const addRes = await xuiFetch(addUrl, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(payload)
+      }, 8000);
 
-    for (const inboundId of inboundIds) {
-      const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
-      const payload = {
-        id: inboundId,
-        settings: JSON.stringify({ clients: [clientConfig] })
-      };
-
-      try {
-        const addRes = await xuiFetch(addUrl, {
-          method: "POST",
-          headers: {
-            "Cookie": loginResult.cookie,
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify(payload)
-        }, 8000);
-
-        if (addRes.ok) {
-          const addText = await addRes.text();
-          const addJson = JSON.parse(addText);
-          if (addJson && addJson.success) {
-            successCount++;
-            console.log(`[Sanaei API Sync] Created user '${clientEmail}' on inbound ${inboundId} successfully.`);
-          } else {
-            console.warn(`[Sanaei API Response] Creation error on inbound ${inboundId}: ${addText}`);
-            lastError = addJson?.msg || addText;
-          }
+      if (addRes.ok) {
+        const addText = await addRes.text();
+        const addJson = JSON.parse(addText);
+        if (addJson && addJson.success) {
+          console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
+          const subLink = `${cleanedUrl}/sub/${clientEmail}`;
+          return { success: true, clientUuid: uuid, subLink };
         } else {
-          lastError = `HTTP ${addRes.status}`;
+          console.warn(`[Sanaei API Response] Creation error: ${addText}`);
+          lastError = addJson?.msg || addText;
         }
-      } catch (err: any) {
-        console.error(`[Sanaei API Error] inbound ${inboundId}: ${err.message}`);
-        lastError = err.message;
+      } else {
+        lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
       }
+    } catch (err: any) {
+      console.error(`[Sanaei API Error] Failed to create global client: ${err.message}`);
+      lastError = err.message;
     }
 
-    if (successCount > 0) {
-      const subLink = `${cleanedUrl}/sub/${clientEmail}`;
-      return { success: true, clientUuid: uuid, subLink };
-    }
-
-    return { success: false, error: "تعریف کلاینت بر روی هیچ اینباندی موفق نبود. خطا: " + lastError };
+    return { success: false, error: "تعریف کلاینت عمومی و الصاق به اینباندها موفق نبود. خطا: " + lastError };
   } catch (e: any) {
     console.error("[addVpnClientApi] helper crash:", e);
     return { success: false, error: e.message };

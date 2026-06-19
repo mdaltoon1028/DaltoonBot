@@ -1,6 +1,7 @@
 export interface PanelSettings {
   botToken: string;
   baseUrl: string;
+  subUrl?: string;
   panelUrl: string;
   panelUsername: string;
   panelPassword: string;
