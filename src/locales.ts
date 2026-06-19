@@ -3,7 +3,7 @@ export type Language = "fa" | "en";
 export const translations = {
   en: {
     // Layout
-    appTitle: "Daltoon Store",
+    appTitle: "Daltoon Bot",
     appSubtitle: "VIP Client Account & Plan Management",
     portLabel: "PORT",
     localCache: "Local Database Cache",
@@ -154,7 +154,7 @@ export const translations = {
     typeMessagePlaceholder: "Write a message...",
 
     // Bot Responses Flow (Translates simulated bot responses if needed)
-    welcomeBotMsg: "Hello dear user, welcome to Daltoon Store bot! 🤖\n\nYou can buy high-speed subscriptions or top up your wallet right now.",
+    welcomeBotMsg: "Hello dear user, welcome to Daltoon Bot! 🤖\n\nYou can buy high-speed subscriptions or top up your wallet right now.",
     btnBuyPlan: "🛍️ Buy Plan",
     btnMyAccount: "👤 My Account",
     btnTopUp: "💳 Top-up Wallet",
@@ -164,7 +164,7 @@ export const translations = {
   },
   fa: {
     // Layout
-    appTitle: "دالتون استور",
+    appTitle: "دالتون بات",
     appSubtitle: "سامانه مدیریت مشتریان و امور مالی",
     portLabel: "پورت",
     localCache: "کش دیتابیس محلی",
@@ -315,7 +315,7 @@ export const translations = {
     typeMessagePlaceholder: "پیام خود را بنویسید...",
 
     // Bot Responses Flow (simulated translations)
-    welcomeBotMsg: "سلام کاربر عزیز، به دالتون استور خوش آمدید! 🤖\n\nبرای خرید اشتراک‌های پرسرعت و ارتقای موجودی کیف پول خود از دکمه‌های زیر استفاده نمایید.",
+    welcomeBotMsg: "سلام کاربر عزیز، به دالتون بات خوش آمدید! 🤖\n\nبرای خرید اشتراک‌های پرسرعت و ارتقای موجودی کیف پول خود از دکمه‌های زیر استفاده نمایید.",
     btnBuyPlan: "🛍️ خرید اشتراک (Buy Plan)",
     btnMyAccount: "👤 حساب کاربری (My Account)",
     btnTopUp: "💳 شارژ کیف پول (Top-up Wallet)",

@@ -83,6 +83,7 @@ export interface SubscriptionKey {
   userId: number;
   planId: string;
   planName: string;
+  clientName?: string;
   subLink: string;
   expireDate: string;
   trafficLimitGb: number;

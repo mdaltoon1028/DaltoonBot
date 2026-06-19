@@ -495,7 +495,7 @@ export default function UserManagement({
                             type: "user",
                             title: lang === "fa" ? "تایید حذف کاربر" : "Confirm Delete User",
                             message: lang === "fa"
-                              ? `آیا از حذف کامل کاربر @${user.username} و تمام سرویس‌ها و اکانت‌های فعال وی از دالتون استور اطمینان دارید؟`
+                              ? `آیا از حذف کامل کاربر @${user.username} و تمام سرویس‌ها و اکانت‌های فعال وی از دالتون بات اطمینان دارید؟`
                               : `Are you sure you want to completely delete @${user.username} and all of their active subscription keys?`
                           })}
                           className="p-1 px-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/30 text-rose-400 hover:text-white rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"

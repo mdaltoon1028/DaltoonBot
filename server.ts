@@ -510,6 +510,16 @@ async function addVpnClientApi(
   clientUuid?: string
 ): Promise<{ success: boolean; clientUuid?: string; subLink?: string; error?: string }> {
   try {
+    // Check locally first
+    const db = loadDB();
+    const subs = db.subscription_keys || [];
+    const _lMail = clientEmail.toLowerCase();
+    for (let s of subs) {
+      if ((s.clientName || "").toLowerCase() === _lMail || s.planId.toLowerCase() === _lMail) {
+        return { success: false, error: "این نام کاربری از قبل در لیست کاربران سرور موجود است. لطفاً نام دیگری انتخاب کنید." };
+      }
+    }
+
     if (!settings.baseUrl || !settings.panelUsername || !settings.panelPassword) {
       return { success: false, error: "تنظیمات اتصال به پنل کامل نیست." };
     }
@@ -596,9 +606,11 @@ async function addVpnClientApi(
       inboundIds = [1];
     }
 
+    clientUuid = clientUuid || crypto.randomUUID();
     const addUrl = `${cleanedUrl}/panel/api/clients/add`;
     const payload = {
       client: {
+        id: clientUuid,
         email: clientEmail,
         limitIp: 0,
         totalGB: totalBytes,
@@ -1086,6 +1098,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
         userId: Number(userId),
         planId: "manual_" + Math.random().toString(36).substring(2, 8),
         planName: planName || `Manual Plan (${trafficLimitGb}GB)`,
+        clientName: cleanClientName,
         subLink: vpnResult.subLink,
         expireDate: expireDate,
         trafficLimitGb: Number(trafficLimitGb),

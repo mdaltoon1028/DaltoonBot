@@ -511,8 +511,10 @@ export default function App() {
       >
         <div className="flex items-center justify-between p-5 border-b border-[#1f2937]">
           <div className="flex items-center gap-2">
-            <Server className="w-5 h-5 text-indigo-400" />
-            <h2 className="font-display font-bold text-white tracking-wider">{t.appTitle}</h2>
+            <h2 className="font-display font-bold text-white tracking-wider flex items-center gap-2">
+              {t.appTitle}
+              <LionAndSunFlag />
+            </h2>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white transition cursor-pointer p-1">
             <X className="w-5 h-5" />
@@ -616,11 +618,21 @@ export default function App() {
               localStorage.removeItem("daltoon_dashboard_auth");
               setIsAuthenticated(false);
             }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition cursor-pointer"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition cursor-pointer mb-4"
           >
             <LogOut className="w-4 h-4" />
             {lang === "fa" ? "خروج" : "Logout"}
           </button>
+          
+          <div className="text-center space-y-1">
+            <div className="text-gray-500 text-xs font-mono">v2.0 PRO</div>
+            <div className="text-gray-400 text-xs">
+              {lang === "fa" ? "توسعه دهنده توسط " : "Developer by "}
+              <a href="https://t.me/mDaltoon" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+                mDaltoon
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -633,22 +645,16 @@ export default function App() {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer">
               <Menu className="w-6 h-6" />
             </button>
-            <div className="p-2 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded flex items-center justify-center -rotate-3 hover:translate-y-px transition shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-              <Server className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display font-bold text-xl tracking-wide text-white hidden sm:block">{t.appTitle}</h1>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
+              <h1 className="font-display font-bold text-xl tracking-wide text-white block">{t.appTitle}</h1>
               <LionAndSunFlag />
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-widest bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase hidden sm:inline-block">
-                v2.0 PRO
-              </span>
             </div>
           </div>
 
           {/* Sync / State actions Panel */}
           <div className={`flex items-center gap-3 flex-1 ${lang === "fa" ? "justify-start" : "justify-end"}`}>
             {/* Language Selection Buttons */}
-            <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs">
+            <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs flex-shrink-0">
               <button
                 onClick={() => setLang("fa")}
                 className={`px-3 py-1 rounded font-semibold transition cursor-pointer ${
@@ -675,7 +681,7 @@ export default function App() {
             <button
               onClick={refreshData}
               disabled={isRefreshing}
-              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed hidden sm:flex"
+              className="p-1.5 px-3 rounded-lg border border-slate-700/60 bg-slate-900 text-xs text-gray-400 hover:text-white hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed hidden sm:flex flex-shrink-0"
               title="Refresh Data"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-indigo-400" : "animate-spin-hover"}`} />
@@ -784,16 +790,6 @@ export default function App() {
         </div>
 
       </main>
-
-      {/* Styled Minimalist Footer bar */}
-      <footer className="bg-[#0b0f19] border-t border-[#1f2937] py-6 text-center text-xs text-gray-500 mt-12 shrink-0">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between px-6 gap-3">
-          <p>{t.footerText}</p>
-          <p className="flex items-center gap-1">
-            {t.craftedWith} <Heart className="w-3 h-3 text-rose-500 mx-1" />
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

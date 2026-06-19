@@ -95,8 +95,8 @@ export default function TransactionApproval({
               type: "all",
               title: lang === "fa" ? "تایید حذف تاریخچه" : "Clear Receipts History",
               message: lang === "fa"
-                ? "آیا از حذف کامل کل تاریخچه فیش‌های بارگذاری شده (شامل فیش‌های تایید شده، رد شده و معلق) از پایگاه داده دالتون استور اطمینان دارید؟ این عمل غیرقابل بازگشت است."
-                : "Are you sure you want to completely delete all transaction receipts (including approved, rejected, and pending logs) from Daltoon Store database? This cannot be undone."
+                ? "آیا از حذف کامل کل تاریخچه فیش‌های بارگذاری شده (شامل فیش‌های تایید شده، رد شده و معلق) از پایگاه داده دالتون بات اطمینان دارید؟ این عمل غیرقابل بازگشت است."
+                : "Are you sure you want to completely delete all transaction receipts (including approved, rejected, and pending logs) from Daltoon Bot database? This cannot be undone."
             })}
             className="px-3.5 py-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/10 text-rose-300 hover:text-white rounded-lg text-xs font-medium cursor-pointer transition flex items-center gap-1.5"
             title={lang === "fa" ? "حذف کل تاریخچه فیش‌ها" : "Truncate All Slip History Records"}

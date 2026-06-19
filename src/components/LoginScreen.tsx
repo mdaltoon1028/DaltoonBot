@@ -41,7 +41,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, 
 
   const t = {
     fa: {
-      title: "ورود به مدیریت دالتون استور",
+      title: "ورود به مدیریت دالتون بات",
       subtitle: "لطفاً نام کاربری و رمز عبور مدیریت یا ادمین را وارد نمایید",
       usernameLabel: "نام کاربری",
       passwordLabel: "رمز عبور",
@@ -53,7 +53,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, 
       rememberMe: "مرا به خاطر بسپار"
     },
     en: {
-      title: "Daltoon Store Admin Panel",
+      title: "Daltoon Bot Admin Panel",
       subtitle: "Please enter your administrative credentials to log in",
       usernameLabel: "Username",
       passwordLabel: "Password",

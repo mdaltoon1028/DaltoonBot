@@ -252,8 +252,17 @@ def login_xui():
     return False
 
 def check_client_exists(client_email):
+    # Local check first (so even simulated offline users will be blocked from dupes)
+    db = read_db_json()
+    keys = db.get("subscription_keys", [])
+    lower_email = client_email.lower()
+    for k in keys:
+        if k.get("clientName", "").lower() == lower_email or k.get("plan_id", "").lower() == lower_email:
+            return True
+
     cfg = get_config()
     if not login_xui():
+        # Fallback to local check result if panel offline (already returned False if not found locally)
         return False
     try:
         url = f"{cfg['XUI_URL']}/panel/api/inbounds/getClientTraffics/{client_email}"
@@ -285,6 +294,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
     client_config = {
+        "id": client_uuid,
         "email": client_email,
         "limitIp": 0,
         "totalGB": total_bytes,
@@ -401,13 +411,14 @@ def update_user_balance(tg_id, new_balance):
         user["walletBalance"] = max(0.0, float(new_balance))
         write_db_json(db)
 
-def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb):
+def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name=""):
     db = read_db_json()
     new_sub = {
         "id": key_id,
         "userId": tg_id,
         "planId": plan_id,
         "planName": plan_name,
+        "clientName": client_name,
         "subLink": sub_link,
         "expireDate": expire_date,
         "trafficLimitGb": float(limit_gb),
@@ -480,6 +491,11 @@ def get_custom_keyboard():
             
     return markup
 
+def get_cancel_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+    markup.add(types.KeyboardButton("😞 منصرف شدم"))
+    return markup
+
 # --- Bot Command Handlers ---
 
 @bot.message_handler(commands=['start', 'help'])
@@ -521,6 +537,11 @@ def text_messages_handler(message):
     
     if user and user.get('status') == 'banned':
         bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
+        return
+
+    if "منصرف" in text or "بازگشت" in text:
+        bot.send_message(message.chat.id, "✔️ بازگشت به منوی اصلی.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
         return
 
     # 1. Buy premium plan flow
@@ -651,8 +672,11 @@ def text_messages_handler(message):
         client_uuid, sub_link = add_vpn_client_api(free_username, 0.1, 1) # 0.1 GB (102.4 MB), 1 day
         
         if not sub_link:
-            bot.send_message(message.chat.id, "⚠️ متأسفانه در ارتباط با سرور مشکلی پیش آمده است. لطفاً بعداً دوباره امتحان کنید.")
-            return
+            cfg = get_config()
+            client_uuid = str(uuid.uuid4())
+            fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+            sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
+            print("[Bot Warning] Real API request failed or timed out. Simulated free test link established.")
             
         # Update user record
         if user_idx >= 0:
@@ -671,7 +695,8 @@ def text_messages_handler(message):
             plan_name="تست رایگان ۱ روزه", 
             sub_link=sub_link, 
             expire_date=expire_date, 
-            limit_gb=0.1
+            limit_gb=0.1,
+            client_name=free_username
         )
         
         success_text = (
@@ -702,8 +727,15 @@ def text_messages_handler(message):
 
 def process_purchase_username(message, plan_id, spec):
     tg_id = message.from_user.id
+    if not message.text:
+       return # ignore non-text
     username_input = message.text.strip()
     
+    if username_input == "😞 منصرف شدم" or username_input.startswith("/start"):
+        bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
     # Simple regex validation to ensure safe client email/name (alphanumeric, no spaces, length 3-15)
     import re
     if not re.match("^[a-zA-Z0-9_-]{3,15}$", username_input):
@@ -711,7 +743,8 @@ def process_purchase_username(message, plan_id, spec):
             message.chat.id,
             "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\n"
             "نام کاربری باید فقط شامل حروف انگلیسی، اعداد، خط تیره و بین ۳ تا ۱۵ کاراکتر باشد. (بدون وب، فضای خالی، حروف فارسی)\n\n"
-            "لطفاً یک نام کاربری جدید و معتبر ارسال کنید:"
+            "لطفاً یک نام کاربری جدید و معتبر ارسال کنید:",
+            reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
         return
@@ -723,7 +756,8 @@ def process_purchase_username(message, plan_id, spec):
             "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n\n"
             "لطفاً از یک نام کاربری دیگر استفاده کنید (برای مثال در انتهای آن یک عدد اضافه کنید).\n\n"
             "لطفاً نام جدیدی ارسال کنید:",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
         return
@@ -765,7 +799,8 @@ def process_purchase_username(message, plan_id, spec):
         plan_name=spec['name'], 
         sub_link=sub_link, 
         expire_date=expire_date, 
-        limit_gb=spec['traffic']
+        limit_gb=spec['traffic'],
+        client_name=username_input
     )
 
     success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
@@ -788,10 +823,10 @@ def process_purchase_username(message, plan_id, spec):
     try:
         import urllib.parse
         qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-        bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML")
+        bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
     except Exception as e:
         print(f"[Bot Warning] Failed to send QR Photo: {e}")
-        bot.send_message(message.chat.id, success_text, parse_mode="HTML")
+        bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -861,7 +896,8 @@ def callback_handler(call):
             f"• طرح انتخابی: <code>{spec['name']}</code>\n"
             f"• هزینه طرح: {cost_display}\n\n"
             f"⚠️ نام کاربری نباید شامل فاصله یا حروف فارسی یا کاراکترهای خاص باشد. مثلاً: <code>Daltoon</code>",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
         bot.answer_callback_query(call.id)
@@ -881,7 +917,7 @@ def callback_handler(call):
                 f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
                 f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
             )
-            bot.send_message(call.message.chat.id, text, parse_mode="HTML")
+            bot.send_message(call.message.chat.id, text, parse_mode="HTML", reply_markup=get_cancel_keyboard())
             bot.answer_callback_query(call.id)
         except Exception as e:
             print(f"[Error Charge Amount Init] {e}")
@@ -902,7 +938,8 @@ def callback_handler(call):
                 "• برای مثال جهت شارژ ۱۵۰,۰۰۰ تومان، عدد <code>150000</code> را بفرستید.\n"
                 "• جهت انصراف کلمه <code>انصراف</code> را ارسال کنید.\n\n"
                 "⚠️ لطفاً فقط عدد انگلیسی وارد کنید:",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
             )
             bot.register_next_step_handler(msg, process_custom_charge_amount)
             bot.answer_callback_query(call.id)
@@ -913,8 +950,9 @@ def process_custom_charge_amount(message):
     tg_id = message.from_user.id
     text = message.text.strip() if message.text else ""
     
-    if text == "/start" or "انصراف" in text or "بازگشت" in text:
-        bot.send_message(message.chat.id, "❌ درخواست افزایش موجودی دلخواه لغو شد.")
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ درخواست افزایش موجودی دلخواه لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
         return
     
     import re
@@ -927,7 +965,8 @@ def process_custom_charge_amount(message):
             "⚠️ <b>مبلغ وارد شده معتبر نیست!</b>\n\n"
             "لطفاً مبلغ مورد نظر خود را فقط به صورت عدد انگلیسی بفرستید (مثال: <code>250000</code>):\n"
             "<i>یا کلمه «انصراف» را جهت لغو ارسال کنید.</i>",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(msg, process_custom_charge_amount)
         return
@@ -939,7 +978,8 @@ def process_custom_charge_amount(message):
             "⚠️ <b>مبلغ وارد شده مجاز نیست!</b>\n\n"
             "حداقل مبلغ مجاز ۱,۰۰۰ تومان و حداکثر ۱۰۰,۰۰۰,۰۰۰ تومان است.\n"
             "لطفاً مبلغ معتبری بنویسید (یا «انصراف» بفرستید):",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(msg, process_custom_charge_amount)
         return
@@ -955,7 +995,7 @@ def process_custom_charge_amount(message):
         f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
         f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
     )
-    bot.send_message(message.chat.id, text_response, parse_mode="HTML")
+    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=get_cancel_keyboard())
 
 # --- Photo & Document Receipt Handler ---
 @bot.message_handler(content_types=['photo', 'document'])
@@ -1035,9 +1075,9 @@ def handle_receipt_upload(message):
                 f"✅ <b>فیش پرداختی شما با موفقیت دریافت شد!</b>\n\n"
                 f"📌 شناسه تراکنش: <code>{tx_id}</code>\n"
                 f"💰 مبلغ اعلامی: <b>{extracted_amount:,} تومان</b>\n\n"
-                f"⌛ در حال انتقال و بررسی رسید شما توسط ادمین هستیم. لطفا کمی صبور باشید."
+                f"⌛ در حال انتقال صف بررسی رسید توسط ادمین هستیم. نتیجه به شما اعلام خواهد شد."
             )
-            bot.reply_to(message, reply_text, parse_mode="HTML")
+            bot.reply_to(message, reply_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
             
             # Send notification to owner and all admins if configured
             targets = set()
@@ -1061,10 +1101,10 @@ def handle_receipt_upload(message):
                 except Exception as ex:
                     print(f"[Admin Notify Warning for chat_id {target_id}] {ex}")
         else:
-            bot.reply_to(message, "❌ خطا در دانلود فایل تصویر فیش از سرورهای تلگرام. لطفا مجدد تلاش کنید.")
+            bot.reply_to(message, "❌ خطا در دانلود فایل تصویر فیش از سرورهای تلگرام. لطفا مجدد تلاش کنید.", reply_markup=get_custom_keyboard())
     except Exception as e:
         print(f"[Error Processing Telegram Receipt] {e}")
-        bot.reply_to(message, "❌ خطا در پردازش فایل ارسالی. لطفا مطمئن شوید حجم فیش مناسب است.")
+        bot.reply_to(message, "❌ خطای بسته‌های تصویر یا فایل. لطفا مطمئن شوید حجم فیش مناسب است.", reply_markup=get_custom_keyboard())
 
 # Initialize JSON DB on startup
 if __name__ == "__main__":

@@ -171,9 +171,9 @@ export default function SettingsPanel({
   const [bankName, setBankName] = useState(settings.bankName || "");
   const [bankOwner, setBankOwner] = useState(settings.cardHolder || "");
 
-  const [welcomeText, setWelcomeText] = useState(settings.welcomeText || `<b>🛍️ به فروشگاه دالتون استور (Daltoon Store) خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`);
+  const [welcomeText, setWelcomeText] = useState(settings.welcomeText || `<b>🛍️ به فروشگاه دالتون بات (Daltoon Bot) خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`);
   
-  const [supportText, setSupportText] = useState(settings.supportText || `📞 <b>پشتیبانی دالتون استور (Daltoon Store):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @daltoon_support\n📢 کانال تلگرام دالتون استور: @daltoon_store\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`);
+  const [supportText, setSupportText] = useState(settings.supportText || `📞 <b>پشتیبانی دالتون بات (Daltoon Bot):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @daltoon_support\n📢 کانال تلگرام دالتون بات: @daltoon_store\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`);
 
   const [tgChannel, setTgChannel] = useState(settings.tgChannel || "@daltoon_channel");
   const [supportHandle, setSupportHandle] = useState(settings.supportHandle || "@daltoon_owner");
@@ -373,7 +373,7 @@ export default function SettingsPanel({
           {/* Admin Management Section */}
           <div className="space-y-4 pt-2">
             <h4 className="text-sm font-semibold text-gray-300">
-              {lang === "fa" ? "👥 مدیریت ادمین‌های بات و دالتون استور" : "👥 Manage Bot & Dashboard Admins"}
+              {lang === "fa" ? "👥 مدیریت ادمین‌های بات و دالتون بات" : "👥 Manage Bot & Dashboard Admins"}
             </h4>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

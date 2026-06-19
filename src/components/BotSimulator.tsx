@@ -345,7 +345,7 @@ export default function BotSimulator({
     else if (text.includes("💳") || text.includes("شارژ") || text.includes("Top-up") || text.includes("top") || text.includes("Wallet")) {
       if (lang === "fa") {
         addBotReply(
-          `💳 آموزش شارژ کیف پول:\n\nلطفا مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n📥 شماره کارت:\n<code>6037-9918-2831-8848</code>\n🏦 بانک ملی ایران\n👤 به نام: دالتون استور\n\nپس از واریز، روی دکمه زیر کلیک کرده و مبلغ پرداختی به همراه تصویر فیش بانکی را برای ما ارسال کنید تا بررسی و تأیید شود. 👇`,
+          `💳 آموزش شارژ کیف پول:\n\nلطفا مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n📥 شماره کارت:\n<code>6037-9918-2831-8848</code>\n🏦 بانک ملی ایران\n👤 به نام: دالتون بات\n\nپس از واریز، روی دکمه زیر کلیک کرده و مبلغ پرداختی به همراه تصویر فیش بانکی را برای ما ارسال کنید تا بررسی و تأیید شود. 👇`,
           800,
           undefined,
           [{ text: "📸 ارسال فیش واریزی (Upload Slip)", action: "upload_receipt" }]
@@ -362,7 +362,7 @@ export default function BotSimulator({
     else if (text.includes("📞") || text.includes("پشتیبانی") || text.includes("Support") || text.includes("support")) {
       addBotReply(
         lang === "fa" 
-          ? "📞 بخش پشتیبانی دالتون استور:\n\nپاسخگویی سریع ۲۴ ساعته هم‌اکنون فعال است.\n\nبا آیدی تلگرام @daltoon_support در ارتباط باشید."
+          ? "📞 بخش پشتیبانی دالتون بات:\n\nپاسخگویی سریع ۲۴ ساعته هم‌اکنون فعال است.\n\nبا آیدی تلگرام @daltoon_support در ارتباط باشید."
           : "📞 Customer Service Support:\n\nOur service is live 24/7. Feel free to contact @daltoon_support on Telegram directly for answers.",
         500
       );
@@ -584,7 +584,7 @@ export default function BotSimulator({
                 DL
               </div>
               <div>
-                <h4 className="text-[11px] font-bold text-white leading-tight">{lang === "fa" ? "ربات تلگرام دالتون استور 🤖" : "Daltoon Store Bot 🤖"}</h4>
+                <h4 className="text-[11px] font-bold text-white leading-tight">{lang === "fa" ? "ربات تلگرام دالتون بات 🤖" : "Daltoon Bot 🤖"}</h4>
                 <p className="text-[9px] text-emerald-400 flex items-center gap-1 leading-none mt-0.5">
                   <span className="h-1 w-1 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
                   {lang === "fa" ? "ربات فعال است (bot.py)" : "bot.py polling active"}
