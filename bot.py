@@ -125,6 +125,8 @@ def get_config():
             config["BTN_FREETEST"] = panel_cfg.get("btnTextFreeTest", "🎁 موجودی رایگان")
             config["BTN_INSTANT_SUPPORT"] = panel_cfg.get("btnTextInstantSupport", "🤖 پشتیبانی آنی")
             config["BTN_FEEDBACK"] = panel_cfg.get("btnTextFeedback", "💌 بازخورد کاربر ها")
+            config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
+            config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "💵 کیف پول + شارژ")
 
             config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
             config["HIDE_MY_SUBS"] = bool(panel_cfg.get("hideBtnMySubs", False))
@@ -134,6 +136,14 @@ def get_config():
             config["HIDE_FREETEST"] = bool(panel_cfg.get("hideBtnFreeTest", False))
             config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg.get("hideBtnInstantSupport", False))
             config["HIDE_FEEDBACK"] = bool(panel_cfg.get("hideBtnFeedback", False))
+            config["HIDE_REFERRAL"] = bool(panel_cfg.get("hideBtnReferral", False))
+            config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
+            if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
+                config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
+
+            config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
+                "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+            ])
 
             if panel_cfg.get("botToken"):
                 config["BOT_TOKEN"] = panel_cfg["botToken"]
@@ -462,14 +472,25 @@ def get_custom_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
 
     buttons = []
-    if not cfg.get("HIDE_BUY_NEW", False): buttons.append(types.KeyboardButton(cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید")))
-    if not cfg.get("HIDE_MY_SUBS", False): buttons.append(types.KeyboardButton(cfg.get("BTN_MY_SUBS", "🗂 اشتراک های من / تمدید")))
-    if not cfg.get("HIDE_GUIDES", False): buttons.append(types.KeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها")))
-    if not cfg.get("HIDE_PROFILE", False): buttons.append(types.KeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری")))
-    if not cfg.get("HIDE_SUPPORT", False): buttons.append(types.KeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی")))
-    if not cfg.get("HIDE_FREETEST", False): buttons.append(types.KeyboardButton(cfg.get("BTN_FREETEST", "🎁 موجودی رایگان")))
-    if not cfg.get("HIDE_INSTANT_SUPPORT", False): buttons.append(types.KeyboardButton(cfg.get("BTN_INSTANT_SUPPORT", "🤖 پشتیبانی آنی")))
-    if not cfg.get("HIDE_FEEDBACK", False): buttons.append(types.KeyboardButton(cfg.get("BTN_FEEDBACK", "💌 بازخورد کاربر ها")))
+    order = cfg.get("BUTTONS_ORDER", [
+        "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+    ])
+    
+    # Backward compatibility: enforce addition of referral & wallet if missing
+    if "btnWallet" not in order: order.append("btnWallet")
+    if "btnReferral" not in order: order.append("btnReferral")
+
+    for key in order:
+        if key == "btnBuyNew" and not cfg.get("HIDE_BUY_NEW", False): buttons.append(types.KeyboardButton(cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید")))
+        elif key == "btnMySubs" and not cfg.get("HIDE_MY_SUBS", False): buttons.append(types.KeyboardButton(cfg.get("BTN_MY_SUBS", "🗂 اشتراک های من / تمدید")))
+        elif key == "btnGuides" and not cfg.get("HIDE_GUIDES", False): buttons.append(types.KeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها")))
+        elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.KeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری")))
+        elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.KeyboardButton(cfg.get("BTN_WALLET", "💵 کیف پول + شارژ")))
+        elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.KeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی")))
+        elif key == "btnFreeTest" and not cfg.get("HIDE_FREETEST", False): buttons.append(types.KeyboardButton(cfg.get("BTN_FREETEST", "🎁 موجودی رایگان")))
+        elif key == "btnInstantSupport" and not cfg.get("HIDE_INSTANT_SUPPORT", False): buttons.append(types.KeyboardButton(cfg.get("BTN_INSTANT_SUPPORT", "🤖 پشتیبانی آنی")))
+        elif key == "btnFeedback" and not cfg.get("HIDE_FEEDBACK", False): buttons.append(types.KeyboardButton(cfg.get("BTN_FEEDBACK", "💌 بازخورد کاربر ها")))
+        elif key == "btnReferral" and not cfg.get("HIDE_REFERRAL", False): buttons.append(types.KeyboardButton(cfg.get("BTN_REFERRAL", "👥 زیرمجموعه گیری")))
 
     if layout == "vertical":
         for b in buttons: markup.add(b)
@@ -768,6 +789,37 @@ def text_messages_handler(message):
             bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML")
         except:
             bot.send_message(message.chat.id, success_text, parse_mode="HTML")
+
+    # 6. Referral
+    elif text == cfg.get("BTN_REFERRAL", "👥 زیرمجموعه گیری") or "زیرمجموعه" in text or "👥" in text:
+        db = read_db_json()
+        settings = db.get("settings", {})
+        bot_username = settings.get("botTelegramHandle", "your_bot_id")
+        percent = settings.get("referralRewardPercent", 5)
+        amount = settings.get("referralBaseAmount", 100000)
+        calculated_reward = max(0, round((amount * percent) / 100))
+        uid = str(tg_id)
+        link = f"https://t.me/{bot_username}?start={uid}"
+        
+        default_msg = (
+            "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n"
+            "در ضمن کد معرف اختصاصی شما {uid} می باشد.\n\n"
+            "{link}\n\n"
+            "🎁 با دعوت از هر دوست، {reward} تومان (معادل {percent}% مبلغ پایه) پاداش دریافت می‌کنید.\n\n"
+            "📊 آمار دعوت شما\n"
+            "• افراد وارد شده با لینک: 0\n"
+            "• پاداش دریافت شده: 0 تومان"
+        )
+        
+        raw_template = settings.get("referralMessage", default_msg)
+        
+        reply_text = raw_template.replace("{uid}", uid)\
+            .replace("{link}", link)\
+            .replace("{percent}", str(percent))\
+            .replace("{amount}", f"{amount:,}")\
+            .replace("{reward}", f"{calculated_reward:,}")
+            
+        bot.send_message(message.chat.id, reply_text, parse_mode="HTML")
 
     else:
         db = read_db_json()
