@@ -185,7 +185,7 @@ export default function BotSimulator({
     setMessages(prev => [...prev, userMsg]);
 
     // Check plan cancellation
-    if (selectedPlanToBuy && (text.includes("انصراف") || text.includes("Cancel") || text.includes("cancel") || text.includes("برگشت") || text.includes("انصراف و برگشت"))) {
+    if (selectedPlanToBuy && (text.includes("انصراف") || text.includes("بازگشت") || text.includes("منوی اصلی") || text.includes("منصرف") || text.includes("Cancel") || text.includes("cancel") || text.includes("برگشت") || text.includes("انصراف و برگشت"))) {
       setSelectedPlanToBuy(null);
       setPurchaseStep("idle");
       addBotReply(t.buyCancelConfirmation, 500, [
@@ -204,7 +204,7 @@ export default function BotSimulator({
             ? "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد، خط تیره و بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله یا حروف فارسی).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:"
             : "⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens, and be between 3 and 15 characters long (no spaces/Persian).\n\nPlease write a valid English name:",
           500,
-          [[lang === "fa" ? "❌ انصراف و برگشت" : "Cancel and Back"]]
+          [[lang === "fa" ? "🏠 بازگشت به منوی اصلی" : "🏠 Main Menu"]]
         );
         return;
       }
@@ -586,7 +586,7 @@ export default function BotSimulator({
           `2. Do not use space or special signs.`;
 
       addBotReply(paymentMsg, 500, [
-        [lang === "fa" ? "❌ انصراف و برگشت" : "Cancel and Back"]
+        [lang === "fa" ? "🏠 بازگشت به منوی اصلی" : "🏠 Main Menu"]
       ]);
       return;
     }
