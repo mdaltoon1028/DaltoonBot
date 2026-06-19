@@ -60,6 +60,11 @@ export default function BotButtonsPanel({
   const [hideBtnFeedback, setHideBtnFeedback] = useState(!!settings.hideBtnFeedback);
 
   const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
+  const [mainButtonsOrder, setMainButtonsOrder] = useState<string[]>(
+    settings.mainButtonsOrder || [
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback"
+    ]
+  );
 
   // Custom reply buttons states
   const [btnText, setBtnText] = useState("");
@@ -150,6 +155,16 @@ export default function BotButtonsPanel({
     setCustomButtons(newButtons);
   };
 
+  const moveMainButton = (index: number, direction: "up" | "down") => {
+    const newOrder = [...mainButtonsOrder];
+    if (direction === "up" && index > 0) {
+      [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]];
+    } else if (direction === "down" && index < newOrder.length - 1) {
+      [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    }
+    setMainButtonsOrder(newOrder);
+  };
+
   // Main Form Submit Handler (Saves primary button labels and layout)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +186,8 @@ export default function BotButtonsPanel({
       hideBtnFreeTest,
       hideBtnInstantSupport,
       hideBtnFeedback,
-      keyboardLayout
+      keyboardLayout,
+      mainButtonsOrder
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -262,42 +278,71 @@ export default function BotButtonsPanel({
             <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold">
               {lang === "fa" ? "✍️ برچسب متنی دکمه‌های اصلی کیبورد" : "✍️ Custom Primary Keyboard Button Labels"}
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
-              {[
-                { label: lang === "fa" ? "عنوان دکمه خرید اشتراک" : "Buy Sub Button Label", value: btnTextBuyNew, setter: setBtnTextBuyNew, disabled: hideBtnBuyNew, toggleDisabled: () => setHideBtnBuyNew(!hideBtnBuyNew) },
-                { label: lang === "fa" ? "عنوان دکمه اشتراک‌ها" : "My Subs Button Label", value: btnTextMySubs, setter: setBtnTextMySubs, disabled: hideBtnMySubs, toggleDisabled: () => setHideBtnMySubs(!hideBtnMySubs) },
-                { label: lang === "fa" ? "عنوان دکمه آموزش‌ها" : "Guides Button Label", value: btnTextGuides, setter: setBtnTextGuides, disabled: hideBtnGuides, toggleDisabled: () => setHideBtnGuides(!hideBtnGuides) },
-                { label: lang === "fa" ? "عنوان دکمه حساب کاربری" : "Profile Button Label", value: btnTextProfile, setter: setBtnTextProfile, disabled: hideBtnProfile, toggleDisabled: () => setHideBtnProfile(!hideBtnProfile) },
-                { label: lang === "fa" ? "عنوان دکمه پشتیبانی" : "Support Button Label", value: btnTextSupport, setter: setBtnTextSupport, disabled: hideBtnSupport, toggleDisabled: () => setHideBtnSupport(!hideBtnSupport) },
-                { label: lang === "fa" ? "عنوان دکمه موجوده رایگان/تست" : "Free Test Button Label", value: btnTextFreeTest, setter: setBtnTextFreeTest, disabled: hideBtnFreeTest, toggleDisabled: () => setHideBtnFreeTest(!hideBtnFreeTest) },
-                { label: lang === "fa" ? "عنوان دکمه پشتیبانی آنی" : "Instant Support Button Label", value: btnTextInstantSupport, setter: setBtnTextInstantSupport, disabled: hideBtnInstantSupport, toggleDisabled: () => setHideBtnInstantSupport(!hideBtnInstantSupport) },
-                { label: lang === "fa" ? "عنوان دکمه بازخورد" : "Feedback Button Label", value: btnTextFeedback, setter: setBtnTextFeedback, disabled: hideBtnFeedback, toggleDisabled: () => setHideBtnFeedback(!hideBtnFeedback) },
-              ].map((btn, idx) => (
-                <div key={idx}>
-                  <label className="block text-[11px] text-gray-400 mb-1">{btn.label}</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      disabled={btn.disabled}
-                      className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
-                      value={btn.value}
-                      onChange={(e) => btn.setter(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={btn.toggleDisabled}
-                      title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
-                      className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all cursor-pointer ${
-                        !btn.disabled 
-                          ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
-                          : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
-                      }`}
-                    >
-                      <Power className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 gap-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
+              {(() => {
+                const primaryButtonsDefinition: Record<string, { label: string; value: string; setter: (val: string) => void; disabled: boolean; toggleDisabled: () => void }> = {
+                  "btnBuyNew": { label: lang === "fa" ? "عنوان دکمه خرید اشتراک" : "Buy Sub Button Label", value: btnTextBuyNew, setter: setBtnTextBuyNew, disabled: hideBtnBuyNew, toggleDisabled: () => setHideBtnBuyNew(!hideBtnBuyNew) },
+                  "btnMySubs": { label: lang === "fa" ? "عنوان دکمه اشتراک‌ها" : "My Subs Button Label", value: btnTextMySubs, setter: setBtnTextMySubs, disabled: hideBtnMySubs, toggleDisabled: () => setHideBtnMySubs(!hideBtnMySubs) },
+                  "btnGuides": { label: lang === "fa" ? "عنوان دکمه آموزش‌ها" : "Guides Button Label", value: btnTextGuides, setter: setBtnTextGuides, disabled: hideBtnGuides, toggleDisabled: () => setHideBtnGuides(!hideBtnGuides) },
+                  "btnProfile": { label: lang === "fa" ? "عنوان دکمه حساب کاربری" : "Profile Button Label", value: btnTextProfile, setter: setBtnTextProfile, disabled: hideBtnProfile, toggleDisabled: () => setHideBtnProfile(!hideBtnProfile) },
+                  "btnSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی" : "Support Button Label", value: btnTextSupport, setter: setBtnTextSupport, disabled: hideBtnSupport, toggleDisabled: () => setHideBtnSupport(!hideBtnSupport) },
+                  "btnFreeTest": { label: lang === "fa" ? "عنوان دکمه موجوده رایگان/تست" : "Free Test Button Label", value: btnTextFreeTest, setter: setBtnTextFreeTest, disabled: hideBtnFreeTest, toggleDisabled: () => setHideBtnFreeTest(!hideBtnFreeTest) },
+                  "btnInstantSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی آنی" : "Instant Support Button Label", value: btnTextInstantSupport, setter: setBtnTextInstantSupport, disabled: hideBtnInstantSupport, toggleDisabled: () => setHideBtnInstantSupport(!hideBtnInstantSupport) },
+                  "btnFeedback": { label: lang === "fa" ? "عنوان دکمه بازخورد" : "Feedback Button Label", value: btnTextFeedback, setter: setBtnTextFeedback, disabled: hideBtnFeedback, toggleDisabled: () => setHideBtnFeedback(!hideBtnFeedback) },
+                };
+
+                return mainButtonsOrder.map((key, idx) => {
+                  const btn = primaryButtonsDefinition[key];
+                  if (!btn) return null; // Fallback for invalid keys
+
+                  return (
+                    <div key={key}>
+                      <label className="block text-[11px] text-gray-400 mb-1 flex items-center justify-between">
+                        <span>{btn.label}</span>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveMainButton(idx, "up")}
+                            className="text-gray-500 hover:text-white p-0.5"
+                            title="Move Up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveMainButton(idx, "down")}
+                            className="text-gray-500 hover:text-white p-0.5"
+                            title="Move Down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          disabled={btn.disabled}
+                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                          value={btn.value}
+                          onChange={(e) => btn.setter(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={btn.toggleDisabled}
+                          title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
+                          className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all cursor-pointer ${
+                            !btn.disabled 
+                              ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
+                              : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
+                          }`}
+                        >
+                          <Power className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>

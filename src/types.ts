@@ -35,6 +35,7 @@ export interface PanelSettings {
   serverPort?: number;
   autoRefreshInterval?: number;
   keyboardLayout?: "horizontal" | "vertical" | "stepped";
+  mainButtonsOrder?: string[];
   purchaseSuccessNote?: string;
   panelConnectionActive?: boolean;
   admins?: Array<{

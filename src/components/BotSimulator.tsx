@@ -88,16 +88,22 @@ export default function BotSimulator({
   // Construct reply keyboard dynamically with custom menu buttons
   const getKeyboard = () => {
     const layout = settings?.keyboardLayout || "stepped";
+    const order = settings?.mainButtonsOrder || [
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback"
+    ];
+    
     const buttons: string[] = [];
     
-    if (!settings?.hideBtnBuyNew) buttons.push(settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید");
-    if (!settings?.hideBtnMySubs) buttons.push(settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید");
-    if (!settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
-    if (!settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
-    if (!settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "📞 پشتیبانی");
-    if (!settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
-    if (!settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
-    if (!settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
+    order.forEach(key => {
+      if (key === "btnBuyNew" && !settings?.hideBtnBuyNew) buttons.push(settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید");
+      else if (key === "btnMySubs" && !settings?.hideBtnMySubs) buttons.push(settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید");
+      else if (key === "btnGuides" && !settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
+      else if (key === "btnProfile" && !settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
+      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "📞 پشتیبانی");
+      else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
+      else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
+      else if (key === "btnFeedback" && !settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
+    });
 
     const dynamicKeyboard: string[][] = [];
     if (layout === "vertical") {
