@@ -272,11 +272,15 @@ def check_client_exists(client_email):
             return True
 
     cfg = get_config()
+    base_url = cfg['XUI_URL']
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
     if not login_xui():
         # Fallback to local check result if panel offline (already returned False if not found locally)
         return False
     try:
-        url = f"{cfg['XUI_URL']}/panel/api/inbounds/getClientTraffics/{client_email}"
+        url = f"{base_url}/panel/api/inbounds/getClientTraffics/{client_email}"
         response = session.get(url, timeout=5, verify=False)
         data = response.json()
         if data.get("success") and data.get("obj"):
@@ -288,6 +292,10 @@ def check_client_exists(client_email):
 def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
     """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
+    base_url = cfg['XUI_URL']
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
     if not login_xui():
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
@@ -331,7 +339,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     # Always fetch all valid inbounds from panel
     valid_ids = []
     try:
-        list_url = f"{cfg['XUI_URL']}/panel/api/inbounds/list"
+        list_url = f"{base_url}/panel/api/inbounds/list"
         list_res = session.get(list_url, timeout=8, verify=False)
         res_json = list_res.json()
         if res_json.get("success") and isinstance(res_json.get("obj"), list):
@@ -346,7 +354,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
 
-    add_url = f"{cfg['XUI_URL']}/panel/api/clients/add"
+    add_url = f"{base_url}/panel/api/clients/add"
     payload = {
         "client": client_config,
         "inboundIds": inbound_ids

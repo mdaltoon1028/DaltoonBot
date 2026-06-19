@@ -511,7 +511,7 @@ async function addVpnClientApi(
 ): Promise<{ success: boolean; clientUuid?: string; subLink?: string; error?: string }> {
   try {
     // Check locally first
-    const db = loadDB();
+    const db = readJsonDb();
     const subs = db.subscription_keys || [];
     const _lMail = clientEmail.toLowerCase();
     for (let s of subs) {

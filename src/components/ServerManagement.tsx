@@ -157,7 +157,7 @@ export default function ServerManagement({
   const startCreateNewPlan = () => {
     setEditingPlanId(null);
     setPlanName("");
-    setPlanMonths("1");
+    setPlanDays("30");
     setPlanTraffic("50");
     setPlanPrice("135000");
     setPlanCategory("Standard");
