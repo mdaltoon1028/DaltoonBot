@@ -694,6 +694,15 @@ export default function UserManagement({
                     <span className="text-[10px] block">{t.keyExpiryLabel}:</span>
                     <span className="text-gray-300 font-mono">{key.expireDate}</span>
                   </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] block">{lang === "fa" ? "حجم مصرفی / باقی‌مانده:" : "Used / Remaining data:"}</span>
+                    <span className="text-white font-mono">
+                      <span className="text-rose-400">{Number(key.trafficUsedGb || 0).toFixed(2)} GB</span>
+                      <span className="text-gray-500 mx-1">/</span>
+                      <span className="text-emerald-400">{Math.max(0, Number(key.trafficLimitGb || 0) - Number(key.trafficUsedGb || 0)).toFixed(2)} GB</span>
+                      <span className="text-gray-500 mx-1 ml-2">({lang === "fa" ? "کل:" : "Total:"} {Number(key.trafficLimitGb || 0).toFixed(2)} GB)</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             );

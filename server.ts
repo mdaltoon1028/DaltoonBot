@@ -1582,10 +1582,81 @@ async function autoCleanExpiredFreeTrials() {
   }
 }
 
+async function autoSyncTrafficUsage() {
+  try {
+    const db = readJsonDb();
+    const settings = db.settings?.panel_config ? JSON.parse(db.settings.panel_config) : null;
+    
+    // Only continue if panel is connected
+    if (!settings || !settings.panelConnectionActive || !settings.baseUrl) {
+      return;
+    }
+
+    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+
+    if (!loginResult.success || !loginResult.cookie) {
+      console.log("[Auto Sync Usage] Failed to connect to X-UI panel.");
+      return;
+    }
+
+    const headers: Record<string, string> = {
+      "Cookie": loginResult.cookie,
+      "Accept": "application/json"
+    };
+
+    // Get all inbounds
+    const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 10000);
+    if (!inbRes.ok) return;
+    
+    const inbJson = await inbRes.json();
+    if (!inbJson.success || !Array.isArray(inbJson.obj)) return;
+
+    let updatedCount = 0;
+    
+    // Create a map of emails to their total used traffic (in bytes)
+    const trafficMap: Record<string, { up: number, down: number, total: number }> = {};
+    
+    for (let inb of inbJson.obj) {
+      let clientStats = inb.clientStats || [];
+      for (let cs of clientStats) {
+        if (cs.email) {
+          if (!trafficMap[cs.email]) trafficMap[cs.email] = { up: 0, down: 0, total: 0 };
+          trafficMap[cs.email].up += Number(cs.up) || 0;
+          trafficMap[cs.email].down += Number(cs.down) || 0;
+          trafficMap[cs.email].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+        }
+      }
+    }
+
+    for (let k of db.subscription_keys || []) {
+      if (k.clientName && trafficMap[k.clientName]) {
+        const usedGb = trafficMap[k.clientName].total / (1024 * 1024 * 1024);
+        // Only update if changed by more than 0.01 GB to avoid constant small writes
+        if (Math.abs(k.trafficUsedGb - usedGb) > 0.01) {
+          k.trafficUsedGb = Number(usedGb.toFixed(2));
+          updatedCount++;
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      writeJsonDb(db);
+      console.log(`[Auto Sync Usage] Updated traffic usage for ${updatedCount} subscriptions.`);
+    }
+  } catch (err) {
+    console.error("[Auto Sync Usage Error]", err);
+  }
+}
+
 async function startServer() {
   // Start the background cron job for auto cleaning expired trials
   setInterval(autoCleanExpiredFreeTrials, 10 * 60 * 1000);
   setTimeout(autoCleanExpiredFreeTrials, 10000); // Also run shortly after startup
+
+  // Start background cron job for auto syncing traffic every 5 minutes
+  setInterval(autoSyncTrafficUsage, 5 * 60 * 1000);
+  setTimeout(autoSyncTrafficUsage, 15000); // Also run shortly after startup
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Mount dev Vite middleware mode.");
