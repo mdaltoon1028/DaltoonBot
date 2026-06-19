@@ -59,15 +59,30 @@ export default function BotButtonsPanel({
   const [btnTextFeedback, setBtnTextFeedback] = useState(settings.btnTextFeedback || "💌 بازخورد کاربر ها");
   const [hideBtnFeedback, setHideBtnFeedback] = useState(!!settings.hideBtnFeedback);
 
+  const [btnTextWallet, setBtnTextWallet] = useState(settings.btnTextWallet || "💵 کیف پول + شارژ");
+  const [hideBtnWallet, setHideBtnWallet] = useState(!!settings.hideBtnWallet);
+
   const [btnTextReferral, setBtnTextReferral] = useState(settings.btnTextReferral || "👥 زیرمجموعه گیری");
   const [hideBtnReferral, setHideBtnReferral] = useState(!!settings.hideBtnReferral);
 
   const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
-  const [mainButtonsOrder, setMainButtonsOrder] = useState<string[]>(
-    settings.mainButtonsOrder || [
-      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
-    ]
-  );
+  
+  const defaultOrder = [
+    "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+  ];
+  
+  const [mainButtonsOrder, setMainButtonsOrder] = useState<string[]>(() => {
+    if (settings.mainButtonsOrder && settings.mainButtonsOrder.length > 0) {
+      const saved = [...settings.mainButtonsOrder];
+      defaultOrder.forEach(key => {
+        if (!saved.includes(key)) {
+          saved.push(key);
+        }
+      });
+      return saved;
+    }
+    return defaultOrder;
+  });
 
   // Custom reply buttons states
   const [btnText, setBtnText] = useState("");
@@ -182,6 +197,7 @@ export default function BotButtonsPanel({
       btnTextInstantSupport,
       btnTextFeedback,
       btnTextReferral,
+      btnTextWallet,
       hideBtnBuyNew,
       hideBtnMySubs,
       hideBtnGuides,
@@ -191,6 +207,7 @@ export default function BotButtonsPanel({
       hideBtnInstantSupport,
       hideBtnFeedback,
       hideBtnReferral,
+      hideBtnWallet,
       keyboardLayout,
       mainButtonsOrder
     });
@@ -295,6 +312,7 @@ export default function BotButtonsPanel({
                   "btnInstantSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی آنی" : "Instant Support Button Label", value: btnTextInstantSupport, setter: setBtnTextInstantSupport, disabled: hideBtnInstantSupport, toggleDisabled: () => setHideBtnInstantSupport(!hideBtnInstantSupport) },
                   "btnFeedback": { label: lang === "fa" ? "عنوان دکمه بازخورد" : "Feedback Button Label", value: btnTextFeedback, setter: setBtnTextFeedback, disabled: hideBtnFeedback, toggleDisabled: () => setHideBtnFeedback(!hideBtnFeedback) },
                   "btnReferral": { label: lang === "fa" ? "عنوان دکمه مجموعه‌گیری" : "Referral Button Label", value: btnTextReferral, setter: setBtnTextReferral, disabled: hideBtnReferral, toggleDisabled: () => setHideBtnReferral(!hideBtnReferral) },
+                  "btnWallet": { label: lang === "fa" ? "عنوان دکمه کیف پول و شارژ" : "Wallet Button Label", value: btnTextWallet, setter: setBtnTextWallet, disabled: hideBtnWallet, toggleDisabled: () => setHideBtnWallet(!hideBtnWallet) },
                 };
 
                 return mainButtonsOrder.map((key, idx) => {

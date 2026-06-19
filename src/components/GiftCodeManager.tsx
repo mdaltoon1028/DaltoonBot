@@ -28,8 +28,18 @@ export default function GiftCodeManager({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [botTelegramHandle, setBotTelegramHandle] = useState(settings?.botTelegramHandle || "");
-  const [referralRewardPercent, setReferralRewardPercent] = useState(settings?.referralRewardPercent || 5);
-  const [calculationAmount, setCalculationAmount] = useState<number>(100000);
+  const [referralRewardAmount, setReferralRewardAmount] = useState(settings?.referralRewardAmount ?? 0);
+  const [referralRewardPercent, setReferralRewardPercent] = useState(settings?.referralRewardPercent ?? 5);
+  const [referralMessage, setReferralMessage] = useState(settings?.referralMessage || 
+    "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n" + 
+    "در ضمن کد معرف اختصاصی شما {uid} می باشد.\n\n" + 
+    "{link}\n\n" +
+    "🎁 با ورود هر یک از دوستان شما {amount} تومان موجودی دریافت میکنید و همچنین با هر خرید موفق آنها {percent}% از مبلغ خرید هدیه دریافت میکنید.\n\n" + 
+    "📊 آمار دعوت شما\n" + 
+    "• افراد وارد شده با لینک: 0\n" + 
+    "• تعداد خرید ها: 0\n" + 
+    "• مبلغ خرید ها در یک ماه گذشته: 0 تومان"
+  );
   const [savedSettings, setSavedSettings] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -66,7 +76,9 @@ export default function GiftCodeManager({
       onSaveSettings({
         ...settings,
         botTelegramHandle,
-        referralRewardPercent
+        referralRewardAmount,
+        referralRewardPercent,
+        referralMessage
       });
       setSavedSettings(true);
       setTimeout(() => setSavedSettings(false), 3000);
@@ -156,25 +168,40 @@ export default function GiftCodeManager({
           </div>
           <p className="text-xs text-gray-400 leading-relaxed">
             {lang === 'fa' 
-              ? 'در این بخش می‌توانید درصد پاداش زیرمجموعه‌گیری (سود معرفی) را تنظیم کنید. آدرس ربات کمک می‌کند تا سیستم بتواند لینک‌های دعوت اختصاصی بسازد.'
-              : 'Configure your referral reward rate and bot handle so the system can generate exclusive invite links.'}
+              ? 'در این بخش می‌توانید مبلغ پاداش زیرمجموعه‌گیری و متن پیام معرفی را تنظیم کنید.'
+              : 'Configure your referral reward amount and bot handle so the system can generate exclusive invite links.'}
           </p>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'آیدی ربات شما (بدون @)' : 'Bot Telegram Username (No @)'}</label>
-                <input
-                  type="text"
-                  value={botTelegramHandle}
-                  onChange={(e) => setBotTelegramHandle(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr"
-                  placeholder="my_awesome_bot"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'درصد پاداش معرف' : 'Reward Percentage'}</label>
+                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'آیدی ربات شما (بدون @)' : 'Bot Telegram Username (No @)'}</label>
+                  <input
+                    type="text"
+                    value={botTelegramHandle}
+                    onChange={(e) => setBotTelegramHandle(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr"
+                    placeholder="my_awesome_bot"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'پاداش ورود اولیه (تومان)' : 'Reward Amount per Invite'}</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={referralRewardAmount}
+                      onChange={(e) => setReferralRewardAmount(Number(e.target.value))}
+                      className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr pr-12"
+                      placeholder="0"
+                      min="0"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none text-xs">تومان</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'پاداش از خریدهای کاربر (%)' : 'Reward Percentage from Purchases'}</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -188,35 +215,22 @@ export default function GiftCodeManager({
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'مبلغ خرید فرضی (تومان)' : 'Example Purchase Amount'}</label>
-                  <input
-                    type="number"
-                    value={calculationAmount}
-                    onChange={(e) => setCalculationAmount(Number(e.target.value))}
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr"
-                    placeholder="100000"
-                  />
-                </div>
               </div>
 
-              {/* Reward Calculation Preview */}
-              <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">
-                    {lang === 'fa' ? 'محاسبه پاداش ربات:' : 'Estimated Reward:'}
-                  </p>
-                  <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <span className="bg-emerald-500/10 px-1.5 py-0.5 rounded text-emerald-300">
-                      {Math.max(0, Math.round((calculationAmount * referralRewardPercent) / 100)).toLocaleString()} 
-                    </span>
-                    <span>{lang === 'fa' ? 'تومان پاداش به ازای هر خرید' : 'Toman / Purchase'}</span>
-                  </p>
-                </div>
-                <div className="text-[10px] text-gray-500 bg-slate-800 px-2 py-1 rounded">
-                  {calculationAmount.toLocaleString()} × {referralRewardPercent}%
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 flex items-center justify-between">
+                  <span>{lang === 'fa' ? 'متن پیام مجموعه گیری' : 'Referral Message Content'}</span>
+                  <span className="text-[10px] text-gray-500 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700">
+                    {lang === 'fa' ? 'متغیرهای مجاز: {uid}, {link}, {amount}, {percent}' : 'Vars: {uid}, {link}, {amount}, {percent}'}
+                  </span>
+                </label>
+                <textarea
+                  value={referralMessage}
+                  onChange={(e) => setReferralMessage(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm leading-relaxed"
+                  rows={8}
+                  placeholder={lang === 'fa' ? 'متن خود را اینجا وارد کنید...' : 'Enter your text here...'}
+                />
               </div>
 
               <div className="pt-2 flex items-center justify-between">

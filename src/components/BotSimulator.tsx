@@ -89,9 +89,12 @@ export default function BotSimulator({
   const getKeyboard = () => {
     const layout = settings?.keyboardLayout || "stepped";
     const order = settings?.mainButtonsOrder || [
-      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
     ];
     
+    if (!order.includes("btnWallet")) order.push("btnWallet");
+    if (!order.includes("btnReferral")) order.push("btnReferral");
+
     const buttons: string[] = [];
     
     order.forEach(key => {
@@ -99,7 +102,8 @@ export default function BotSimulator({
       else if (key === "btnMySubs" && !settings?.hideBtnMySubs) buttons.push(settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید");
       else if (key === "btnGuides" && !settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
       else if (key === "btnProfile" && !settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
-      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "📞 پشتیبانی");
+      else if (key === "btnWallet" && !settings?.hideBtnWallet) buttons.push(settings?.btnTextWallet || "💵 کیف پول + شارژ");
+      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "🎧 پشتیبانی");
       else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
       else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
       else if (key === "btnFeedback" && !settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
@@ -317,14 +321,13 @@ export default function BotSimulator({
       // Profile Info (without active plans details string, we'll keep it simple profile)
       addBotReply(
         lang === "fa"
-          ? `👤 <b>اطلاعات حساب مس کاربری شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}\n💰 موجودی کیف پول: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>`
-          : `👤 <b>My Account Wallet Details:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}\n💰 Wallet Balance: <b>${currentUser.walletBalance.toLocaleString()} Toman</b>`,
+          ? `👤 <b>اطلاعات حساب کاربری شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}`
+          : `👤 <b>My Account Profile:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}`,
         600,
         undefined,
         [
-          [{ text: "💵 افزایش موجودی", action: "btn_wallet_shortcut" }],
-          [{ text: "🎁 اعمال کد هدیه", action: "btn_gift_code" }],
-          [{ text: "🔙 بازگشت", action: "btn_back_home" }]
+          { text: "🎁 اعمال کد هدیه", action: "btn_gift_code" },
+          { text: "🔙 بازگشت", action: "btn_back_home" }
         ]
       );
     }
@@ -380,57 +383,69 @@ export default function BotSimulator({
     }
     else if (text === (settings?.btnTextReferral || "👥 زیرمجموعه گیری") || text.includes("👥") || text.includes("زیرمجموعه")) {
       const botUsername = settings?.botTelegramHandle || "your_bot_id";
-      const percent = settings?.referralRewardPercent || 5;
+      const percent = settings?.referralRewardPercent ?? 5;
+      const amount = settings?.referralRewardAmount ?? 0;
       const uid = currentUser.userId;
+      const link = `https://t.me/${botUsername}?start=${uid}`;
       
-      const replyText = lang === "fa" 
-        ? `برای کسب موجودی هدیه کافیه دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n` + 
-          `در ضمن کد معرف اختصاصی شما ${uid} می باشد.\n\n` + 
-          `https://t.me/${botUsername}?start=${uid}\n\n` +
-          `🎁 در صورت معرفی دوستان خود با لینک بالا، با هر خرید موفق هر کدام از آنها ${percent}% به عنوان هدیه به کیف پول شما واریز می گردد.\n\n` + 
+      let defaultMsgFa = `برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n` + 
+          `در ضمن کد معرف اختصاصی شما {uid} می باشد.\n\n` + 
+          `{link}\n\n` +
+          `🎁 با ورود هر یک از دوستان شما {amount} تومان موجودی دریافت میکنید و همچنین با هر خرید موفق آنها {percent}% از مبلغ خرید هدیه دریافت میکنید.\n\n` + 
           `📊 آمار دعوت شما\n` + 
           `• افراد وارد شده با لینک: 0\n` + 
           `• تعداد خرید ها: 0\n` + 
-          `• مبلغ خرید ها در یک ماه گذشته: 0 تومان`
-        : `To earn rewards, invite your friends with your dedicated link 👥\n\n` +
-          `Your Referral ID is ${uid}.\n\n` +
-          `https://t.me/${botUsername}?start=${uid}\n\n` +
-          `🎁 For every successful purchase by your invitees, you'll earn ${percent}% of the amount added to your wallet!\n\n` +
+          `• مبلغ خرید ها در یک ماه گذشته: 0 تومان`;
+          
+      let defaultMsgEn = `To earn rewards, invite your friends with your dedicated link 👥\n\n` +
+          `Your Referral ID is {uid}.\n\n` +
+          `{link}\n\n` +
+          `🎁 For every successful invite, you get {amount} Toman, and for every purchase by them, you get {percent}%.\n\n` +
           `📊 Referral Stats:\n` +
           `• Invited Users: 0\n` +
           `• Total Purchases: 0\n` +
           `• Last Month Volume: 0`;
 
+      let rawTemplate = settings?.referralMessage || (lang === "fa" ? defaultMsgFa : defaultMsgEn);
+      
+      let replyText = rawTemplate
+        .replace(/{uid}/g, uid.toString())
+        .replace(/{link}/g, link)
+        .replace(/{percent}/g, percent.toString())
+        .replace(/{amount}/g, amount.toLocaleString());
+
       addBotReply(replyText, 600);
     }
-    else if (text === "💳 شارژ کیف پول" || text.includes("شارژ") || text.includes("Wallet")) {
+    else if (text === (settings?.btnTextWallet || "💵 کیف پول + شارژ") || text === "💳 شارژ کیف پول" || text.includes("شارژ") || text.includes("Wallet") || text === "💵 کیف پول + شارژ" || text.includes("کیف پول")) {
       if (lang === "fa") {
         addBotReply(
-          `💳 <b>بخش شارژ و افزایش موجودی کیف پول دالتون:</b>\n\nلطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\nپس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود.`,
+          `💳 <b>بخش شارژ و افزایش موجودی کیف پول دالتون:</b>\n\n💰 موجودی فعلی: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>\n\nلطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\nپس از انتخاب، اطلاعات پرداخت مرتبط با آن برای شما فرستاده می‌شود.`,
           800,
           undefined,
           [
-            [
-              { text: "💵 ۲۰۰,۰۰۰ تومان", action: "charge_200000" },
-              { text: "💵 ۳۰۰,۰۰۰ تومان", action: "charge_300000" }
-            ],
-            [
-              { text: "💵 ۴۰۰,۰۰۰ تومان", action: "charge_400000" },
-              { text: "💵 ۵۰۰,۰۰۰ تومان", action: "charge_500000" }
-            ],
-            [
-              { text: "🔥 ۱,۰۰۰,۰۰۰ تومان", action: "charge_1000000" }
-            ],
-            [
-              { text: "🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", action: "charge_custom_amount" },
-              { text: "🔙 بازگشت", action: "btn_back_home" }
-            ]
+            { text: "💵 ۱۰۰,۰۰۰ تومان", action: "charge_100000" },
+            { text: "💵 ۲۰۰,۰۰۰ تومان", action: "charge_200000" },
+            { text: "💵 ۳۰۰,۰۰۰ تومان", action: "charge_300000" },
+            { text: "💵 ۵۰۰,۰۰۰ تومان", action: "charge_500000" },
+            { text: "🔥 ۱,۰۰۰,۰۰۰ تومان", action: "charge_1000000" },
+            { text: "🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", action: "charge_custom_amount" },
+            { text: "🔙 بازگشت", action: "btn_back_home" }
           ]
         );
       } else {
         addBotReply(
-          `💳 Deposit Wallet Guides:\n\nPlease select logic.`,
-          800
+          `💳 Deposit Wallet: \n\n💰 Current Balance: <b>${currentUser.walletBalance.toLocaleString()} Toman</b>\n\nPlease select the amount to recharge:`,
+          800,
+          undefined,
+          [
+            { text: "💵 100k Toman", action: "charge_100000" },
+            { text: "💵 200k Toman", action: "charge_200000" },
+            { text: "💵 300k Toman", action: "charge_300000" },
+            { text: "💵 500k Toman", action: "charge_500000" },
+            { text: "🔥 1M Toman", action: "charge_1000000" },
+            { text: "🔗 Custom Amount", action: "charge_custom_amount" },
+            { text: "🔙 Back", action: "btn_back_home" }
+          ]
         );
       }
     } 
