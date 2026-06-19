@@ -65,10 +65,13 @@ export default function BotButtonsPanel({
   const [btnTextReferral, setBtnTextReferral] = useState(settings.btnTextReferral || "👥 زیرمجموعه گیری");
   const [hideBtnReferral, setHideBtnReferral] = useState(!!settings.hideBtnReferral);
 
+  const [btnTextColleagues, setBtnTextColleagues] = useState(settings.btnTextColleagues || "بسته ویژه همکاران");
+  const [hideBtnColleagues, setHideBtnColleagues] = useState(settings.hideBtnColleagues !== undefined ? settings.hideBtnColleagues : true); // default hidden
+
   const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
   
   const defaultOrder = [
-    "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+    "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
   ];
   
   const [mainButtonsOrder, setMainButtonsOrder] = useState<string[]>(() => {
@@ -198,6 +201,7 @@ export default function BotButtonsPanel({
       btnTextFeedback,
       btnTextReferral,
       btnTextWallet,
+      btnTextColleagues,
       hideBtnBuyNew,
       hideBtnMySubs,
       hideBtnGuides,
@@ -208,6 +212,7 @@ export default function BotButtonsPanel({
       hideBtnFeedback,
       hideBtnReferral,
       hideBtnWallet,
+      hideBtnColleagues,
       keyboardLayout,
       mainButtonsOrder
     });
@@ -309,6 +314,7 @@ export default function BotButtonsPanel({
                   "btnProfile": { label: lang === "fa" ? "عنوان دکمه حساب کاربری" : "Profile Button Label", value: btnTextProfile, setter: setBtnTextProfile, disabled: hideBtnProfile, toggleDisabled: () => setHideBtnProfile(!hideBtnProfile) },
                   "btnSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی" : "Support Button Label", value: btnTextSupport, setter: setBtnTextSupport, disabled: hideBtnSupport, toggleDisabled: () => setHideBtnSupport(!hideBtnSupport) },
                   "btnFreeTest": { label: lang === "fa" ? "عنوان دکمه موجوده رایگان/تست" : "Free Test Button Label", value: btnTextFreeTest, setter: setBtnTextFreeTest, disabled: hideBtnFreeTest, toggleDisabled: () => setHideBtnFreeTest(!hideBtnFreeTest) },
+                  "btnColleagues": { label: lang === "fa" ? "عنوان دکمه همکاران" : "Colleagues Button Label", value: btnTextColleagues, setter: setBtnTextColleagues, disabled: hideBtnColleagues, toggleDisabled: () => setHideBtnColleagues(!hideBtnColleagues) },
                   "btnInstantSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی آنی" : "Instant Support Button Label", value: btnTextInstantSupport, setter: setBtnTextInstantSupport, disabled: hideBtnInstantSupport, toggleDisabled: () => setHideBtnInstantSupport(!hideBtnInstantSupport) },
                   "btnFeedback": { label: lang === "fa" ? "عنوان دکمه بازخورد" : "Feedback Button Label", value: btnTextFeedback, setter: setBtnTextFeedback, disabled: hideBtnFeedback, toggleDisabled: () => setHideBtnFeedback(!hideBtnFeedback) },
                   "btnReferral": { label: lang === "fa" ? "عنوان دکمه مجموعه‌گیری" : "Referral Button Label", value: btnTextReferral, setter: setBtnTextReferral, disabled: hideBtnReferral, toggleDisabled: () => setHideBtnReferral(!hideBtnReferral) },

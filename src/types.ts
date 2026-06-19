@@ -34,6 +34,8 @@ export interface PanelSettings {
   hideBtnWallet?: boolean;
   btnTextReferral?: string;
   hideBtnReferral?: boolean;
+  btnTextColleagues?: string;
+  hideBtnColleagues?: boolean;
   botTelegramHandle?: string;
   referralRewardAmount?: number;
   referralRewardPercent?: number;
@@ -128,5 +130,25 @@ export interface GiftCode {
   maxUsage: number;
   usedBy: number[];
   createdAt: string;
+}
+
+export interface ColleaguePackage {
+  id: string;
+  title: string;
+  price: number;
+  durationDays: number;
+  description: string;
+}
+
+export interface ColleagueAccount {
+  id: string;
+  userId?: number;
+  username: string;
+  password: string;
+  packageId: string;
+  packageTitle: string;
+  createdAt: string;
+  expireDate: string;
+  status: "active" | "expired" | "suspended";
 }
 

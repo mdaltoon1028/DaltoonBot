@@ -13,6 +13,7 @@ import {
   Command,
   Gift,
   Menu,
+  Briefcase,
   X
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ import UserManagement from "./components/UserManagement";
 import TransactionApproval from "./components/TransactionApproval";
 import BotSimulator from "./components/BotSimulator";
 import ServerManagement from "./components/ServerManagement";
+import ColleaguesManagement from "./components/ColleaguesManagement";
 import SettingsPanel from "./components/SettingsPanel";
 import BotButtonsPanel from "./components/BotButtonsPanel";
 import GiftCodeManager from "./components/GiftCodeManager";
@@ -143,6 +145,16 @@ export default function App() {
     return cached ? JSON.parse(cached) : initialPlans;
   });
 
+  const [colleaguePackages, setColleaguePackages] = useState<any[]>(() => {
+    const cached = localStorage.getItem("daltoon_colleague_packages");
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  const [colleagueAccounts, setColleagueAccounts] = useState<any[]>(() => {
+    const cached = localStorage.getItem("daltoon_colleague_accounts");
+    return cached ? JSON.parse(cached) : [];
+  });
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const isAuth = localStorage.getItem("daltoon_dashboard_auth") === "true";
     const lastInteraction = parseInt(localStorage.getItem("daltoon_last_interaction") || "0", 10);
@@ -168,7 +180,7 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "buttons" | "giftcodes" | "settings" | "guide" | "xui_connector">(() => {
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleagues" | "buttons" | "giftcodes" | "settings" | "guide" | "xui_connector">(() => {
     const cached = localStorage.getItem("daltoon_active_tab");
     return (cached as any) || "dashboard";
   });
@@ -266,6 +278,14 @@ export default function App() {
     localStorage.setItem("daltoon_gift_codes", JSON.stringify(giftCodes));
   }, [giftCodes]);
 
+  useEffect(() => {
+    localStorage.setItem("daltoon_colleague_packages", JSON.stringify(colleaguePackages));
+  }, [colleaguePackages]);
+
+  useEffect(() => {
+    localStorage.setItem("daltoon_colleague_accounts", JSON.stringify(colleagueAccounts));
+  }, [colleagueAccounts]);
+
   const refreshData = async () => {
     setIsRefreshing(true);
     try {
@@ -279,6 +299,8 @@ export default function App() {
         if (json.inbounds) setInbounds(json.inbounds);
         if (json.customButtons) setCustomButtons(json.customButtons);
         if (json.giftCodes) setGiftCodes(json.giftCodes);
+        if (json.colleaguePackages) setColleaguePackages(json.colleaguePackages);
+        if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
         if (json.settings && json.settings.botToken) setSettings(json.settings);
         console.log("[Full-Stack Sync] SQLite bot_database.db refreshed successfully.");
         
@@ -655,6 +677,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("colleagues")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "colleagues" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              {t.tabColleagues}
+            </button>
+
+            <button
               onClick={() => setActiveTab("buttons")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
                 activeTab === "buttons" 
@@ -835,6 +869,18 @@ export default function App() {
               inbounds={inbounds}
               setInbounds={setInbounds}
             />
+          )}
+
+          {activeTab === "colleagues" && (
+            <div className="p-4 md:p-6 pb-24">
+              <ColleaguesManagement
+                 packages={colleaguePackages}
+                 accounts={colleagueAccounts}
+                 setPackages={setColleaguePackages}
+                 setAccounts={setColleagueAccounts}
+                 lang={lang}
+              />
+            </div>
           )}
 
           {activeTab === "buttons" && (

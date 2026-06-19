@@ -34,6 +34,8 @@ interface DbSchema {
   custom_buttons: any[];
   vpn_plans?: any[];
   gift_codes?: any[];
+  colleague_packages?: any[];
+  colleague_accounts?: any[];
   settings: Record<string, string>;
 }
 
@@ -53,6 +55,8 @@ function readJsonDb(): DbSchema {
           { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationDays: 90, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
           { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationDays: 30, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
         ],
+        colleague_packages: [],
+        colleague_accounts: [],
         inbounds: [],
         custom_buttons: [],
         gift_codes: [],
@@ -313,6 +317,8 @@ app.get("/api/data", async (req, res) => {
       customButtons: db.custom_buttons,
       vpnPlans: db.vpn_plans || [],
       giftCodes: db.gift_codes || [],
+      colleaguePackages: db.colleague_packages || [],
+      colleagueAccounts: db.colleague_accounts || [],
       settings
     });
   } catch (error: any) {
@@ -354,6 +360,42 @@ app.post("/api/gift-codes/delete", (req, res) => {
   writeJsonDb(db);
   res.json({ success: true });
 });
+
+// --- Colleague Endpoints ---
+app.post("/api/colleague-packages/save", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_packages) db.colleague_packages = [];
+  const { id, title, price, durationDays, description } = req.body;
+  if (!id || !title || price === undefined || durationDays === undefined) {
+    return res.status(400).json({ error: "Missing fields" });
+  }
+
+  const existingIdx = db.colleague_packages.findIndex(p => p.id === id);
+  if (existingIdx !== -1) {
+    db.colleague_packages[existingIdx] = { id, title, price: Number(price), durationDays: Number(durationDays), description };
+  } else {
+    db.colleague_packages.push({ id, title, price: Number(price), durationDays: Number(durationDays), description });
+  }
+  writeJsonDb(db);
+  res.json({ success: true, colleaguePackages: db.colleague_packages });
+});
+
+app.post("/api/colleague-packages/delete", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_packages) db.colleague_packages = [];
+  db.colleague_packages = db.colleague_packages.filter(p => p.id !== req.body.id);
+  writeJsonDb(db);
+  res.json({ success: true, colleaguePackages: db.colleague_packages });
+});
+
+app.post("/api/colleague-accounts/delete", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_accounts) db.colleague_accounts = [];
+  db.colleague_accounts = db.colleague_accounts.filter(a => a.id !== req.body.id);
+  writeJsonDb(db);
+  res.json({ success: true, colleagueAccounts: db.colleague_accounts });
+});
+// ---------------------------
 
 app.post("/api/gift-codes/edit", (req, res) => {
   const db = readJsonDb();

@@ -126,6 +126,7 @@ def get_config():
             config["BTN_INSTANT_SUPPORT"] = panel_cfg.get("btnTextInstantSupport", "🤖 پشتیبانی آنی")
             config["BTN_FEEDBACK"] = panel_cfg.get("btnTextFeedback", "💌 بازخورد کاربر ها")
             config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
+            config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
             config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "💵 کیف پول + شارژ")
 
             config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
@@ -137,6 +138,7 @@ def get_config():
             config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg.get("hideBtnInstantSupport", False))
             config["HIDE_FEEDBACK"] = bool(panel_cfg.get("hideBtnFeedback", False))
             config["HIDE_REFERRAL"] = bool(panel_cfg.get("hideBtnReferral", False))
+            config["HIDE_COLLEAGUES"] = panel_cfg.get("hideBtnColleagues", True)
             config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
             if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
                 config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
@@ -473,17 +475,19 @@ def get_custom_keyboard():
 
     buttons = []
     order = cfg.get("BUTTONS_ORDER", [
-        "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+        "btnBuyNew", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
     ])
     
     # Backward compatibility: enforce addition of referral & wallet if missing
     if "btnWallet" not in order: order.append("btnWallet")
     if "btnReferral" not in order: order.append("btnReferral")
+    if "btnColleagues" not in order: order.append("btnColleagues")
 
     for key in order:
         if key == "btnBuyNew" and not cfg.get("HIDE_BUY_NEW", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید"), callback_data="mm_btnBuyNew"))
         elif key == "btnMySubs" and not cfg.get("HIDE_MY_SUBS", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_MY_SUBS", "🗂 اشتراک های من / تمدید"), callback_data="mm_btnMySubs"))
         elif key == "btnGuides" and not cfg.get("HIDE_GUIDES", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
+        elif key == "btnColleagues" and not cfg.get("HIDE_COLLEAGUES", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"), callback_data="mm_btnColleagues"))
         elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری"), callback_data="mm_btnProfile"))
         elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "💵 کیف پول + شارژ"), callback_data="mm_btnWallet"))
         elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی"), callback_data="mm_btnSupport"))
@@ -621,6 +625,28 @@ def handle_main_menu_callback(call):
             
         bot.edit_message_text(
             "🛍️ <b>پلان‌های فعال سرعت اختصاصی دالتون:</b>\n\nلطفا یکی از کانفیگ‌های زیر را برای خرید مستقیم انتخاب کنید. مبلغ به صورت خودکار از کیف پول تلگرام کسر می‌شود:",
+            chat_id=message.chat.id,
+            message_id=message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+
+    elif action == "mm_btnColleagues":
+        packages = db.get("colleague_packages", [])
+        markup = types.InlineKeyboardMarkup()
+        if packages:
+            for p in packages:
+                btn_text = f"📦 {p['title']} - {int(p['price']):,} تومان ({p['durationDays']} روز)"
+                markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
+        markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
+        markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
+        
+        text = "✨ <b>سرویس های ویژه همکاران</b>\n\nلطفاً یکی از بسته‌های زیر را برای خرید انتخاب کنید یا در صورت داشتن حساب وارد شوید:"
+        if not packages:
+            text = "✨ <b>سرویس های ویژه همکاران</b>\n\nهیچ بسته فعالی در حال حاضر وجود ندارد. لطفاً در صورت داشتن حساب وارد شوید:"
+            
+        bot.edit_message_text(
+            text,
             chat_id=message.chat.id,
             message_id=message.message_id,
             parse_mode="HTML",
@@ -968,6 +994,88 @@ def callback_handler(call):
         handle_main_menu_callback(call)
         return
         
+    if call.data == "login_colleague":
+        bot.answer_callback_query(call.id)
+        msg = bot.edit_message_text(
+            "🔑 <b>ورود همکار</b>\n\nلطفاً <b>نام کاربری (Username)</b> اکانت خود را بفرستید:\n(برای انصراف کلمه «انصراف» را بفرستید)",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(call.message, process_colleague_login_username)
+        return
+
+    if call.data.startswith("buy_colleague_"):
+        bot.answer_callback_query(call.id)
+        package_id = call.data.replace("buy_colleague_", "")
+        db = read_db_json()
+        package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
+        
+        if not package:
+            bot.send_message(tg_id, "❌ بسته مورد نظر یافت نشد.", reply_markup=get_custom_keyboard())
+            return
+            
+        user = get_user_data(tg_id)
+        bal = user.get("walletBalance", 0)
+        
+        if bal < package["price"]:
+            shortage = package["price"] - bal
+            markup = types.InlineKeyboardMarkup()
+            markup.row(types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="mm_btnWallet"))
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="mm_btnColleagues"))
+            bot.edit_message_text(
+                f"❌ <b>موجودی ناکافی است!</b>\n\nقیمت بسته: {int(package['price']):,} تومان\nموجودی فعلی: {int(bal):,} تومان\nکسری: {int(shortage):,} تومان",
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+            return
+            
+        import uuid
+        import string
+        import random
+        from datetime import datetime, timedelta
+        
+        # Deduct wallet
+        user["walletBalance"] = bal - package["price"]
+        update_user_db(user)
+        
+        # Create colleague account
+        import string
+        username = "C" + "".join(random.choices(string.digits, k=5))
+        password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+        
+        if not db.get("colleague_accounts"):
+            db["colleague_accounts"] = []
+            
+        expire_dt = datetime.now() + timedelta(days=package["durationDays"])
+        
+        new_acc = {
+            "id": str(uuid.uuid4()),
+            "userId": tg_id,
+            "username": username,
+            "password": password,
+            "packageId": package["id"],
+            "packageTitle": package["title"],
+            "createdAt": datetime.now().strftime("%Y-%m-%d"),
+            "expireDate": expire_dt.strftime("%Y-%m-%d"),
+            "status": "active"
+        }
+        
+        db["colleague_accounts"].append(new_acc)
+        write_db_json(db)
+        
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.send_message(
+            tg_id,
+            f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به حساب، از منوی سرویس‌های همکاران «ورود به حساب همکار» را انتخاب کنید.",
+            parse_mode="HTML",
+            reply_markup=get_custom_keyboard()
+        )
+        return
+        
     if call.data.startswith("buy_"):
         plan_id = call.data[4:]
         
@@ -1126,6 +1234,65 @@ def callback_handler(call):
             bot.answer_callback_query(call.id)
         except Exception as e:
             print(f"[Error Charge Custom Init] {e}")
+
+def process_colleague_login_username(message):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ ورود لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    db = read_db_json()
+    accounts = db.get("colleague_accounts", [])
+    acc = next((a for a in accounts if a["username"] == text), None)
+    
+    if not acc:
+        msg = bot.send_message(message.chat.id, "❌ <b>نام کاربری یافت نشد!</b>\nلطفاً دوباره امتحان کنید یا «انصراف» بفرستید:", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_colleague_login_username)
+        return
+        
+    msg = bot.send_message(message.chat.id, "🔑 <b>رمز عبور (Password)</b> خود را بفرستید:", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+    bot.register_next_step_handler(msg, process_colleague_login_password, acc)
+
+def process_colleague_login_password(message, acc):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ ورود لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    if acc["password"] != text:
+        msg = bot.send_message(message.chat.id, "❌ <b>رمز عبور اشتباه است!</b>\nلطفاً دوباره امتحان کنید یا «انصراف» بفرستید:", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_colleague_login_password, acc)
+        return
+        
+    if acc["status"] != "active":
+        bot.send_message(message.chat.id, "❌ حساب کاربری شما غیرفعال یا منقضی شده است.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    # Bind tg_id to account if not already
+    if not acc.get("userId"):
+        acc["userId"] = tg_id
+        db = read_db_json()
+        for idx, a in enumerate(db.get("colleague_accounts", [])):
+            if a["id"] == acc["id"]:
+                db["colleague_accounts"][idx]["userId"] = tg_id
+                break
+        write_db_json(db)
+
+    bot.send_message(
+        message.chat.id, 
+        f"✅ <b>ورود موفقیت آمیز!</b>\n\nشما به حساب همکار <b>{acc['packageTitle']}</b> وارد شدید.\n\nانقضا: <code>{acc['expireDate']}</code>", 
+        parse_mode="HTML", 
+        reply_markup=get_custom_keyboard()
+    )
+    start_cmd(message)
+    return
 
 def process_gift_code(message):
     tg_id = message.from_user.id
