@@ -173,6 +173,31 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [lastInteraction, setLastInteraction] = useState(Date.now());
+
+  // Inactivity timeout (1 hour)
+  useEffect(() => {
+    const checkTimeout = () => {
+      if (isAuthenticated && Date.now() - lastInteraction > 3600000) {
+        localStorage.removeItem("daltoon_dashboard_auth");
+        setIsAuthenticated(false);
+      }
+    };
+    const interval = setInterval(checkTimeout, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [isAuthenticated, lastInteraction]);
+
+  useEffect(() => {
+    const handleActivity = () => setLastInteraction(Date.now());
+    window.addEventListener("mousemove", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("click", handleActivity);
+    return () => {
+      window.removeEventListener("mousemove", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("click", handleActivity);
+    };
+  }, []);
 
   // Close sidebar on tab change
   useEffect(() => {

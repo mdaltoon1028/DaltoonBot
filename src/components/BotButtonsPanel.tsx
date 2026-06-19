@@ -137,6 +137,17 @@ export default function BotButtonsPanel({
     }
   };
 
+  // Move button up or down
+  const moveButton = (index: number, direction: "up" | "down") => {
+    const newButtons = [...customButtons];
+    if (direction === "up" && index > 0) {
+      [newButtons[index], newButtons[index - 1]] = [newButtons[index - 1], newButtons[index]];
+    } else if (direction === "down" && index < newButtons.length - 1) {
+      [newButtons[index], newButtons[index + 1]] = [newButtons[index + 1], newButtons[index]];
+    }
+    setCustomButtons(newButtons);
+  };
+
   // Main Form Submit Handler (Saves primary button labels and layout)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -407,6 +418,22 @@ export default function BotButtonsPanel({
                         </div>
 
                         <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => moveButton(customButtons.indexOf(btn), "up")}
+                            className="text-gray-400 hover:text-white hover:bg-gray-700/50 p-1 rounded transition cursor-pointer"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveButton(customButtons.indexOf(btn), "down")}
+                            className="text-gray-400 hover:text-white hover:bg-gray-700/50 p-1 rounded transition cursor-pointer"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => {

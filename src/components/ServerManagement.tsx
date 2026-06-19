@@ -292,14 +292,12 @@ export default function ServerManagement({
               {lang === "fa" ? "همگام‌سازی مستقیم با پنل سنایی" : "3x-ui Panel Sync Status"}
             </span>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className={`w-2.5 h-2.5 rounded-full ${settings.panelConnectionActive ? "bg-emerald-500 animate-pulse" : "bg-yellow-500"}`}></span>
+              <span className={`w-2.5 h-2.5 rounded-full ${settings.panelConnectionActive ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`}></span>
               <span className="text-sm font-bold text-white font-mono uppercase">
-                {settings.panelConnectionActive ? "ACTIVE ✔" : "UNCONFIGURED"}
+                {lang === "fa" ? "وضعیت: " : "Status: "}
+                {settings.panelConnectionActive ? (lang === "fa" ? "روشن" : "ON") : (lang === "fa" ? "خاموش" : "OFF")}
               </span>
             </div>
-            <p className="text-[11px] text-gray-400 font-mono truncate max-w-[200px]">
-              {settings.baseUrl ? settings.baseUrl.replace(/https?:\/\//, "") : (lang === "fa" ? "بدون اتصال" : "no connection")}
-            </p>
           </div>
           <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
             <Sparkles className="w-6 h-6" />
