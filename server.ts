@@ -547,21 +547,44 @@ async function addVpnClientApi(
       }
     }
 
+    // Fetch all inbounds from panel to ensure valid IDs
+    try {
+      const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+        method: "GET",
+        headers: {
+          "Cookie": loginResult.cookie,
+          "Accept": "application/json"
+        }
+      }, 5000);
+      if (listRes.ok) {
+        const listJson = await listRes.json();
+        if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+          const validIds = listJson.obj.map((inb: any) => inb.id);
+          if (inboundIds.length > 0) {
+            inboundIds = inboundIds.filter(id => validIds.includes(id));
+          }
+          if (inboundIds.length === 0) {
+            inboundIds = validIds;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[Sanaei API Sync] Could not fetch valid inbounds:", err);
+    }
+
     if (inboundIds.length === 0) {
-      // absolute fallback to inbound ID 1
       inboundIds = [1];
     }
 
     const addUrl = `${cleanedUrl}/panel/api/clients/add`;
     const payload = {
       client: {
-        id: uuid,
         email: clientEmail,
         limitIp: 0,
         totalGB: totalBytes,
         expiryTime: expiryTimeMs,
         enable: true,
-        tgId: "",
+        tgId: 0,
         subId: clientEmail
       },
       inboundIds: inboundIds

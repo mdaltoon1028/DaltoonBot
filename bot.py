@@ -271,13 +271,12 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
     expiry_time_ms = int((time.time() + (duration_months * 30 * 24 * 60 * 60)) * 1000)
 
     client_config = {
-        "id": client_uuid,
         "email": client_email,
         "limitIp": 0,
         "totalGB": total_bytes,
         "expiryTime": expiry_time_ms,
         "enable": True,
-        "tgId": "",
+        "tgId": 0,
         "subId": xui_sub_id
     }
 
@@ -294,20 +293,23 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
         except Exception as e:
             print(f"[Bot Inbound JSON Parse Error]: {e}")
 
-    # Fallback: if no activeInboundIds are explicitly set by administrative setup UI, grab online
-    if not inbound_ids:
-        try:
-            list_url = f"{cfg['XUI_URL']}/panel/api/inbounds/list"
-            list_res = session.get(list_url, timeout=8, verify=False)
-            res_json = list_res.json()
-            if res_json.get("success") and isinstance(res_json.get("obj"), list):
-                inbound_ids = [int(item["id"]) for item in res_json["obj"]]
-                print(f"[Sanaei API] Dynamic read succeeded: {len(inbound_ids)} inbounds found.")
-        except Exception as e:
-            print(f"[Sanaei API] Dynamic read failed: {e}")
+    # Always fetch all valid inbounds from panel
+    valid_ids = []
+    try:
+        list_url = f"{cfg['XUI_URL']}/panel/api/inbounds/list"
+        list_res = session.get(list_url, timeout=8, verify=False)
+        res_json = list_res.json()
+        if res_json.get("success") and isinstance(res_json.get("obj"), list):
+            valid_ids = [int(item["id"]) for item in res_json["obj"]]
+            print(f"[Sanaei API] Dynamic read succeeded: {len(valid_ids)} inbounds found.")
+    except Exception as e:
+        print(f"[Sanaei API] Dynamic read failed: {e}")
+
+    if inbound_ids and valid_ids:
+        inbound_ids = [i for i in inbound_ids if i in valid_ids]
 
     if not inbound_ids:
-        inbound_ids = [1, 12, 16, 19, 24, 26]
+        inbound_ids = valid_ids if valid_ids else [1]
 
     add_url = f"{cfg['XUI_URL']}/panel/api/clients/add"
     payload = {
