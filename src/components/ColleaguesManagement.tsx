@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ColleaguePackage, ColleagueAccount } from "../types";
-import { Plus, Trash, Copy, CheckCircle2, Ticket } from "lucide-react";
+import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil } from "lucide-react";
 
 interface Props {
   packages: ColleaguePackage[];
@@ -21,6 +21,10 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
   const [pPrice, setPPrice] = useState("");
   const [pTraffic, setPTraffic] = useState("");
   const [pDesc, setPDesc] = useState("");
+
+  // Account Form
+  const [editAccountId, setEditAccountId] = useState<string | null>(null);
+  const [aTraffic, setATraffic] = useState("");
 
   const resetPackageForm = () => {
     setShowAddPackage(false);
@@ -94,6 +98,76 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
       const data = await res.json();
       if (data.success) {
         setAccounts(data.colleagueAccounts);
+      } else {
+        alert(data.error);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+    setLoading(false);
+  };
+
+  const resetAccount = async (id: string) => {
+    const cf = confirm(lang === "fa" ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب اطمینان دارید؟" : "Are you sure you want to reset credentials?");
+    if (!cf) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/colleague-accounts/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAccounts(data.colleagueAccounts);
+        alert(lang === "fa" ? "نام کاربری و رمز عبور با موفقیت ریست شد." : "Credentials reset successfully.");
+      } else {
+        alert(data.error);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+    setLoading(false);
+  };
+
+  const saveAccount = async () => {
+    if (!editAccountId || !aTraffic) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/colleague-accounts/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editAccountId, trafficGb: Number(aTraffic) })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAccounts(data.colleagueAccounts);
+        setEditAccountId(null);
+      } else {
+        alert(data.error);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+    setLoading(false);
+  };
+
+  const resetAccountUsage = async () => {
+    if (!editAccountId) return;
+    const cf = confirm(lang === "fa" ? "آیا از صفر کردن حجم مصرفی اطمینان دارید؟" : "Are you sure you want to reset usage to zero?");
+    if (!cf) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/colleague-accounts/reset-usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editAccountId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAccounts(data.colleagueAccounts);
+        setEditAccountId(null);
+        alert(lang === "fa" ? "حجم مصرفی صفر شد." : "Usage reset successfully.");
       } else {
         alert(data.error);
       }
@@ -222,7 +296,8 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "یوزرنیم" : "Username"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "رمز" : "Password"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "کل حجم" : "Total Traffic"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مصرف شده" : "Used Traffic"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "تخصیص داده شده" : "Allocated"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مجموع مصرف کاربر" : "Real Usage"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "وضعیت" : "Status"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs"></th>
               </tr>
@@ -236,7 +311,8 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <td className="px-4 py-3 text-sm text-indigo-300 font-mono">{acc.username}</td>
                   <td className="px-4 py-3 text-sm text-amber-300 font-mono tracking-wider">{acc.password}</td>
                   <td className="px-4 py-3 text-sm text-gray-400 font-mono">{acc.trafficGb} GB</td>
-                  <td className="px-4 py-3 text-sm text-emerald-400 font-mono">{acc.usedTrafficGb || 0} GB</td>
+                  <td className="px-4 py-3 text-sm text-blue-400 font-mono">{acc.usedTrafficGb || 0} GB</td>
+                  <td className="px-4 py-3 text-sm text-rose-400 font-mono">{acc.realUsedTrafficGb || 0} GB</td>
                   <td className="px-4 py-3 text-sm">
                     {acc.status === "active" ? (
                       <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md text-xs">{lang === 'fa' ? 'فعال' : 'Active'}</span>
@@ -245,25 +321,92 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <button
-                      onClick={() => deleteAccount(acc.id)}
-                      disabled={loading}
-                      className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-md"
-                    >
-                      <Trash className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => resetAccount(acc.id)}
+                        disabled={loading}
+                        title={lang === "fa" ? "ریست نام کاربری و رمز عبور" : "Reset Credentials"}
+                        className="p-1.5 text-blue-400 hover:bg-blue-500/20 rounded-md"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditAccountId(acc.id);
+                          setATraffic(String(acc.trafficGb));
+                        }}
+                        disabled={loading}
+                        title={lang === "fa" ? "ویرایش حجم حساب" : "Edit Account Traffic"}
+                        className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-md"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteAccount(acc.id)}
+                        disabled={loading}
+                        className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-md"
+                      >
+                        <Trash className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {accounts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-500">
+                  <td colSpan={10} className="text-center py-8 text-gray-500">
                     {lang === "fa" ? "هیچ حسابی صادر نشده است." : "No accounts found."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editAccountId && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-white/10">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-white font-bold">{lang === "fa" ? "ویرایش حجم حساب همکار" : "Edit Account Traffic"}</h3>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "کل حجم (گیگابایت)" : "Total Traffic (GB)"}</label>
+                <input type="number" value={aTraffic} onChange={e => setATraffic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" dir="ltr" />
+                <p className="text-xs text-gray-400 mt-2">
+                  {lang === "fa" ? "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد." : "Increasing this value expands the colleague's limit for creating users."}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={resetAccountUsage}
+                  disabled={loading}
+                  className="w-full px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg font-bold text-sm transition flex gap-2 items-center justify-center"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {lang === "fa" ? "صفر کردن حجم مصرفی همکار" : "Reset Usage to Zero"}
+                </button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-white/10 flex justify-end gap-2 bg-slate-900/50">
+              <button
+                onClick={() => setEditAccountId(null)}
+                className="px-4 py-2 hover:bg-white/5 rounded-lg text-sm font-bold text-gray-300 transition"
+              >
+                {lang === "fa" ? "انصراف" : "Cancel"}
+              </button>
+              <button
+                onClick={saveAccount}
+                disabled={loading}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition flex items-center justify-center gap-2"
+              >
+                {loading ? "..." : (lang === "fa" ? "ذخیره تغییرات" : "Save Changes")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

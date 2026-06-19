@@ -151,6 +151,7 @@ export interface ColleagueAccount {
   createdAt: string;
   trafficGb: number;
   usedTrafficGb?: number;
+  realUsedTrafficGb?: number;
   prefix: string;
   status: "active" | "expired" | "suspended";
 }

@@ -395,6 +395,50 @@ app.post("/api/colleague-accounts/delete", (req, res) => {
   writeJsonDb(db);
   res.json({ success: true, colleagueAccounts: db.colleague_accounts });
 });
+
+app.post("/api/colleague-accounts/reset", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_accounts) db.colleague_accounts = [];
+  
+  const accIndex = db.colleague_accounts.findIndex(a => a.id === req.body.id);
+  if (accIndex !== -1) {
+    db.colleague_accounts[accIndex].username = Math.random().toString(36).substring(2, 10);
+    db.colleague_accounts[accIndex].password = Math.random().toString(36).substring(2, 10);
+    writeJsonDb(db);
+    res.json({ success: true, colleagueAccounts: db.colleague_accounts });
+  } else {
+    res.json({ success: false, error: "Account not found" });
+  }
+});
+
+app.post("/api/colleague-accounts/edit", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_accounts) db.colleague_accounts = [];
+  
+  const accIndex = db.colleague_accounts.findIndex(a => a.id === req.body.id);
+  if (accIndex !== -1 && req.body.trafficGb !== undefined) {
+    db.colleague_accounts[accIndex].trafficGb = req.body.trafficGb;
+    writeJsonDb(db);
+    res.json({ success: true, colleagueAccounts: db.colleague_accounts });
+  } else {
+    res.json({ success: false, error: "Account not found or missing fields" });
+  }
+});
+
+app.post("/api/colleague-accounts/reset-usage", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_accounts) db.colleague_accounts = [];
+  
+  const accIndex = db.colleague_accounts.findIndex(a => a.id === req.body.id);
+  if (accIndex !== -1) {
+    db.colleague_accounts[accIndex].usedTrafficGb = 0;
+    db.colleague_accounts[accIndex].realUsedTrafficGb = 0;
+    writeJsonDb(db);
+    res.json({ success: true, colleagueAccounts: db.colleague_accounts });
+  } else {
+    res.json({ success: false, error: "Account not found" });
+  }
+});
 // ---------------------------
 
 app.post("/api/gift-codes/edit", (req, res) => {
@@ -1684,14 +1728,19 @@ async function autoSyncTrafficUsage() {
       }
     }
 
-    // Now recalculate colleague accounts' usedTrafficGb
+    // Now recalculate colleague accounts' usedTrafficGb based on allocated limits
     if (db.colleague_accounts && Array.isArray(db.colleague_accounts)) {
       for (const colAcc of db.colleague_accounts) {
         const colKeys = (db.subscription_keys || []).filter((k: any) => k.colleagueAccountId === colAcc.id);
-        const totalUsed = colKeys.reduce((sum: number, k: any) => sum + (k.trafficUsedGb || 0), 0);
+        const totalUsed = colKeys.reduce((sum: number, k: any) => sum + (k.trafficLimitGb || 0), 0);
+        const totalRealUsed = colKeys.reduce((sum: number, k: any) => sum + (k.trafficUsedGb || 0), 0);
         
         if (Math.abs((colAcc.usedTrafficGb || 0) - totalUsed) > 0.01) {
             colAcc.usedTrafficGb = Number(totalUsed.toFixed(2));
+            updatedCount++;
+        }
+        if (Math.abs((colAcc.realUsedTrafficGb || 0) - totalRealUsed) > 0.01) {
+            colAcc.realUsedTrafficGb = Number(totalRealUsed.toFixed(2));
             updatedCount++;
         }
       }

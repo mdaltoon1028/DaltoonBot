@@ -1008,6 +1008,11 @@ def callback_handler(call):
             msg = bot.send_message(call.message.chat.id, "👤 <b>نام کاربر جدید را وارد کنید:</b>\n(برای انصراف کلمه «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
             bot.register_next_step_handler(msg, process_col_create_name, acc)
             
+        elif action == "suser":
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            msg = bot.send_message(call.message.chat.id, "🔍 <b>بخشی از نام کاربری مورد نظر را وارد کنید:</b>\n(برای انصراف کلمه «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+            bot.register_next_step_handler(msg, process_col_search_user, acc)
+
         elif action == "lusers":
             keys = db.get("subscription_keys", [])
             col_keys = [k for k in keys if k.get("colleagueAccountId") == acc_id]
@@ -1016,11 +1021,11 @@ def callback_handler(call):
             used = acc.get("usedTrafficGb", 0)
             rem = total - used
             
-            text = f"📊 <b>خلاصه وضعیت مصرف شما:</b>\n🔹 <b>کل حجم:</b> {total} گیگابایت\n🔴 <b>مصرف شده:</b> {used} گیگابایت\n🟢 <b>باقیمانده:</b> {rem} گیگابایت\n\n"
-            text += f"👥 <b>لیست کاربران شما:</b>\n\n"
+            text = f"📊 <b>خلاصه وضعیت حساب همکار شما:</b>\n🔹 <b>حجم کل بسته:</b> {total} گیگابایت\n🔴 <b>تخصیص داده شده به کاربران:</b> {used} گیگابایت\n🟢 <b>حجم مجاز برای ساخت کاربر جدید:</b> {rem} گیگابایت\n\n"
+            text += f"👥 <b>لیست کاربران ساخته شده:</b>\n\n"
             
             if rem <= 0:
-                text = "⚠️ <b>اخطار:</b> استفاده کاربران شما به سقف تعیین شده رسیده و اجازه ساخت کاربر جدید را ندارید. لطفاً برای تمدید اقدام کنید.\n\n" + text
+                text = "⚠️ <b>اخطار:</b> حجم مجاز شما به اتمام رسیده و اجازه ساخت کاربر جدید را ندارید. لطفاً برای ارتقاء یا تمدید اقدام کنید.\n\n" + text
             
             
             if not col_keys:
@@ -1282,6 +1287,7 @@ def show_colleague_panel_msg(message, acc):
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton("➕ ساخت کاربر جدید", callback_data=f"col_cuser_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("👥 لیست کاربران و مصرف", callback_data=f"col_lusers_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🔍 سرچ کاربر", callback_data=f"col_suser_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("🔙 خروج", callback_data="btn_back_home"))
     
     bot.send_message(
@@ -1294,6 +1300,7 @@ def show_colleague_panel(message, acc):
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton("➕ ساخت کاربر جدید", callback_data=f"col_cuser_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("👥 لیست کاربران و مصرف", callback_data=f"col_lusers_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🔍 سرچ کاربر", callback_data=f"col_suser_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("🔙 خروج", callback_data="btn_back_home"))
     
     bot.edit_message_text(
@@ -1302,6 +1309,44 @@ def show_colleague_panel(message, acc):
         message_id=message.message_id,
         reply_markup=markup
     )
+
+def process_col_search_user(message, acc):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start"] or "منصرف" in text:
+        bot.send_message(message.chat.id, "لغو شد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    db = read_db_json()
+    keys = db.get("subscription_keys", [])
+    col_keys = [k for k in keys if k.get("colleagueAccountId") == acc["id"]]
+    
+    # Filter by name
+    found_keys = []
+    for k in col_keys:
+        name = k.get("clientName") or k.get("planName") or ""
+        if text.lower() in name.lower():
+            found_keys.append(k)
+            
+    if not found_keys:
+        bot.send_message(message.chat.id, f"❌ کاربری با عنوان '{text}' یافت نشد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    result_text = f"🔍 <b>نتایج جستجو برای '{text}':</b>\n\n"
+    for k in found_keys:
+        name = k.get("clientName") or k.get("planName", "نامشخص")
+        gb = k.get("trafficLimitGb", 0)
+        used_gb = k.get("trafficUsedGb", 0)
+        rem_gb = gb - used_gb
+        expire_date = k.get("expireDate", "نامشخص")
+        url = k.get("subLink", "")
+        result_text += f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ انقضا: {expire_date}\n🔗 <code>{url}</code>\n\n"
+        
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("🔙 بازگشت به پنل همکار", callback_data=f"col_panel_{acc['id']}"))
+    
+    bot.send_message(message.chat.id, result_text, parse_mode="HTML", reply_markup=markup)
 
 def process_col_create_name(message, acc):
     text = message.text.strip() if message.text else ""
@@ -1366,6 +1411,10 @@ def process_col_create_days(message, acc, name, gb):
         bot.send_message(message.chat.id, f"❌ محدودیت تخصیص برای این کانفیگ از مصرف باقیمانده کل شما بیشتر است!\n\nمجاز باقیمانده: {remain:.2f} گیگابایت", reply_markup=get_custom_keyboard())
         show_colleague_panel_msg(message, live_acc)
         return
+        
+    live_acc["usedTrafficGb"] = used + gb
+    accounts[acc_idx] = live_acc
+    db["colleague_accounts"] = accounts
         
     import uuid
     import time
