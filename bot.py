@@ -117,22 +117,23 @@ def get_config():
                 config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
             if panel_cfg.get("btnTextBuy"):
                 config["BTN_BUY"] = panel_cfg["btnTextBuy"]
-            if panel_cfg.get("btnTextProfile"):
-                config["BTN_PROFILE"] = panel_cfg["btnTextProfile"]
-            if panel_cfg.get("btnTextWallet"):
-                config["BTN_WALLET"] = panel_cfg["btnTextWallet"]
-            if panel_cfg.get("btnTextSupport"):
-                config["BTN_SUPPORT"] = panel_cfg["btnTextSupport"]
-            if panel_cfg.get("btnTextFreeTest"):
-                config["BTN_FREETEST"] = panel_cfg["btnTextFreeTest"]
-            else:
-                config["BTN_FREETEST"] = "🎁 تست رایگان"
+            config["BTN_BUY_NEW"] = panel_cfg.get("btnTextBuyNew", "🛒 خرید اشتراک جدید")
+            config["BTN_MY_SUBS"] = panel_cfg.get("btnTextMySubs", "🗂 اشتراک های من / تمدید")
+            config["BTN_GUIDES"] = panel_cfg.get("btnTextGuides", "💡 آموزش ها")
+            config["BTN_PROFILE"] = panel_cfg.get("btnTextProfile", "👤 حساب کاربری")
+            config["BTN_SUPPORT"] = panel_cfg.get("btnTextSupport", "📞 پشتیبانی")
+            config["BTN_FREETEST"] = panel_cfg.get("btnTextFreeTest", "🎁 موجودی رایگان")
+            config["BTN_INSTANT_SUPPORT"] = panel_cfg.get("btnTextInstantSupport", "🤖 پشتیبانی آنی")
+            config["BTN_FEEDBACK"] = panel_cfg.get("btnTextFeedback", "💌 بازخورد کاربر ها")
 
-            config["HIDE_BUY"] = bool(panel_cfg.get("hideBuy", False))
-            config["HIDE_PROFILE"] = bool(panel_cfg.get("hideProfile", False))
-            config["HIDE_WALLET"] = bool(panel_cfg.get("hideWallet", False))
-            config["HIDE_SUPPORT"] = bool(panel_cfg.get("hideSupport", False))
-            config["HIDE_FREETEST"] = bool(panel_cfg.get("hideFreeTest", False))
+            config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
+            config["HIDE_MY_SUBS"] = bool(panel_cfg.get("hideBtnMySubs", False))
+            config["HIDE_GUIDES"] = bool(panel_cfg.get("hideBtnGuides", False))
+            config["HIDE_PROFILE"] = bool(panel_cfg.get("hideBtnProfile", False))
+            config["HIDE_SUPPORT"] = bool(panel_cfg.get("hideBtnSupport", False))
+            config["HIDE_FREETEST"] = bool(panel_cfg.get("hideBtnFreeTest", False))
+            config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg.get("hideBtnInstantSupport", False))
+            config["HIDE_FEEDBACK"] = bool(panel_cfg.get("hideBtnFeedback", False))
 
             if panel_cfg.get("botToken"):
                 config["BOT_TOKEN"] = panel_cfg["botToken"]
@@ -459,31 +460,33 @@ def get_custom_keyboard():
     layout = cfg.get("KEYBOARD_LAYOUT", "stepped")
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    
-    hide_buy = cfg.get("HIDE_BUY", False)
-    hide_profile = cfg.get("HIDE_PROFILE", False)
-    hide_wallet = cfg.get("HIDE_WALLET", False)
-    hide_support = cfg.get("HIDE_SUPPORT", False)
-    hide_free_test = cfg.get("HIDE_FREETEST", False)
 
-    # Top specific layer like screenshot
-    if not hide_buy:
-        markup.add(types.KeyboardButton("🛒 خرید اشتراک جدید"))
-    markup.add(types.KeyboardButton("🗂 اشتراک های من / تمدید"))
+    buttons = []
+    if not cfg.get("HIDE_BUY_NEW", False): buttons.append(types.KeyboardButton(cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید")))
+    if not cfg.get("HIDE_MY_SUBS", False): buttons.append(types.KeyboardButton(cfg.get("BTN_MY_SUBS", "🗂 اشتراک های من / تمدید")))
+    if not cfg.get("HIDE_GUIDES", False): buttons.append(types.KeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها")))
+    if not cfg.get("HIDE_PROFILE", False): buttons.append(types.KeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری")))
+    if not cfg.get("HIDE_SUPPORT", False): buttons.append(types.KeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی")))
+    if not cfg.get("HIDE_FREETEST", False): buttons.append(types.KeyboardButton(cfg.get("BTN_FREETEST", "🎁 موجودی رایگان")))
+    if not cfg.get("HIDE_INSTANT_SUPPORT", False): buttons.append(types.KeyboardButton(cfg.get("BTN_INSTANT_SUPPORT", "🤖 پشتیبانی آنی")))
+    if not cfg.get("HIDE_FEEDBACK", False): buttons.append(types.KeyboardButton(cfg.get("BTN_FEEDBACK", "💌 بازخورد کاربر ها")))
 
-    row3 = []
-    row3.append(types.KeyboardButton("💡 آموزش ها"))
-    if not hide_profile:
-        row3.append(types.KeyboardButton("👤 حساب کاربری"))
-    if row3: markup.add(*row3)
-    
-    row4 = []
-    if not hide_support:
-        row4.append(types.KeyboardButton("📞 پشتیبانی"))
-    if not hide_free_test:
-        row4.append(types.KeyboardButton("🎁 موجودی رایگان"))
-    if row4: markup.add(*row4)
-    
+    if layout == "vertical":
+        for b in buttons: markup.add(b)
+    else:    
+        # Default stepped / horizontal mixed
+        idx = 0
+        while idx < len(buttons):
+            if layout == "stepped" and idx == 0:
+                markup.add(buttons[idx])
+                idx += 1
+            elif idx + 1 < len(buttons):
+                markup.add(buttons[idx], buttons[idx+1])
+                idx += 2
+            else:
+                markup.add(buttons[idx])
+                idx += 1
+                
     # Custom dynamic buttons from DB
     try:
         db = read_db_json()
@@ -495,9 +498,6 @@ def get_custom_keyboard():
                 markup.add(types.KeyboardButton(cb[i]['text']))
     except Exception as e:
         print("Error fetching custom buttons:", e)
-    
-    # Bottom explicit layer
-    markup.add(types.KeyboardButton("🤖 پشتیبانی آنی"), types.KeyboardButton("💌 بازخورد کاربر ها"))
     
     return markup
 
@@ -620,16 +620,41 @@ def text_messages_handler(message):
         bot.send_message(message.chat.id, profile_text, parse_mode="HTML", reply_markup=markup)
 
     # 2.5 My Subs
-    elif "اشتراک های من" in text or "🗂" in text:
+    elif text == cfg.get("BTN_MY_SUBS", "") or "اشتراک های من" in text or "🗂" in text:
         db = read_db_json()
         active_keys = [k for k in db.get("subscription_keys", []) if k["userId"] == tg_id]
         
         if active_keys:
-            msg_text = "🔑 <b>سرویس‌های شما:</b>\n\n"
-            for k in active_keys:
-                msg_text += f"• <b>{k['planName']}</b>\n انقضا: {k['expireDate']} | حجم کل: {k['trafficLimitGb']} گیگابایت\n <code>{k['subLink']}</code>\n\n"
+            from datetime import datetime
+            
+            msg_text = "🔑 <b>سرویس‌های فعال شما:</b>\n\n"
+            for idx, k in enumerate(active_keys):
+                
+                # Check Dates
+                remaining_days = "نامشخص"
+                try:
+                    exp_dt = datetime.strptime(k['expireDate'], '%Y-%m-%d')
+                    delta = exp_dt - datetime.now()
+                    remaining_days = max(0, delta.days)
+                except:
+                    pass
+
+                limit_gb = float(k.get('trafficLimitGb', 0))
+                used_gb = float(k.get('trafficUsedGb', 0))
+                rem_gb = max(0.0, limit_gb - used_gb)
+
+                msg_text += f"🔹 <b>سرویس {idx + 1}: {k.get('planName', 'نامشخص')}</b>\n"
+                msg_text += f"━━━━━━━━━━━━━━━━━━\n"
+                msg_text += f"⏳ <b>اعتبار:</b> {k['expireDate']}\n"
+                msg_text += f"📅 <b>روز باقی مانده:</b> {remaining_days} روز\n\n"
+                msg_text += f"🌐 <b>حجم کل:</b> {limit_gb} گیگابایت\n"
+                msg_text += f"📉 <b>حجم مصرفی:</b> {used_gb} گیگابایت\n"
+                msg_text += f"🪫 <b>حجم باقی‌مانده:</b> {rem_gb:.2f} گیگابایت\n\n"
+                msg_text += f"🔗 <b>لینک اتصال (اشتراک):</b>\n"
+                msg_text += f"<code>{k.get('subLink', '')}</code>\n"
+                msg_text += f"━━━━━━━━━━━━━━━━━━\n\n"
         else:
-            msg_text = "❌ شما تا کنون هیچ سرویس اشتراکی از دالتون دریافت نکرده‌اید."
+            msg_text = "❌ شما تا کنون هیچ سرویس اشتراکی دریافت نکرده‌اید."
             
         bot.send_message(message.chat.id, msg_text, parse_mode="HTML")
 
@@ -678,7 +703,7 @@ def text_messages_handler(message):
     elif text == cfg.get("BTN_FREETEST", "🎁 موجودی رایگان") or "موجودی رایگان" in text or ("تست" in text and "رایگان" in text) or "🎁" in text:
         db = read_db_json()
         users = db.get("users", [])
-        user_idx = next((i for i, u in enumerate(users) if u["tgId"] == tg_id), -1)
+        user_idx = next((i for i, u in enumerate(users) if u.get("userId") == tg_id), -1)
         if user_idx >= 0 and users[user_idx].get("hasReceivedFreeTest"):
             bot.send_message(message.chat.id, "❌ <b>شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!</b>\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.", parse_mode="HTML")
             return

@@ -87,11 +87,37 @@ export default function BotSimulator({
 
   // Construct reply keyboard dynamically with custom menu buttons
   const getKeyboard = () => {
-    const baseKeyboard = [
-      [t.btnBuyPlan, t.btnMyAccount],
-      [t.btnTopUp, t.btnSupport]
-    ];
+    const layout = settings?.keyboardLayout || "stepped";
+    const buttons: string[] = [];
     
+    if (!settings?.hideBtnBuyNew) buttons.push(settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید");
+    if (!settings?.hideBtnMySubs) buttons.push(settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید");
+    if (!settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
+    if (!settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
+    if (!settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "📞 پشتیبانی");
+    if (!settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
+    if (!settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
+    if (!settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
+
+    const dynamicKeyboard: string[][] = [];
+    if (layout === "vertical") {
+      buttons.forEach(b => dynamicKeyboard.push([b]));
+    } else {
+      let idx = 0;
+      while (idx < buttons.length) {
+        if (layout === "stepped" && idx === 0) {
+          dynamicKeyboard.push([buttons[idx]]);
+          idx += 1;
+        } else if (idx + 1 < buttons.length) {
+          dynamicKeyboard.push([buttons[idx], buttons[idx + 1]]);
+          idx += 2;
+        } else {
+          dynamicKeyboard.push([buttons[idx]]);
+          idx += 1;
+        }
+      }
+    }
+
     // Convert custom menu buttons to rows of 2
     const customLabels = customButtons.map(cb => cb.text);
     const customRows: string[][] = [];
@@ -99,7 +125,7 @@ export default function BotSimulator({
       customRows.push(customLabels.slice(i, i + 2));
     }
     
-    return [...baseKeyboard, ...customRows];
+    return [...dynamicKeyboard, ...customRows];
   };
 
   useEffect(() => {
@@ -265,7 +291,7 @@ export default function BotSimulator({
       return;
     }
 
-    if (text.includes("🛍️") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
+    if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
       const inlinePlans = plans.map(p => ({
         text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
         action: `buy_${p.id}`
@@ -279,70 +305,67 @@ export default function BotSimulator({
         inlinePlans
       );
     } 
-    else if (text.includes("👤") || text.includes("حساب") || text.includes("Account") || text.includes("My")) {
+    else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
+      const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
+      // Profile Info (without active plans details string, we'll keep it simple profile)
+      addBotReply(
+        lang === "fa"
+          ? `👤 <b>اطلاعات حساب مس کاربری شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}\n💰 موجودی کیف پول: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>`
+          : `👤 <b>My Account Wallet Details:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}\n💰 Wallet Balance: <b>${currentUser.walletBalance.toLocaleString()} Toman</b>`,
+        600
+      );
+    }
+    else if (text === (settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید") || text.includes("اشتراک های من") || text.includes("🗂")) {
       const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
       let subDetails = "";
       if (lang === "fa") {
         if (activeUserKeys.length > 0) {
-          subDetails = "\n\n🔑 <b>کانفیگ‌های فعال شما در پنل دالتون:</b>\n" + activeUserKeys.map((k, i) => {
+          subDetails = "🔑 <b>سرویس‌های فعال شما:</b>\n\n" + activeUserKeys.map((k, i) => {
             const total = k.trafficLimitGb || 50;
             const used = k.trafficUsedGb || 0;
             const remaining = Math.max(0, total - used);
             
             // Calculate remaining days
-            const expDate = new Date(k.expireDate);
-            const now = new Date();
-            const diffTime = expDate.getTime() - now.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            const timeStr = diffDays > 0 ? `<b>${diffDays} روز</b> باقی‌مانده` : "<b>منقضی شده ❌</b>";
-
-            return `📊 <b>سرویس ${i + 1}: ${k.planName}</b>\n` +
-                   `🔗 سابسکریپشن:\n<code>${k.subLink}</code>\n` +
-                   `⏳ زمان باقی‌مانده: ${timeStr} (${k.expireDate})\n` +
-                   `📥 حجم استفاده شده: <b>${used.toFixed(2)} GB</b>\n` +
-                   `🔋 ترافیک باقی‌مانده: <b>${remaining.toFixed(2)} GB</b>\n` +
-                   `💿 حجم کل سرویس: <b>${total} GB</b>\n` +
-                   `⚙️ وضعیت اتصال: <b>${k.status === "active" ? "فعال ✅" : "قطع شده ❌"}</b>`;
-          }).join("\n\n────────────────\n\n");
+            let remainingDays = "نامشخص";
+            try {
+              const expDate = new Date(k.expireDate);
+              const now = new Date();
+              const diffTime = expDate.getTime() - now.getTime();
+              const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+              remainingDays = diffDays.toString();
+            } catch(e) {}
+            
+            return `🔹 <b>سرویس ${i + 1}: ${k.planName}</b>\n` +
+                   `━━━━━━━━━━━━━━━━━━\n` +
+                   `⏳ <b>اعتبار:</b> ${k.expireDate}\n` +
+                   `📅 <b>روز باقی مانده:</b> ${remainingDays} روز\n\n` +
+                   `🌐 <b>حجم کل:</b> ${total} گیگابایت\n` +
+                   `📉 <b>حجم مصرفی:</b> ${used.toFixed(2)} گیگابایت\n` +
+                   `🪫 <b>حجم باقی‌مانده:</b> ${remaining.toFixed(2)} گیگابایت\n\n` +
+                   `🔗 <b>لینک اتصال (اشتراک):</b>\n<code>${k.subLink}</code>\n` +
+                   `━━━━━━━━━━━━━━━━━━`;
+          }).join("\n\n");
         } else {
-          subDetails = "\n\n❌ شما تا کنون کانفیگ یا اشتراک فعالی از این ربات خریداری نکرده‌اید.";
+          subDetails = "❌ شما تا کنون هیچ سرویس اشتراکی دریافت نکرده‌اید.";
         }
-        addBotReply(
-          `👤 <b>اطلاعات حساب دالتون شما:</b>\n\n🆔 شناسه کاربری: <code>${currentUser.userId}</code>\n🏷️ آیدی تلگرام: @${currentUser.username}\n💰 موجودی کیف پول: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>${subDetails}`,
-          600
-        );
+        addBotReply(subDetails, 600);
       } else {
-        if (activeUserKeys.length > 0) {
-          subDetails = "\n\n🔑 <b>Your Active Subscriptions:</b>\n" + activeUserKeys.map((k, i) => {
-            const total = k.trafficLimitGb || 50;
-            const used = k.trafficUsedGb || 0;
-            const remaining = Math.max(0, total - used);
-            
-            // Calculate remaining days
-            const expDate = new Date(k.expireDate);
-            const now = new Date();
-            const diffTime = expDate.getTime() - now.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            const timeStr = diffDays > 0 ? `<b>${diffDays} days</b> left` : "<b>Expired ❌</b>";
-
-            return `📊 <b>Service #${i + 1}: ${k.planName}</b>\n` +
-                   `🔗 subscription link:\n<code>${k.subLink}</code>\n` +
-                   `⏳ Time Remaining: ${timeStr} (${k.expireDate})\n` +
-                   `📥 Used Volume: <b>${used.toFixed(2)} GB</b>\n` +
-                   `🔋 Remaining Volume: <b>${remaining.toFixed(2)} GB</b>\n` +
-                   `💿 Total Limit: <b>${total} GB</b>\n` +
-                   `⚙️ Status: <b>${k.status === "active" ? "ACTIVE ✅" : "INACTIVE ❌"}</b>`;
-          }).join("\n\n────────────────\n\n");
-        } else {
-          subDetails = "\n\n❌ You have no active premium configs or subscription keys.";
-        }
-        addBotReply(
-          `👤 <b>My Account Wallet Details:</b>\n\n🆔 User ID: <code>${currentUser.userId}</code>\n🏷️ Telegram Handle: @${currentUser.username}\n💰 Wallet Balance: <b>${currentUser.walletBalance.toLocaleString()} Toman</b>${subDetails}`,
-          600
-        );
+        addBotReply("Subscriptions listed here (English mode).", 600);
       }
-    } 
-    else if (text.includes("💳") || text.includes("شارژ") || text.includes("Top-up") || text.includes("top") || text.includes("Wallet")) {
+    }
+    else if (text === (settings?.btnTextFreeTest || "🎁 موجودی رایگان") || text.includes("🎁") || text.includes("رایگان") || text.includes("Free")) {
+        addBotReply(lang === "fa" ? "🎁 قابلیت اکانت تست رایگان در این شبیه‌ساز غیرفعال است." : "Free tests are demoed in live bot only.", 500);
+    }
+    else if (text === (settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی") || text.includes("🤖")) {
+        addBotReply(lang === "fa" ? "🤖 پاسخگوی خودکار غیرفعال است. لطفا به پشتیبانی انسانی پیام دهید." : "Instant support AI offline.", 500);
+    }
+    else if (text === (settings?.btnTextFeedback || "💌 بازخورد کاربر ها") || text.includes("💌") || text.includes("Feedback")) {
+        addBotReply(lang === "fa" ? "💌 با تشکر از بازخورد شما. نظرات شما ثبت خواهد شد." : "Thank you for your feedback.", 500);
+    }
+    else if (text === (settings?.btnTextGuides || "💡 آموزش ها") || text.includes("💡") || text.includes("آموزش")) {
+        addBotReply(lang === "fa" ? "💡 لینک آموزش اتصال به زودی در اینجا قرار میگیرد." : "Tutorials coming soon.", 500);
+    }
+    else if (text === "💳 شارژ کیف پول" || text.includes("شارژ") || text.includes("Wallet")) {
       if (lang === "fa") {
         addBotReply(
           `💳 آموزش شارژ کیف پول:\n\nلطفا مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n📥 شماره کارت:\n<code>6037-9918-2831-8848</code>\n🏦 بانک ملی ایران\n👤 به نام: دالتون بات\n\nپس از واریز، روی دکمه زیر کلیک کرده و مبلغ پرداختی به همراه تصویر فیش بانکی را برای ما ارسال کنید تا بررسی و تأیید شود. 👇`,
