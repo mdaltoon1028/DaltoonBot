@@ -607,19 +607,17 @@ async function addVpnClientApi(
     }
 
     clientUuid = clientUuid || crypto.randomUUID();
-    const addUrl = `${cleanedUrl}/panel/api/clients/add`;
-    const payload = {
-      client: {
+    const configSettings = {
+      clients: [{
         id: clientUuid,
         email: clientEmail,
         limitIp: 0,
         totalGB: totalBytes,
         expiryTime: expiryTimeMs,
         enable: true,
-        tgId: 0,
+        tgId: "",
         subId: clientEmail
-      },
-      inboundIds: inboundIds
+      }]
     };
 
     const headers: Record<string, string> = {
@@ -632,34 +630,47 @@ async function addVpnClientApi(
       headers["X-Csrf-Token"] = loginResult.csrfToken;
     }
 
-    let lastError = "";
-    try {
-      const addRes = await xuiFetch(addUrl, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(payload)
-      }, 8000);
+    let successCount = 0;
+    const failReasons: string[] = [];
 
-      if (addRes.ok) {
-        const addText = await addRes.text();
-        const addJson = JSON.parse(addText);
-        if (addJson && addJson.success) {
-          console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
-          const subLink = `${cleanedUrl}/sub/${clientEmail}`;
-          return { success: true, clientUuid: uuid, subLink };
+    for (const inboundId of inboundIds) {
+      const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
+      const payload = {
+        id: inboundId,
+        settings: JSON.stringify(configSettings)
+      };
+
+      try {
+        const addRes = await xuiFetch(addUrl, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload)
+        }, 8000);
+
+        if (addRes.ok) {
+          const addText = await addRes.text();
+          const addJson = JSON.parse(addText);
+          if (addJson && addJson.success) {
+            successCount++;
+          } else {
+            failReasons.push(addJson?.msg || addText);
+          }
         } else {
-          console.warn(`[Sanaei API Response] Creation error: ${addText}`);
-          lastError = addJson?.msg || addText;
+          failReasons.push(`HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`);
         }
-      } else {
-        lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
+      } catch (err: any) {
+        failReasons.push(err.message);
       }
-    } catch (err: any) {
-      console.error(`[Sanaei API Error] Failed to create global client: ${err.message}`);
-      lastError = err.message;
     }
 
-    return { success: false, error: "تعریف کلاینت عمومی و الصاق به اینباندها موفق نبود. خطا: " + lastError };
+    if (successCount > 0) {
+      console.log(`[Sanaei API Sync] Created user '${clientEmail}' on ${successCount} inbounds successfully.`);
+      const subLink = `${cleanedUrl}/sub/${clientEmail}`;
+      return { success: true, clientUuid, subLink }; // Ensure we use clientUuid
+    } else {
+      console.warn(`[Sanaei API Response] Creation errors: ${failReasons.join(', ')}`);
+      return { success: false, error: "تعریف کلاینت موفق نبود. خطا: " + (failReasons[0] || "Unknown error") };
+    }
   } catch (e: any) {
     console.error("[addVpnClientApi] helper crash:", e);
     return { success: false, error: e.message };

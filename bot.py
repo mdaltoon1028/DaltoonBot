@@ -346,26 +346,37 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
 
-    add_url = f"{cfg['XUI_URL']}/panel/api/clients/add"
-    payload = {
-        "client": client_config,
-        "inboundIds": inbound_ids
-    }
-    
-    try:
-        headers = {"Accept": "application/json"}
-        response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
-        res_json = response.json()
-        if res_json.get("success"):
-            print(f"[Sanaei API Sync] Created user '{client_email}' globally on inbounds successfully.")
-            sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
-            return client_uuid, sub_link
-        else:
-            print(f"[Sanaei API Response] Creation error: {response.text}")
-    except Exception as e:
-        print(f"[Sanaei API Request Error] Global client add timeout or error: {e}")
+    sub_link = None
+    success_count = 0
+    fail_reasons = []
 
-    return None, None
+    for inbound_id in inbound_ids:
+        add_url = f"{cfg['XUI_URL']}/panel/api/inbounds/addClient"
+        payload = {
+            "id": inbound_id,
+            "settings": json.dumps({
+                "clients": [client_config]
+            })
+        }
+        
+        try:
+            headers = {"Accept": "application/json"}
+            response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
+            res_json = response.json()
+            if res_json.get("success"):
+                success_count += 1
+            else:
+                fail_reasons.append(response.text)
+        except Exception as e:
+            fail_reasons.append(str(e))
+            
+    if success_count > 0:
+        print(f"[Sanaei API Sync] Created user '{client_email}' on {success_count} inbounds successfully.")
+        sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
+        return client_uuid, sub_link
+    else:
+        print(f"[Sanaei API Request Error] Global client add failed on all inbounds: {fail_reasons}")
+        return None, None
 
 # --- User Management DB Queries ---
 def set_user_pending_charge(tg_id, amount):
@@ -663,7 +674,7 @@ def text_messages_handler(message):
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
         
     # 5. Free Test
-    elif text == cfg.get("BTN_FREETEST", "🎁 تست رایگان"):
+    elif text == cfg.get("BTN_FREETEST", "🎁 تست رایگان") or ("تست" in text and "رایگان" in text):
         db = read_db_json()
         users = db.get("users", [])
         user_idx = next((i for i, u in enumerate(users) if u["tgId"] == tg_id), -1)
