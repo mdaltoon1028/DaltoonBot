@@ -1,26 +1,21 @@
-import requests
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import json
+import os
+import sys
 
-session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9,fa;q=0.8"
-})
+# load bot.py logic
+sys.path.append(os.getcwd())
+import bot
 
-url = "https://m.daltoon-server.ir:8443/Daltoon/login"
-data = {
-    "username": "Daltoon",
-    "password": "dummy_password_for_test"  # we just want to see the HTTP response
-}
+cfg = bot.get_config()
+print("URL:", cfg['XUI_URL'])
+print("USER:", cfg['XUI_USER'])
+print("SUB_URL:", cfg['SUB_URL'])
 
-print(f"Testing POST to {url}...")
-try:
-    response = session.post(url, data=data, timeout=8, verify=False)
-    print("Status:", response.status_code)
-    print("Headers:", response.headers)
-    print("Cookies:", response.cookies.get_dict())
-    print("Body:", response.text[:500])
-except Exception as e:
-    print("Error:", e)
+res = bot.login_xui()
+print("Login result:", res)
+
+db = bot.read_db_json()
+settings_str = db.get("settings", {}).get("panel_config")
+if settings_str:
+    panel_cfg = json.loads(settings_str)
+    print("Active inbounds:", panel_cfg.get("activeInboundIds", []))

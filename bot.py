@@ -233,6 +233,7 @@ def login_xui():
         }
         if csrf_token:
             headers["X-Csrf-Token"] = csrf_token
+            session.headers.update({"X-Csrf-Token": csrf_token})
 
         print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
         response = session.post(login_url, data=login_data, headers=headers, timeout=8, verify=False)
