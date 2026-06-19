@@ -52,7 +52,7 @@ export default function ServerManagement({
 
   // Form states for the VPN package
   const [planName, setPlanName] = useState("");
-  const [planMonths, setPlanMonths] = useState("1");
+  const [planDays, setPlanDays] = useState("30");
   const [planTraffic, setPlanTraffic] = useState("50");
   const [planPrice, setPlanPrice] = useState("135000"); // in Toman
   const [planCategory, setPlanCategory] = useState<"Standard" | "VIP" | "Unlimited VoIP">("Standard");
@@ -169,7 +169,7 @@ export default function ServerManagement({
   const startEditPlan = (plan: VpnPlan) => {
     setEditingPlanId(plan.id);
     setPlanName(plan.name);
-    setPlanMonths(String(plan.durationMonths));
+    setPlanDays(String(plan.durationDays));
     setPlanTraffic(String(plan.trafficGb));
     setPlanPrice(String(plan.price));
     setPlanCategory(plan.category);
@@ -199,7 +199,7 @@ export default function ServerManagement({
     const targetPlan: VpnPlan = {
       id: idToUse,
       name: planName.trim(),
-      durationMonths: Number(planMonths) || 1,
+      durationDays: Number(planDays) || 30,
       trafficGb: Number(planTraffic) || 30,
       price: priceNum,
       category: planCategory,
@@ -631,14 +631,14 @@ export default function ServerManagement({
                 </div>
                 
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "مدت زمان (به ماه)" : "Duration (Months)"}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "مدت زمان (به روز)" : "Duration (Days)"}</label>
                   <input
                     type="number"
                     required
                     min="1"
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono font-semibold"
-                    value={planMonths}
-                    onChange={(e) => setPlanMonths(e.target.value)}
+                    value={planDays}
+                    onChange={(e) => setPlanDays(e.target.value)}
                   />
                 </div>
 
@@ -726,7 +726,7 @@ export default function ServerManagement({
                           </span>
                         </div>
                         <span className="text-xs text-amber-400 font-bold font-mono bg-amber-400/5 border border-amber-400/10 px-2 py-1 rounded-lg">
-                          ${plan.durationMonths} {lang === "fa" ? "ماه" : "M"} / ${plan.trafficGb}GB
+                          {plan.durationDays} {lang === "fa" ? "روز" : "Days"} / {plan.trafficGb}GB
                         </span>
                       </div>
 

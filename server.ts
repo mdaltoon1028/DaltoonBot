@@ -46,11 +46,11 @@ function readJsonDb(): DbSchema {
         transactions: [],
         subscription_keys: [],
         vpn_plans: [
-          { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationMonths: 1, trafficGb: 30, price: 95000, category: "Standard", configStock: [] },
-          { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationMonths: 1, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
-          { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationMonths: 1, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
-          { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationMonths: 3, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
-          { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationMonths: 1, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
+          { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationDays: 30, trafficGb: 30, price: 95000, category: "Standard", configStock: [] },
+          { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationDays: 30, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
+          { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationDays: 30, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
+          { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationDays: 90, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
+          { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationDays: 30, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
         ],
         inbounds: [],
         custom_buttons: [],
@@ -88,11 +88,11 @@ function readJsonDb(): DbSchema {
     // Backport vpn_plans on existing database structures
     if (!db.vpn_plans) {
       db.vpn_plans = [
-        { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationMonths: 1, trafficGb: 30, price: 95000, category: "Standard", configStock: [] },
-        { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationMonths: 1, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
-        { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationMonths: 1, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
-        { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationMonths: 3, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
-        { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationMonths: 1, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
+        { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationDays: 30, trafficGb: 30, price: 95000, category: "Standard", configStock: [] },
+        { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationDays: 30, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
+        { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationDays: 30, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
+        { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationDays: 90, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
+        { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationDays: 30, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
       ];
       fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
     }
@@ -505,7 +505,7 @@ async function loginXuiPanel(cleanedUrl: string, username: string, password: str
 async function addVpnClientApi(
   clientEmail: string,
   trafficGb: number,
-  durationMonths: number,
+  durationDays: number,
   settings: any,
   clientUuid?: string
 ): Promise<{ success: boolean; clientUuid?: string; subLink?: string; error?: string }> {
@@ -521,7 +521,7 @@ async function addVpnClientApi(
 
     const uuid = clientUuid || Math.random().toString(36).substring(2, 10) + "-" + Math.random().toString(36).substring(2, 6);
     const totalBytes = Math.floor(trafficGb * 1024 * 1024 * 1024);
-    const expiryTimeMs = Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000;
+    const expiryTimeMs = Date.now() + durationDays * 24 * 60 * 60 * 1000;
 
     // Determine inbound_ids
     let inboundIds: number[] = [];
@@ -1052,10 +1052,10 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
       return res.status(400).json({ success: false, error: "اتصال به پنل ۳x-ui در تنظیمات غیرفعال است." });
     }
 
-    const durationMonths = Number(expiryDays) / 30 || 1;
+    const durationDays = Number(expiryDays) || 30;
     const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
 
-    const vpnResult = await addVpnClientApi(cleanClientName, Number(trafficLimitGb), durationMonths, settings);
+    const vpnResult = await addVpnClientApi(cleanClientName, Number(trafficLimitGb), durationDays, settings);
 
     if (vpnResult.success && vpnResult.subLink) {
       const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
@@ -1208,14 +1208,14 @@ app.post("/api/inbounds/toggle", async (req, res) => {
 // Dynamic VPN Plans Management & Purchase logic
 app.post("/api/vpn-plans", async (req, res) => {
   try {
-    const { id, name, durationMonths, trafficGb, price, category, configStock } = req.body;
+    const { id, name, durationDays, trafficGb, price, category, configStock } = req.body;
     const db = readJsonDb();
     if (!db.vpn_plans) db.vpn_plans = [];
 
     const nextPlan = {
       id,
       name,
-      durationMonths: Number(durationMonths),
+      durationDays: Number(durationDays),
       trafficGb: Number(trafficGb),
       price: Number(price),
       category,
@@ -1312,7 +1312,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       subLink = `vless://${cleanClientName}_test_id@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_${cleanClientName}_Test`;
     } else if (settings.panelConnectionActive) {
       console.log(`[Buy API] Connection active, creating user '${cleanClientName}' on panel...`);
-      const apiResult = await addVpnClientApi(cleanClientName, plan.trafficGb, plan.durationMonths, settings);
+      const apiResult = await addVpnClientApi(cleanClientName, plan.trafficGb, plan.durationDays, settings);
       if (apiResult.success && apiResult.subLink) {
         subLink = apiResult.subLink;
       } else {
@@ -1327,7 +1327,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
     
     // Create subscription key
     const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
-    const expireDate = new Date(Date.now() + plan.durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const expireDate = new Date(Date.now() + plan.durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     
     const newSub = {
       id: randomId,

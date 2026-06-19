@@ -251,7 +251,7 @@ def login_xui():
         print(f"[Sanaei X-UI API] Handshake error during authentication: {e}")
     return False
 
-def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=None):
+def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
     """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
     if not login_xui():
@@ -268,7 +268,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_months, client_uuid=No
 
     total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
     # Expiry timestamp in milliseconds
-    expiry_time_ms = int((time.time() + (duration_months * 30 * 24 * 60 * 60)) * 1000)
+    expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
     client_config = {
         "email": client_email,
@@ -524,14 +524,14 @@ def text_messages_handler(message):
                     "name": dp["name"],
                     "price": dp["price"],
                     "traffic": dp.get("trafficGb", 30),
-                    "duration": dp.get("durationMonths", 1)
+                    "duration": dp.get("durationDays", 30)
                 })
         else:
             # Fallback legacy values
             plans_data = [
-                {"id": "std_30g", "name": "Standard 30GB - ۱ ماهه", "price": 45000, "traffic": 30, "duration": 1},
-                {"id": "vip_70g", "name": "VIP Premium 70GB - ۲ ماهه", "price": 95000, "traffic": 70, "duration": 2},
-                {"id": "ult_150g", "name": "Unlimited VoIP 150GB - ۳ ماهه", "price": 185000, "traffic": 150, "duration": 3}
+                {"id": "std_30g", "name": "Standard 30GB - ۳۰ روزه", "price": 45000, "traffic": 30, "duration": 30},
+                {"id": "vip_70g", "name": "VIP Premium 70GB - ۶۰ روزه", "price": 95000, "traffic": 70, "duration": 60},
+                {"id": "ult_150g", "name": "Unlimited VoIP 150GB - ۹۰ روزه", "price": 185000, "traffic": 150, "duration": 90}
             ]
         
         markup = types.InlineKeyboardMarkup(row_width=1)
@@ -667,7 +667,7 @@ def process_purchase_username(message, plan_id, spec):
         sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
         print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
 
-    expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 30 * 24 * 60 * 60))
+    expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
     sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
 
     create_sub_key(
@@ -724,14 +724,14 @@ def callback_handler(call):
                 "name": db_plan["name"],
                 "price": db_plan["price"],
                 "traffic": db_plan.get("trafficGb", 30),
-                "duration": db_plan.get("durationMonths", 1)
+                "duration": db_plan.get("durationDays", 30)
             }
         else:
             # Details of the fallback plans
             plan_specs = {
-                "std_30g": {"id": "std_30g", "name": "Standard 30GB", "price": 45000, "traffic": 30, "duration": 1},
-                "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB", "price": 95000, "traffic": 70, "duration": 2},
-                "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB", "price": 185000, "traffic": 150, "duration": 3}
+                "std_30g": {"id": "std_30g", "name": "Standard 30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
+                "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
+                "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
             }
             spec = plan_specs.get(plan_id)
             

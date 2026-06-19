@@ -271,7 +271,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, lang, 
                     <span>•</span>
                     <span className="text-gray-300 font-semibold">{p.trafficGb} GB</span>
                     <span>•</span>
-                    <span className="text-indigo-300 font-semibold">{p.durationMonths} {lang === "fa" ? "ماه" : "M"}</span>
+                    <span className="text-indigo-300 font-semibold">{p.durationDays} {lang === "fa" ? "روز" : "Days"}</span>
                   </div>
                 </div>
                 <div className="text-right">

@@ -71,7 +71,7 @@ export interface Transaction {
 export interface VpnPlan {
   id: string;
   name: string;
-  durationMonths: number;
+  durationDays: number;
   trafficGb: number;
   price: number; // in Toman
   category: "Standard" | "VIP" | "Unlimited VoIP";
