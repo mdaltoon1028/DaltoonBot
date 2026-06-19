@@ -990,6 +990,57 @@ def process_purchase_username(message, plan_id, spec):
 def callback_handler(call):
     tg_id = call.from_user.id
     
+    if call.data.startswith("col_"):
+        bot.answer_callback_query(call.id)
+        parts = call.data.split("_")
+        action = parts[1]
+        acc_id = parts[2]
+        
+        db = read_db_json()
+        accounts = db.get("colleague_accounts", [])
+        acc = next((a for a in accounts if a["id"] == acc_id), None)
+        if not acc:
+            bot.edit_message_text("❌ حساب همکار یافت نشد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+            
+        if action == "cuser":
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            msg = bot.send_message(call.message.chat.id, "👤 <b>نام کاربر جدید را وارد کنید:</b>\n(برای انصراف کلمه «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+            bot.register_next_step_handler(msg, process_col_create_name, acc)
+            
+        elif action == "lusers":
+            keys = db.get("subscription_keys", [])
+            col_keys = [k for k in keys if k.get("colleagueAccountId") == acc_id]
+            
+            total = acc.get("trafficGb", 0)
+            used = acc.get("usedTrafficGb", 0)
+            rem = total - used
+            
+            text = f"📊 <b>خلاصه وضعیت مصرف شما:</b>\n🔹 <b>کل حجم:</b> {total} گیگابایت\n🔴 <b>مصرف شده:</b> {used} گیگابایت\n🟢 <b>باقیمانده:</b> {rem} گیگابایت\n\n"
+            text += "👥 <b>لیست کاربران شما:</b>\n\n"
+            
+            if not col_keys:
+                text += "هنوز کاربری ایجاد نکرده‌اید."
+            else:
+                base_url = db.get("settings", {}).get("baseUrl", "http://domain.com")
+                for k in col_keys:
+                    name = k.get("name") or k.get("planName", "نامشخص")
+                    gb = k.get("trafficGb", 0)
+                    used_gb = k.get("trafficUsedGb", 0)
+                    rem_gb = gb - used_gb
+                    days = k.get("durationDays", 0)
+                    url = f"{base_url}/sub/{k['key']}"
+                    text += f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ اعتبار: {days} روز\n🔗 <code>{url}</code>\n\n"
+                
+            markup = types.InlineKeyboardMarkup()
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"col_panel_{acc['id']}"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
+            
+        elif action == "panel":
+            show_colleague_panel(call.message, acc)
+            
+        return
+
     if call.data.startswith("mm_"):
         handle_main_menu_callback(call)
         return
@@ -1032,46 +1083,15 @@ def callback_handler(call):
                 reply_markup=markup
             )
             return
-            
-        import uuid
-        import string
-        import random
-        from datetime import datetime, timedelta
-        
-        # Deduct wallet
-        user["walletBalance"] = bal - package["price"]
-        update_user_db(user)
-        
-        # Create colleague account
-        import string
-        username = "C" + "".join(random.choices(string.digits, k=5))
-        password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
-        
-        if not db.get("colleague_accounts"):
-            db["colleague_accounts"] = []
-            
-        new_acc = {
-            "id": str(uuid.uuid4()),
-            "userId": tg_id,
-            "username": username,
-            "password": password,
-            "packageId": package["id"],
-            "packageTitle": package["title"],
-            "createdAt": datetime.now().strftime("%Y-%m-%d"),
-            "trafficGb": package["trafficGb"],
-            "status": "active"
-        }
-        
-        db["colleague_accounts"].append(new_acc)
-        write_db_json(db)
-        
+
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.send_message(
-            tg_id,
-            f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به حساب، از منوی سرویس‌های همکاران «ورود به حساب همکار» را انتخاب کنید.",
-            parse_mode="HTML",
-            reply_markup=get_custom_keyboard()
+        msg = bot.send_message(
+            tg_id, 
+            " لطفاً یک نام (انگلیسی) به عنوان <b>پسوند/پیشوند</b> کانفیگ‌های خود وارد کنید:\n(این نام در لینک‌های اشتراک کاربران شما استفاده می‌شود)", 
+            parse_mode="HTML", 
+            reply_markup=get_cancel_keyboard()
         )
+        bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
         
     if call.data.startswith("buy_"):
@@ -1254,6 +1274,187 @@ def process_colleague_login_username(message):
     msg = bot.send_message(message.chat.id, "🔑 <b>رمز عبور (Password)</b> خود را بفرستید:", parse_mode="HTML", reply_markup=get_cancel_keyboard())
     bot.register_next_step_handler(msg, process_colleague_login_password, acc)
 
+def show_colleague_panel_msg(message, acc):
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("➕ ساخت کاربر جدید", callback_data=f"col_cuser_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("👥 لیست کاربران و مصرف", callback_data=f"col_lusers_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🔙 خروج", callback_data="btn_back_home"))
+    
+    bot.send_message(
+        message.chat.id,
+        f"پنل همکار ({acc.get('prefix', 'Col')})\n\nبسته: {acc['packageTitle']}",
+        reply_markup=markup
+    )
+
+def show_colleague_panel(message, acc):
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("➕ ساخت کاربر جدید", callback_data=f"col_cuser_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("👥 لیست کاربران و مصرف", callback_data=f"col_lusers_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🔙 خروج", callback_data="btn_back_home"))
+    
+    bot.edit_message_text(
+        f"پنل همکار ({acc.get('prefix', 'Col')})\n\nبسته: {acc['packageTitle']}",
+        chat_id=message.chat.id,
+        message_id=message.message_id,
+        reply_markup=markup
+    )
+
+def process_col_create_name(message, acc):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start"] or "منصرف" in text:
+        bot.send_message(message.chat.id, "لغو شد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    msg = bot.send_message(message.chat.id, "حجم مورد نظر (به گیگابایت) را وارد کنید:")
+    bot.register_next_step_handler(msg, process_col_create_gb, acc, text)
+
+def process_col_create_gb(message, acc, name):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start"] or "منصرف" in text:
+        bot.send_message(message.chat.id, "لغو شد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    try:
+        gb = int(text)
+    except ValueError:
+        msg = bot.send_message(message.chat.id, "لطفاً یک عدد صحیح معتبر برای حجم وارد کنید:")
+        bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
+        return
+        
+    msg = bot.send_message(message.chat.id, "تعداد روز اعتبار را وارد کنید:")
+    bot.register_next_step_handler(msg, process_col_create_days, acc, name, gb)
+
+def process_col_create_days(message, acc, name, gb):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start"] or "منصرف" in text:
+        bot.send_message(message.chat.id, "لغو شد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    try:
+        days = int(text)
+    except ValueError:
+        msg = bot.send_message(message.chat.id, "لطفاً یک عدد صحیح معتبر برای روز وارد کنید:")
+        bot.register_next_step_handler(msg, process_col_create_days, acc, name, gb)
+        return
+        
+    db = read_db_json()
+    accounts = db.get("colleague_accounts", [])
+    acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc["id"]), -1)
+    
+    if acc_idx == -1:
+        bot.send_message(message.chat.id, "حساب همکار یافت نشد.", reply_markup=get_custom_keyboard())
+        return
+        
+    live_acc = accounts[acc_idx]
+    total = live_acc.get("trafficGb", 0)
+    used = live_acc.get("usedTrafficGb", 0)
+    remain = total - used
+    
+    if gb > remain:
+        bot.send_message(message.chat.id, f"❌ حجم باقیمانده شما کافی نیست!\n\nباقیمانده واقعی: {remain} گیگابایت", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, live_acc)
+        return
+        
+    import uuid
+    import time
+    from datetime import datetime
+    
+    new_uuid = str(uuid.uuid4())
+    full_name = f"{live_acc.get('prefix', 'Col')}-{name}"
+    
+    sub = {
+        "key": new_uuid,
+        "uuid": new_uuid,
+        "planId": "colleague_custom",
+        "planName": full_name,
+        "name": full_name,
+        "userId": live_acc.get("userId", message.chat.id),
+        "trafficGb": gb,
+        "durationDays": days,
+        "active": True,
+        "status": "active",
+        "createdAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": int(time.time()),
+        "inbounds": db.get("settings", {}).get("activeInboundIds", []),
+        "colleagueAccountId": live_acc["id"]
+    }
+    
+    if "subscription_keys" not in db:
+        db["subscription_keys"] = []
+    db["subscription_keys"].append(sub)
+    
+    write_db_json(db)
+    
+    base_url = db.get("settings", {}).get("baseUrl", "http://localhost:3000")
+    link = f"{base_url}/sub/{new_uuid}"
+    
+    bot.send_message(message.chat.id, "✅ کانفیگ با موفقیت ایجاد شد.", reply_markup=get_custom_keyboard())
+    
+    text_msg = f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n👤 <b>نام:</b> {full_name}\n🗄 <b>حجم:</b> {gb} گیگابایت\n⏳ <b>اعتبار:</b> {days} روز\n\n🔗 <code>{link}</code>"
+    bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+    
+    show_colleague_panel_msg(message, live_acc)
+
+def process_colleague_prefix(message, package):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ خرید لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    db = read_db_json()
+    user = get_user_data(tg_id)
+    bal = user.get("walletBalance", 0)
+    
+    if bal < package["price"]:
+        bot.send_message(message.chat.id, "❌ موجودی ناکافی است.", reply_markup=get_custom_keyboard())
+        return
+        
+    user["walletBalance"] = bal - package["price"]
+    update_user_db(user)
+    
+    import random
+    import string
+    import uuid
+    from datetime import datetime
+    
+    username = "C" + "".join(random.choices(string.digits, k=5))
+    password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+    
+    if not db.get("colleague_accounts"):
+        db["colleague_accounts"] = []
+        
+    new_acc = {
+        "id": str(uuid.uuid4()),
+        "userId": tg_id,
+        "username": username,
+        "password": password,
+        "packageId": package["id"],
+        "packageTitle": package["title"],
+        "createdAt": datetime.now().strftime("%Y-%m-%d"),
+        "trafficGb": package["trafficGb"],
+        "usedTrafficGb": 0,
+        "prefix": text,
+        "status": "active"
+    }
+    
+    db["colleague_accounts"].append(new_acc)
+    write_db_json(db)
+    
+    bot.send_message(
+        tg_id,
+        f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\nپسوند تنظیم شده: {text}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.",
+        parse_mode="HTML",
+        reply_markup=get_custom_keyboard()
+    )
+    
+    show_colleague_panel_msg(message, new_acc)
+
 def process_colleague_login_password(message, acc):
     tg_id = message.from_user.id
     text = message.text.strip() if message.text else ""
@@ -1273,7 +1474,6 @@ def process_colleague_login_password(message, acc):
         start_cmd(message)
         return
         
-    # Bind tg_id to account if not already
     if not acc.get("userId"):
         acc["userId"] = tg_id
         db = read_db_json()
@@ -1283,13 +1483,8 @@ def process_colleague_login_password(message, acc):
                 break
         write_db_json(db)
 
-    bot.send_message(
-        message.chat.id, 
-        f"✅ <b>ورود موفقیت آمیز!</b>\n\nشما به حساب همکار <b>{acc['packageTitle']}</b> وارد شدید.\n\nحجم تخصیص یافته: <code>{acc['trafficGb']} گیگابایت</code>", 
-        parse_mode="HTML", 
-        reply_markup=get_custom_keyboard()
-    )
-    start_cmd(message)
+    bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود.", reply_markup=get_custom_keyboard())
+    show_colleague_panel_msg(message, acc)
     return
 
 def process_gift_code(message):

@@ -113,6 +113,7 @@ export interface SubscriptionKey {
   expireDate: string;
   trafficLimitGb: number;
   trafficUsedGb: number;
+  colleagueAccountId?: string;
   status: "active" | "expired" | "suspended";
 }
 
@@ -149,6 +150,8 @@ export interface ColleagueAccount {
   packageTitle: string;
   createdAt: string;
   trafficGb: number;
+  usedTrafficGb?: number;
+  prefix: string;
   status: "active" | "expired" | "suspended";
 }
 

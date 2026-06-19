@@ -1672,12 +1672,27 @@ async function autoSyncTrafficUsage() {
     }
 
     for (let k of db.subscription_keys || []) {
-      if (k.clientName && trafficMap[k.clientName]) {
-        const usedGb = trafficMap[k.clientName].total / (1024 * 1024 * 1024);
-        // Only update if changed by more than 0.01 GB to avoid constant small writes
-        if (Math.abs(k.trafficUsedGb - usedGb) > 0.01) {
+      // Check clientName or we might be using 'name' or 'planName' depending on how it's created.
+      // Wait, let's verify what field is sent to xui panel for colleagues.
+      const matchName = k.clientName || k.planName || k.name;
+      if (matchName && trafficMap[matchName]) {
+        const usedGb = trafficMap[matchName].total / (1024 * 1024 * 1024);
+        if (Math.abs((k.trafficUsedGb || 0) - usedGb) > 0.01) {
           k.trafficUsedGb = Number(usedGb.toFixed(2));
           updatedCount++;
+        }
+      }
+    }
+
+    // Now recalculate colleague accounts' usedTrafficGb
+    if (db.colleague_accounts && Array.isArray(db.colleague_accounts)) {
+      for (const colAcc of db.colleague_accounts) {
+        const colKeys = (db.subscription_keys || []).filter((k: any) => k.colleagueAccountId === colAcc.id);
+        const totalUsed = colKeys.reduce((sum: number, k: any) => sum + (k.trafficUsedGb || 0), 0);
+        
+        if (Math.abs((colAcc.usedTrafficGb || 0) - totalUsed) > 0.01) {
+            colAcc.usedTrafficGb = Number(totalUsed.toFixed(2));
+            updatedCount++;
         }
       }
     }

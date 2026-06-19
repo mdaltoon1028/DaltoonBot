@@ -218,9 +218,11 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
               <tr>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مخاطب (آیدی)" : "User ID"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پکیج" : "Package"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پیشوند" : "Prefix"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "یوزرنیم" : "Username"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "نشان عبور" : "Password"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "حجم تخصیصی" : "Traffic"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "رمز" : "Password"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "کل حجم" : "Total Traffic"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مصرف شده" : "Used Traffic"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "وضعیت" : "Status"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs"></th>
               </tr>
@@ -230,9 +232,11 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                 <tr key={acc.id} className="hover:bg-slate-800/40 transition">
                   <td className="px-4 py-3 text-sm text-gray-300 font-mono">{acc.userId || '-'}</td>
                   <td className="px-4 py-3 text-sm text-white font-bold">{acc.packageTitle}</td>
+                  <td className="px-4 py-3 text-sm text-gray-300">{acc.prefix || '-'}</td>
                   <td className="px-4 py-3 text-sm text-indigo-300 font-mono">{acc.username}</td>
                   <td className="px-4 py-3 text-sm text-amber-300 font-mono tracking-wider">{acc.password}</td>
                   <td className="px-4 py-3 text-sm text-gray-400 font-mono">{acc.trafficGb} GB</td>
+                  <td className="px-4 py-3 text-sm text-emerald-400 font-mono">{acc.usedTrafficGb || 0} GB</td>
                   <td className="px-4 py-3 text-sm">
                     {acc.status === "active" ? (
                       <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md text-xs">{lang === 'fa' ? 'فعال' : 'Active'}</span>
