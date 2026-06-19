@@ -1415,8 +1415,7 @@ def process_colleague_prefix(message, package):
         bot.send_message(message.chat.id, "❌ موجودی ناکافی است.", reply_markup=get_custom_keyboard())
         return
         
-    user["walletBalance"] = bal - package["price"]
-    update_user_db(user)
+    update_user_balance(tg_id, bal - package["price"])
     
     import random
     import string
