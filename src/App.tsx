@@ -144,7 +144,14 @@ export default function App() {
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("daltoon_dashboard_auth") === "true";
+    const isAuth = localStorage.getItem("daltoon_dashboard_auth") === "true";
+    const lastInteraction = parseInt(localStorage.getItem("daltoon_last_interaction") || "0", 10);
+    // Auto-logout if more than 1 hour passed since last interaction
+    if (isAuth && (Date.now() - lastInteraction > 3600000)) {
+      localStorage.removeItem("daltoon_dashboard_auth");
+      return false;
+    }
+    return isAuth;
   });
 
   const [customButtons, setCustomButtons] = useState<CustomButton[]>(() => {
@@ -173,7 +180,9 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [lastInteraction, setLastInteraction] = useState(Date.now());
+  const [lastInteraction, setLastInteraction] = useState(() => {
+    return parseInt(localStorage.getItem("daltoon_last_interaction") || String(Date.now()), 10);
+  });
 
   // Inactivity timeout (1 hour)
   useEffect(() => {
@@ -188,10 +197,16 @@ export default function App() {
   }, [isAuthenticated, lastInteraction]);
 
   useEffect(() => {
-    const handleActivity = () => setLastInteraction(Date.now());
+    const handleActivity = () => {
+      const now = Date.now();
+      setLastInteraction(now);
+      localStorage.setItem("daltoon_last_interaction", String(now));
+    };
     window.addEventListener("mousemove", handleActivity);
     window.addEventListener("keydown", handleActivity);
     window.addEventListener("click", handleActivity);
+    // Initial save
+    localStorage.setItem("daltoon_last_interaction", String(Date.now()));
     return () => {
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("keydown", handleActivity);
@@ -868,6 +883,9 @@ export default function App() {
                   setGiftCodes(prev => prev.filter(c => c.id !== id));
                 }
               }}
+              settings={settings}
+              onSaveSettings={saveSettings}
+              lang={lang}
             />
           )}
 

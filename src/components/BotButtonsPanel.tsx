@@ -59,10 +59,13 @@ export default function BotButtonsPanel({
   const [btnTextFeedback, setBtnTextFeedback] = useState(settings.btnTextFeedback || "💌 بازخورد کاربر ها");
   const [hideBtnFeedback, setHideBtnFeedback] = useState(!!settings.hideBtnFeedback);
 
+  const [btnTextReferral, setBtnTextReferral] = useState(settings.btnTextReferral || "👥 زیرمجموعه گیری");
+  const [hideBtnReferral, setHideBtnReferral] = useState(!!settings.hideBtnReferral);
+
   const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
   const [mainButtonsOrder, setMainButtonsOrder] = useState<string[]>(
     settings.mainButtonsOrder || [
-      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback"
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
     ]
   );
 
@@ -178,6 +181,7 @@ export default function BotButtonsPanel({
       btnTextFreeTest,
       btnTextInstantSupport,
       btnTextFeedback,
+      btnTextReferral,
       hideBtnBuyNew,
       hideBtnMySubs,
       hideBtnGuides,
@@ -186,6 +190,7 @@ export default function BotButtonsPanel({
       hideBtnFreeTest,
       hideBtnInstantSupport,
       hideBtnFeedback,
+      hideBtnReferral,
       keyboardLayout,
       mainButtonsOrder
     });
@@ -289,6 +294,7 @@ export default function BotButtonsPanel({
                   "btnFreeTest": { label: lang === "fa" ? "عنوان دکمه موجوده رایگان/تست" : "Free Test Button Label", value: btnTextFreeTest, setter: setBtnTextFreeTest, disabled: hideBtnFreeTest, toggleDisabled: () => setHideBtnFreeTest(!hideBtnFreeTest) },
                   "btnInstantSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی آنی" : "Instant Support Button Label", value: btnTextInstantSupport, setter: setBtnTextInstantSupport, disabled: hideBtnInstantSupport, toggleDisabled: () => setHideBtnInstantSupport(!hideBtnInstantSupport) },
                   "btnFeedback": { label: lang === "fa" ? "عنوان دکمه بازخورد" : "Feedback Button Label", value: btnTextFeedback, setter: setBtnTextFeedback, disabled: hideBtnFeedback, toggleDisabled: () => setHideBtnFeedback(!hideBtnFeedback) },
+                  "btnReferral": { label: lang === "fa" ? "عنوان دکمه مجموعه‌گیری" : "Referral Button Label", value: btnTextReferral, setter: setBtnTextReferral, disabled: hideBtnReferral, toggleDisabled: () => setHideBtnReferral(!hideBtnReferral) },
                 };
 
                 return mainButtonsOrder.map((key, idx) => {

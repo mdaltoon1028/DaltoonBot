@@ -30,6 +30,10 @@ export interface PanelSettings {
   btnTextInstantSupport?: string;
   hideBtnFeedback?: boolean;
   btnTextFeedback?: string;
+  btnTextReferral?: string;
+  hideBtnReferral?: boolean;
+  botTelegramHandle?: string;
+  referralRewardPercent?: number;
   dashboardUsername?: string;
   dashboardPassword?: string;
   serverPort?: number;

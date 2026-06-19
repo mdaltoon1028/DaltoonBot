@@ -89,7 +89,7 @@ export default function BotSimulator({
   const getKeyboard = () => {
     const layout = settings?.keyboardLayout || "stepped";
     const order = settings?.mainButtonsOrder || [
-      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback"
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
     ];
     
     const buttons: string[] = [];
@@ -103,6 +103,7 @@ export default function BotSimulator({
       else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
       else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
       else if (key === "btnFeedback" && !settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
+      else if (key === "btnReferral" && !settings?.hideBtnReferral) buttons.push(settings?.btnTextReferral || "👥 زیرمجموعه گیری");
     });
 
     const dynamicKeyboard: string[][] = [];
@@ -376,6 +377,31 @@ export default function BotSimulator({
     }
     else if (text === (settings?.btnTextGuides || "💡 آموزش ها") || text.includes("💡") || text.includes("آموزش")) {
         addBotReply(lang === "fa" ? "💡 لینک آموزش اتصال به زودی در اینجا قرار میگیرد." : "Tutorials coming soon.", 500);
+    }
+    else if (text === (settings?.btnTextReferral || "👥 زیرمجموعه گیری") || text.includes("👥") || text.includes("زیرمجموعه")) {
+      const botUsername = settings?.botTelegramHandle || "your_bot_id";
+      const percent = settings?.referralRewardPercent || 5;
+      const uid = currentUser.userId;
+      
+      const replyText = lang === "fa" 
+        ? `برای کسب موجودی هدیه کافیه دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n` + 
+          `در ضمن کد معرف اختصاصی شما ${uid} می باشد.\n\n` + 
+          `https://t.me/${botUsername}?start=${uid}\n\n` +
+          `🎁 در صورت معرفی دوستان خود با لینک بالا، با هر خرید موفق هر کدام از آنها ${percent}% به عنوان هدیه به کیف پول شما واریز می گردد.\n\n` + 
+          `📊 آمار دعوت شما\n` + 
+          `• افراد وارد شده با لینک: 0\n` + 
+          `• تعداد خرید ها: 0\n` + 
+          `• مبلغ خرید ها در یک ماه گذشته: 0 تومان`
+        : `To earn rewards, invite your friends with your dedicated link 👥\n\n` +
+          `Your Referral ID is ${uid}.\n\n` +
+          `https://t.me/${botUsername}?start=${uid}\n\n` +
+          `🎁 For every successful purchase by your invitees, you'll earn ${percent}% of the amount added to your wallet!\n\n` +
+          `📊 Referral Stats:\n` +
+          `• Invited Users: 0\n` +
+          `• Total Purchases: 0\n` +
+          `• Last Month Volume: 0`;
+
+      addBotReply(replyText, 600);
     }
     else if (text === "💳 شارژ کیف پول" || text.includes("شارژ") || text.includes("Wallet")) {
       if (lang === "fa") {
