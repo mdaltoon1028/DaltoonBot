@@ -458,15 +458,7 @@ def get_custom_keyboard():
     cfg = get_config()
     layout = cfg.get("KEYBOARD_LAYOUT", "stepped")
 
-    # Define row_width based on layout preference
-    if layout == "vertical":
-        row_width = 1
-    elif layout == "horizontal":
-        row_width = 2
-    else:  # stepped is default
-        row_width = 2
-        
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=row_width)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     
     hide_buy = cfg.get("HIDE_BUY", False)
     hide_profile = cfg.get("HIDE_PROFILE", False)
@@ -474,48 +466,44 @@ def get_custom_keyboard():
     hide_support = cfg.get("HIDE_SUPPORT", False)
     hide_free_test = cfg.get("HIDE_FREETEST", False)
 
-    main_buttons = []
+    # Top specific layer like screenshot
     if not hide_buy:
-        main_buttons.append(types.KeyboardButton(cfg.get("BTN_BUY", "🛍️ خرید کانفیگ (Our Plans)")))
+        markup.add(types.KeyboardButton("🛒 خرید اشتراک جدید"))
+    markup.add(types.KeyboardButton("🗂 اشتراک های من / تمدید"))
+
+    row3 = []
+    row3.append(types.KeyboardButton("💡 آموزش ها"))
     if not hide_profile:
-        main_buttons.append(types.KeyboardButton(cfg.get("BTN_PROFILE", "👤 اطلاعات حساب (My Profile)")))
-    if not hide_wallet:
-        main_buttons.append(types.KeyboardButton(cfg.get("BTN_WALLET", "💳 شارژ کیف پول (Top-up Wallet)")))
-    if not hide_support:
-        main_buttons.append(types.KeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی فنی (Support)")))
-    if not hide_free_test:
-        main_buttons.append(types.KeyboardButton(cfg.get("BTN_FREETEST", "🎁 تست رایگان")))
+        row3.append(types.KeyboardButton("👤 حساب کاربری"))
+    if row3: markup.add(*row3)
     
+    row4 = []
+    if not hide_support:
+        row4.append(types.KeyboardButton("📞 پشتیبانی"))
+    if not hide_free_test:
+        row4.append(types.KeyboardButton("🎁 موجودی رایگان"))
+    if row4: markup.add(*row4)
+    
+    # Custom dynamic buttons from DB
     try:
         db = read_db_json()
-        for r in db.get("custom_buttons", []):
-            main_buttons.append(types.KeyboardButton(r['text']))
+        cb = db.get("custom_buttons", [])
+        for i in range(0, len(cb), 2):
+            if i + 1 < len(cb):
+                markup.add(types.KeyboardButton(cb[i]['text']), types.KeyboardButton(cb[i+1]['text']))
+            else:
+                markup.add(types.KeyboardButton(cb[i]['text']))
     except Exception as e:
         print("Error fetching custom buttons:", e)
-
-    # Apply layout structure
-    if layout == "vertical":
-        for btn in main_buttons:
-            markup.row(btn)
-    elif layout == "stepped":
-        idx = 0
-        while idx < len(main_buttons):
-            if idx % 3 == 0:
-                markup.row(main_buttons[idx])
-                idx += 1
-            else:
-                chunk = main_buttons[idx:idx+2]
-                markup.row(*chunk)
-                idx += len(chunk)
-    else:  # horizontal
-        for i in range(0, len(main_buttons), 2):
-            markup.row(*main_buttons[i:i+2])
-            
+    
+    # Bottom explicit layer
+    markup.add(types.KeyboardButton("🤖 پشتیبانی آنی"), types.KeyboardButton("💌 بازخورد کاربر ها"))
+    
     return markup
 
 def get_cancel_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-    markup.add(types.KeyboardButton("😞 منصرف شدم"))
+    markup.add(types.KeyboardButton("بازگشت به منوی اصلی 🏠"))
     return markup
 
 # --- Bot Command Handlers ---
@@ -604,30 +592,46 @@ def text_messages_handler(message):
         )
 
     # 2. Account Profile Details
-    elif text == cfg.get("BTN_PROFILE") or "اطلاعات حساب" in text or "Profile" in text or "👤" in text:
+    elif text == cfg.get("BTN_PROFILE") or "حساب کاربری" in text or "Profile" in text or "👤" in text:
         db = read_db_json()
-        active_keys = [k for k in db.get("subscription_keys", []) if k["userId"] == tg_id]
+        active_keys = [k for k in db.get("subscription_keys", []) if k["userId"] == tg_id and k["status"] != "expired"]
         
-        config_lines = ""
-        if active_keys:
-            config_lines = "\n\n🔑 <b>کانفیگ‌های فعال شما:</b>\n"
-            for k in active_keys:
-                config_lines += f"• <b>{k['planName']}</b>\n انقضا: {k['expireDate']} | حجم: {k['trafficLimitGb']} گیگابایت\n <code>{k['subLink']}</code>\n\n"
-        else:
-            config_lines = "\n\n❌ شما تا کنون هیچ سرویس اشتراکی از دالتون خریداری نکرده‌اید."
- 
-         # Check if walletBalance is missing (which default templates might have as floats or int)
         bal = user.get("walletBalance", 0)
         formatted_bal = f"{int(bal):,}" if bal is not None else "0"
 
+        # The Persian digits converter helper
+        f_date = "۱۴۰۲/۰۱/۰۱" 
+
         profile_text = (
-            f"👤 <b>اطلاعات حساب دالتون سرور:</b>\n\n"
-            f"🆔 شناسه عددی کاربری: <code>{tg_id}</code>\n"
-            f"🏷️ آیدی تلگرام: @{user['username']}\n"
-            f"💰 موجودی اعتباری کیف پول: <b>{formatted_bal} تومان</b>"
-            f"{config_lines}"
+            f"📄 <b>اطلاعات حساب کاربری شما:</b>\n\n"
+            f"💰 موجودی: {formatted_bal} تومان\n"
+            f"👤 آیدی عددی: <code>{tg_id}</code>\n"
+            f"📦 تعداد سرویس ها: {len(active_keys)}\n"
+            f"🗓 تاریخ ورود به بات: به زودی\n"
         )
-        bot.send_message(message.chat.id, profile_text, parse_mode="HTML")
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("💵 افزایش موجودی", callback_data="btn_wallet_shortcut"),
+            types.InlineKeyboardButton("🎁 اعمال کد هدیه", callback_data="btn_gift_code"),
+            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+        )
+
+        bot.send_message(message.chat.id, profile_text, parse_mode="HTML", reply_markup=markup)
+
+    # 2.5 My Subs
+    elif "اشتراک های من" in text or "🗂" in text:
+        db = read_db_json()
+        active_keys = [k for k in db.get("subscription_keys", []) if k["userId"] == tg_id]
+        
+        if active_keys:
+            msg_text = "🔑 <b>سرویس‌های شما:</b>\n\n"
+            for k in active_keys:
+                msg_text += f"• <b>{k['planName']}</b>\n انقضا: {k['expireDate']} | حجم کل: {k['trafficLimitGb']} گیگابایت\n <code>{k['subLink']}</code>\n\n"
+        else:
+            msg_text = "❌ شما تا کنون هیچ سرویس اشتراکی از دالتون دریافت نکرده‌اید."
+            
+        bot.send_message(message.chat.id, msg_text, parse_mode="HTML")
 
     # 3. Charger Wallet instructions
     elif text == cfg.get("BTN_WALLET") or "شارژ" in text or "Wallet" in text or "💳" in text:
@@ -671,7 +675,7 @@ def text_messages_handler(message):
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
         
     # 5. Free Test
-    elif text == cfg.get("BTN_FREETEST", "🎁 تست رایگان") or ("تست" in text and "رایگان" in text):
+    elif text == cfg.get("BTN_FREETEST", "🎁 موجودی رایگان") or "موجودی رایگان" in text or ("تست" in text and "رایگان" in text) or "🎁" in text:
         db = read_db_json()
         users = db.get("users", [])
         user_idx = next((i for i, u in enumerate(users) if u["tgId"] == tg_id), -1)
@@ -951,6 +955,36 @@ def callback_handler(call):
         )
         bot.answer_callback_query(call.id)
 
+    elif call.data == "btn_wallet_shortcut":
+        bot.answer_callback_query(call.id)
+        # Re-trigger wallet logic
+        class FakeMessage:
+            def __init__(self, from_user, chat, text):
+                self.from_user = from_user
+                self.chat = chat
+                self.text = text
+        fake_msg = FakeMessage(call.from_user, call.message.chat, "شارژ")
+        handle_text_messages(fake_msg)
+
+    elif call.data == "btn_gift_code":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(
+            call.message.chat.id,
+            "🎁 لطفاً کد هدیه خود را بفرستید:\n(برای انصراف دکمه لغو را انتخاب کنید یا «انصراف» بفرستید)",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_gift_code)
+
+    elif call.data == "btn_back_home":
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "شما به منوی اصلی بازگشتید.", reply_markup=get_custom_keyboard())
+        class FakeMessage:
+            def __init__(self, from_user, chat, text):
+                self.from_user = from_user
+                self.chat = chat
+                self.text = text
+        start_cmd(FakeMessage(call.from_user, call.message.chat, "/start"))
+
     elif call.data == "charge_custom_amount":
         try:
             tg_id = call.from_user.id
@@ -967,6 +1001,54 @@ def callback_handler(call):
             bot.answer_callback_query(call.id)
         except Exception as e:
             print(f"[Error Charge Custom Init] {e}")
+
+def process_gift_code(message):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+
+    db = read_db_json()
+    gift_codes = db.get("gift_codes", [])
+    
+    code_obj = next((c for c in gift_codes if c["code"] == text), None)
+    
+    if not code_obj:
+        msg = bot.send_message(message.chat.id, "❌ <b>کد هدیه وارد شده نامعتبر است!</b>\nلطفاً دوباره تلاش کنید یا «انصراف» بفرستید:", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_gift_code)
+        return
+        
+    if tg_id in code_obj.get("usedBy", []):
+        bot.send_message(message.chat.id, "❌ <b>شما قبلاً از این کد هدیه استفاده کرده‌اید!</b>", parse_mode="HTML", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    if code_obj.get("totalUsage", 0) >= code_obj.get("maxUsage", 1):
+        bot.send_message(message.chat.id, "❌ <b>ظرفیت استفاده از این کد هدیه تکمیل شده است!</b>", parse_mode="HTML", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    # Apply gift code
+    code_obj["usedBy"].append(tg_id)
+    code_obj["totalUsage"] = code_obj.get("totalUsage", 0) + 1
+    
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        user["walletBalance"] = user.get("walletBalance", 0) + code_obj["amount"]
+        
+    write_db_json(db)
+    
+    bot.send_message(
+        message.chat.id, 
+        f"🎁 <b>کد هدیه با موفقیت اعمال شد!</b>\n\nمبلغ <code>{code_obj['amount']:,}</code> تومان به کیف پول شما اضافه گردید.", 
+        parse_mode="HTML", 
+        reply_markup=get_custom_keyboard()
+    )
+    start_cmd(message)
+    return
 
 def process_custom_charge_amount(message):
     tg_id = message.from_user.id

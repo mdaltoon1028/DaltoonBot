@@ -33,6 +33,7 @@ interface DbSchema {
   inbounds: any[];
   custom_buttons: any[];
   vpn_plans?: any[];
+  gift_codes?: any[];
   settings: Record<string, string>;
 }
 
@@ -54,6 +55,7 @@ function readJsonDb(): DbSchema {
         ],
         inbounds: [],
         custom_buttons: [],
+        gift_codes: [],
         settings: {
           panel_config: JSON.stringify({
             botToken: "",
@@ -99,7 +101,7 @@ function readJsonDb(): DbSchema {
     return db;
   } catch (err) {
     console.error("[Database] Read error, returning empty dataset:", err);
-    return { users: [], transactions: [], subscription_keys: [], inbounds: [], custom_buttons: [], vpn_plans: [], settings: {} };
+    return { users: [], transactions: [], subscription_keys: [], inbounds: [], custom_buttons: [], vpn_plans: [], settings: {}, gift_codes: [] };
   }
 }
 
@@ -310,6 +312,7 @@ app.get("/api/data", async (req, res) => {
       inbounds: db.inbounds,
       customButtons: db.custom_buttons,
       vpnPlans: db.vpn_plans || [],
+      giftCodes: db.gift_codes || [],
       settings
     });
   } catch (error: any) {
@@ -318,6 +321,40 @@ app.get("/api/data", async (req, res) => {
 });
 
 // 2. Save panel configuration
+// --- GIFT CODES API ---
+app.get("/api/gift-codes", (req, res) => {
+  const db = readJsonDb();
+  res.json(db.gift_codes || []);
+});
+
+app.post("/api/gift-codes", (req, res) => {
+  const db = readJsonDb();
+  if (!db.gift_codes) db.gift_codes = [];
+  const { code, amount, maxUsage } = req.body;
+  if (!code || !amount || maxUsage === undefined) return res.status(400).json({ error: "Missing fields" });
+
+  const newCode = {
+    id: crypto.randomUUID(),
+    code,
+    amount: parseInt(amount, 10),
+    maxUsage: parseInt(maxUsage, 10),
+    totalUsage: 0,
+    usedBy: [],
+    createdAt: new Date().toISOString()
+  };
+  db.gift_codes.push(newCode);
+  writeJsonDb(db);
+  res.json({ success: true, item: newCode });
+});
+
+app.post("/api/gift-codes/delete", (req, res) => {
+  const db = readJsonDb();
+  if (!db.gift_codes) db.gift_codes = [];
+  db.gift_codes = db.gift_codes.filter(c => c.id !== req.body.id);
+  writeJsonDb(db);
+  res.json({ success: true });
+});
+
 app.post("/api/settings", async (req, res) => {
   try {
     const payload = { ...req.body };

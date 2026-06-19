@@ -99,3 +99,13 @@ export interface CustomButton {
   replyText: string;
 }
 
+export interface GiftCode {
+  id: string;
+  code: string;
+  amount: number;
+  totalUsage: number;
+  maxUsage: number;
+  usedBy: number[];
+  createdAt: string;
+}
+

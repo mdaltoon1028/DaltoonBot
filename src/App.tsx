@@ -11,12 +11,13 @@ import {
   Heart,
   LogOut,
   Command,
+  Gift,
   Menu,
   X
 } from "lucide-react";
 
 // Types & Data
-import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton } from "./types";
+import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton, GiftCode } from "./types";
 import { Language, translations } from "./locales";
 import { 
   initialSettings, 
@@ -35,6 +36,7 @@ import BotSimulator from "./components/BotSimulator";
 import ServerManagement from "./components/ServerManagement";
 import SettingsPanel from "./components/SettingsPanel";
 import BotButtonsPanel from "./components/BotButtonsPanel";
+import GiftCodeManager from "./components/GiftCodeManager";
 import { LoginScreen } from "./components/LoginScreen";
 
 const LionAndSunFlag = () => (
@@ -154,7 +156,12 @@ export default function App() {
     ];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "buttons" | "settings" | "guide" | "xui_connector">(() => {
+  const [giftCodes, setGiftCodes] = useState<GiftCode[]>(() => {
+    const cached = localStorage.getItem("daltoon_gift_codes");
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "buttons" | "giftcodes" | "settings" | "guide" | "xui_connector">(() => {
     const cached = localStorage.getItem("daltoon_active_tab");
     return (cached as any) || "dashboard";
   });
@@ -215,6 +222,10 @@ export default function App() {
     localStorage.setItem("daltoon_custom_buttons", JSON.stringify(customButtons));
   }, [customButtons]);
 
+  useEffect(() => {
+    localStorage.setItem("daltoon_gift_codes", JSON.stringify(giftCodes));
+  }, [giftCodes]);
+
   const refreshData = async () => {
     setIsRefreshing(true);
     try {
@@ -227,6 +238,7 @@ export default function App() {
         if (json.vpnPlans) setVpnPlans(json.vpnPlans);
         if (json.inbounds) setInbounds(json.inbounds);
         if (json.customButtons) setCustomButtons(json.customButtons);
+        if (json.giftCodes) setGiftCodes(json.giftCodes);
         if (json.settings && json.settings.botToken) setSettings(json.settings);
         console.log("[Full-Stack Sync] SQLite bot_database.db refreshed successfully.");
         
@@ -598,6 +610,17 @@ export default function App() {
               <Command className="w-4 h-4" />
               {t.tabBotButtons}
             </button>
+            <button
+              onClick={() => setActiveTab("giftcodes")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "giftcodes" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Gift className="w-4 h-4" />
+              {lang === "fa" ? "کدهای هدیه" : "Gift Codes"}
+            </button>
 
             <button
               onClick={() => setActiveTab("settings")}
@@ -775,6 +798,34 @@ export default function App() {
               lang={lang}
               customButtons={customButtons}
               setCustomButtons={setCustomButtons}
+            />
+          )}
+
+          {activeTab === "giftcodes" && (
+            <GiftCodeManager 
+              giftCodes={giftCodes}
+              onAddCode={async (code, amount, maxUsage) => {
+                const response = await fetch("/api/gift-codes", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ code, amount, maxUsage })
+                });
+                const data = await response.json();
+                if (data.success) {
+                  setGiftCodes(prev => [...prev, data.item]);
+                }
+              }}
+              onDeleteCode={async (id) => {
+                const response = await fetch("/api/gift-codes/delete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id })
+                });
+                const data = await response.json();
+                if (data.success) {
+                  setGiftCodes(prev => prev.filter(c => c.id !== id));
+                }
+              }}
             />
           )}
 
