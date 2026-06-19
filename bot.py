@@ -1017,20 +1017,24 @@ def callback_handler(call):
             rem = total - used
             
             text = f"📊 <b>خلاصه وضعیت مصرف شما:</b>\n🔹 <b>کل حجم:</b> {total} گیگابایت\n🔴 <b>مصرف شده:</b> {used} گیگابایت\n🟢 <b>باقیمانده:</b> {rem} گیگابایت\n\n"
-            text += "👥 <b>لیست کاربران شما:</b>\n\n"
+            text += f"👥 <b>لیست کاربران شما:</b>\n\n"
+            
+            if rem <= 0:
+                text = "⚠️ <b>اخطار:</b> استفاده کاربران شما به سقف تعیین شده رسیده و اجازه ساخت کاربر جدید را ندارید. لطفاً برای تمدید اقدام کنید.\n\n" + text
+            
             
             if not col_keys:
                 text += "هنوز کاربری ایجاد نکرده‌اید."
             else:
                 base_url = db.get("settings", {}).get("baseUrl", "http://domain.com")
                 for k in col_keys:
-                    name = k.get("name") or k.get("planName", "نامشخص")
-                    gb = k.get("trafficGb", 0)
+                    name = k.get("clientName") or k.get("planName", "نامشخص")
+                    gb = k.get("trafficLimitGb", 0)
                     used_gb = k.get("trafficUsedGb", 0)
                     rem_gb = gb - used_gb
-                    days = k.get("durationDays", 0)
-                    url = f"{base_url}/sub/{k['key']}"
-                    text += f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ اعتبار: {days} روز\n🔗 <code>{url}</code>\n\n"
+                    expire_date = k.get("expireDate", "نامشخص")
+                    url = k.get("subLink", "")
+                    text += f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ انقضا: {expire_date}\n🔗 <code>{url}</code>\n\n"
                 
             markup = types.InlineKeyboardMarkup()
             markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"col_panel_{acc['id']}"))
@@ -1353,8 +1357,13 @@ def process_col_create_days(message, acc, name, gb):
     used = live_acc.get("usedTrafficGb", 0)
     remain = total - used
     
+    if remain <= 0:
+        bot.send_message(message.chat.id, "❌ حجم کل تخصیص داده شده شما به اتمام رسیده است!", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, live_acc)
+        return
+        
     if gb > remain:
-        bot.send_message(message.chat.id, f"❌ حجم باقیمانده شما کافی نیست!\n\nباقیمانده واقعی: {remain} گیگابایت", reply_markup=get_custom_keyboard())
+        bot.send_message(message.chat.id, f"❌ محدودیت تخصیص برای این کانفیگ از مصرف باقیمانده کل شما بیشتر است!\n\nمجاز باقیمانده: {remain:.2f} گیگابایت", reply_markup=get_custom_keyboard())
         show_colleague_panel_msg(message, live_acc)
         return
         
@@ -1362,23 +1371,34 @@ def process_col_create_days(message, acc, name, gb):
     import time
     from datetime import datetime
     
-    new_uuid = str(uuid.uuid4())
     full_name = f"{live_acc.get('prefix', 'Col')}-{name}"
     
+    client_uuid, sub_link = add_vpn_client_api(full_name, gb, days)
+    
+    if not sub_link:
+        # Fallback similar to normal purchase
+        import random, string
+        client_uuid = str(uuid.uuid4())
+        fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+        cfg_url = db.get("settings", {}).get("baseUrl", "http://localhost:3000")
+        if not cfg_url.startswith("http"):
+            cfg_url = "http://" + cfg_url
+        sub_link = f"{cfg_url}/sub/{fallback_sub_id}"
+
+    expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
+    sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+    
     sub = {
-        "key": new_uuid,
-        "uuid": new_uuid,
+        "id": sub_id,
+        "userId": live_acc.get("userId", message.chat.id),
         "planId": "colleague_custom",
         "planName": full_name,
-        "name": full_name,
-        "userId": live_acc.get("userId", message.chat.id),
-        "trafficGb": gb,
-        "durationDays": days,
-        "active": True,
+        "clientName": full_name,
+        "subLink": sub_link,
+        "expireDate": expire_date,
+        "trafficLimitGb": gb,
+        "trafficUsedGb": 0.0,
         "status": "active",
-        "createdAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp": int(time.time()),
-        "inbounds": db.get("settings", {}).get("activeInboundIds", []),
         "colleagueAccountId": live_acc["id"]
     }
     
@@ -1388,12 +1408,9 @@ def process_col_create_days(message, acc, name, gb):
     
     write_db_json(db)
     
-    base_url = db.get("settings", {}).get("baseUrl", "http://localhost:3000")
-    link = f"{base_url}/sub/{new_uuid}"
+    bot.send_message(message.chat.id, "✅ کانفیگ در پنل X-UI ایجاد شد.", reply_markup=get_custom_keyboard())
     
-    bot.send_message(message.chat.id, "✅ کانفیگ با موفقیت ایجاد شد.", reply_markup=get_custom_keyboard())
-    
-    text_msg = f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n👤 <b>نام:</b> {full_name}\n🗄 <b>حجم:</b> {gb} گیگابایت\n⏳ <b>اعتبار:</b> {days} روز\n\n🔗 <code>{link}</code>"
+    text_msg = f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n👤 <b>نام:</b> {full_name}\n🗄 <b>حجم:</b> {gb} گیگابایت\n⏳ <b>اعتبار:</b> {days} روز\n\n🔗 <code>{sub_link}</code>"
     bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
     
     show_colleague_panel_msg(message, live_acc)
