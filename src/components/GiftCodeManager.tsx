@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save } from 'lucide-react';
-import { GiftCode, PanelSettings } from '../types';
+import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save, Tag, Calendar, Percent, Clock } from 'lucide-react';
+import { GiftCode, PromoCode, PanelSettings } from '../types';
 import { Language } from '../locales';
 
 interface GiftCodeManagerProps {
@@ -8,25 +8,36 @@ interface GiftCodeManagerProps {
   onAddCode: (code: string, amount: number, maxUsage: number) => void;
   onDeleteCode: (id: string) => void;
   onEditCode?: (id: string, code: string, amount: number, maxUsage: number) => void;
+  promoCodes?: PromoCode[];
+  onAddPromoCode?: (code: string, type: "percent" | "extend_days", value: number, maxUsage: number) => void;
+  onDeletePromoCode?: (id: string) => void;
   settings?: PanelSettings;
   onSaveSettings?: (settings: PanelSettings) => void;
   lang?: Language;
 }
 
 export default function GiftCodeManager({ 
-  giftCodes, 
+  giftCodes = [], 
   onAddCode, 
   onDeleteCode, 
   onEditCode,
+  promoCodes = [],
+  onAddPromoCode,
+  onDeletePromoCode,
   settings,
   onSaveSettings,
   lang = 'fa'
 }: GiftCodeManagerProps) {
+  // Navigation tab within the merged screen
+  const [managerTab, setManagerTab] = useState<'gifts_referrals' | 'promo_codes'>('gifts_referrals');
+
+  // Gift Code States
   const [code, setCode] = useState('');
   const [amount, setAmount] = useState('');
   const [maxUsage, setMaxUsage] = useState('1');
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Referral Settings States
   const [botTelegramHandle, setBotTelegramHandle] = useState(settings?.botTelegramHandle || "");
   const [referralRewardAmount, setReferralRewardAmount] = useState(settings?.referralRewardAmount ?? 0);
   const [referralRewardPercent, setReferralRewardPercent] = useState(settings?.referralRewardPercent ?? 5);
@@ -41,6 +52,15 @@ export default function GiftCodeManager({
     "• پاداش دریافت شده: 0 تومان"
   );
   const [savedSettings, setSavedSettings] = useState(false);
+
+  // Promo Code Form States
+  const [promoCode, setPromoCode] = useState("");
+  const [promoType, setPromoType] = useState<"percent" | "extend_days">("percent");
+  const [promoValue, setPromoValue] = useState("");
+  const [promoMaxUsage, setPromoMaxUsage] = useState("50");
+  const [promoSuccess, setPromoSuccess] = useState(false);
+
+  const isFa = lang === 'fa';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,256 +106,475 @@ export default function GiftCodeManager({
     }
   };
 
+  const handlePromoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoCode || !promoValue || !promoMaxUsage) return;
+
+    if (onAddPromoCode) {
+      onAddPromoCode(
+        promoCode.toUpperCase().trim(),
+        promoType,
+        parseFloat(promoValue),
+        parseInt(promoMaxUsage, 10)
+      );
+    }
+
+    setPromoCode("");
+    setPromoValue("");
+    setPromoMaxUsage("50");
+
+    setPromoSuccess(true);
+    setTimeout(() => setPromoSuccess(false), 3000);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3 space-x-reverse mb-6">
-        <div className="p-3 bg-purple-500/10 rounded-xl">
-          <Gift className="w-6 h-6 text-purple-400" />
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+        <div className="flex items-center space-x-3 space-x-reverse">
+          <div className="p-3 bg-purple-500/10 rounded-xl">
+            <Gift className="w-6 h-6 text-purple-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white">
+              {isFa ? '🎟️ مدیریت هوشمند کدهای مالی و معرف' : 'Financial Codes & Referrals Manager'}
+            </h2>
+            <p className="text-sm text-gray-400">
+              {isFa ? 'ساخت و ویرایش کدهای افزایش شارژ مستقیم هدیه، درصدهای تخفیف و سیستم معرف' : 'Edit gift balances, percentage discounts, and reward triggers'}
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-bold text-white">{lang === 'fa' ? 'مدیریت کدهای هدیه و زیرمجموعه‌گیری' : 'Gift Codes & Referrals'}</h2>
-          <p className="text-sm text-gray-400">{lang === 'fa' ? 'ساخت کدهای تخفیف و تنظیمات سیستم معرف' : 'Manage gift codes and referral system setup'}</p>
+
+        {/* Dynamic Nav Sub-tabs */}
+        <div className="flex bg-[#111827] border border-[#1f2937] p-1 rounded-xl">
+          <button
+            onClick={() => setManagerTab('gifts_referrals')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition ${
+              managerTab === 'gifts_referrals'
+                ? 'bg-purple-600 text-white shadow'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {isFa ? '🎁 افزایش شارژ مستقیم (کد هدیه و معرف)' : 'Gifts & Referrals'}
+          </button>
+          <button
+            onClick={() => setManagerTab('promo_codes')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition ${
+              managerTab === 'promo_codes'
+                ? 'bg-indigo-600 text-white shadow'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {isFa ? '🎟️ کدهای تخفیف خرید مستقیم' : 'Discount Coupons'}
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gift Codes Panel */}
-        <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 space-y-6">
-          <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
-            <Gift className="w-5 h-5 text-purple-400" />
-            <h3 className="text-sm font-semibold text-white">{lang === 'fa' ? 'افزودن کد هدیه جدید' : 'Add New Gift Code'}</h3>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'کد هدیه' : 'Gift Code'}</label>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
-                placeholder="e.g. VIP2024"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'مبلغ (تومان)' : 'Amount (Toman)'}</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
-                placeholder="50000"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'تعداد مجاز استفاده' : 'Max Usage'}</label>
-              <input
-                type="number"
-                value={maxUsage}
-                onChange={(e) => setMaxUsage(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
-                min="1"
-                required
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="w-14 items-center justify-center flex bg-slate-700 hover:bg-slate-600 text-white rounded-xl px-2 py-2.5 transition-all"
-                  title="لغو ویرایش"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-              <button
-                type="submit"
-                className={`flex-1 ${editingId ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-purple-500 hover:bg-purple-600'} text-white rounded-xl px-4 py-2.5 font-medium transition-all flex items-center justify-center space-x-2 space-x-reverse cursor-pointer`}
-              >
-                {editingId ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                <span>{editingId ? (lang === 'fa' ? 'ذخیره تغییرات' : 'Save Changes') : (lang === 'fa' ? 'ایجاد کد' : 'Create Code')}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Referral Settings Panel */}
-        <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 space-y-6">
-          <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
-            <Share2 className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-sm font-semibold text-white">{lang === 'fa' ? 'تنظیمات سیستم زیرمجموعه‌گیری' : 'Referral System Settings'}</h3>
-          </div>
-          <p className="text-xs text-gray-400 leading-relaxed">
-            {lang === 'fa' 
-              ? 'در این بخش می‌توانید مبلغ پاداش زیرمجموعه‌گیری و متن پیام معرفی را تنظیم کنید.'
-              : 'Configure your referral reward amount and bot handle so the system can generate exclusive invite links.'}
-          </p>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {managerTab === 'gifts_referrals' ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Gift Codes Panel */}
+            <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 space-y-6">
+              <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
+                <Gift className="w-5 h-5 text-purple-400" />
+                <h3 className="text-sm font-semibold text-white">{isFa ? 'افزودن کد هدیه جدید' : 'Add New Gift Code'}</h3>
+              </div>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'آیدی ربات شما (بدون @)' : 'Bot Telegram Username (No @)'}</label>
+                  <label className="text-sm font-medium text-gray-300">{isFa ? 'کد هدیه' : 'Gift Code'}</label>
                   <input
                     type="text"
-                    value={botTelegramHandle}
-                    onChange={(e) => setBotTelegramHandle(e.target.value)}
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr"
-                    placeholder="my_awesome_bot"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
+                    placeholder="e.g. VIP2024"
+                    required
                   />
                 </div>
-                
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'درصد پاداش به ازای دعوت (%)' : 'Reward Percentage per Invite'}</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={referralRewardPercent}
-                      onChange={(e) => setReferralRewardPercent(Number(e.target.value))}
-                      className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr pr-8"
-                      placeholder="5"
-                      min="0"
-                      max="100"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
-                  </div>
+                  <label className="text-sm font-medium text-gray-300">{isFa ? 'مبلغ (تومان)' : 'Amount (Toman)'}</label>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
+                    placeholder="50000"
+                    required
+                  />
                 </div>
-
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">{lang === 'fa' ? 'مبلغ پایه محاسبه (تومان)' : 'Base Calculation Amount'}</label>
-                  <div className="relative">
+                  <label className="text-sm font-medium text-gray-300">{isFa ? 'تعداد مجاز استفاده' : 'Max Usage'}</label>
+                  <input
+                    type="number"
+                    value={maxUsage}
+                    onChange={(e) => setMaxUsage(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
+                    min="1"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="w-14 items-center justify-center flex bg-slate-700 hover:bg-slate-600 text-white rounded-xl px-2 py-2.5 transition-all"
+                      title="لغو ویرایش"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className={`flex-1 ${editingId ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-purple-500 hover:bg-purple-600'} text-white rounded-xl px-4 py-2.5 font-medium transition-all flex items-center justify-center space-x-2 space-x-reverse cursor-pointer`}
+                  >
+                    {editingId ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                    <span>{editingId ? (isFa ? 'ذخیره تغییرات' : 'Save Changes') : (isFa ? 'ایجاد کد هدیه' : 'Create Code')}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Referral Settings Panel */}
+            <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 space-y-6">
+              <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
+                <Share2 className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-sm font-semibold text-white">{isFa ? 'تنظیمات سیستم زیرمجموعه‌گیری' : 'Referral System Settings'}</h3>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {isFa 
+                  ? 'در این بخش می‌توانید مبلغ پاداش زیرمجموعه‌گیری و متن پیام معرفی را تنظیم کنید.'
+                  : 'Configure your referral reward amount and bot handle so the system can generate exclusive invite links.'}
+              </p>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300">{isFa ? 'آیدی ربات شما (بدون @)' : 'Bot Telegram Username (No @)'}</label>
                     <input
-                      type="number"
-                      value={calculationAmount}
-                      onChange={(e) => setCalculationAmount(Number(e.target.value))}
+                      type="text"
+                      value={botTelegramHandle}
+                      onChange={(e) => setBotTelegramHandle(e.target.value)}
                       className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr"
-                      placeholder="100000"
-                      min="0"
+                      placeholder="my_awesome_bot"
                     />
                   </div>
-                </div>
-              </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300">{isFa ? 'درصد پاداش به ازای دعوت (%)' : 'Reward Percentage per Invite'}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={referralRewardPercent}
+                        onChange={(e) => setReferralRewardPercent(Number(e.target.value))}
+                        className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr pr-8"
+                        placeholder="5"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
+                    </div>
+                  </div>
 
-              {/* Reward Calculation Preview */}
-              <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">
-                    {lang === 'fa' ? 'محاسبه پاداش مشتری به ازای هر دعوت:' : 'Reward per Invite:'}
-                  </p>
-                  <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <span className="bg-emerald-500/10 px-1.5 py-0.5 rounded text-emerald-300">
-                      {Math.max(0, Math.round((calculationAmount * referralRewardPercent) / 100)).toLocaleString()} 
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300">{isFa ? 'مبلغ پایه محاسبه (تومان)' : 'Base Calculation Amount'}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={calculationAmount}
+                        onChange={(e) => setCalculationAmount(Number(e.target.value))}
+                        className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left dir-ltr"
+                        placeholder="100000"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reward Calculation Preview */}
+                <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">
+                      {isFa ? 'محاسبه پاداش مشتری به ازای هر دعوت:' : 'Reward per Invite:'}
+                    </p>
+                    <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <span className="bg-emerald-500/10 px-1.5 py-0.5 rounded text-emerald-300">
+                        {Math.max(0, Math.round((calculationAmount * referralRewardPercent) / 100)).toLocaleString()} 
+                      </span>
+                      <span>{isFa ? 'تومان پاداش به ازای هر نفر' : 'Toman per referral'}</span>
+                    </p>
+                  </div>
+                  <div className="text-[10px] text-gray-500 bg-slate-800 px-2 py-1 rounded">
+                    {calculationAmount.toLocaleString()} × {referralRewardPercent}%
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-300 flex items-center justify-between">
+                    <span>{isFa ? 'متن پیام مجموعه گیری' : 'Referral Message Content'}</span>
+                    <span className="text-[10px] text-gray-500 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700">
+                      {isFa ? 'متغیرهای مجاز: {uid}, {link}, {amount}, {percent}, {reward}' : 'Vars: {uid}, {link}, {amount}, {percent}, {reward}'}
                     </span>
-                    <span>{lang === 'fa' ? 'تومان پاداش به ازای هر نفر' : 'Toman per referral'}</span>
-                  </p>
+                  </label>
+                  <textarea
+                    value={referralMessage}
+                    onChange={(e) => setReferralMessage(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm leading-relaxed"
+                    rows={6}
+                    placeholder={isFa ? 'متن خود را اینجا وارد کنید...' : 'Enter your text here...'}
+                  />
                 </div>
-                <div className="text-[10px] text-gray-500 bg-slate-800 px-2 py-1 rounded">
-                  {calculationAmount.toLocaleString()} × {referralRewardPercent}%
+
+                <div className="pt-2 flex items-center justify-between">
+                  <div className="text-xs text-emerald-400 font-semibold h-4">
+                    {savedSettings && (isFa ? '✅ تغییرات سیستم معرف ذخیره شد' : '✅ Referral settings saved')}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveReferralSettings}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/20"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isFa ? 'ذخیره تنظیمات معرف' : 'Save Referral Settings'}
+                  </button>
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 flex items-center justify-between">
-                  <span>{lang === 'fa' ? 'متن پیام مجموعه گیری' : 'Referral Message Content'}</span>
-                  <span className="text-[10px] text-gray-500 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700">
-                    {lang === 'fa' ? 'متغیرهای مجاز: {uid}, {link}, {amount}, {percent}, {reward}' : 'Vars: {uid}, {link}, {amount}, {percent}, {reward}'}
-                  </span>
+          {/* Registered Gift Codes List */}
+          <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl border border-slate-700/50 overflow-hidden mt-6">
+            <div className="p-4 border-b border-slate-700/50">
+              <h3 className="text-sm font-semibold text-white">{isFa ? 'کدهای هدیه ثبت شده' : 'Registered Gift Codes'}</h3>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto max-h-[400px] custom-scrollbar">
+              <table className="w-full text-right text-slate-300">
+                <thead className="bg-slate-900/50 text-slate-400 text-sm">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">کد هدیه</th>
+                    <th className="px-6 py-4 font-medium">مبلغ شارژ</th>
+                    <th className="px-6 py-4 font-medium">وضعیت استفاده</th>
+                    <th className="px-6 py-4 font-medium">تاریخ ایجاد</th>
+                    <th className="px-6 py-4 font-medium text-center">عملیات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {giftCodes && giftCodes.map((gc) => (
+                    <tr key={gc.id} className="hover:bg-slate-700/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded-lg">
+                          {gc.code}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-medium text-emerald-400">
+                        {gc.amount.toLocaleString()} تومان
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                          <Users className="w-4 h-4 text-slate-500" />
+                          <span className="text-sm">
+                            {gc.totalUsage} / {gc.maxUsage}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-400">
+                        {new Date(gc.createdAt).toLocaleDateString('fa-IR')}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-center items-center space-x-2 space-x-reverse">
+                          <button
+                            onClick={() => handleEdit(gc)}
+                            className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
+                            title="ویرایش کد"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteCode(gc.id)}
+                            className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all"
+                            title="حذف کد"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!giftCodes || giftCodes.length === 0) && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                        هیچ کد هدیه‌ای ایجاد نشده است
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* PROMO CODES / DISCOUNT COUPONS BLOCK */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+          {/* Create Code Form */}
+          <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 h-fit space-y-4">
+            <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2 border-b border-gray-700 pb-2">
+              <Plus className="w-4 h-4 text-indigo-400" />
+              {isFa ? "ثبت کد تخفیف جدید" : "Create New Discount Code"}
+            </h3>
+
+            <form onSubmit={handlePromoSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-400 font-semibold mb-1.5">
+                  {isFa ? "🏷️ کد تخفیف" : "🏷️ Promo Code"}
                 </label>
-                <textarea
-                  value={referralMessage}
-                  onChange={(e) => setReferralMessage(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm leading-relaxed"
-                  rows={8}
-                  placeholder={lang === 'fa' ? 'متن خود را اینجا وارد کنید...' : 'Enter your text here...'}
+                <input
+                  type="text"
+                  required
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  placeholder="DALTOON20"
+                  className="w-full bg-[#161c2a] border border-gray-700/80 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold tracking-wider text-center"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-between">
-                <div className="text-xs text-emerald-400 font-semibold h-4">
-                  {savedSettings && (lang === 'fa' ? '✅ تغییرات سیستم معرف ذخیره شد' : '✅ Referral settings saved')}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-400 font-semibold mb-1.5">
+                    {isFa ? "⚙️ نوع کد" : "⚙️ Code Type"}
+                  </label>
+                  <select
+                    value={promoType}
+                    onChange={(e) => setPromoType(e.target.value as "percent" | "extend_days")}
+                    className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
+                  >
+                    <option value="percent">{isFa ? "درصدی (%)" : "Percentage (%)"}</option>
+                    <option value="extend_days">{isFa ? "تمدید (روز)" : "Extension (Days)"}</option>
+                  </select>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSaveReferralSettings}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/20"
-                >
-                  <Save className="w-4 h-4" />
-                  {lang === 'fa' ? 'ذخیره تنظیمات معرف' : 'Save Referral Settings'}
-                </button>
-              </div>
-            </div>
-        </div>
-      </div>
 
-      <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl border border-slate-700/50 overflow-hidden">
-        <div className="p-4 border-b border-slate-700/50">
-          <h3 className="text-sm font-semibold text-white">{lang === 'fa' ? 'کدهای هدیه ثبت شده' : 'Registered Gift Codes'}</h3>
-        </div>
-        <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
-          <table className="w-full text-right text-slate-300">
-            <thead className="bg-slate-900/50 text-slate-400 text-sm">
-              <tr>
-                <th className="px-6 py-4 font-medium">کد هدیه</th>
-                <th className="px-6 py-4 font-medium">مبلغ شارژ</th>
-                <th className="px-6 py-4 font-medium">وضعیت استفاده</th>
-                <th className="px-6 py-4 font-medium">تاریخ ایجاد</th>
-                <th className="px-6 py-4 font-medium text-center">عملیات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {giftCodes && giftCodes.map((gc) => (
-                <tr key={gc.id} className="hover:bg-slate-700/20 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className="font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded-lg">
-                      {gc.code}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 font-medium text-emerald-400">
-                    {gc.amount.toLocaleString()} تومان
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2 space-x-reverse">
-                      <Users className="w-4 h-4 text-slate-500" />
-                      <span className="text-sm">
-                        {gc.totalUsage} / {gc.maxUsage}
-                      </span>
+                <div>
+                  <label className="block text-xs text-gray-400 font-semibold mb-1.5">
+                    {promoType === "percent" ? (isFa ? "📈 درصد تخفیف" : "Discount %") : (isFa ? "📅 تعداد روز" : "Extend Days")}
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={promoType === "percent" ? 100 : 365}
+                    value={promoValue}
+                    onChange={(e) => setPromoValue(e.target.value)}
+                    placeholder={promoType === "percent" ? "20" : "5"}
+                    className="w-full bg-[#161c2a] border border-gray-700/80 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-400 font-semibold mb-1.5">
+                  {isFa ? "👥 حداکثر دفعات استفاده" : "👥 Max Usage Capacity"}
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={promoMaxUsage}
+                  onChange={(e) => setPromoMaxUsage(e.target.value)}
+                  className="w-full bg-[#161c2a] border border-gray-750 p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center rounded-xl"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white p-3 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/10 cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                {isFa ? "ایجاد و ذخیره کد تخفیف" : "Create Promo Code"}
+              </button>
+            </form>
+
+            {promoSuccess && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-center text-xs font-medium">
+                {isFa ? "✅ کد تخفیف جدید با موفقیت ذخیره شد!" : "✅ Promo Code successfully saved!"}
+              </div>
+            )}
+          </div>
+
+          {/* List of Active Codes */}
+          <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 flex flex-col">
+            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2 border-b border-gray-700 pb-2">
+              <Tag className="w-4 h-4 text-indigo-400" />
+              {isFa ? "کدهای تخفیف فعال" : "Active Promo Codes"}
+            </h3>
+
+            <div className="flex-1 overflow-auto max-h-[480px] space-y-3">
+              {promoCodes.length === 0 ? (
+                <div className="h-44 flex flex-col items-center justify-center text-center">
+                  <Tag className="w-8 h-8 text-gray-600 mb-2" />
+                  <p className="text-xs text-gray-500">
+                    {isFa ? "هیچ کد تخفیفی ایجاد نشده است." : "No promo codes available."}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {promoCodes.map((pc) => (
+                    <div
+                      key={pc.id}
+                      className="bg-[#161c2a] border border-gray-800 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-500/30 transition-all duration-200"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="inline-block bg-indigo-600/20 text-indigo-300 font-mono font-extrabold text-sm px-2.5 py-1 rounded-lg tracking-wider">
+                            {pc.code}
+                          </span>
+                          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-gray-300">
+                            {pc.type === "percent" ? (
+                              <>
+                                <Percent className="w-3.5 h-3.5 text-amber-500" />
+                                <span>{isFa ? `${pc.value}٪ تخفیف` : `${pc.value}% Discount`}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>
+                                  {isFa ? `${pc.value} روز تمدید رایگان` : `${pc.value} days extension`}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => onDeletePromoCode && onDeletePromoCode(pc.id)}
+                          className="p-1 px-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white transition duration-150 cursor-pointer border border-red-500/20"
+                          title={isFa ? "حذف" : "Delete"}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
+                        <div>
+                          {isFa ? "دفعات استفاده:" : "Used:"}{" "}
+                          <span className="font-semibold text-white font-mono">
+                            {pc.totalUsage}
+                          </span>{" "}
+                          / <span className="text-gray-400">{pc.maxUsage}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                          <span className="font-mono text-gray-500">
+                            {pc.createdAt.split("T")[0]}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-400">
-                    {new Date(gc.createdAt).toLocaleDateString('fa-IR')}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center items-center space-x-2 space-x-reverse">
-                      <button
-                        onClick={() => handleEdit(gc)}
-                        className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
-                        title="ویرایش کد"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteCode(gc.id)}
-                        className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all"
-                        title="حذف کد"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(!giftCodes || giftCodes.length === 0) && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    هیچ کد هدیه‌ای ایجاد نشده است
-                  </td>
-                </tr>
+                  ))}
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

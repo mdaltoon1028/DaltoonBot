@@ -42,7 +42,6 @@ import ColleaguesManagement from "./components/ColleaguesManagement";
 import SettingsPanel from "./components/SettingsPanel";
 import BotButtonsPanel from "./components/BotButtonsPanel";
 import GiftCodeManager from "./components/GiftCodeManager";
-import PromoCodeManager from "./components/PromoCodeManager";
 import TicketManager from "./components/TicketManager";
 import BotLogs from "./components/BotLogs";
 import { LoginScreen } from "./components/LoginScreen";
@@ -495,6 +494,20 @@ export default function App() {
       .catch(err => console.warn(err));
   };
 
+  const handleDeleteTicket = (ticketId: string) => {
+    fetch("/api/tickets/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId })
+    }).then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          refreshData();
+        }
+      })
+      .catch(err => console.warn(err));
+  };
+
   const toggleUserBan = (userId: number) => {
     let nextStatus: "active" | "banned" = "active";
     setUsers(prev => prev.map(u => {
@@ -842,18 +855,6 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setActiveTab("promocodes")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
-                activeTab === "promocodes" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <Tag className="w-4 h-4" />
-              {lang === "fa" ? "کدهای تخفیف" : "Promo Codes"}
-            </button>
-
-            <button
               onClick={() => setActiveTab("tickets")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition relative ${
                 activeTab === "tickets" 
@@ -1031,6 +1032,8 @@ export default function App() {
               keys={keys}
               setKeys={setKeys}
               setUsers={setUsers}
+              tickets={tickets}
+              setTickets={setTickets}
               activeUserId={simulatedUserId}
               setActiveUserId={setSimulatedUserId}
               updateUserBalance={adjustUserWallet}
@@ -1112,17 +1115,11 @@ export default function App() {
                   setGiftCodes(prev => prev.filter(c => c.id !== id));
                 }
               }}
+              promoCodes={promoCodes}
+              onAddPromoCode={handleAddPromoCode}
+              onDeletePromoCode={handleDeletePromoCode}
               settings={settings}
               onSaveSettings={saveSettings}
-              lang={lang}
-            />
-          )}
-
-          {activeTab === "promocodes" && (
-            <PromoCodeManager
-              promoCodes={promoCodes}
-              onAddCode={handleAddPromoCode}
-              onDeleteCode={handleDeletePromoCode}
               lang={lang}
             />
           )}
@@ -1132,6 +1129,7 @@ export default function App() {
               tickets={tickets}
               onReplyTicket={handleReplyTicket}
               onCloseTicket={handleCloseTicket}
+              onDeleteTicket={handleDeleteTicket}
               lang={lang}
             />
           )}

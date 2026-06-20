@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { User, VpnPlan, Transaction, SubscriptionKey, CustomButton, PanelSettings } from "../types";
+import { User, VpnPlan, Transaction, SubscriptionKey, CustomButton, PanelSettings, Ticket } from "../types";
 import { Language, translations } from "../locales";
 import { copyTextToClipboard } from "../utils/clipboard";
 import { 
@@ -23,6 +23,8 @@ interface BotSimulatorProps {
   keys: SubscriptionKey[];
   setKeys: React.Dispatch<React.SetStateAction<SubscriptionKey[]>>;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  tickets?: Ticket[];
+  setTickets?: React.Dispatch<React.SetStateAction<Ticket[]>>;
   activeUserId: number;
   setActiveUserId: (id: number) => void;
   updateUserBalance: (userId: number, newBalance: number) => void;
@@ -51,6 +53,8 @@ export default function BotSimulator({
   keys,
   setKeys,
   setUsers,
+  tickets = [],
+  setTickets,
   activeUserId,
   setActiveUserId,
   updateUserBalance,
@@ -68,6 +72,28 @@ export default function BotSimulator({
   const [purchaseStep, setPurchaseStep] = useState<"idle" | "confirm_plan" | "ask_client_name" | "sending">("idle");
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   
+  // Local Simulator Sandboxes (Ensures the chatbot is strictly local and educational without writing to persistent DB)
+  const [simulatedUsers, setSimulatedUsers] = useState<User[]>([]);
+  const [simulatedKeys, setSimulatedKeys] = useState<SubscriptionKey[]>([]);
+
+  // Sync simulated state from incoming props
+  useEffect(() => {
+    if (users && users.length > 0) {
+      setSimulatedUsers(users);
+    }
+  }, [users]);
+
+  useEffect(() => {
+    if (keys && keys.length > 0) {
+      setSimulatedKeys(keys);
+    }
+  }, [keys]);
+
+  // Support ticket flow states
+  const [supportStep, setSupportStep] = useState<"idle" | "ask_subject" | "ask_message">("idle");
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [adminNotification, setAdminNotification] = useState<{ id: string; username: string; subject: string } | null>(null);
+
   // Invoice form fields
   const [invoiceAmount, setInvoiceAmount] = useState("");
   const [invoiceDesc, setInvoiceDesc] = useState("");
@@ -79,7 +105,7 @@ export default function BotSimulator({
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const currentUser = users.find(u => u.userId === activeUserId) || users[0];
+  const currentUser = simulatedUsers.find(u => u.userId === activeUserId) || users.find(u => u.userId === activeUserId) || users[0];
 
   useEffect(() => {
     // Scroll to bottom
@@ -158,7 +184,7 @@ export default function BotSimulator({
     // Simulate auto warning
     const isAutoWarningEnabled = settings?.autoWarningConfigBtn !== false;
     if (isAutoWarningEnabled) {
-      const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
+      const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
       activeUserKeys.forEach(k => {
         const total = k.trafficLimitGb || 50;
         const used = k.trafficUsedGb || 0;
@@ -212,6 +238,84 @@ export default function BotSimulator({
     };
     setMessages(prev => [...prev, userMsg]);
 
+    // Handle support ticket subject input
+    if (supportStep === "ask_subject") {
+      const subject = text.trim();
+      if (subject.includes("انصراف") || subject.includes("Cancel") || subject.includes("بازگشت") || subject.includes("منوی اصلی")) {
+        setSupportStep("idle");
+        addBotReply(lang === "fa" ? "❌ فرآیند ثبت تیکت لغو شد." : "❌ Ticket filing cancelled.", 500, getKeyboard());
+        return;
+      }
+      setTicketSubject(subject);
+      setSupportStep("ask_message");
+      addBotReply(
+        lang === "fa"
+          ? `📝 <b>موضوع تیکت شما:</b> "${subject}"\n\nحالا لطفاً پیام خود را همراه جزئیات شرح دهید تا به واحد فنی ارسال گردد:`
+          : `📝 <b>Subject:</b> "${subject}"\n\nNow description of your issue. Please type your detailed message here:`,
+        600,
+        [
+          [lang === "fa" ? "❌ انصراف از ثبت تیکت" : "❌ Cancel Ticket"]
+        ]
+      );
+      return;
+    }
+
+    // Handle support message input & register ticket
+    if (supportStep === "ask_message") {
+      const message = text.trim();
+      if (message.includes("انصراف") || message.includes("Cancel") || message.includes("بازگشت") || message.includes("منوی اصلی")) {
+        setSupportStep("idle");
+        addBotReply(lang === "fa" ? "❌ فرآیند ثبت تیکت لغو شد." : "❌ Ticket filing cancelled.", 500, getKeyboard());
+        return;
+      }
+      setSupportStep("idle");
+      addBotReply(lang === "fa" ? "⏳ در حال فرستادن اطلاعات تیکت و ثبت در سامانه پرونده‌ها..." : "⏳ Submitting ticket to dashboard agents...", 500);
+
+      // Call API to create a live, real ticket
+      fetch("/api/tickets/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.userId,
+          username: currentUser.username,
+          subject: ticketSubject,
+          message: message
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          if (setTickets) {
+            setTickets(data.tickets);
+          }
+          addBotReply(
+            lang === "fa"
+              ? `✅ <b>تیکت شما با موفقیت در سامانه پیگیری ثبت گردید!</b>\n\n🎟️ <b>شناسه پرونده:</b> <code>${data.ticket.id}</code>\n📂 <b>موضوع:</b> ${data.ticket.subject}\n\nپیام شما برای بخش پشتیبانی دالتون ارسال شد. پاسخ کارشناس به زودی در همین ربات ظاهر خواهد شد.`
+              : `✅ <b>Ticket filed successfully!</b>\n\n🎟️ <b>Ticket ID:</b> <code>${data.ticket.id}</code>\n📂 <b>Subject:</b> ${data.ticket.subject}\n\nOur service agents will review and reply swiftly.`,
+            800,
+            getKeyboard()
+          );
+
+          // Trigger admin DMs desktop notification float!
+          setAdminNotification({
+            id: data.ticket.id,
+            username: currentUser.username,
+            subject: data.ticket.subject
+          });
+        } else {
+          addBotReply(
+            lang === "fa" ? `❌ خطا در ثبت تیکت: ${data.error}` : `❌ Failed to submit ticket: ${data.error}`,
+            600,
+            getKeyboard()
+          );
+        }
+      })
+      .catch(() => {
+        addBotReply(lang === "fa" ? "❌ خطایی در اتصال به سامانه رخ داد." : "❌ Network error registering ticket.", 500, getKeyboard());
+      });
+      return;
+    }
+
     // Handle Transfer ownership receiver input
     if (transferringKeyId) {
       const targetUser = text.trim();
@@ -225,34 +329,16 @@ export default function BotSimulator({
 
       addBotReply(lang === "fa" ? "⏳ در حال اعتبارسنجی کاربر مقصد و انتقال مالکیت..." : "⏳ Initiating ownership transfer...", 500);
 
-      fetch("/api/subscription-keys/transfer-ownership", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: subId, targetUserIdOrUsername: targetUser })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          // Remove from local keys state immediately
-          setKeys(prev => prev.filter(k => k.id !== subId));
-          addBotReply(
-            lang === "fa"
-              ? `🎉 <b>انتقال با موفقیت انجام شد!</b>\n\nسرویس شما به عنوان هدیه با موفقیت به پنل کاربر <b>@${data.targetUsername}</b> منتقل شد و از حساب شما کسر گردید.`
-              : `🎉 <b>Transfer Complete!</b>\n\nThis subscription has been successfully gifted to @${data.targetUsername}.`,
-            800,
-            getKeyboard()
-          );
-        } else {
-          addBotReply(
-            lang === "fa" ? `❌ خطا در انتقال:\n${data.error}` : `❌ Transfer failed: ${data.error}`,
-            600,
-            getKeyboard()
-          );
-        }
-      })
-      .catch(() => {
-        addBotReply(lang === "fa" ? "❌ کاربر یافت نشد یا خطایی رخ داد." : "❌ Target user not found.", 500, getKeyboard());
-      });
+      setTimeout(() => {
+        setSimulatedKeys(prev => prev.filter(k => k.id !== subId));
+        addBotReply(
+          lang === "fa"
+            ? `🎉 <b>انتقال با موفقیت انجام شد! (شبیه‌ساز آموزشی ✨)</b>\n\nسرویس شما به عنوان هدیه با موفقیت به پنل کاربر <b>@${targetUser}</b> منتقل شد و از حساب شما کسر گردید.\n\n⚠️ <i>محیط آزمایشی شبیه‌ساز: اطلاعات دیتابیس بدون تغییر باقی مانده است.</i>`
+            : `🎉 <b>Transfer Complete! (Educational Simulator ✨)</b>\n\nThis subscription has been successfully gifted to @${targetUser}.\n\n⚠️ <i>Sandbox Mode: Real database users and wallets remain untouched.</i>`,
+          800,
+          getKeyboard()
+        );
+      }, 700);
       return;
     }
 
@@ -290,81 +376,81 @@ export default function BotSimulator({
         []
       );
 
-      fetch("/api/vpn-plans/buy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planId: selectedPlanToBuy.id,
-          userId: currentUser.userId,
-          clientName: clientNameInput,
-          isSimulator: true
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          if (data.vpnPlans) setVpnPlans(data.vpnPlans);
-          if (data.subscriptionKeys) setKeys(data.subscriptionKeys);
-          if (data.users) setUsers(data.users);
-          
-          const newBal = data.userWalletBalance;
-          const mockSub = data.subKey;
-          
+      setTimeout(() => {
+        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const price = isUserAdminOrOwner ? 0 : selectedPlanToBuy.price;
+        const newBal = currentUser.walletBalance - price;
+
+        if (newBal < 0) {
           setSelectedPlanToBuy(null);
           setPurchaseStep("idle");
-
-          const deliveryNote = settings?.purchaseSuccessNote ? `\n\n${settings.purchaseSuccessNote}` : "";
-          const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
-          const confirmMsg = lang === "fa"
-            ? `🎉 خرید شما با موفقیت انجام شد!\n\n` +
-              `👤 نام کاربری سرویس شما: <code>${clientNameInput}</code>\n` +
-              `💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : selectedPlanToBuy.price.toLocaleString() + " تومان"}\n` +
-              `💰 موجودی جدید باقیمانده کیف پول: ${newBal.toLocaleString()} تومان\n\n` +
-              `🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n` +
-              `• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n` +
-              `<code>${mockSub.subLink}</code>\n\n` +
-              `جهت استفاده، جستجوی بالا را کپی کرده و در کلاینت خود ایمپورت کنید یا کارت QR زیر را اسکن فرمایید.${deliveryNote}`
-            : `🎉 VPN subscription purchased successfully!\n\n` +
-              `👤 Username: <code>${clientNameInput}</code>\n` +
-              `💳 Price Deducted: ${isUserAdminOrOwner ? "0 (Admin Free 👑)" : selectedPlanToBuy.price.toLocaleString() + " Toman"}\n` +
-              `💰 New Balance: ${newBal.toLocaleString()} Toman\n\n` +
-              `🔑 <b>Your dedicated subscription link has been generated:</b>\n` +
-              `<code>${mockSub.subLink}</code>\n\n` +
-              `Import the link above or scan the QR code below.${deliveryNote}`;
-
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockSub.subLink)}`;
-
-          setIsTyping(true);
-          setTimeout(() => {
-            setIsTyping(false);
-            setMessages(prev => [
-              ...prev,
-              {
-                id: Math.random().toString(),
-                sender: "bot",
-                text: confirmMsg,
-                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                keyboard: getKeyboard(),
-                imageUrl: qrUrl
-              }
-            ]);
-          }, 1000);
-        } else {
-          setSelectedPlanToBuy(null);
-          setPurchaseStep("idle");
-          const errMsg = lang === "fa" ? "پرداخت ناموفق بود: " + data.error : "Checkout failed: " + data.error;
-          addBotReply(errMsg, 500, getKeyboard());
+          addBotReply(
+            lang === "fa"
+              ? "❌ موجودی کیف پول شبیه‌ساز شما کافی نیست. لطفاً ابتدا کیف پول خود را شارژ آزمایشی کرده و مجدداً امتحان کنید."
+              : "❌ Insufficient sandbox balance. Please recharge your test wallet first.",
+            500,
+            getKeyboard()
+          );
+          return;
         }
-      })
-      .catch(err => {
+
+        const randomSubId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+        const expireDate = new Date(Date.now() + selectedPlanToBuy.durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const mockSub = {
+          id: randomSubId,
+          userId: currentUser.userId,
+          planId: selectedPlanToBuy.id,
+          planName: selectedPlanToBuy.name,
+          subLink: `vless://mock_vless_uuid_${randomSubId}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_Mock_${randomSubId}`,
+          expireDate,
+          trafficLimitGb: selectedPlanToBuy.trafficGb,
+          trafficUsedGb: 0,
+          status: "active" as const
+        };
+
+        // Update simulated states
+        setSimulatedUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: newBal } : u));
+        setSimulatedKeys(prev => [mockSub, ...prev]);
+
         setSelectedPlanToBuy(null);
         setPurchaseStep("idle");
-        addBotReply(
-          lang === "fa" ? "خطایی در برقراری ارتباط با سرور رخ داد." : "Database connection lost during payment.",
-          500,
-          getKeyboard()
-        );
-      });
+
+        const deliveryNote = settings?.purchaseSuccessNote ? `\n\n${settings.purchaseSuccessNote}` : "";
+        const confirmMsg = lang === "fa"
+          ? `🎉 <b>خرید آزمایشی شما با موفقیت انجام شد!</b>\n\n` +
+            `👤 نام کاربری سرویس شما: <code>${clientNameInput}</code>\n` +
+            `💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n` +
+            `💰 موجودی باقیمانده کیف پول آزمایشی: ${newBal.toLocaleString()} تومان\n\n` +
+            `🔑 <b>کانفیگ VLESS اختصاصی (آزمایشی) صادر شد:</b>\n` +
+            `• مسیر اشتراک:\n\n` +
+            `<code>${mockSub.subLink}</code>\n\n` +
+            `⚠️ <i>توجه: کل سیستم شبیه‌ساز کاملاً آموزشی است و هیچ تأثیری بر کیف پول دیتابیس واقعی ندارد.</i>${deliveryNote}`
+          : `🎉 <b>Simulated subscription purchased!</b>\n\n` +
+            `👤 Username: <code>${clientNameInput}</code>\n` +
+            `💳 Price Deducted: ${isUserAdminOrOwner ? "0 (Admin Free 👑)" : price.toLocaleString() + " Toman"}\n` +
+            `💰 Simulated Wallet Balance: ${newBal.toLocaleString()} Toman\n\n` +
+            `🔑 <b>Simulated configuration generated:</b>\n` +
+            `<code>${mockSub.subLink}</code>\n\n` +
+            `⚠️ <i>Notice: This educational sandbox does not consume physical key structures.</i>${deliveryNote}`;
+
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockSub.subLink)}`;
+
+        setIsTyping(true);
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: "bot",
+              text: confirmMsg,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              keyboard: getKeyboard(),
+              imageUrl: qrUrl
+            }
+          ]);
+        }, 1000);
+      }, 1000);
       return;
     }
 
@@ -394,7 +480,7 @@ export default function BotSimulator({
       );
     } 
     else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
-      const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
+      const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
       // Profile Info (without active plans details string, we'll keep it simple profile)
       addBotReply(
         lang === "fa"
@@ -412,7 +498,7 @@ export default function BotSimulator({
       );
     }
     else if (text === (settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید") || text.includes("اشتراک های من") || text.includes("🗂")) {
-      const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
+      const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
       if (activeUserKeys.length > 0) {
         const inlineSubsButtons = activeUserKeys.map((k, idx) => [
           { text: lang === "fa" ? `⚙️ مدیریت: ${k.planName} (${idx + 1})` : `⚙️ Manage: ${k.planName} (${idx + 1})`, action: `manage_sub_${k.id}` }
@@ -531,14 +617,25 @@ export default function BotSimulator({
         );
       }
     } 
-    else if (text.includes("📞") || text.includes("پشتیبانی") || text.includes("Support") || text.includes("support")) {
+    else if (text.includes("📞") || text.includes("پشتیبانی") || text.includes("Support") || text.includes("support") || text.includes("🎧") || text.includes("تیکت") || text.includes("Ticket")) {
       addBotReply(
         lang === "fa" 
-          ? "📞 بخش پشتیبانی دالتون بات:\n\nپاسخگویی سریع ۲۴ ساعته هم‌اکنون فعال است.\n\nبا آیدی تلگرام @daltoon_support در ارتباط باشید."
-          : "📞 Customer Service Support:\n\nOur service is live 24/7. Feel free to contact @daltoon_support on Telegram directly for answers.",
-        500
+          ? "🎧 <b>مرکز پشتیبانی و تیکتینگ هوشمند دالتون:</b>\n\nهم‌اکنون پشتیبانی ما به صورت ۲۴ ساعته فعال است. شما می‌توانید مستقیماً با تیم پشتیبانی چت کنید یا یک تیکت رسمی ثبت نمایید تا به طور دقیق پرونده شما بررسی شود.\n\nلطفاً یکی از گزینه‌های زیر را انتخاب نمایید:"
+          : "🎧 <b>DalToon Support & Ticketing Center:</b>\n\nOur support operations are live 24/7. You can contact support directly or register an official ticket trace.\n\nPlease choose one of the options below:",
+        500,
+        undefined,
+        [
+          [
+            { text: lang === "fa" ? "🎟️ ثبت تیکت دیجیتال" : "🎟️ File Support Ticket", action: "btn_create_ticket" },
+            { text: lang === "fa" ? "💬 پشتیبانی مستقیم تلگرام" : "💬 Chat with Support Agent", action: "btn_direct_support" }
+          ],
+          [
+            { text: lang === "fa" ? "🔙 منوی اصلی" : "🔙 Main Menu", action: "btn_back_home" }
+          ]
+        ]
       );
     } 
+
     else {
       // General fallbacks
       addBotReply(
@@ -576,10 +673,35 @@ export default function BotSimulator({
       return;
     }
 
+    if (action === "btn_direct_support") {
+      addBotReply(
+        lang === "fa"
+          ? "💬 جهت گفتگوی مستقیم تلگرام به آیدی <b>@daltoon_support</b> پیام دهید. تیم ما پس از بررسی پیام شما، فوراً گفتگو را آغاز خواهد کرد."
+          : "💬 Send a message to <b>@daltoon_support</b> on Telegram for direct support assistance.",
+        500,
+        getKeyboard()
+      );
+      return;
+    }
+
+    if (action === "btn_create_ticket") {
+      setSupportStep("ask_subject");
+      addBotReply(
+        lang === "fa"
+          ? "🎟️ <b>ثبت تیکت دیجیتال پشتیبانی:</b>\n\nدر این بخش شما یک پرونده الکترونیکی با دپارتمان پشتیبانی دالتون ایجاد می‌کنید.\n\nلطفاً <b>موضوع تیکت خود</b> (به عنوان مثال: قطع بودن سرور، عدم تمدید، شارژ نادرست کیف پول و...) را وارد کنید:"
+          : "🎟️ <b>File Support Ticket:</b>\n\nPlease type the <b>Subject</b> of your support request (e.g. Server down, subscription issue, etc.):",
+        500,
+        [
+          [lang === "fa" ? "❌ انصراف از ثبت تیکت" : "❌ Cancel Ticket"]
+        ]
+      );
+      return;
+    }
+
     // --- OPTION 3: INTERACTIVE SUBSCRIPTION MANAGER ---
     if (action.startsWith("manage_sub_")) {
       const subId = action.substring(11);
-      const k = keys.find(item => item.id === subId);
+      const k = simulatedKeys.find(item => item.id === subId);
       if (k) {
         const total = k.trafficLimitGb || 50;
         const used = k.trafficUsedGb || 0;
@@ -649,37 +771,33 @@ export default function BotSimulator({
 
     if (action.startsWith("confirm_regen_")) {
       const subId = action.substring(14);
-      addBotReply(lang === "fa" ? "⏳ در حال باطل ساختن لایسنس قبلی و تخصیص شناسه اتصال جدید..." : "⏳ Rotatig encryption credentials...", 500);
+      addBotReply(lang === "fa" ? "⏳ در حال باطل ساختن لایسنس قبلی و تخصیص شناسه اتصال جدید..." : "⏳ Rotating encryption credentials...", 500);
       
-      fetch("/api/subscription-keys/regenerate-uuid", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: subId })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setKeys(prev => prev.map(item => item.id === subId ? { ...item, subLink: data.key.subLink } : item));
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.key.subLink)}`;
-          setIsTyping(true);
-          setTimeout(() => {
-            setIsTyping(false);
-            setMessages(prev => [
-              ...prev,
-              {
-                id: Math.random().toString(),
-                sender: "bot",
-                text: lang === "fa"
-                  ? `🎉 <b>کلید اتصال شما بازنشانی شد!</b>\n\n🔑 آدرس سابسکریپشن نوین شما:\n\n<code>${data.key.subLink}</code>\n\n⚠️ لینک قبلی دیگر متصل نخواهد شد. لطفاً پیوند بالا را کپی و در نرم‌افزار ایمپورت کنید.`
-                  : `🎉 <b>Subscription Key Generated!</b>\n\nNew URL:\n\n<code>${data.key.subLink}</code>`,
-                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                keyboard: getKeyboard(),
-                imageUrl: qrUrl
-              }
-            ]);
-          }, 1000);
-        }
-      });
+      setTimeout(() => {
+        const fakeUuid = "mock-uuid-" + Math.floor(Math.random() * 100000);
+        const nextSubLink = `vless://${fakeUuid}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_Mock_${subId}`;
+
+        setSimulatedKeys(prev => prev.map(item => item.id === subId ? { ...item, subLink: nextSubLink } : item));
+
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(nextSubLink)}`;
+        setIsTyping(true);
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: "bot",
+              text: lang === "fa"
+                ? `🎉 <b>کلید اتصال شما بازنشانی شد! (شبیه‌ساز آموزشی ✨)</b>\n\n🔑 آدرس سابسکریپشن نوین شما:\n\n<code>${nextSubLink}</code>\n\n⚠️ لینک قبلی دیگر متصل نخواهد شد. لطفاً پیوند بالا را کپی و در نرم‌افزار ایمپورت کنید.\n\n⚠️ <i>توجه: کلید جدید تفریحی بوده و تأثیری بر کلید اشتراک دیتابیس واقعی ندارد.</i>`
+                : `🎉 <b>Subscription Key Generated! (Sandbox Mode ✨)</b>\n\nNew URL:\n\n<code>${nextSubLink}</code>\n\n⚠️ <i>Notice: This educational sandbox does not alter credentials in the persistent database.</i>`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              keyboard: getKeyboard(),
+              imageUrl: qrUrl
+            }
+          ]);
+        }, 1000);
+      }, 700);
       return;
     }
 
@@ -814,40 +932,30 @@ export default function BotSimulator({
       
       const amount = parseInt(amountStr);
       addBotReply(lang === "fa" ? "⏳ در حال استعلام وضعیت پرداخت از بستر بلاک‌چین..." : "⏳ Confirming receipt state...", 500);
-      
-      fetch("/api/transactions/instant-pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: currentUser.userId,
-          amount,
-          description: `شارژ خودکار آنی از طریق ${gatewayName}`
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          // Immediately update clients state with new balance
-          setUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: data.userWalletBalance } : u));
-          
-          setIsTyping(true);
-          setTimeout(() => {
-            setIsTyping(false);
-            setMessages(prev => [
-              ...prev,
-              {
-                id: Math.random().toString(),
-                sender: "bot",
-                text: lang === "fa"
-                  ? `🎉 <b>پرداخت با موفقیت تایید شد!</b>\n\n💰 اعتبار کیف پول شما به صورت <b>آنی و کاملاً خودکار</b> به مبلغ <b>${amount.toLocaleString()} تومان</b> افزایش یافت.\n\n💵 موجودی فعلی: ${data.userWalletBalance.toLocaleString()} تومان\n\nممنون از اعتماد شما ☘️ اکنون با خیال راحت می‌توانید خرید نمایید.`
-                  : `🎉 <b>Payment Approved Successfully!</b>\n\nYour Toman wallet is <b>instantly & automatically</b> credited with <b>${amount.toLocaleString()} Toman</b>.\n\n💰 Current Balance: ${data.userWalletBalance.toLocaleString()} Toman. Enjoy!`,
-                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                keyboard: getKeyboard()
-              }
-            ]);
-          }, 800);
-        }
-      });
+
+      setTimeout(() => {
+        const newBal = currentUser.walletBalance + amount;
+        
+        // Update simulated state
+        setSimulatedUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: newBal } : u));
+
+        setIsTyping(true);
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: "bot",
+              text: lang === "fa"
+                ? `🎉 <b>پرداخت آزمایشی شبیه‌ساز با موفقیت تایید شد! ✨</b>\n\n💰 اعتبار آزمایشی کیف پول شما به صورت <b>آنی و کاملاً خودکار</b> به مبلغ <b>${amount.toLocaleString()} تومان</b> از طریق <b>${gatewayName}</b> افزایش یافت.\n\n💵 موجودی فعلی (محلی): ${newBal.toLocaleString()} تومان\n\n⚠️ <i>توجه: کل فرآیند تراکنش صرفاً شبیه‌ساز آموزشی است و تغییری در حساب‌های دیتابیس واقعی ادمین یا کاربر ایجاد نکرده است.</i>`
+                : `🎉 <b>Sandbox Recharge Approved Successfully! ✨</b>\n\nYour simulated balance is credited with <b>${amount.toLocaleString()} Toman</b> via <b>${gatewayName}</b>.\n\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman.\n\n⚠️ <i>Educational Sandbox Note: Real persistent database wallets remain completely clean and untouched.</i>`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              keyboard: getKeyboard()
+            }
+          ]);
+        }, 800);
+      }, 700);
       return;
     }
 
@@ -1289,6 +1397,31 @@ export default function BotSimulator({
               </button>
             </div>
           </div>
+
+          {/* Admin Telegram PV Ticket Notification Broadcast Toast */}
+          {adminNotification && (
+            <div className="absolute top-4 right-4 bg-slate-900 border-2 border-indigo-500 rounded-xl shadow-2xl p-4 max-w-sm z-30 animate-pulse">
+              <div className="flex items-start gap-3">
+                <div className="bg-indigo-600/25 p-2 rounded-lg shrink-0">
+                  <Smartphone className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div className="flex-1 text-right" dir="rtl">
+                  <span className="block text-[10px] text-indigo-400 font-bold tracking-wide uppercase">💬 پیام جدید در پی‌وی ادمین (PV Telegram)</span>
+                  <p className="text-xs text-white font-semibold mt-1">کاربر <b>@{adminNotification.username}</b> تیکت جدیدی در ربات ثبت کرد!</p>
+                  <p className="text-[11px] text-gray-400 mt-1"><b>موضوع تیکت:</b> "{adminNotification.subject}"</p>
+                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-800">
+                    <span className="text-[9px] text-slate-500 font-mono">ID: {adminNotification.id}</span>
+                    <button 
+                      onClick={() => setAdminNotification(null)}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[10px] rounded transition cursor-pointer"
+                    >
+                      تایید پیام ادمین
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

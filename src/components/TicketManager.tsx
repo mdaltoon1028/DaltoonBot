@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { MessageSquare, Check, X, Send, Search, Clock, Shield, AlertCircle } from "lucide-react";
+import { MessageSquare, Check, X, Send, Search, Clock, Shield, AlertCircle, Trash2 } from "lucide-react";
 import { Ticket } from "../types";
 import { Language } from "../locales";
 
@@ -7,6 +7,7 @@ interface TicketManagerProps {
   tickets: Ticket[];
   onReplyTicket: (ticketId: string, replyMessage: string) => void;
   onCloseTicket: (ticketId: string) => void;
+  onDeleteTicket?: (ticketId: string) => void;
   lang?: Language;
 }
 
@@ -14,6 +15,7 @@ export default function TicketManager({
   tickets = [],
   onReplyTicket,
   onCloseTicket,
+  onDeleteTicket,
   lang = "fa",
 }: TicketManagerProps) {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -191,11 +193,26 @@ export default function TicketManager({
                   <button
                     onClick={handleClose}
                     disabled={selectedTicket.status === "closed"}
-                    className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-red-600/15 border border-transparent hover:border-red-500/20 text-gray-300 hover:text-red-400 text-[11px] font-semibold cursor-pointer transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-emerald-600/15 border border-transparent hover:border-emerald-500/20 text-gray-300 hover:text-emerald-400 text-[11px] font-semibold cursor-pointer transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-3.5 h-3.5" />
                     {isFa ? "بستن پرونده تیکت" : "Close Ticket Chain"}
                   </button>
+
+                  {onDeleteTicket && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeleteTicket(selectedTicket.id);
+                        setSelectedTicketId(null);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 text-[11px] font-semibold cursor-pointer transition flex items-center gap-1"
+                      title={isFa ? "حذف تیکت" : "Delete Ticket"}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {isFa ? "حذف پرونده" : "Delete"}
+                    </button>
+                  )}
                 </div>
               </div>
 

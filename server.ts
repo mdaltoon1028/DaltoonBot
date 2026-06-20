@@ -540,6 +540,54 @@ app.post("/api/promo-codes/delete", (req, res) => {
 });
 
 // --- TICKETS ENDPOINTS ---
+app.post("/api/tickets/create", (req, res) => {
+  try {
+    const { userId, username, subject, message } = req.body;
+    const db = readJsonDb();
+    if (!db.tickets) db.tickets = [];
+
+    const ticketId = "TKB-" + Math.floor(Math.random() * 9000 + 1000);
+    const newTicket = {
+      id: ticketId,
+      userId: Number(userId),
+      username: username || ("user_" + userId),
+      subject: subject,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          sender: "user",
+          message: message,
+          date: new Date().toISOString()
+        }
+      ]
+    };
+
+    db.tickets.push(newTicket);
+    writeJsonDb(db);
+
+    res.json({ success: true, ticketId, tickets: db.tickets, ticket: newTicket });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/tickets/delete", (req, res) => {
+  try {
+    const { ticketId } = req.body;
+    const db = readJsonDb();
+    if (!db.tickets) db.tickets = [];
+
+    db.tickets = db.tickets.filter((t: any) => t.id !== ticketId);
+    writeJsonDb(db);
+
+    res.json({ success: true, tickets: db.tickets });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post("/api/tickets/reply", (req, res) => {
   try {
     const { ticketId, reply } = req.body;
@@ -2235,7 +2283,7 @@ async function autoSyncTrafficUsage() {
       }
 
       // Check Expiry Warning Feature (1GB remaining or 1 Day remaining)
-      const isAutoWarningEnabled = db.settings?.autoWarningConfigBtn !== false;
+      const isAutoWarningEnabled = String(db.settings?.autoWarningConfigBtn || "true") !== "false";
       if (isAutoWarningEnabled && !k.expiryWarningSent) {
         const remainingGb = (k.trafficLimitGb || 50) - (k.trafficUsedGb || 0);
         let remainingDays = 999;
