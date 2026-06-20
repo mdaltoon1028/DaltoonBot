@@ -16,7 +16,8 @@ import {
   Columns,
   Power,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
