@@ -350,6 +350,37 @@ export default function SettingsPanel({
             </div>
 
 
+            {/* ⚙️ Service Expiry Notification Toggle Switch with beautiful stylish power slider */}
+            <div className="md:col-span-2 border-t border-[#1f2937]/50 pt-5 mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Power className={`w-4 h-4 transition-colors ${autoWarningConfigBtn ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  {lang === "fa" ? "ارسال خودکار اخطار اتمام سرویس" : "Automatic Service Expiry Alert"}
+                </h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed max-w-xl">
+                  {lang === "fa" 
+                    ? "ربات به صورت هوشمند به کاربران دارای ۱ گیگ حجم باقی‌مانده یا ۱ روز زمان مانده، اخطار پیشرفته جهت تمدید ارسال خواهد کرد."
+                    : "Bot automatically alerts users when less than 1 GB or 1 Day of their plan remains."}
+                </p>
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setAutoWarningConfigBtn(!autoWarningConfigBtn)}
+                className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-300 ease-in-out focus:outline-none dir-ltr items-center ${
+                  autoWarningConfigBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+                }`}
+              >
+                <div
+                  className={`pointer-events-none flex items-center justify-center h-7 w-7 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ${
+                    autoWarningConfigBtn ? 'translate-x-8 text-emerald-600' : 'translate-x-0 text-slate-400'
+                  }`}
+                >
+                  <Power className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+              </button>
+            </div>
+
           </div>
         </div>
 
@@ -621,20 +652,8 @@ export default function SettingsPanel({
                   checked={gatewayStarsStatus}
                   onChange={(e) => setGatewayStarsStatus(e.target.checked)}
                 />
-                <span className="text-xs text-gray-300 font-medium">
+                <span className="text-xs text-gray-300 font-medium font-sans">
                   {lang === "fa" ? "پشتیبانی از درگاه Telegram Stars (ستاره‌های تلگرام)" : "Enable Gateway: Telegram Stars"}
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded text-rose-500 bg-gray-700 border-gray-600 focus:ring-rose-500 focus:ring-offset-gray-800"
-                  checked={autoWarningConfigBtn}
-                  onChange={(e) => setAutoWarningConfigBtn(e.target.checked)}
-                />
-                <span className="text-xs text-gray-300 font-medium whitespace-nowrap">
-                  {lang === "fa" ? "فعال‌سازی ارسال اخطار اتمام سرویس (۱ گیگ یا ۱ روز مانده)" : "Send expiry limits warning before 1 Day/1GB"}
                 </span>
               </label>
             </div>

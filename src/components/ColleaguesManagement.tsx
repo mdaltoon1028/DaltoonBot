@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ColleaguePackage, ColleagueAccount } from "../types";
-import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil } from "lucide-react";
+import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X } from "lucide-react";
 
 interface Props {
   packages: ColleaguePackage[];
@@ -13,6 +13,14 @@ interface Props {
 export default function ColleaguesManagement({ packages, accounts, setPackages, setAccounts, lang }: Props) {
   const [activeTab, setActiveTab] = useState<"packages" | "accounts">("packages");
   const [loading, setLoading] = useState(false);
+
+  const [localToast, setLocalToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setLocalToast({ message, type });
+    setTimeout(() => setLocalToast(null), 4000);
+  };
 
   // Package Form
   const [showAddPackage, setShowAddPackage] = useState(false);
@@ -54,80 +62,92 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
       if (data.success) {
         setPackages(data.colleaguePackages);
         resetPackageForm();
+        showToast(lang === "fa" ? "بسته با موفقیت ذخیره شد." : "Package saved successfully.", "success");
       } else {
-        alert(data.error);
+        showToast(data.error, "error");
       }
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message, "error");
     }
     setLoading(false);
   };
 
   const deletePackage = async (id: string) => {
-    const cf = confirm(lang === "fa" ? "حذف شود؟" : "Are you sure?");
-    if (!cf) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/colleague-packages/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setPackages(data.colleaguePackages);
-      } else {
-        alert(data.error);
+    setConfirmAction({
+      message: lang === "fa" ? "آیا از حذف این بسته اطمینان دارید؟" : "Are you sure you want to delete this package?",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/colleague-packages/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setPackages(data.colleaguePackages);
+            showToast(lang === "fa" ? "بسته با موفقیت حذف شد." : "Package deleted successfully.", "success");
+          } else {
+            showToast(data.error, "error");
+          }
+        } catch (err: any) {
+          showToast(err.message, "error");
+        }
+        setLoading(false);
       }
-    } catch (err: any) {
-      alert(err.message);
-    }
-    setLoading(false);
+    });
   };
 
   const deleteAccount = async (id: string) => {
-    const cf = confirm(lang === "fa" ? "حذف شود؟" : "Are you sure?");
-    if (!cf) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/colleague-accounts/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAccounts(data.colleagueAccounts);
-      } else {
-        alert(data.error);
+    setConfirmAction({
+      message: lang === "fa" ? "آیا از حذف این حساب مستقل همکار اطمینان دارید؟" : "Are you sure you want to delete this colleague account?",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/colleague-accounts/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setAccounts(data.colleagueAccounts);
+            showToast(lang === "fa" ? "حساب همکار حذف شد." : "Account deleted successfully.", "success");
+          } else {
+            showToast(data.error, "error");
+          }
+        } catch (err: any) {
+          showToast(err.message, "error");
+        }
+        setLoading(false);
       }
-    } catch (err: any) {
-      alert(err.message);
-    }
-    setLoading(false);
+    });
   };
 
   const resetAccount = async (id: string) => {
-    const cf = confirm(lang === "fa" ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب اطمینان دارید؟" : "Are you sure you want to reset credentials?");
-    if (!cf) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/colleague-accounts/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAccounts(data.colleagueAccounts);
-        alert(lang === "fa" ? "نام کاربری و رمز عبور با موفقیت ریست شد." : "Credentials reset successfully.");
-      } else {
-        alert(data.error);
+    setConfirmAction({
+      message: lang === "fa" ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟" : "Are you sure you want to reset credentials for this account?",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/colleague-accounts/reset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setAccounts(data.colleagueAccounts);
+            showToast(lang === "fa" ? "مشخصات اتصال نمایندگی با موفقیت ریست شد." : "Credentials reset successfully.", "success");
+          } else {
+            showToast(data.error, "error");
+          }
+        } catch (err: any) {
+          showToast(err.message, "error");
+        }
+        setLoading(false);
       }
-    } catch (err: any) {
-      alert(err.message);
-    }
-    setLoading(false);
+    });
   };
 
   const saveAccount = async () => {
@@ -143,38 +163,42 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
       if (data.success) {
         setAccounts(data.colleagueAccounts);
         setEditAccountId(null);
+        showToast(lang === "fa" ? "تغییرات با موفقیت ذخیره شد." : "Changes saved successfully.", "success");
       } else {
-        alert(data.error);
+        showToast(data.error, "error");
       }
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message, "error");
     }
     setLoading(false);
   };
 
   const resetAccountUsage = async () => {
     if (!editAccountId) return;
-    const cf = confirm(lang === "fa" ? "آیا از صفر کردن حجم مصرفی اطمینان دارید؟" : "Are you sure you want to reset usage to zero?");
-    if (!cf) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/colleague-accounts/reset-usage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editAccountId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAccounts(data.colleagueAccounts);
-        setEditAccountId(null);
-        alert(lang === "fa" ? "حجم مصرفی صفر شد." : "Usage reset successfully.");
-      } else {
-        alert(data.error);
+    setConfirmAction({
+      message: lang === "fa" ? "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟" : "Are you sure you want to reset usage to zero?",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/colleague-accounts/reset-usage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: editAccountId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setAccounts(data.colleagueAccounts);
+            setEditAccountId(null);
+            showToast(lang === "fa" ? "حجم مصرفی همکار با موفقیت صفر شد." : "Usage reset successfully.", "success");
+          } else {
+            showToast(data.error, "error");
+          }
+        } catch (err: any) {
+          showToast(err.message, "error");
+        }
+        setLoading(false);
       }
-    } catch (err: any) {
-      alert(err.message);
-    }
-    setLoading(false);
+    });
   };
 
   return (
@@ -406,6 +430,54 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition flex items-center justify-center gap-2"
               >
                 {loading ? "..." : (lang === "fa" ? "ذخیره تغییرات" : "Save Changes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Container */}
+      {localToast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-fadeIn flex items-center gap-2.5 bg-[#141b2d] border border-slate-800 rounded-xl px-4 py-3 shadow-2xl text-xs max-w-sm text-right font-sans" dir="rtl">
+          <div className={`p-1.5 rounded-full ${localToast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            <CheckCircle2 className="w-3.5 h-3.5" />
+          </div>
+          <p className="font-sans text-gray-200">{localToast.message}</p>
+        </div>
+      )}
+
+      {/* Confirmation Modal Container */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn font-sans">
+          <div className="bg-[#0f172a] border border-gray-800 rounded-2xl w-full max-w-sm p-5 space-y-5 shadow-2xl text-right font-sans" dir="rtl">
+            <div className="flex items-center gap-2 text-amber-400 border-b border-gray-800 pb-2.5">
+              <AlertCircle className="w-4 h-4 ml-1 text-amber-400" />
+              <h3 className="text-xs font-bold text-white">
+                {lang === "fa" ? "تایید نهایی عملیات" : "Confirm Operation"}
+              </h3>
+            </div>
+            
+            <p className="text-xs text-gray-400 leading-relaxed font-sans">
+              {confirmAction.message}
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-1.5 font-sans">
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                className="px-3.5 py-1.5 rounded-lg bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-semibold cursor-pointer transition font-sans border border-gray-800"
+              >
+                {lang === "fa" ? "انصراف" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmAction.onConfirm();
+                  setConfirmAction(null);
+                }}
+                className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold cursor-pointer transition font-sans"
+              >
+                {lang === "fa" ? "تایید" : "Confirm"}
               </button>
             </div>
           </div>

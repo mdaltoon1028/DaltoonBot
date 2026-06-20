@@ -7,6 +7,7 @@ import {
   PlusCircle, 
   Check, 
   Edit, 
+  Pencil,
   Trash2, 
   Plus, 
   Save, 
@@ -319,7 +320,7 @@ export default function BotButtonsPanel({
                 const primaryButtonsDefinition: Record<string, { label: string; value: string; setter: (val: string) => void; disabled: boolean; toggleDisabled: () => void }> = {
                   "btnBuyNew": { label: lang === "fa" ? "عنوان دکمه خرید اشتراک" : "Buy Sub Button Label", value: btnTextBuyNew, setter: setBtnTextBuyNew, disabled: hideBtnBuyNew, toggleDisabled: () => setHideBtnBuyNew(!hideBtnBuyNew) },
                   "btnMySubs": { label: lang === "fa" ? "عنوان دکمه اشتراک‌ها" : "My Subs Button Label", value: btnTextMySubs, setter: setBtnTextMySubs, disabled: hideBtnMySubs, toggleDisabled: () => setHideBtnMySubs(!hideBtnMySubs) },
-                  "btnGuides": { label: lang === "fa" ? "عنوان دکمه آموزش‌ها" : "Guides Button Label", value: btnTextGuides, setter: setBtnTextGuides, disabled: hideBtnGuides, toggleDisabled: () => setHideBtnGuides(!hideBtnGuides) },
+                  "btnGuides": { label: lang === "fa" ? "عنوان دکمه راهنمای اتصال" : "Connection Guide Button Label", value: btnTextGuides, setter: setBtnTextGuides, disabled: hideBtnGuides, toggleDisabled: () => setHideBtnGuides(!hideBtnGuides) },
                   "btnProfile": { label: lang === "fa" ? "عنوان دکمه حساب کاربری" : "Profile Button Label", value: btnTextProfile, setter: setBtnTextProfile, disabled: hideBtnProfile, toggleDisabled: () => setHideBtnProfile(!hideBtnProfile) },
                   "btnSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی" : "Support Button Label", value: btnTextSupport, setter: setBtnTextSupport, disabled: hideBtnSupport, toggleDisabled: () => setHideBtnSupport(!hideBtnSupport) },
                   "btnFreeTest": { label: lang === "fa" ? "عنوان دکمه موجوده رایگان/تست" : "Free Test Button Label", value: btnTextFreeTest, setter: setBtnTextFreeTest, disabled: hideBtnFreeTest, toggleDisabled: () => setHideBtnFreeTest(!hideBtnFreeTest) },
@@ -386,9 +387,9 @@ export default function BotButtonsPanel({
                               setShowGuidesModal(true);
                             }}
                             title={lang === "fa" ? "ویرایش متن راهنما" : "Edit Guide Description"}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-indigo-600/30 hover:bg-indigo-500 text-indigo-300 hover:text-white transition-all cursor-pointer border border-indigo-500/20"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-white transition-all cursor-pointer border border-amber-500/20"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -594,7 +595,7 @@ export default function BotButtonsPanel({
           <div className="w-full max-w-xl bg-[#0d121f] border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
             <div className="p-5 border-b border-gray-800/60 flex items-center justify-between">
               <span className="text-sm font-semibold text-white flex items-center gap-2">
-                <Edit className="w-4 h-4 text-indigo-400" />
+                <Pencil className="w-4 h-4 text-amber-400" />
                 {lang === "fa" ? "ویرایش توضیحات راهنمای اتصال" : "Edit Connection Guide Text"}
               </span>
               <button 
@@ -637,12 +638,42 @@ export default function BotButtonsPanel({
                 type="button"
                 onClick={() => {
                   setGuidesText(tempGuidesText);
+                  onSaveSettings({
+                    ...settings,
+                    btnTextBuyNew,
+                    btnTextMySubs,
+                    btnTextGuides,
+                    guidesText: tempGuidesText,
+                    btnTextProfile,
+                    btnTextSupport,
+                    btnTextFreeTest,
+                    btnTextInstantSupport,
+                    btnTextFeedback,
+                    btnTextReferral,
+                    btnTextWallet,
+                    btnTextColleagues,
+                    btnTextAiChat,
+                    hideBtnBuyNew,
+                    hideBtnMySubs,
+                    hideBtnGuides,
+                    hideBtnProfile,
+                    hideBtnSupport,
+                    hideBtnFreeTest,
+                    hideBtnInstantSupport,
+                    hideBtnFeedback,
+                    hideBtnReferral,
+                    hideBtnWallet,
+                    hideBtnColleagues,
+                    hideBtnAiChat,
+                    keyboardLayout,
+                    mainButtonsOrder
+                  });
                   setShowGuidesModal(false);
                 }}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg text-xs font-semibold cursor-pointer transition shadow-lg shadow-indigo-600/10 flex items-center gap-1.5"
+                className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg text-xs font-semibold cursor-pointer transition shadow-lg shadow-emerald-600/10 flex items-center gap-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
-                {lang === "fa" ? "ثبت موقت" : "Save Temporarily"}
+                {lang === "fa" ? "ذخیره نهایی و بستن" : "Save Changes & Close"}
               </button>
             </div>
           </div>
