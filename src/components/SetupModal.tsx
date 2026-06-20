@@ -62,14 +62,18 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
       : "Connection Guides...";
 
     const defaultWelcomeText = lang === "fa"
-      ? `سلام کاربر گرامی 🌹\nبه ربات ${nickname.trim()} خوش آمدید.\n\nآیدی عددی شما: {tg_id}\nموجودی فعلی: {wallet_balance} تومان`
-      : `Hello User!\nWelcome to ${nickname.trim()} bot.\nYour ID: {tg_id}\nWallet Balance: {wallet_balance}`;
+      ? `<b>🛍️ به فروشگاه ${nickname.trim()} خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`
+      : `<b>🛍️ Welcome to ${nickname.trim()} !</b>\n\nGet the best and most reliable plans and subscriptions with instant delivery and money-back guarantee.\n\n🆔 Your Telegram ID: <code>{tg_id}</code>\n💰 Wallet Balance: <code>{wallet_balance}</code>\n\n👇 Please select your desired option from the menu below:`;
+
+    const defaultSupportText = lang === "fa"
+      ? `📞 <b>پشتیبانی ${nickname.trim()}:</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @mDaltoon\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`
+      : `📞 <b>Support for ${nickname.trim()}:</b>\n\nDear customer! If you have any questions, purchase tracking, or pre- and post-sales support, we are at your service.\n\n👤 Telegram Support: @mDaltoon\n\nActive response: 24/7`;
 
     onComplete({
       botToken: botToken.trim(),
       ownerId: Number(ownerId.trim()),
       welcomeText: defaultWelcomeText,
-      supportText: lang === "fa" ? "برای پشتیبانی با مدیریت در ارتباط باشید." : "Contact admin for support.",
+      supportText: defaultSupportText,
       btnTextGuides: lang === "fa" ? "💡 راهنمای اتصال" : "💡 Connection Guides",
       guidesText: guidesTextDefault,
       lockChannel: false,
@@ -92,7 +96,13 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
       hideBtnFeedback: true,
       hideBtnTicketSupport: true,
       hideBtnInstantSupport: true,
-      hideBtnSupport: false, // Keep basic support button
+      hideBtnSupport: true,
+      hideBtnBuyNew: true,
+      hideBtnMySubs: true,
+      hideBtnGuides: true,
+      hideBtnProfile: true,
+      hideBtnWallet: true,
+      
       hideSupport: false, 
       hideBuy: false, 
       hideMySubs: false, 

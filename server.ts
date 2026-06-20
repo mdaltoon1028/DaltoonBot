@@ -24,8 +24,27 @@ const dbJsonPath = __dirname.endsWith("dist")
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
-  // Always log 3000 inside this sandboxed container so the dev reverse proxy never breaks.
-  return 3000;
+  // Try to load port from database
+  try {
+    if (fs.existsSync(dbJsonPath)) {
+      const dbContent = fs.readFileSync(dbJsonPath, 'utf8');
+      const dbData = JSON.parse(dbContent);
+      if (dbData.settings && dbData.settings.panel_config) {
+        let pc = dbData.settings.panel_config;
+        if (typeof pc === "string") pc = JSON.parse(pc);
+        if (pc.serverPort && !isNaN(Number(pc.serverPort))) {
+          // Inside AI Studio Sandbox, port is strictly controlled by proxy/infra
+          if (process.env.NODE_ENV !== 'production' && process.env.PORT === '3000') {
+             return 3000; // Force 3000 in sandbox to prevent proxy breakage
+          }
+          return Number(pc.serverPort);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error reading port from DB configurations, defaulting to 3000", err);
+  }
+  return process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 }
 
 // Set up server port

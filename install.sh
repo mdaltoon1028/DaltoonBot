@@ -104,40 +104,68 @@ pip3 install pyTelegramBotAPI python-dotenv requests --break-system-packages || 
 
 # 5.5 Configure Dashboard Credentials
 echo -e "${YELLOW}=== Configure Dashboard Settings ===${NC}"
-read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
-DASH_USER=${DASH_USER:-Daltoon}
-
-read -s -p "Enter Admin Password [Daltoon]: " DASH_PASS < /dev/tty
-echo ""
-DASH_PASS=${DASH_PASS:-Daltoon}
-
-read -p "Enter Server Port [3000]: " DASH_PORT < /dev/tty
-DASH_PORT=${DASH_PORT:-3000}
 
 INSTALL_DIR=$(pwd)
 if [ -d "/opt/daltoon-store" ]; then
     INSTALL_DIR="/opt/daltoon-store"
 fi
 
-echo -e "${YELLOW}Saving configuration to database...${NC}"
-node -e "
+ALREADY_CONFIGURED=$(node -e "
 const fs = require('fs');
 const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-let db = { settings: {} };
-if (fs.existsSync(dbPath)) {
-  try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch(e){}
-}
-let panel_config = {};
+let db = {};
+try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch(e){}
+let hasConfig = false;
 if (db.settings && db.settings.panel_config) {
-  try { panel_config = JSON.parse(db.settings.panel_config); } catch(e){}
+  try {
+    const pc = JSON.parse(db.settings.panel_config);
+    if (pc.dashboardUsername && pc.dashboardPassword && pc.serverPort) hasConfig = true;
+  } catch(e){}
 }
-panel_config.dashboardUsername = '$DASH_USER';
-panel_config.dashboardPassword = '$DASH_PASS';
-panel_config.serverPort = Number('$DASH_PORT');
-if (!db.settings) db.settings = {};
-db.settings.panel_config = JSON.stringify(panel_config);
-fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-"
+console.log(hasConfig);
+")
+
+if [ "$ALREADY_CONFIGURED" = "true" ]; then
+    echo -e "${GREEN}Existing configuration found! Preserving previous Username, Password, and Port...${NC}"
+    DASH_PORT=$(node -e "
+      const fs = require('fs');
+      try {
+        const db = JSON.parse(fs.readFileSync('$INSTALL_DIR/Daltoon_Bot.json', 'utf8'));
+        const pc = JSON.parse(db.settings.panel_config);
+        console.log(pc.serverPort || 3000);
+      } catch(e) { console.log(3000); }
+    ")
+else
+    read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
+    DASH_USER=${DASH_USER:-Daltoon}
+
+    read -s -p "Enter Admin Password [Daltoon]: " DASH_PASS < /dev/tty
+    echo ""
+    DASH_PASS=${DASH_PASS:-Daltoon}
+
+    read -p "Enter Server Port [3000]: " DASH_PORT < /dev/tty
+    DASH_PORT=${DASH_PORT:-3000}
+
+    echo -e "${YELLOW}Saving configuration to database...${NC}"
+    node -e "
+    const fs = require('fs');
+    const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
+    let db = { settings: {} };
+    if (fs.existsSync(dbPath)) {
+      try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch(e){}
+    }
+    let panel_config = {};
+    if (db.settings && db.settings.panel_config) {
+      try { panel_config = JSON.parse(db.settings.panel_config); } catch(e){}
+    }
+    panel_config.dashboardUsername = '$DASH_USER';
+    panel_config.dashboardPassword = '$DASH_PASS';
+    panel_config.serverPort = Number('$DASH_PORT');
+    if (!db.settings) db.settings = {};
+    db.settings.panel_config = JSON.stringify(panel_config);
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+    "
+fi
 
 # Allow custom port through firewall
 echo -e "${YELLOW}Configuring firewall for port $DASH_PORT...${NC}"

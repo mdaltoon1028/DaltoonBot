@@ -803,9 +803,9 @@ export default function SettingsPanel({
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "رمز عبور ورود داشبورد" : "Dashboard Login Pass"}</label>
               <input
-                type="text"
+                type="password"
                 required
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono tracking-widest leading-loose"
                 value={dashboardPassword}
                 onChange={(e) => setDashboardPassword(e.target.value)}
               />

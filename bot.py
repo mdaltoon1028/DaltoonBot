@@ -2351,6 +2351,11 @@ if __name__ == "__main__":
                 bot.token = token
                 
             print(f"[Daltoon Bot] Starting polling with active bot: {token[:8]}...")
+            try:
+                bot.delete_webhook(drop_pending_updates=True)
+            except Exception as w_err:
+                print(f"[Daltoon Bot] Could not clear webhook: {w_err}")
+                
             bot.polling(none_stop=True, interval=1, timeout=20)
         except Exception as e:
             print(f"[Error Polling Bot] Restarting thread in 5 seconds... error: {e}")
