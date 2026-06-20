@@ -2,7 +2,7 @@
 """
 Daltoon Systems - Real-Time Python Telegram Bot & Sanaei 3x-ui API Sync
 Designed specifically for: Sanaei X-UI v3.2 Panel (https://m.daltoon-server.ir:8443/Daltoon)
-Centralized Database: bot_database.json (Shared with React Admin Dashboard)
+Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
 """
 
 import os
@@ -18,7 +18,7 @@ load_dotenv()
 
 # Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(SCRIPT_DIR, "bot_database.json")
+DB_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
 
 def write_db_json(data):
     """ Atomic save to prevent corruption """
@@ -82,7 +82,7 @@ def normalize_xui_url(url):
 
 # Load Dynamic Configurations
 def get_config():
-    """ Load real-time configurations from bot_database.json or fallback to env vars """
+    """ Load real-time configurations from Daltoon_Bot.json or fallback to env vars """
     config = {
         "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
         "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
@@ -1185,7 +1185,7 @@ def handle_main_menu_callback(call):
             users[user_idx]["hasReceivedFreeTest"] = True
             db["users"] = users
             import json
-            with open("bot_database.json", "w", encoding="utf-8") as f:
+            with open("Daltoon_Bot.json", "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
                 
         import time

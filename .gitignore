@@ -7,4 +7,4 @@ coverage/
 .env*
 !.env.example
 database.json
-bot_database.json
+Daltoon_Bot.json

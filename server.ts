@@ -19,8 +19,8 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
 const dbJsonPath = __dirname.endsWith("dist")
-  ? path.resolve(__dirname, "..", "bot_database.json")
-  : path.resolve(__dirname, "bot_database.json");
+  ? path.resolve(__dirname, "..", "Daltoon_Bot.json")
+  : path.resolve(__dirname, "Daltoon_Bot.json");
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
@@ -722,7 +722,7 @@ function getAiClient(): GoogleGenAI {
           }
         }
       } catch (e: any) {
-        console.warn("[AI Studio DB Load Warning] Could not parse geminiApiKey from bot_database.json settings:", e.message);
+        console.warn("[AI Studio DB Load Warning] Could not parse geminiApiKey from Daltoon_Bot.json settings:", e.message);
       }
     }
 

@@ -222,7 +222,7 @@ def handle_main_menu_callback(call):
             users[user_idx]["hasReceivedFreeTest"] = True
             db["users"] = users
             import json
-            with open("bot_database.json", "w", encoding="utf-8") as f:
+            with open("Daltoon_Bot.json", "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
                 
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 1 * 24 * 60 * 60))

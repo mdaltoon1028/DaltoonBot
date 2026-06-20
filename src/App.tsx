@@ -221,7 +221,7 @@ export default function App() {
   const [showSetupModal, setShowSetupModal] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && settings && (!settings.botToken || settings.botToken.trim() === "")) {
+    if (isAuthenticated && settings && (!settings.botToken || settings.botToken.trim() === "" || settings.botToken === "DUMMY_TOKEN")) {
       setShowSetupModal(true);
     } else {
       setShowSetupModal(false);
@@ -387,7 +387,7 @@ export default function App() {
         if (json.colleaguePackages) setColleaguePackages(json.colleaguePackages);
         if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
         if (json.logs) setLogs(json.logs);
-        if (json.settings && json.settings.botToken) setSettings(json.settings);
+        if (json.settings && 'botToken' in json.settings) setSettings(json.settings);
         
         if (!isAuto) {
           console.log("[Full-Stack Sync] JSON database refreshed successfully.");

@@ -105,7 +105,7 @@ export default function BotSimulator({
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const currentUser = simulatedUsers.find(u => u.userId === activeUserId) || users.find(u => u.userId === activeUserId) || users[0];
+  const currentUser = simulatedUsers.find(u => u.userId === activeUserId) || users.find(u => u.userId === activeUserId) || users[0] || { userId: 6536288293, username: "GuestUser", walletBalance: 0 };
 
   useEffect(() => {
     // Scroll to bottom
@@ -160,7 +160,7 @@ export default function BotSimulator({
     }
 
     // Convert custom menu buttons to rows of 2
-    const customLabels = customButtons.map(cb => cb.text);
+    const customLabels = (customButtons || []).map(cb => cb.text);
     const customRows: string[][] = [];
     for (let i = 0; i < customLabels.length; i += 2) {
       customRows.push(customLabels.slice(i, i + 2));
@@ -457,7 +457,7 @@ export default function BotSimulator({
     }
 
     // Process Bot Response Logic
-    const matchedCustom = customButtons.find(cb => cb.text === text || text.includes(cb.text));
+    const matchedCustom = (customButtons || []).find(cb => cb.text === text || text.includes(cb.text));
     if (matchedCustom) {
       addBotReply(matchedCustom.replyText, 600);
       return;

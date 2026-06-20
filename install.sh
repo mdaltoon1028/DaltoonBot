@@ -42,9 +42,12 @@ if [ -f "/opt/daltoon-store/database.json" ]; then
     echo -e "${GREEN}Backing up server database...${NC}"
     cp /opt/daltoon-store/database.json "$BACKUP_DIR/database.json"
 fi
-if [ -f "/opt/daltoon-store/bot_database.json" ]; then
+if [ -f "/opt/daltoon-store/Daltoon_Bot.json" ]; then
     echo -e "${GREEN}Backing up bot database...${NC}"
-    cp /opt/daltoon-store/bot_database.json "$BACKUP_DIR/bot_database.json"
+    cp /opt/daltoon-store/Daltoon_Bot.json "$BACKUP_DIR/Daltoon_Bot.json"
+elif [ -f "/opt/daltoon-store/bot_database.json" ]; then
+    echo -e "${GREEN}Migrating legacy bot_database.json to Daltoon_Bot.json...${NC}"
+    cp /opt/daltoon-store/bot_database.json "$BACKUP_DIR/Daltoon_Bot.json"
 fi
 
 if [ ! -f "package.json" ]; then
@@ -80,9 +83,9 @@ if [ -f "$BACKUP_DIR/database.json" ]; then
     echo -e "${GREEN}Restoring server database from backup...${NC}"
     cp "$BACKUP_DIR/database.json" "database.json" 2>/dev/null || cp "$BACKUP_DIR/database.json" "/opt/daltoon-store/database.json"
 fi
-if [ -f "$BACKUP_DIR/bot_database.json" ]; then
+if [ -f "$BACKUP_DIR/Daltoon_Bot.json" ]; then
     echo -e "${GREEN}Restoring bot database from backup...${NC}"
-    cp "$BACKUP_DIR/bot_database.json" "bot_database.json" 2>/dev/null || cp "$BACKUP_DIR/bot_database.json" "/opt/daltoon-store/bot_database.json"
+    cp "$BACKUP_DIR/Daltoon_Bot.json" "Daltoon_Bot.json" 2>/dev/null || cp "$BACKUP_DIR/Daltoon_Bot.json" "/opt/daltoon-store/Daltoon_Bot.json"
 fi
 
 # 5. Install Node-modules and Build project
@@ -98,6 +101,42 @@ if ! command -v pip3 &> /dev/null; then
     apt install -y python3-pip || apt install -y python3-setuptools || true
 fi
 pip3 install pyTelegramBotAPI python-dotenv requests --break-system-packages || pip install pyTelegramBotAPI python-dotenv requests || true
+
+# 5.5 Configure Dashboard Credentials
+echo -e "${YELLOW}=== Configure Dashboard Settings ===${NC}"
+read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
+DASH_USER=${DASH_USER:-Daltoon}
+
+read -p "Enter Admin Password [Daltoon10]: " DASH_PASS < /dev/tty
+DASH_PASS=${DASH_PASS:-Daltoon10}
+
+read -p "Enter Server Port [3000]: " DASH_PORT < /dev/tty
+DASH_PORT=${DASH_PORT:-3000}
+
+INSTALL_DIR=$(pwd)
+if [ -d "/opt/daltoon-store" ]; then
+    INSTALL_DIR="/opt/daltoon-store"
+fi
+
+echo -e "${YELLOW}Saving configuration to database...${NC}"
+node -e "
+const fs = require('fs');
+const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
+let db = { settings: {} };
+if (fs.existsSync(dbPath)) {
+  try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch(e){}
+}
+let panel_config = {};
+if (db.settings && db.settings.panel_config) {
+  try { panel_config = JSON.parse(db.settings.panel_config); } catch(e){}
+}
+panel_config.dashboardUsername = '$DASH_USER';
+panel_config.dashboardPassword = '$DASH_PASS';
+panel_config.serverPort = Number('$DASH_PORT');
+if (!db.settings) db.settings = {};
+db.settings.panel_config = JSON.stringify(panel_config);
+fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+"
 
 # 6. Install PM2 and Start Server
 echo -e "${GREEN}[6/6] Setting up process manager PM2...${NC}"
@@ -119,8 +158,8 @@ pm2 save
 pm2 startup
 
 # 7. Configure simple Firewall rules if wanted
-echo -e "${YELLOW}Configuring firewall (opening port 3000)...${NC}"
-ufw allow 3000/tcp
+echo -e "${YELLOW}Configuring firewall (opening port ${DASH_PORT})...${NC}"
+ufw allow ${DASH_PORT}/tcp
 
 # 8. Setup daltoon-dashboard system CLI globally
 echo -e "${YELLOW}Setting up global CLI command (daltoon-dashboard)...${NC}"
@@ -136,7 +175,7 @@ echo -e "${GREEN}====================================================${NC}"
 echo -e "${GREEN}🎉 Daltoon Store Dashboard Installed Successfully!${NC}"
 echo -e "${GREEN}====================================================${NC}"
 echo -e "You can now access your web panel at:"
-echo -e "${BLUE}👉 http://$(curl -s https://api.ipify.org):3000${NC}"
+echo -e "${BLUE}👉 http://$(curl -s https://api.ipify.org):${DASH_PORT}${NC}"
 echo -e ""
 echo -e "To manage credentials, admins or ports, type: ${YELLOW}daltoon-dashboard${NC}"
 echo -e "To view logs, type: ${YELLOW}pm2 logs daltoon-store${NC}"

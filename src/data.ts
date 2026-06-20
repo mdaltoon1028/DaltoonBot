@@ -1,7 +1,7 @@
 import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey } from "./types";
 
 export const initialSettings: PanelSettings = {
-  botToken: "6469257181:AAEFfE_C_zG_CM2F7x5dhPXd1IjEv2AuGjw",
+  botToken: "",
   baseUrl: "https://m.daltoon-server.ir:8443",
   panelUrl: "https://m.daltoon-server.ir:8443/Daltoon",
   panelUsername: "Daltoon",
