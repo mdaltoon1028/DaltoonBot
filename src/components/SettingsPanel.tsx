@@ -234,6 +234,11 @@ export default function SettingsPanel({
   const [gatewayStarsStatus, setGatewayStarsStatus] = useState(settings.gatewayStarsStatus !== undefined ? settings.gatewayStarsStatus : true);
   const [autoWarningConfigBtn, setAutoWarningConfigBtn] = useState(settings.autoWarningConfigBtn !== undefined ? settings.autoWarningConfigBtn : true);
 
+  // Mandatory Join config state
+  const [mandatoryJoinActive, setMandatoryJoinActive] = useState(settings.mandatoryJoinActive !== undefined ? settings.mandatoryJoinActive : false);
+  const [mandatoryJoinChannel, setMandatoryJoinChannel] = useState(settings.mandatoryJoinChannel || "");
+  const [mandatoryJoinText, setMandatoryJoinText] = useState(settings.mandatoryJoinText || "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.");
+
   const [saved, setSaved] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -266,7 +271,10 @@ export default function SettingsPanel({
       gatewayCryptomusMerchantId,
       gatewayHeleketWallet,
       gatewayStarsStatus,
-      autoWarningConfigBtn
+      autoWarningConfigBtn,
+      mandatoryJoinActive,
+      mandatoryJoinChannel,
+      mandatoryJoinText
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -446,6 +454,85 @@ export default function SettingsPanel({
           </div>
         </div>
       </div>
+
+      {/* 📢 Mandatory Channel Join Section */}
+      <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-sm">
+        <h3 className="font-display font-medium text-lg text-white flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-400" />
+            <span>{lang === "fa" ? "📢 عضویت کانال اجباری" : "📢 Mandatory Channel Join"}</span>
+          </div>
+
+          {/* Toggle Switch */}
+          <button
+            type="button"
+            onClick={() => setMandatoryJoinActive(!mandatoryJoinActive)}
+            className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-300 ease-in-out focus:outline-none items-center ${
+              mandatoryJoinActive ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+            }`}
+            style={{ direction: "ltr" }}
+          >
+            <div
+              className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
+                mandatoryJoinActive ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
+              }`}
+            >
+              <Power className="w-3 h-3 stroke-[3.0]" />
+            </div>
+          </button>
+        </h3>
+
+        <p className="text-xs text-gray-400 leading-relaxed">
+          {lang === "fa"
+            ? "وقتی این ویژگی فعال باشد، تمامی کاربرانی که وارد ربات تلگرام می‌شوند ابتدا باید در کانال تعیین‌شده عضو شوند تا اجازه استفاده از امکانات ربات را پیدا کنند."
+            : "When active, any user starting the bot must be subscribed to the designated Telegram channel to access features."}
+        </p>
+
+        {mandatoryJoinActive && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fadeIn">
+            {/* Telegram Channel Link / Username */}
+            <div className="space-y-1.5 text-right font-sans" dir="rtl">
+              <label className="text-xs font-semibold text-gray-300">
+                {lang === "fa" ? "آدرس یا آیدی کانال (با @ یا لینک کامل):" : "Channel Username or Link:"}
+              </label>
+              <input
+                type="text"
+                className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
+                placeholder={lang === "fa" ? "@daltoon_channel یا لینک کامل" : "@daltoon_channel or full invite link"}
+                value={mandatoryJoinChannel}
+                onChange={(e) => setMandatoryJoinChannel(e.target.value)}
+              />
+            </div>
+
+            {/* Message payload */}
+            <div className="space-y-1.5 text-right font-sans md:col-span-2" dir="rtl">
+              <label className="text-xs font-semibold text-gray-300">
+                {lang === "fa" ? "متن پیام درخواستی برای عضویت اجباری:" : "Custom message displayed to unsubscribed users:"}
+              </label>
+              <textarea
+                rows={3}
+                className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
+                placeholder={lang === "fa" 
+                  ? "مثلا: کاربر گرامی، برای استفاده از ربات لطفا ابتدا در کانال رسمی دالتون عضو شوید."
+                  : "e.g., Please sub to our channel to unlock the bot's features!"}
+                value={mandatoryJoinText}
+                onChange={(e) => setMandatoryJoinText(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Save button specific to This Action */}
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e)}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
+          >
+            {lang === "fa" ? "ذخیره تنظیمات عضویت اجباری" : "Save Mandatory Join Config"}
+          </button>
+        </div>
+      </div>
       
       <form onSubmit={handleSubmit} className="space-y-6">
         
@@ -518,16 +605,17 @@ export default function SettingsPanel({
               <button
                 type="button"
                 onClick={() => setAutoWarningConfigBtn(!autoWarningConfigBtn)}
-                className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-300 ease-in-out focus:outline-none dir-ltr items-center ${
-                  autoWarningConfigBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+                className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-300 ease-in-out focus:outline-none items-center ${
+                  autoWarningConfigBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
                 }`}
+                style={{ direction: "ltr" }}
               >
                 <div
-                  className={`pointer-events-none flex items-center justify-center h-7 w-7 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ${
-                    autoWarningConfigBtn ? 'translate-x-0 text-emerald-600' : 'translate-x-8 text-slate-400'
+                  className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
+                    autoWarningConfigBtn ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
                   }`}
                 >
-                  <Power className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <Power className="w-3 h-3 stroke-[3.0]" />
                 </div>
               </button>
             </div>

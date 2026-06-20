@@ -106,7 +106,10 @@ def get_config():
         "BTN_PROFILE": "👤 اطلاعات حساب (My Profile)",
         "BTN_WALLET": "💳 شارژ کیف پول (Top-up Wallet)",
         "BTN_SUPPORT": "📞 پشتیبانی فنی (Support)",
-        "ADMINS": []
+        "ADMINS": [],
+        "MANDATORY_JOIN_ACTIVE": False,
+        "MANDATORY_JOIN_CHANNEL": "",
+        "MANDATORY_JOIN_TEXT": "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید."
     }
     try:
         db = read_db_json()
@@ -196,6 +199,14 @@ def get_config():
                 config["TG_CHANNEL"] = panel_cfg["tgChannel"]
             if "supportHandle" in panel_cfg:
                 config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
+            
+            # Parse Mandatory Join configs
+            if "mandatoryJoinActive" in panel_cfg:
+                config["MANDATORY_JOIN_ACTIVE"] = bool(panel_cfg["mandatoryJoinActive"])
+            if "mandatoryJoinChannel" in panel_cfg:
+                config["MANDATORY_JOIN_CHANNEL"] = panel_cfg["mandatoryJoinChannel"]
+            if "mandatoryJoinText" in panel_cfg:
+                config["MANDATORY_JOIN_TEXT"] = panel_cfg["mandatoryJoinText"]
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
@@ -562,6 +573,74 @@ def get_cancel_keyboard():
     markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
     return markup
 
+def is_user_member_of_channel(user_id):
+    cfg = get_config()
+    if not cfg.get("MANDATORY_JOIN_ACTIVE"):
+        return True
+    
+    # Bypass for owner or administrators
+    if user_id == cfg.get("OWNER_ID") or user_id in cfg.get("ADMINS", []):
+         return True
+
+    channel = cfg.get("MANDATORY_JOIN_CHANNEL", "").strip()
+    if not channel:
+        return True
+        
+    clean_channel = channel
+    if "t.me/" in clean_channel:
+        clean_channel = "@" + clean_channel.split("t.me/")[-1].strip("/")
+    elif "/" in clean_channel and not clean_channel.startswith("-"):
+        clean_channel = "@" + clean_channel.split("/")[-1].strip()
+    
+    if not clean_channel.startswith("@") and not clean_channel.startswith("-"):
+        clean_channel = "@" + clean_channel
+
+    try:
+        member = bot.get_chat_member(clean_channel, user_id)
+        if member.status in ["creator", "administrator", "member", "restricted"]:
+            return True
+        return False
+    except Exception as e:
+        print(f"[Mandatory Join Check Error] Failed to verify membership for {user_id} in {clean_channel}: {e}")
+        return False
+
+def get_channel_join_link():
+    cfg = get_config()
+    channel = cfg.get("MANDATORY_JOIN_CHANNEL", "").strip()
+    if "http" in channel:
+        return channel
+    clean = channel.replace("@", "")
+    return f"https://t.me/{clean}"
+
+def get_mandatory_join_keyboard():
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    join_link = get_channel_join_link()
+    markup.add(
+        types.InlineKeyboardButton("📢 عضویت در کانال", url=join_link),
+        types.InlineKeyboardButton("عضو شدم✅", callback_data="check_mandatory_join")
+    )
+    return markup
+
+def verify_mandatory_join_and_warn(chat_id, user_id):
+    """
+    Checks if mandatory join is active and whether the user has joined.
+    If not joined, it sends the warning message with the join keyboard and returns False.
+    If joined, it returns True.
+    """
+    cfg = get_config()
+    if not cfg.get("MANDATORY_JOIN_ACTIVE"):
+        return True
+        
+    if is_user_member_of_channel(user_id):
+        return True
+        
+    warn_text = cfg.get("MANDATORY_JOIN_TEXT", "لطفا ابتدا در کانال ما عضو شده و دکمه عضو شدم✅ را فشار دهید.")
+    try:
+        bot.send_message(chat_id, f"⚠️ <b>عضویت در کانال اجباری</b>\n\n{warn_text}", parse_mode="HTML", reply_markup=get_mandatory_join_keyboard())
+    except Exception as e:
+        print(f"Error sending mandatory join warn block: {e}")
+    return False
+
 # --- Bot Command Handlers ---
 
 @bot.message_handler(commands=['start', 'help'])
@@ -575,6 +654,9 @@ def start_cmd(message):
     if user and user.get('status') == 'banned':
         bot.reply_to(message, "❌ حساب کاربری شما به علت تخلف غیرفعال شده است. جهت اتصال به پشتیبانی پیام دهید.")
         return
+
+    if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
+         return
 
     try:
         log_action(tg_id, username or f"user_{tg_id}", "ورود به ربات", "کاربر وارد ربات شد و منوی اصلی را دریافت کرد.")
@@ -609,6 +691,9 @@ def text_messages_handler(message):
     if user and user.get('status') == 'banned':
         bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
         return
+
+    if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
+         return
 
     if "منصرف" in text or "بازگشت" in text:
         bot.send_message(message.chat.id, "✔️ بازگشت به منوی اصلی.", reply_markup=get_custom_keyboard())
@@ -1101,6 +1186,31 @@ def process_purchase_username(message, plan_id, spec):
 def callback_handler(call):
     tg_id = call.from_user.id
     
+    if call.data == "check_mandatory_join":
+        if is_user_member_of_channel(tg_id):
+            bot.answer_callback_query(call.id, "✅ عضویت شما با موفقیت تایید شد! خوش آمدید.", show_alert=True)
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
+            # Back home
+            class FakeMessage:
+                def __init__(self, chat_id, from_user):
+                    self.chat = type('Chat', (object,), {'id': chat_id})
+                    self.from_user = from_user
+            fake_msg = FakeMessage(call.message.chat.id, call.from_user)
+            start_cmd(fake_msg)
+        else:
+            bot.answer_callback_query(call.id, "❌ شما هنوز عضو کانال نشده‌اید! لطفا ابتدا عضو شوید و سپس دکمه تایید را مجدداً فشار دهید.", show_alert=True)
+        return
+
+    # Check mandatory join eligibility for all other callbacks
+    cfg = get_config()
+    if cfg.get("MANDATORY_JOIN_ACTIVE") and not is_user_member_of_channel(tg_id):
+        bot.answer_callback_query(call.id, "❌ برای استفاده از دکمه‌های ربات، عضویت در کانال اسپانسر الزامی است.", show_alert=True)
+        verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
+        return
+
     if call.data.startswith("col_"):
         bot.answer_callback_query(call.id)
         parts = call.data.split("_")
@@ -1822,6 +1932,9 @@ def handle_receipt_upload(message):
     if user and user.get('status') == 'banned':
         bot.send_message(message.chat.id, "❌ حساب شما مسدود شده است.")
         return
+
+    if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
+         return
 
     # Look up selected amount or fallback to regex extraction or default
     extracted_amount = pop_user_pending_charge(tg_id)

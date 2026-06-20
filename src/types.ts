@@ -69,6 +69,11 @@ export interface PanelSettings {
   // Auto Warning config
   autoWarningConfigBtn?: boolean;
 
+  // Mandatory Join Config
+  mandatoryJoinActive?: boolean;
+  mandatoryJoinChannel?: string;
+  mandatoryJoinText?: string;
+
   admins?: Array<{
     id: string;
     userId: number;
