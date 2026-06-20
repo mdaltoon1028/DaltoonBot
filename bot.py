@@ -455,9 +455,12 @@ def delete_vpn_client_api(client_email, client_uuid=None):
         base_url = base_url[:-1]
 
     if not login_xui():
+        print("[Sanaei API Error] Login failed in delete_vpn_client_api")
         return False
 
     valid_ids = []
+    all_clients = []
+    
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
         list_res = session.get(list_url, timeout=8, verify=False)
@@ -465,28 +468,88 @@ def delete_vpn_client_api(client_email, client_uuid=None):
         if res_json.get("success") and isinstance(res_json.get("obj"), list):
             valid_ids = [int(item["id"]) for item in res_json["obj"]]
             
-            # Find UUID if not provided
-            if not client_uuid:
-                for inbound in res_json["obj"]:
-                    clients = inbound.get("settings", "")
-                    import json
-                    try:
-                        c_json = json.loads(clients)
-                        c_list = c_json.get("clients", [])
-                        for c in c_list:
-                            if c.get("email") == client_email:
-                                client_uuid = c.get("id")
-                                break
-                    except: pass
-                    if client_uuid: break
-    except:
-        pass
+            # Extract all clients to find the best match
+            for inbound in res_json["obj"]:
+                clients = inbound.get("settings", "")
+                import json
+                try:
+                    c_json = json.loads(clients)
+                    c_list = c_json.get("clients", [])
+                    for c in c_list:
+                        if c not in all_clients:
+                            all_clients.append(c)
+                except:
+                    pass
+    except Exception as e:
+        print(f"[Sanaei API Error] Fetching inbounds list failed: {e}")
+
+    # Find UUID with high-res fuzzy/prefix/suffix matching if not provided or to verify
+    if not client_uuid and all_clients:
+        import re
+        from collections import Counter
+        
+        def normalize(s):
+            if not s:
+                return ""
+            s = s.lower().strip()
+            # Remove prefixes like "col-", "prefix-", etc.
+            if '-' in s:
+                parts = s.split('-')
+                if len(parts) > 1:
+                    s = parts[-1]
+            return re.sub(r'[^a-z0-9]', '', s)
+
+        target_norm = normalize(client_email)
+        best_match = None
+        
+        if target_norm:
+            # 1. Exact normalized match
+            for c in all_clients:
+                email = c.get("email", "")
+                if normalize(email) == target_norm:
+                    best_match = c
+                    break
+            
+            # 2. Substring match
+            if not best_match:
+                sub_matches = []
+                for c in all_clients:
+                    email_norm = normalize(c.get("email", ""))
+                    if target_norm in email_norm or email_norm in target_norm:
+                        sub_matches.append(c)
+                if sub_matches:
+                    sub_matches.sort(key=lambda x: abs(len(normalize(x.get("email", ""))) - len(target_norm)))
+                    best_match = sub_matches[0]
+                    
+            # 3. Fuzzy character counter matching (tolerant of typos)
+            if not best_match:
+                best_ratio = 0.0
+                for c in all_clients:
+                    email_norm = normalize(c.get("email", ""))
+                    if not email_norm:
+                        continue
+                    c1 = Counter(target_norm)
+                    c2 = Counter(email_norm)
+                    intersect = sum((c1 & c2).values())
+                    total_len = len(target_norm) + len(email_norm)
+                    ratio = (2.0 * intersect) / total_len if total_len > 0 else 0.0
+                    if ratio > 0.70 and ratio > best_ratio:
+                        best_ratio = ratio
+                        best_match = c
+            
+            if best_match:
+                client_uuid = best_match.get("id")
+                print(f"[Sanaei Delete API] Found best match for '{client_email}' -> '{best_match.get('email')}' with UUID {client_uuid}")
+            else:
+                print(f"[Sanaei Delete API] No matching client found in panel for email/name '{client_email}'")
 
     if not client_uuid:
+        print("[Sanaei Delete API] Client UUID could not be resolved.")
         return False
 
     success = False
     
+    # 1. Standard delete from individual inbounds
     if valid_ids:
         for inbound_id in valid_ids:
             try:
@@ -494,16 +557,19 @@ def delete_vpn_client_api(client_email, client_uuid=None):
                 resp = session.post(del_url, timeout=5, verify=False)
                 if resp.status_code == 200 and resp.json().get("success"):
                     success = True
-            except:
-                pass
+                    print(f"[Sanaei Delete API] Deleted client {client_uuid} from inbound {inbound_id}")
+            except Exception as e:
+                print(f"[Sanaei Delete API] Inbound delete exception on {inbound_id}: {e}")
                 
+    # 2. Global client delete endpoint (some newer 3x-ui panels use this)
     try:
         del_url2 = f"{base_url}/panel/api/clients/{client_uuid}/del"
         resp2 = session.post(del_url2, timeout=5, verify=False)
         if resp2.status_code == 200 and resp2.json().get("success"):
             success = True
-    except:
-        pass
+            print(f"[Sanaei Delete API] Globally deleted client {client_uuid} via global client del")
+    except Exception as e:
+        print(f"[Sanaei Delete API] Global client del exception: {e}")
 
     return success
 
