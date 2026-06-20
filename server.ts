@@ -30,10 +30,54 @@ const dbJsonPath = (() => {
     ? path.resolve(__dirname, "..", defaultFile)
     : path.resolve(__dirname, defaultFile);
 
-  if (fs.existsSync(legacyPath)) {
-    console.log(`[Database Setup] Found legacy/mounted database file in ${legacyPath}. Active.`);
+  // Helper inspect file for actual registered data
+  const fileHasData = (filePath: string): boolean => {
+    try {
+      if (!fs.existsSync(filePath)) return false;
+      const content = fs.readFileSync(filePath, "utf8").trim();
+      if (!content) return false;
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed.users) && parsed.users.length > 0) return true;
+      if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) return true;
+      if (parsed.settings && parsed.settings.panel_config) {
+        try {
+          const config = JSON.parse(parsed.settings.panel_config);
+          if (config.botToken && config.botToken !== "DUMMY_TOKEN" && config.botToken.trim() !== "") {
+            return true;
+          }
+        } catch (err) {}
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // 1. If defaultFile (Daltoon_Bot.json) exists and has actual data, prioritize it!
+  if (fileHasData(defaultPath)) {
+    console.log(`[Database Setup] Active database found at: ${defaultPath}`);
+    return defaultPath;
+  }
+  
+  // 2. If legacyPath (database.json) has actual data, use it!
+  if (fileHasData(legacyPath)) {
+    console.log(`[Database Setup] Legacy database found with data at: ${legacyPath}`);
     return legacyPath;
   }
+
+  // 3. Fallback: If defaultFile exists at all, use it even if empty
+  if (fs.existsSync(defaultPath)) {
+    console.log(`[Database Setup] Using existing default empty db at: ${defaultPath}`);
+    return defaultPath;
+  }
+
+  // 4. Fallback to legacy path if it exists at all
+  if (fs.existsSync(legacyPath)) {
+    console.log(`[Database Setup] Using existing legacy empty db at: ${legacyPath}`);
+    return legacyPath;
+  }
+
+  console.log(`[Database Setup] Creating new database at: ${defaultPath}`);
   return defaultPath;
 })();
 
@@ -196,11 +240,24 @@ function getSystemSettings(db?: any) {
     cardNumber: process.env.CARD_NUMBER || "",
     cardHolder: process.env.CARD_HOLDER || "",
     bankName: "",
+    welcomeText: "",
+    supportText: "",
+    hideSupport: false,
+    hideBuy: false,
+    hideProfile: false,
+    hideWallet: false,
+    dashboardUsername: process.env.PANEL_USER || "Daltoon",
+    dashboardPassword: process.env.PANEL_PASS || "Daltoon10",
+    serverPort: 3000,
+    admins: [],
+    panelConnectionActive: false,
     ...parsedSettings
   };
 
   if (!settings.botToken && process.env.BOT_TOKEN) settings.botToken = process.env.BOT_TOKEN;
   if (!settings.ownerId && process.env.OWNER_ID) settings.ownerId = Number(process.env.OWNER_ID);
+  if (!settings.dashboardUsername && process.env.PANEL_USER) settings.dashboardUsername = process.env.PANEL_USER;
+  if (!settings.dashboardPassword && process.env.PANEL_PASS) settings.dashboardPassword = process.env.PANEL_PASS;
   
   return settings;
 }
