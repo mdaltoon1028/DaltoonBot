@@ -2287,18 +2287,22 @@ async function autoCleanExpiredFreeTrials() {
   }
 }
 
-async function sendTelegramMessage(botToken: string, chatId: string | number, text: string) {
+async function sendTelegramMessage(botToken: string, chatId: string | number, text: string, replyMarkup?: any) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   try {
     const fetchRef = globalThis.fetch || fetch;
+    const body: any = {
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML'
+    };
+    if (replyMarkup) {
+      body.reply_markup = replyMarkup;
+    }
     await fetchRef(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text,
-        parse_mode: 'HTML'
-      })
+      body: JSON.stringify(body)
     });
   } catch (err) {
     console.error(`[Telegram Warning] Fail to send to ${chatId}:`, err);
@@ -2404,7 +2408,13 @@ async function autoSyncTrafficUsage() {
         if ((remainingGb <= 1 && remainingGb > 0) || (remainingDays <= 1 && remainingDays > 0)) {
            console.log(`[Official Warning] User ${k.userId} subscription "${k.planName || k.clientName}" is running out.`);
            const msg = `⚠️ <b>هشدار اتمام سرویس</b>\n\nکاربر گرامی، سرویس شما در حال اتمام است.\n\n🌐 نام سرویس: ${k.planName || "بدون نام"}\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔻 حجم باقیمانده: ${remainingGb.toFixed(2)} GB\n⏳ روز باقیمانده: ${remainingDays} روز\n\nلطفاً نسبت به تمدید سرویس خود اقدام نمایید.`;
-           await sendTelegramMessage(settings.botToken, k.userId, msg);
+           const inlineKeyboard = {
+             inline_keyboard: [
+               [{ text: "🔗 دریافت لینک اتصال", callback_data: `vless_link_${k.id}` }],
+               [{ text: "🎫 پشتیبانی", callback_data: "mm_btnTicketSupport" }]
+             ]
+           };
+           await sendTelegramMessage(settings.botToken, k.userId, msg, inlineKeyboard);
            k.expiryWarningSent = true;
            updatedCount++;
         }
@@ -2430,12 +2440,38 @@ async function autoSyncTrafficUsage() {
                      jalaliDate = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(k.expireDate));
                    } catch(e) {}
                    const msg = `🔔 <b>پیام سیستم:</b>\n\n🤔 <b>آیا مشکلی در اتصال به VPN دارید؟</b>\n\nسرویس شما 1 روز پیش فعال شده اما هنوز به آن متصل نشده‌اید.\n\n🖌️ نام سرویس: ${k.planName || "بدون نام"}\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔺حجم بسته: ${(k.trafficLimitGb || 0).toFixed(2)} GB\n🔻حجم باقی مانده: ${remainingGb.toFixed(2)} GB\n📅 تاریخ انقضا: ${jalaliDate}\n\n🔧 <b>اگر در اتصال مشکل دارید:</b>\n• راهنمای اتصال را مطالعه کنید\n• اپلیکیشن VPN خود را بررسی کنید\n• در صورت نیاز به پشتیبانی پیام دهید`;
-                   await sendTelegramMessage(settings.botToken, k.userId, msg);
+                   const inlineKeyboard = {
+                     inline_keyboard: [
+                       [{ text: "🔗 لینک اشتراک", callback_data: `vless_link_${k.id}` }],
+                       [{ text: "🎫 تیکت به پشتیبانی", callback_data: "mm_btnTicketSupport" }]
+                     ]
+                   };
+                   await sendTelegramMessage(settings.botToken, k.userId, msg, inlineKeyboard);
                    k.noConnectionWarningSent = true;
                    updatedCount++;
                }
            }
         }
+      }
+
+      // Check First Connection Alert
+      const isFirstConnAlertEnabled = String(db.settings?.autoWarningFirstConnectionBtn || "true") !== "false";
+      if (isFirstConnAlertEnabled && !k.firstConnectionMessageSent && (k.trafficUsedGb || 0) > 0.001) {
+          console.log(`[Official Warning] User ${k.userId} made their first connection.`);
+          let jalaliDate = k.expireDate;
+          try {
+             jalaliDate = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(k.expireDate));
+          } catch(e) {}
+          const msg = `🔔 <b>پیام سیستم:</b>\n\nسرویس شما با موفقیت متصل شد\n\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔺حجم بسته: ${(k.trafficLimitGb || 0).toFixed(2)} GB\n🔻حجم باقی مانده: ${remainingGb.toFixed(2)} GB\n📅 تاریخ انقضا: ${jalaliDate}\n🔹 نام سرویس: ${k.planName || "بدون نام"}`;
+          const inlineKeyboard = {
+             inline_keyboard: [
+               [{ text: "🔗 لینک اشتراک", callback_data: `vless_link_${k.id}` }],
+               [{ text: "🎫 پشتیبانی", callback_data: "mm_btnTicketSupport" }]
+             ]
+          };
+          await sendTelegramMessage(settings.botToken, k.userId, msg, inlineKeyboard);
+          k.firstConnectionMessageSent = true;
+          updatedCount++;
       }
     }
 

@@ -1636,6 +1636,27 @@ def callback_handler(call):
         call.data = "mm_btnWallet"
         handle_main_menu_callback(call)
         
+    elif call.data.startswith("vless_link_"):
+        sub_id = call.data.replace("vless_link_", "")
+        db = read_db_json()
+        sub = next((s for s in db.get("subscription_keys", []) if s["id"] == sub_id), None)
+        
+        if sub and sub.get("subLink"):
+            cfg = get_config()
+            markup = types.InlineKeyboardMarkup()
+            if not cfg.get("HIDE_TICKET_SUPPORT", False):
+                markup.add(types.InlineKeyboardButton(cfg.get("BTN_TICKET_SUPPORT", "🎫 تیکت به پشتیبانی"), callback_data="mm_btnTicketSupport"))
+            
+            bot.send_message(
+                call.message.chat.id,
+                f"🔗 <b>لینک اتصال شما:</b>\n\n<code>{sub['subLink']}</code>",
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+            bot.answer_callback_query(call.id, "لینک ارسال شد", show_alert=False)
+        else:
+            bot.answer_callback_query(call.id, "متاسفانه لینک یافت نشد", show_alert=True)
+
     elif call.data == "btn_gift_code":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(

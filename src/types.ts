@@ -75,6 +75,7 @@ export interface PanelSettings {
   // Auto Warning config
   autoWarningConfigBtn?: boolean;
   autoWarningNoConnectionBtn?: boolean;
+  autoWarningFirstConnectionBtn?: boolean;
 
   // Mandatory Join Config
   mandatoryJoinActive?: boolean;

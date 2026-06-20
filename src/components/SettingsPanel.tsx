@@ -234,6 +234,7 @@ export default function SettingsPanel({
   const [gatewayStarsStatus, setGatewayStarsStatus] = useState(settings.gatewayStarsStatus !== undefined ? settings.gatewayStarsStatus : true);
   const [autoWarningConfigBtn, setAutoWarningConfigBtn] = useState(settings.autoWarningConfigBtn !== undefined ? settings.autoWarningConfigBtn : true);
   const [autoWarningNoConnectionBtn, setAutoWarningNoConnectionBtn] = useState(settings.autoWarningNoConnectionBtn !== undefined ? settings.autoWarningNoConnectionBtn : true);
+  const [autoWarningFirstConnectionBtn, setAutoWarningFirstConnectionBtn] = useState(settings.autoWarningFirstConnectionBtn !== undefined ? settings.autoWarningFirstConnectionBtn : true);
 
   // Mandatory Join config state
   const [mandatoryJoinActive, setMandatoryJoinActive] = useState(settings.mandatoryJoinActive !== undefined ? settings.mandatoryJoinActive : false);
@@ -274,6 +275,7 @@ export default function SettingsPanel({
       gatewayStarsStatus,
       autoWarningConfigBtn,
       autoWarningNoConnectionBtn,
+      autoWarningFirstConnectionBtn,
       mandatoryJoinActive,
       mandatoryJoinChannel,
       mandatoryJoinText
@@ -648,6 +650,37 @@ export default function SettingsPanel({
                   <div
                     className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
                       autoWarningNoConnectionBtn ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
+                    }`}
+                  >
+                    <Power className="w-3 h-3 stroke-[3.0]" />
+                  </div>
+                </button>
+              </div>
+
+              <div className="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-lg flex items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Power className="w-4 h-4 text-indigo-400" />
+                    {lang === "fa" ? "اطلاع رسانی اولین اتصال" : "First Connection Alert"}
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {lang === "fa" 
+                      ? "هنگامی که کاربر برای اولین بار با موفقیت به کانفیگ متصل شود، پیام خوش آمدگویی و لینک اشتراک برای او ارسال می شود."
+                      : "When a user connects successfully for the first time, they receive an alert with their sub link."}
+                  </p>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setAutoWarningFirstConnectionBtn(!autoWarningFirstConnectionBtn)}
+                  className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-350 ease-in-out focus:outline-none items-center ${
+                    autoWarningFirstConnectionBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+                  }`}
+                  style={{ direction: "ltr" }}
+                >
+                  <div
+                    className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
+                      autoWarningFirstConnectionBtn ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
                     }`}
                   >
                     <Power className="w-3 h-3 stroke-[3.0]" />
