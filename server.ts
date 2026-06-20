@@ -451,7 +451,7 @@ function getAiClient(): GoogleGenAI {
   if (!aiClient) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
-      throw new Error("GEMINI_API_KEY environment variable is required.");
+      throw new Error("لطفا کلید دسترسی (GEMINI_API_KEY) را در تنظیمات داشبورد و یا فایل .env تنظیم کنید.");
     }
     aiClient = new GoogleGenAI({ apiKey: key });
   }
@@ -1719,6 +1719,13 @@ app.post("/api/system/update", async (req, res) => {
     // Run git pull to get latest updates
     console.log("[Auto-Update] Running git pull...");
     execSync('git pull', { stdio: 'pipe' });
+    
+    console.log("[Auto-Update] Bump version...");
+    try {
+      execSync('npm --no-git-tag-version version patch', { stdio: 'pipe' });
+    } catch(e) {
+      console.log("Could not bump version", e);
+    }
     
     console.log("[Auto-Update] Running npm install...");
     execSync('npm install', { stdio: 'pipe' });
