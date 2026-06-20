@@ -92,6 +92,10 @@ export interface PanelSettings {
     role: "admin" | "super_admin";
     createdAt: string;
   }>;
+
+  // Auto Backup
+  autoBackupEnabled?: boolean;
+  autoBackupInterval?: string;
 }
 
 export interface InboundInfo {

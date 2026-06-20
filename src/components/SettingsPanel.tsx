@@ -244,6 +244,10 @@ export default function SettingsPanel({
   const [mandatoryJoinChannel, setMandatoryJoinChannel] = useState(settings.mandatoryJoinChannel || "");
   const [mandatoryJoinText, setMandatoryJoinText] = useState(settings.mandatoryJoinText || "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.");
 
+  // Auto Backup config state
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(settings.autoBackupEnabled !== undefined ? settings.autoBackupEnabled : false);
+  const [autoBackupInterval, setAutoBackupInterval] = useState(settings.autoBackupInterval || "daily");
+
   const [saved, setSaved] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -281,7 +285,9 @@ export default function SettingsPanel({
       autoWarningFirstConnectionBtn,
       mandatoryJoinActive,
       mandatoryJoinChannel,
-      mandatoryJoinText
+      mandatoryJoinText,
+      autoBackupEnabled,
+      autoBackupInterval
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -540,6 +546,80 @@ export default function SettingsPanel({
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
           >
             {lang === "fa" ? "ذخیره تنظیمات عضویت اجباری" : "Save Mandatory Join Config"}
+          </button>
+        </div>
+      </div>
+
+      {/* Auto Backup Config */}
+      <div className="bg-[#181f2a] border border-[#2d3748] rounded-xl p-5 space-y-4 relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-1 bg-blue-500 h-full group-hover:bg-blue-400 transition-colors"></div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-500/10 rounded-lg">
+              <Database className="w-5 h-5 text-blue-400" />
+            </div>
+            <h3 className="font-display font-bold text-gray-200">
+              {lang === "fa" ? "پشتیبان‌گیری خودکار (بکاپ)" : "Auto Database Backup"}
+            </h3>
+          </div>
+
+          {/* Toggle Switch */}
+          <button
+            type="button"
+            onClick={() => setAutoBackupEnabled(!autoBackupEnabled)}
+            className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-300 focus:outline-none ${
+              autoBackupEnabled ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.35)]' : 'bg-slate-800'
+            }`}
+            style={{ direction: 'ltr' }}
+          >
+            <div
+              className="absolute flex items-center justify-center h-4 w-4 rounded-full bg-white transition-all duration-300 ease-in-out"
+              style={{
+                left: autoBackupEnabled ? "22px" : "2px",
+                top: "2px",
+                color: autoBackupEnabled ? "#3b82f6" : "#94a3b8"
+              }}
+            >
+              <Power className="w-2.5 h-2.5 stroke-[3.5]" />
+            </div>
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-400 leading-relaxed">
+          {lang === "fa"
+            ? "بکاپ‌های دوره‌ای باعث اطمینان خاطر شما از حفظ اطلاعات سیستم می‌شود. فایل بکاپ به تلگرام Owner ارسال می‌گردد."
+            : "Periodically backup the bot_database.json and send it to the system owner's Telegram account."}
+        </p>
+
+        {autoBackupEnabled && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fadeIn">
+            {/* Interval selection */}
+            <div className="space-y-1.5 text-right font-sans" dir="rtl">
+              <label className="text-xs font-semibold text-gray-300">
+                {lang === "fa" ? "دوره زمانی پشتیبان‌گیری:" : "Backup Interval:"}
+              </label>
+              <select
+                className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
+                value={autoBackupInterval}
+                onChange={(e) => setAutoBackupInterval(e.target.value)}
+                dir="ltr"
+              >
+                <option value="hourly">{lang === "fa" ? "ساعتی (Hourly)" : "Hourly"}</option>
+                <option value="daily">{lang === "fa" ? "روزانه (Daily)" : "Daily"}</option>
+                <option value="weekly">{lang === "fa" ? "هفتگی (Weekly)" : "Weekly"}</option>
+                <option value="monthly">{lang === "fa" ? "ماهانه (Monthly)" : "Monthly"}</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e)}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
+          >
+            {lang === "fa" ? "ذخیره تنظیمات بکاپ" : "Save Backup Settings"}
           </button>
         </div>
       </div>

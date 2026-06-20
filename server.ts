@@ -2125,6 +2125,116 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+// X. Backup Management endpoints
+app.get("/api/backup-download", (req, res) => {
+  try {
+    if (fs.existsSync(dbJsonPath)) {
+      res.download(dbJsonPath, "bot_database.json");
+    } else {
+      res.status(404).json({ error: "Database file not found." });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/backup-restore", express.json({limit: '50mb'}), (req, res) => {
+  try {
+    const { backupData } = req.body;
+    if (!backupData) {
+      return res.status(400).json({ success: false, error: "فایل بکاپ ارسال نشد." });
+    }
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(backupData);
+    } catch(e) {
+      return res.status(400).json({ success: false, error: "فرمت فایل بکاپ معتبر نیست (باید JSON باشد)." });
+    }
+
+    if (typeof parsed !== "object") {
+       return res.status(400).json({ success: false, error: "اطلاعات فایل بکاپ نامعتبر است." });
+    }
+
+    fs.writeFileSync(dbJsonPath, JSON.stringify(parsed, null, 2), "utf8");
+    
+    // Attempt dynamic python bot restart to apply configurations immediately
+    startPythonBot();
+    
+    res.json({ success: true, message: "فایل بکاپ با موفقیت بازگردانی شد." });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+async function performAutoBackup() {
+  try {
+    const db = readJsonDb();
+    const configStr = db.settings?.panel_config;
+    if (!configStr) return;
+    
+    const settings = JSON.parse(configStr);
+    
+    if (!settings.autoBackupEnabled) return;
+    if (!settings.autoBackupInterval) return;
+    
+    const ownerId = Number(settings.ownerId || 6536288293);
+    const botToken = settings.botToken;
+    if (!botToken || botToken === "DUMMY_TOKEN") return;
+
+    if (!fs.existsSync(dbJsonPath)) return;
+
+    const fileBuffer = fs.readFileSync(dbJsonPath);
+    const blob = new Blob([fileBuffer], { type: 'application/json' });
+    const formData = new FormData();
+    formData.append("chat_id", String(ownerId));
+    
+    const dateStr = new Date().toLocaleString("fa-IR");
+    const periods: any = { hourly: "ساعتی", daily: "روزانه", weekly: "هفتگی", monthly: "ماهانه" };
+    const caption = `📦 پشتیبان‌گیری خودکار دالتون بات\n\n🕒 تاریخ: ${dateStr}\nتنظیمات: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}`;
+    
+    formData.append("caption", caption);
+    formData.append("document", blob, "bot_database.json");
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      method: 'POST',
+      body: formData as any
+    });
+    
+    db.settings.lastAutoBackup = String(Date.now());
+    writeJsonDb(db);
+    console.log(`[Auto Backup] Successfully sent backup to owner ${ownerId}`);
+  } catch (err: any) {
+    console.error(`[Auto Backup Error]`, err.message);
+  }
+}
+
+async function checkAutoBackup() {
+  try {
+    const db = readJsonDb();
+    const configStr = db.settings?.panel_config;
+    if (!configStr) return;
+    
+    const settings = JSON.parse(configStr);
+    
+    if (!settings.autoBackupEnabled || !settings.autoBackupInterval) return;
+
+    const lastBackup = Number(db.settings.lastAutoBackup) || 0;
+    const now = Date.now();
+    const diffHours = (now - lastBackup) / (1000 * 60 * 60);
+    
+    let shouldBackup = false;
+    if (settings.autoBackupInterval === 'hourly' && diffHours >= 1) shouldBackup = true;
+    if (settings.autoBackupInterval === 'daily' && diffHours >= 24) shouldBackup = true;
+    if (settings.autoBackupInterval === 'weekly' && diffHours >= 168) shouldBackup = true;
+    if (settings.autoBackupInterval === 'monthly' && diffHours >= 720) shouldBackup = true;
+    
+    if (shouldBackup) {
+      await performAutoBackup();
+    }
+  } catch(e) {}
+}
+
 // 9. System auto-update endpoints
 app.get("/api/system/version", (req, res) => {
   try {
@@ -2510,6 +2620,10 @@ async function startServer() {
   // Start background cron job for auto syncing traffic every 5 minutes
   setInterval(autoSyncTrafficUsage, 5 * 60 * 1000);
   setTimeout(autoSyncTrafficUsage, 15000); // Also run shortly after startup
+
+  // Start background cron job for auto backup check every minute
+  setInterval(checkAutoBackup, 60 * 1000);
+  setTimeout(checkAutoBackup, 5000); // Check once shortly after startup
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Mount dev Vite middleware mode.");
