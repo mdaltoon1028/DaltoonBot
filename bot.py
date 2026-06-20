@@ -649,9 +649,29 @@ def handle_main_menu_callback(call):
                 {"id": "ult_150g", "name": "Unlimited VoIP 150GB - ۹۰ روزه", "price": 185000, "traffic": 150, "duration": 90}
             ]
         
+        # Build a magnificent, highly detailed list text for supreme look
+        plans_list_text = ""
+        for p in plans_data:
+            plans_list_text += f"💎 <b>{p['name']}</b>\n"
+            plans_list_text += f"   ├ 💾 حجم: <code>{p['traffic']} گیگابایت</code> ┃ 🕒 اعتبار: <code>{p['duration']} روز</code>\n"
+            plans_list_text += f"   └ 💰 قیمت: <code>{p['price']:,} تومان</code>\n\n"
+
+        message_body = (
+            "🛍️ <b>پلان‌های سرعت اختصاصی دالتون:</b>\n\n"
+            "لطفاً یکی از تعرفه‌های زیر را جهت خرید مستقیم و فعال‌سازی فوری انتخاب نمایید. هزینه طرح انتخابی به طور خودکار از کیف پول تلگرام شما کسر خواهد شد:\n\n"
+            f"{plans_list_text}"
+            "👇 جهت خرید آنلاین و تحویل آنی، روی دکمه طرح مورد نظر خود در زیر کلیک کنید:"
+        )
+
         markup = types.InlineKeyboardMarkup(row_width=1)
         for p in plans_data:
-            btn_text = f"⚡ {p['name']} | {p['price']:,} تومان"
+            clean_name = p['name']
+            if clean_name.startswith("پلن "):
+                clean_name = clean_name[4:]
+            elif clean_name.startswith("پلان "):
+                clean_name = clean_name[5:]
+            
+            btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
             markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
         
         markup.row(
@@ -660,7 +680,7 @@ def handle_main_menu_callback(call):
         )
             
         bot.edit_message_text(
-            "🛍️ <b>پلان‌های فعال سرعت اختصاصی دالتون:</b>\n\nلطفا یکی از کانفیگ‌های زیر را برای خرید مستقیم انتخاب کنید. مبلغ به صورت خودکار از کیف پول تلگرام کسر می‌شود:",
+            message_body,
             chat_id=message.chat.id,
             message_id=message.message_id,
             parse_mode="HTML",
@@ -669,18 +689,35 @@ def handle_main_menu_callback(call):
 
     elif action == "mm_btnColleagues":
         packages = db.get("colleague_packages", [])
+        
+        # Build beautiful detailed description text
+        packages_list_text = ""
+        if packages:
+            for p in packages:
+                packages_list_text += f"📦 <b>بسته همکار {p['title']}</b>\n"
+                packages_list_text += f"   ├ 💾 حجم کل: <code>{p['trafficGb']:,} گیگابایت</code> ┃ ♾ بدون محدودیت زمانی\n"
+                packages_list_text += f"   └ 💰 قیمت: <code>{int(p['price']):,} تومان</code>\n\n"
+                
+        text = (
+            "✨ <b>سرویس‌های ویژه و عمده همکاران</b>\n\n"
+            "همکاران گرامی، با تهیه بسته‌های حجمی نامحدود زیر می‌توانید کانفیگ‌های اختصاصی کلاینت‌های خود را با نازل‌ترین قیمت ایجاد و مدیریت نمایید:\n\n"
+            f"{packages_list_text}"
+            "👇 جهت خرید بسته و فعال‌سازی پنل همکار، یکی از طرح‌های زیر را انتخاب کنید:"
+        )
+        
+        if not packages:
+            text = "✨ <b>سرویس های ویژه همکاران</b>\n\nهیچ بسته فعالی در حال حاضر وجود ندارد. لطفاً در صورت داشتن حساب وارد شوید:"
+
         markup = types.InlineKeyboardMarkup()
         if packages:
             for p in packages:
-                btn_text = f"📦 {p['title']} - {int(p['price']):,} تومان ({p['trafficGb']} گیگابایت - بدون محدودیت زمانی)"
+                # Beautiful, short and compact button that never gets trimmed or cut off on mobile devices
+                btn_text = f"✨ {p['title']} ┃ {p['trafficGb']:,} گیگ ┃ {int(p['price']):,} تومان"
                 markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
+                
         markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
         markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
         
-        text = "✨ <b>سرویس های ویژه همکاران</b>\n\nلطفاً یکی از بسته‌های زیر را برای خرید انتخاب کنید یا در صورت داشتن حساب وارد شوید:"
-        if not packages:
-            text = "✨ <b>سرویس های ویژه همکاران</b>\n\nهیچ بسته فعالی در حال حاضر وجود ندارد. لطفاً در صورت داشتن حساب وارد شوید:"
-            
         bot.edit_message_text(
             text,
             chat_id=message.chat.id,
