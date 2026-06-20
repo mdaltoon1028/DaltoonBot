@@ -5,13 +5,19 @@ import { createServer as createViteServer } from "vite";
 import { spawn, ChildProcess, exec } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 
 // Explicit absolute dotenv loads for absolute correctness across nested builds
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+const _dirname = typeof __dirname !== "undefined"
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url));
+
 try {
-  dotenv.config({ path: path.resolve(__dirname, ".env") });
-  dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
+  dotenv.config({ path: path.resolve(_dirname, ".env") });
+  dotenv.config({ path: path.resolve(_dirname, "..", ".env") });
 } catch (e) {}
 
 // Disable SSL verification for outgoing requests to 3x-ui panels
@@ -22,13 +28,13 @@ const dbJsonPath = (() => {
   const customFile = "database.json";
   const defaultFile = "Daltoon_Bot.json";
   
-  const legacyPath = __dirname.endsWith("dist")
-    ? path.resolve(__dirname, "..", customFile)
-    : path.resolve(__dirname, customFile);
+  const legacyPath = _dirname.endsWith("dist")
+    ? path.resolve(_dirname, "..", customFile)
+    : path.resolve(_dirname, customFile);
 
-  const defaultPath = __dirname.endsWith("dist")
-    ? path.resolve(__dirname, "..", defaultFile)
-    : path.resolve(__dirname, defaultFile);
+  const defaultPath = _dirname.endsWith("dist")
+    ? path.resolve(_dirname, "..", defaultFile)
+    : path.resolve(_dirname, defaultFile);
 
   // Helper inspect file for actual registered data
   const fileHasData = (filePath: string): boolean => {
@@ -274,6 +280,7 @@ function getSystemSettings(db?: any) {
 }
 
 let botProcess: ChildProcess | null = null;
+let pythonDepsInstalled = false;
 
 function startPythonBot() {
   // Check if we are running in PM2 environment
@@ -307,40 +314,58 @@ function startPythonBot() {
     return;
   }
 
-  console.log(`[Bot Manager] Starting Python Telegram Bot with token ${token.substring(0, 6)}...`);
-  try {
-    const pythonCmd = "python3";
-    const botScriptPath = path.resolve(process.cwd(), "bot.py");
-    
-    botProcess = spawn(pythonCmd, [botScriptPath], {
-      cwd: process.cwd(),
-      stdio: "pipe",
-    });
+  const runBot = () => {
+    console.log(`[Bot Manager] Starting Python Telegram Bot with token ${token.substring(0, 6)}...`);
+    try {
+      const pythonCmd = "python3";
+      const botScriptPath = path.resolve(process.cwd(), "bot.py");
+      
+      botProcess = spawn(pythonCmd, ["-u", botScriptPath], {
+        cwd: process.cwd(),
+        env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        stdio: "pipe",
+      });
 
-    const logStream = fs.createWriteStream("bot_dev.log", { flags: "a" });
-    
-    botProcess.stdout?.on("data", (data) => {
-      const msg = data.toString();
-      console.log(`[Bot Output]: ${msg.trim()}`);
-      logStream.write(`[STDOUT] ${msg}`);
-    });
+      const logStream = fs.createWriteStream("bot_dev.log", { flags: "a" });
+      
+      botProcess.stdout?.on("data", (data) => {
+        const msg = data.toString();
+        console.log(`[Bot Output]: ${msg.trim()}`);
+        logStream.write(`[STDOUT] ${msg}`);
+      });
 
-    botProcess.stderr?.on("data", (data) => {
-      const msg = data.toString();
-      console.error(`[Bot Error]: ${msg.trim()}`);
-      logStream.write(`[STDERR] ${msg}`);
-    });
+      botProcess.stderr?.on("data", (data) => {
+        const msg = data.toString();
+        console.error(`[Bot Error]: ${msg.trim()}`);
+        logStream.write(`[STDERR] ${msg}`);
+      });
 
-    botProcess.on("close", (code) => {
-      console.log(`[Bot Manager] Python bot process closed with code ${code}`);
-      botProcess = null;
-    });
+      botProcess.on("close", (code) => {
+        console.log(`[Bot Manager] Python bot process closed with code ${code}`);
+        botProcess = null;
+      });
 
-    botProcess.on("error", (err) => {
-      console.error("[Bot Manager] Failed to start Python bot process:", err);
+      botProcess.on("error", (err) => {
+        console.error("[Bot Manager] Failed to start Python bot process:", err);
+      });
+    } catch (err) {
+      console.error("[Bot Manager] Exception when spawning python:", err);
+    }
+  };
+
+  if (!pythonDepsInstalled) {
+    console.log("[Bot Manager] Ensuring Python dependencies (pyTelegramBotAPI, python-dotenv, requests) are installed...");
+    exec("pip3 install pyTelegramBotAPI python-dotenv requests --break-system-packages || pip install pyTelegramBotAPI python-dotenv requests", (err, stdout, stderr) => {
+      pythonDepsInstalled = true;
+      if (err) {
+        console.error("[Bot Manager] Failed to install Python dependencies:", err.message);
+      } else {
+        console.log("[Bot Manager] Python dependencies verified/installed successfully.");
+      }
+      runBot();
     });
-  } catch (err) {
-    console.error("[Bot Manager] Exception when spawning python:", err);
+  } else {
+    runBot();
   }
 }
 
@@ -828,9 +853,9 @@ function getAiClient(): GoogleGenAI {
       try {
         const envPaths = [
           path.resolve(process.cwd(), ".env"),
-          path.resolve(__dirname, ".env"),
-          path.resolve(__dirname, "..", ".env"),
-          path.resolve(__dirname, "../..", ".env"),
+          path.resolve(_dirname, ".env"),
+          path.resolve(_dirname, "..", ".env"),
+          path.resolve(_dirname, "../..", ".env"),
           "/.env"
         ];
         for (const envPath of envPaths) {
