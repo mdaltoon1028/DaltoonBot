@@ -137,17 +137,17 @@ def get_config():
             config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
 
             config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
-            config["HIDE_MY_SUBS"] = bool(panel_cfg.get("hideBtnMySubs", False))
-            config["HIDE_GUIDES"] = bool(panel_cfg.get("hideBtnGuides", False))
-            config["HIDE_PROFILE"] = bool(panel_cfg.get("hideBtnProfile", False))
-            config["HIDE_SUPPORT"] = bool(panel_cfg.get("hideBtnSupport", False))
-            config["HIDE_FREETEST"] = bool(panel_cfg.get("hideBtnFreeTest", False))
-            config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg.get("hideBtnInstantSupport", False))
-            config["HIDE_FEEDBACK"] = bool(panel_cfg.get("hideBtnFeedback", False))
-            config["HIDE_REFERRAL"] = bool(panel_cfg.get("hideBtnReferral", False))
-            config["HIDE_COLLEAGUES"] = panel_cfg.get("hideBtnColleagues", True)
-            config["HIDE_AI_CHAT"] = panel_cfg.get("hideBtnAiChat", True)
-            config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg.get("hideBtnTicketSupport", False))
+            if "hideBtnMySubs" in panel_cfg: config["HIDE_MY_SUBS"] = bool(panel_cfg["hideBtnMySubs"])
+            if "hideBtnGuides" in panel_cfg: config["HIDE_GUIDES"] = bool(panel_cfg["hideBtnGuides"])
+            if "hideBtnProfile" in panel_cfg: config["HIDE_PROFILE"] = bool(panel_cfg["hideBtnProfile"])
+            if "hideBtnSupport" in panel_cfg: config["HIDE_SUPPORT"] = bool(panel_cfg["hideBtnSupport"])
+            if "hideBtnFreeTest" in panel_cfg: config["HIDE_FREETEST"] = bool(panel_cfg["hideBtnFreeTest"])
+            if "hideBtnInstantSupport" in panel_cfg: config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg["hideBtnInstantSupport"])
+            if "hideBtnFeedback" in panel_cfg: config["HIDE_FEEDBACK"] = bool(panel_cfg["hideBtnFeedback"])
+            if "hideBtnReferral" in panel_cfg: config["HIDE_REFERRAL"] = bool(panel_cfg["hideBtnReferral"])
+            if "hideBtnColleagues" in panel_cfg: config["HIDE_COLLEAGUES"] = bool(panel_cfg["hideBtnColleagues"])
+            if "hideBtnAiChat" in panel_cfg: config["HIDE_AI_CHAT"] = bool(panel_cfg["hideBtnAiChat"])
+            if "hideBtnTicketSupport" in panel_cfg: config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg["hideBtnTicketSupport"])
             config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
             if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
                 config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
@@ -186,7 +186,7 @@ def get_config():
             if "supportText" in panel_cfg:
                 config["SUPPORT_TEXT"] = panel_cfg["supportText"]
             if "hideSupport" in panel_cfg:
-                config["HIDE_SUPPORT"] = bool(panel_cfg["hideSupport"])
+                config["HIDE_SUPPORT"] = config["HIDE_SUPPORT"] or bool(panel_cfg["hideSupport"])
             if "hideBuy" in panel_cfg:
                 config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
             if "hideProfile" in panel_cfg:

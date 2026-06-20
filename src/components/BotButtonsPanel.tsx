@@ -51,6 +51,9 @@ export default function BotButtonsPanel({
   const [btnTextSupport, setBtnTextSupport] = useState(settings.btnTextSupport || "📞 پشتیبانی");
   const [hideBtnSupport, setHideBtnSupport] = useState(!!settings.hideBtnSupport);
 
+  const [btnTextTicketSupport, setBtnTextTicketSupport] = useState(settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی");
+  const [hideBtnTicketSupport, setHideBtnTicketSupport] = useState(!!settings.hideBtnTicketSupport);
+
   const [btnTextFreeTest, setBtnTextFreeTest] = useState(settings.btnTextFreeTest || "🎁 موجودی رایگان");
   const [hideBtnFreeTest, setHideBtnFreeTest] = useState(!!settings.hideBtnFreeTest);
 
@@ -78,7 +81,7 @@ export default function BotButtonsPanel({
   const [tempGuidesText, setTempGuidesText] = useState("");
   
   const defaultOrder = [
-    "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
+    "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
   ];
   
   const [mainButtonsOrder, setMainButtonsOrder] = useState<string[]>(() => {
@@ -204,6 +207,7 @@ export default function BotButtonsPanel({
       guidesText,
       btnTextProfile,
       btnTextSupport,
+      btnTextTicketSupport,
       btnTextFreeTest,
       btnTextInstantSupport,
       btnTextFeedback,
@@ -216,6 +220,7 @@ export default function BotButtonsPanel({
       hideBtnGuides,
       hideBtnProfile,
       hideBtnSupport,
+      hideBtnTicketSupport,
       hideBtnFreeTest,
       hideBtnInstantSupport,
       hideBtnFeedback,
@@ -323,6 +328,7 @@ export default function BotButtonsPanel({
                   "btnGuides": { label: lang === "fa" ? "عنوان دکمه راهنمای اتصال" : "Connection Guide Button Label", value: btnTextGuides, setter: setBtnTextGuides, disabled: hideBtnGuides, toggleDisabled: () => setHideBtnGuides(!hideBtnGuides) },
                   "btnProfile": { label: lang === "fa" ? "عنوان دکمه حساب کاربری" : "Profile Button Label", value: btnTextProfile, setter: setBtnTextProfile, disabled: hideBtnProfile, toggleDisabled: () => setHideBtnProfile(!hideBtnProfile) },
                   "btnSupport": { label: lang === "fa" ? "عنوان دکمه پشتیبانی" : "Support Button Label", value: btnTextSupport, setter: setBtnTextSupport, disabled: hideBtnSupport, toggleDisabled: () => setHideBtnSupport(!hideBtnSupport) },
+                  "btnTicketSupport": { label: lang === "fa" ? "عنوان دکمه تیکت به پشتیبانی" : "Ticket Support Button Label", value: btnTextTicketSupport, setter: setBtnTextTicketSupport, disabled: hideBtnTicketSupport, toggleDisabled: () => setHideBtnTicketSupport(!hideBtnTicketSupport) },
                   "btnFreeTest": { label: lang === "fa" ? "عنوان دکمه موجوده رایگان/تست" : "Free Test Button Label", value: btnTextFreeTest, setter: setBtnTextFreeTest, disabled: hideBtnFreeTest, toggleDisabled: () => setHideBtnFreeTest(!hideBtnFreeTest) },
                   "btnAiChat": { label: lang === "fa" ? "عنوان دکمه چت با ربات" : "AI Chat Button Label", value: btnTextAiChat, setter: setBtnTextAiChat, disabled: hideBtnAiChat, toggleDisabled: () => setHideBtnAiChat(!hideBtnAiChat) },
                   "btnColleagues": { label: lang === "fa" ? "عنوان دکمه همکاران" : "Colleagues Button Label", value: btnTextColleagues, setter: setBtnTextColleagues, disabled: hideBtnColleagues, toggleDisabled: () => setHideBtnColleagues(!hideBtnColleagues) },
@@ -646,6 +652,7 @@ export default function BotButtonsPanel({
                     guidesText: tempGuidesText,
                     btnTextProfile,
                     btnTextSupport,
+                    btnTextTicketSupport,
                     btnTextFreeTest,
                     btnTextInstantSupport,
                     btnTextFeedback,
@@ -658,6 +665,7 @@ export default function BotButtonsPanel({
                     hideBtnGuides,
                     hideBtnProfile,
                     hideBtnSupport,
+                    hideBtnTicketSupport,
                     hideBtnFreeTest,
                     hideBtnInstantSupport,
                     hideBtnFeedback,

@@ -26,6 +26,8 @@ export interface PanelSettings {
   btnTextProfile?: string;
   hideBtnSupport?: boolean;
   btnTextSupport?: string;
+  hideBtnTicketSupport?: boolean;
+  btnTextTicketSupport?: string;
   hideBtnFreeTest?: boolean;
   btnTextFreeTest?: string;
   hideBtnInstantSupport?: boolean;

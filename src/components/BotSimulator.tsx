@@ -116,12 +116,13 @@ export default function BotSimulator({
   const getKeyboard = () => {
     const layout = settings?.keyboardLayout || "stepped";
     const defaultOrder = [
-      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
     ];
     let order = [...(settings?.mainButtonsOrder || defaultOrder)];
     
     if (!order.includes("btnWallet")) order.push("btnWallet");
     if (!order.includes("btnReferral")) order.push("btnReferral");
+    if (!order.includes("btnTicketSupport")) order.push("btnTicketSupport");
 
     const buttons: string[] = [];
     
@@ -131,7 +132,8 @@ export default function BotSimulator({
       else if (key === "btnGuides" && !settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
       else if (key === "btnProfile" && !settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
       else if (key === "btnWallet" && !settings?.hideBtnWallet) buttons.push(settings?.btnTextWallet || "💵 کیف پول + شارژ");
-      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "🎧 پشتیبانی");
+      else if (key === "btnSupport" && !settings?.hideBtnSupport && !settings?.hideSupport) buttons.push(settings?.btnTextSupport || "🎧 پشتیبانی");
+      else if (key === "btnTicketSupport" && !settings?.hideBtnTicketSupport) buttons.push(settings?.btnTextTicketSupport || "🎫 تیکت به پشتیبانی");
       else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
       else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
       else if (key === "btnFeedback" && !settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
@@ -617,6 +619,18 @@ export default function BotSimulator({
         );
       }
     } 
+    else if (text === (settings?.btnTextTicketSupport || "🎫 تیکت به پشتیبانی")) {
+      setSupportStep("ask_subject");
+      addBotReply(
+        lang === "fa"
+          ? "🎟️ <b>ثبت تیکت دیجیتال پشتیبانی:</b>\n\nدر این بخش شما یک پرونده الکترونیکی با دپارتمان پشتیبانی دالتون ایجاد می‌کنید.\n\nلطفاً <b>موضوع تیکت خود</b> (به عنوان مثال: قطع بودن سرور، عدم تمدید، شارژ نادرست کیف پول و...) را وارد کنید:"
+          : "🎟️ <b>File Support Ticket:</b>\n\nPlease type the <b>Subject</b> of your support request (e.g. Server down, subscription issue, etc.):",
+        500,
+        [
+          [lang === "fa" ? "❌ انصراف از ثبت تیکت" : "❌ Cancel Ticket"]
+        ]
+      );
+    }
     else if (text.includes("📞") || text.includes("پشتیبانی") || text.includes("Support") || text.includes("support") || text.includes("🎧") || text.includes("تیکت") || text.includes("Ticket")) {
       addBotReply(
         lang === "fa" 
