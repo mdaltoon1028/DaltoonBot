@@ -48,6 +48,7 @@ export default function SettingsPanel({
   const t = translations[lang];
   // Form state
   const [botToken, setBotToken] = useState(settings.botToken || "");
+  const [botNickname, setBotNickname] = useState(settings.botNickname || "");
   const [ownerId, setOwnerId] = useState(settings.ownerId ? settings.ownerId.toString() : "");
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || "");
   
@@ -102,6 +103,7 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
+      botNickname,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
       cardNumber,
@@ -132,6 +134,7 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
+      botNickname,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
       cardNumber,
@@ -255,6 +258,7 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
+      botNickname,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
       cardNumber,
@@ -644,6 +648,18 @@ export default function SettingsPanel({
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
               />
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{lang === "fa" ? "نام فروشگاه / ربات (جهت نمایش)" : "Store Name / Bot Nickname"}</label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "مثال: دالتون استور" : "e.g. Daltoon Store"}
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm w-full text-white font-medium focus:ring-1 focus:ring-indigo-500"
+                value={botNickname}
+                onChange={(e) => setBotNickname(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">{lang === "fa" ? "این نام در پیام‌های ربات (مثل خوش‌آمدگویی یا خرید) جایگزین متغیر {nickname} می‌شود." : "This name replaces the {nickname} variable in bot messages."}</p>
             </div>
 
             <div className="md:col-span-2">

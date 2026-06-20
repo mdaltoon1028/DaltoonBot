@@ -71,6 +71,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
 
     onComplete({
       botToken: botToken.trim(),
+      botNickname: nickname.trim(),
       ownerId: Number(ownerId.trim()),
       welcomeText: defaultWelcomeText,
       supportText: defaultSupportText,

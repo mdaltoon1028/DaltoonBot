@@ -93,15 +93,15 @@ function readJsonDb(): DbSchema {
         tickets: [],
         settings: {
           panel_config: JSON.stringify({
-            botToken: "",
+            botToken: process.env.BOT_TOKEN || "",
             baseUrl: "",
             panelUrl: "",
             panelUsername: "",
             panelPassword: "",
             activeInboundIds: [],
-            ownerId: 0,
-            cardNumber: "",
-            cardHolder: "",
+            ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
+            cardNumber: process.env.CARD_NUMBER || "",
+            cardHolder: process.env.CARD_HOLDER || "",
             bankName: "",
             welcomeText: "",
             supportText: "",
@@ -181,7 +181,7 @@ function startPythonBot() {
 
   if (botProcess) {
     console.log("[Bot Manager] Stopping old Python bot process...");
-    botProcess.kill("SIGTERM");
+    botProcess.kill("SIGKILL");
     botProcess = null;
   }
 
@@ -268,15 +268,15 @@ app.get("/api/data", async (req, res) => {
       : {};
       
     const settings = {
-      botToken: "",
+      botToken: process.env.BOT_TOKEN || "",
       baseUrl: "",
       panelUrl: "",
       panelUsername: "",
       panelPassword: "",
       activeInboundIds: [],
-      ownerId: 0,
-      cardNumber: "",
-      cardHolder: "",
+      ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
+      cardNumber: process.env.CARD_NUMBER || "",
+      cardHolder: process.env.CARD_HOLDER || "",
       bankName: "",
       welcomeText: "",
       supportText: "",
@@ -1719,15 +1719,15 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
       ? JSON.parse(db.settings.panel_config)
       : {};
     const settings = {
-      botToken: "",
+      botToken: process.env.BOT_TOKEN || "",
       baseUrl: "",
       panelUrl: "",
       panelUsername: "",
       panelPassword: "",
       activeInboundIds: [],
-      ownerId: 0,
-      cardNumber: "",
-      cardHolder: "",
+      ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
+      cardNumber: process.env.CARD_NUMBER || "",
+      cardHolder: process.env.CARD_HOLDER || "",
       bankName: "",
       welcomeText: "",
       supportText: "",
@@ -1969,15 +1969,15 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       ? JSON.parse(db.settings.panel_config)
       : {};
     const settings = {
-      botToken: "",
+      botToken: process.env.BOT_TOKEN || "",
       baseUrl: "",
       panelUrl: "",
       panelUsername: "",
       panelPassword: "",
       activeInboundIds: [],
-      ownerId: 0,
-      cardNumber: "",
-      cardHolder: "",
+      ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
+      cardNumber: process.env.CARD_NUMBER || "",
+      cardHolder: process.env.CARD_HOLDER || "",
       bankName: "",
       welcomeText: "",
       supportText: "",
@@ -2298,7 +2298,7 @@ app.post("/api/system/update", async (req, res) => {
     // Run update sequence asynchronously
     setTimeout(() => {
       console.log("[Auto-Update] Starting background update sequence...");
-      exec('git stash && git pull && npm install && npm run build && pm2 restart all', (error: any, stdout: string, stderr: string) => {
+      exec('git stash && git pull && chmod +x daltoon-dashboard install.sh 2>/dev/null || true && npm install && npm run build && pm2 restart all', (error: any, stdout: string, stderr: string) => {
         if (error) {
           console.error("[Auto-Update Error]", error.message);
         } else {

@@ -161,6 +161,8 @@ def get_config():
 
             if panel_cfg.get("botToken"):
                 config["BOT_TOKEN"] = panel_cfg["botToken"]
+            if panel_cfg.get("botNickname"):
+                config["BOT_NICKNAME"] = panel_cfg["botNickname"]
             if panel_cfg.get("baseUrl"):
                 config["XUI_URL"] = normalize_xui_url(panel_cfg["baseUrl"])
             elif panel_cfg.get("panelUrl"):
@@ -838,16 +840,19 @@ def start_cmd(message):
 
     cfg = get_config()
     custom_welcome = cfg.get("WELCOME_TEXT")
+    bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+    
+    user_balance = int(user.get('walletBalance') or 0) if user else 0
+    formatted_balance = f"{user_balance:,}"
     
     if custom_welcome:
-        formatted_balance = f"{int(user['walletBalance'] or 0):,}"
-        welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance)
+        welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
     else:
         welcome_text = (
             f"<b>🚀 به ربات پرسرعت Daltoon Servers خوش آمدید!</b>\n\n"
             f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
             f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
-            f"💰 موجودی کیف پول: <code>{int(user['walletBalance'] or 0):,}</code> تومان\n\n"
+            f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
             f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
         )
     bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
@@ -1418,6 +1423,7 @@ def callback_handler(call):
                 def __init__(self, chat_id, from_user):
                     self.chat = type('Chat', (object,), {'id': chat_id})
                     self.from_user = from_user
+                    self.text = "/start"
             fake_msg = FakeMessage(call.message.chat.id, call.from_user)
             start_cmd(fake_msg)
         else:
@@ -1684,10 +1690,11 @@ def callback_handler(call):
         custom_welcome = cfg.get("WELCOME_TEXT")
         tg_id = call.from_user.id
         user = get_user_data(tg_id)
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
         
         if custom_welcome and user:
             formatted_balance = f"{int(user.get('walletBalance') or 0):,}"
-            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance)
+            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
         else:
             balance = f"{int(user.get('walletBalance') or 0):,}" if user else "0"
             welcome_text = (
