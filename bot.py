@@ -136,6 +136,9 @@ def get_config():
             config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "💵 کیف پول + شارژ")
             config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
 
+            config["IS_FREETEST_ACTIVE"] = panel_cfg.get("isFreeTestActive", True)
+            config["FREETEST_DISABLED_MSG"] = panel_cfg.get("freeTestDisabledMessage", "اکانت تست رایگان فعلا موجود نیست.")
+
             config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
             if "hideBtnMySubs" in panel_cfg: config["HIDE_MY_SUBS"] = bool(panel_cfg["hideBtnMySubs"])
             if "hideBtnGuides" in panel_cfg: config["HIDE_GUIDES"] = bool(panel_cfg["hideBtnGuides"])
@@ -1143,13 +1146,19 @@ def handle_main_menu_callback(call):
         
     # 5. Free Test
     elif action == "mm_btnFreeTest":
+        cfg = get_config()
+        if not cfg.get("IS_FREETEST_ACTIVE", True):
+            disabled_msg = cfg.get("FREETEST_DISABLED_MSG", "اکانت تست رایگان فعلا موجود نیست.")
+            bot.edit_message_text(disabled_msg, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
+            return
+
         users = db.get("users", [])
         user_idx = next((i for i, u in enumerate(users) if u.get("userId") == tg_id), -1)
         if user_idx >= 0 and users[user_idx].get("hasReceivedFreeTest"):
             bot.edit_message_text("❌ <b>شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!</b>\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.", chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
             return
             
-        bot.send_message(message.chat.id, "⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱۰۰ مگابایت) از پنل سرور دالتون... لطفاً چند لحظه صبر کنید.")
+        bot.send_message(message.chat.id, "⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱ گیگابایت) از پنل سرور دالتون... لطفاً چند لحظه صبر کنید.")
         
         import string
         import random
@@ -1161,7 +1170,7 @@ def handle_main_menu_callback(call):
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             free_username = f"test_{random_suffix}"
             
-        client_uuid, sub_link = add_vpn_client_api(free_username, 0.1, 1) # 0.1 GB (102.4 MB), 1 day
+        client_uuid, sub_link = add_vpn_client_api(free_username, 1, 1) # 1 GB, 1 day
         
         if not sub_link:
             cfg = get_config()

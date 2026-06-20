@@ -30,6 +30,8 @@ export interface PanelSettings {
   btnTextTicketSupport?: string;
   hideBtnFreeTest?: boolean;
   btnTextFreeTest?: string;
+  isFreeTestActive?: boolean;
+  freeTestDisabledMessage?: string;
   hideBtnInstantSupport?: boolean;
   btnTextInstantSupport?: string;
   hideBtnFeedback?: boolean;

@@ -523,7 +523,48 @@ export default function BotSimulator({
       }
     }
     else if (text === (settings?.btnTextFreeTest || "🎁 موجودی رایگان") || text.includes("🎁") || text.includes("رایگان") || text.includes("Free")) {
-        addBotReply(lang === "fa" ? "🎁 قابلیت اکانت تست رایگان در این شبیه‌ساز غیرفعال است." : "Free tests are demoed in live bot only.", 500);
+        if (settings?.isFreeTestActive === false) {
+           addBotReply(settings?.freeTestDisabledMessage || (lang === "fa" ? "اکانت تست رایگان فعلا موجود نیست." : "Free test is not available right now."), 500);
+        } else {
+           addBotReply(lang === "fa" ? "⏳ در حال ساخت اکانت تست رایگان یک روزه (۱ گیگابایت)..." : "⏳ Generating 1-Day (1GB) test account...", 500, []);
+           
+           setTimeout(() => {
+             const randomSubId = "TEST-" + Math.floor(Math.random() * 9000 + 1000);
+             const expireDate = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // 1 Day
+             
+             const mockSub = {
+               id: randomSubId,
+               userId: currentUser.userId,
+               planId: "free_test_1d_1g",
+               planName: "Free Test 1 Day - 1GB",
+               subLink: `vless://mock_test_uuid_${randomSubId}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_Test_${randomSubId}`,
+               expireDate,
+               trafficLimitGb: 1, // 1 GB
+               trafficUsedGb: 0,
+               status: "active" as const
+             };
+     
+             // Update simulated states exclusively
+             setSimulatedKeys(prev => [mockSub, ...prev]);
+             
+             const confirmMsg = lang === "fa"
+               ? `🎉 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n` +
+                 `👤 نام کاربری سرویس: <code>test_${currentUser.username || currentUser.userId}</code>\n` +
+                 `⏳ اعتبار: یک روز\n` +
+                 `حجم: ۱ گیگابایت\n\n` +
+                 `🔑 <b>کانفیگ VLESS اختصاصی (آزمایشی) صادر شد:</b>\n` +
+                 `<code>${mockSub.subLink}</code>\n\n` +
+                 `⚠️ <i>توجه: کل سیستم شبیه‌ساز کاملاً آموزشی است.</i>`
+               : `🎉 <b>Simulated Free Test generated!</b>\n\n` +
+                 `👤 Username: <code>test_${currentUser.username || currentUser.userId}</code>\n` +
+                 `⏳ Duration: 1 Day - 1GB\n\n` +
+                 `🔑 <b>Simulated configuration generated:</b>\n` +
+                 `<code>${mockSub.subLink}</code>\n\n` +
+                 `⚠️ <i>Notice: This is an educational sandbox.</i>`;
+     
+             addBotReply(confirmMsg, 1000, getKeyboard());
+           }, 1500);
+        }
     }
     else if (text === (settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی") || text.includes("🤖")) {
         addBotReply(lang === "fa" ? "🤖 پاسخگوی خودکار غیرفعال است. لطفا به پشتیبانی انسانی پیام دهید." : "Instant support AI offline.", 500);
