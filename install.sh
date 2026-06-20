@@ -107,8 +107,9 @@ echo -e "${YELLOW}=== Configure Dashboard Settings ===${NC}"
 read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
 DASH_USER=${DASH_USER:-Daltoon}
 
-read -p "Enter Admin Password [Daltoon10]: " DASH_PASS < /dev/tty
-DASH_PASS=${DASH_PASS:-Daltoon10}
+read -s -p "Enter Admin Password [Daltoon]: " DASH_PASS < /dev/tty
+echo ""
+DASH_PASS=${DASH_PASS:-Daltoon}
 
 read -p "Enter Server Port [3000]: " DASH_PORT < /dev/tty
 DASH_PORT=${DASH_PORT:-3000}

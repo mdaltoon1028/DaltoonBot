@@ -333,7 +333,7 @@ export default function ServerManagement({
             <input
               type="text"
               className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              placeholder="e.g. https://m.daltoon-server.ir:8443/Daltoon"
+              placeholder="e.g. https://panel.example.com:2053/secretPath"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
             />
@@ -349,7 +349,7 @@ export default function ServerManagement({
             <input
               type="text"
               className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              placeholder="e.g. https://tr.sub-daltoon.ir:2096"
+              placeholder="e.g. https://sub.example.com:2096"
               value={subUrl}
               onChange={(e) => setSubUrl(e.target.value)}
             />

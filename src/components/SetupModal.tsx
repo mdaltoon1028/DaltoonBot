@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Language } from "../locales";
 import { Bot, UserCog, User, Key, ArrowRight, Info } from "lucide-react";
 import { PanelSettings } from "../types";
@@ -9,10 +9,22 @@ interface SetupModalProps {
 }
 
 export default function SetupModal({ lang, onComplete }: SetupModalProps) {
-  const [nickname, setNickname] = useState("");
-  const [botToken, setBotToken] = useState("");
-  const [ownerId, setOwnerId] = useState("");
+  const [nickname, setNickname] = useState(() => sessionStorage.getItem("setup_nickname") || "");
+  const [botToken, setBotToken] = useState(() => sessionStorage.getItem("setup_botToken") || "");
+  const [ownerId, setOwnerId] = useState(() => sessionStorage.getItem("setup_ownerId") || "");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    sessionStorage.setItem("setup_nickname", nickname);
+  }, [nickname]);
+
+  useEffect(() => {
+    sessionStorage.setItem("setup_botToken", botToken);
+  }, [botToken]);
+
+  useEffect(() => {
+    sessionStorage.setItem("setup_ownerId", ownerId);
+  }, [ownerId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +37,10 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
       setError(lang === "fa" ? "آیدی عددی باید فقط شامل اعداد باشد." : "Owner ID must be a number.");
       return;
     }
+    
+    sessionStorage.removeItem("setup_nickname");
+    sessionStorage.removeItem("setup_botToken");
+    sessionStorage.removeItem("setup_ownerId");
 
     const guidesTextDefault = lang === "fa" 
       ? `🌐 راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)
@@ -45,13 +61,28 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
 ۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت وجود هرگونه مشکل با ما در ارتباط باشید.`
       : "Connection Guides...";
 
+    const defaultWelcomeText = lang === "fa"
+      ? `سلام کاربر گرامی 🌹\nبه ربات ${nickname.trim()} خوش آمدید.\n\nآیدی عددی شما: {tg_id}\nموجودی فعلی: {wallet_balance} تومان`
+      : `Hello User!\nWelcome to ${nickname.trim()} bot.\nYour ID: {tg_id}\nWallet Balance: {wallet_balance}`;
+
     onComplete({
       botToken: botToken.trim(),
       ownerId: Number(ownerId.trim()),
-      welcomeText: lang === "fa" ? `سلام کاربر گرامی 🌹\nبه ربات ${nickname.trim()} خوش آمدید.` : `Hello User!\nWelcome to ${nickname.trim()} bot.`,
+      welcomeText: defaultWelcomeText,
       supportText: lang === "fa" ? "برای پشتیبانی با مدیریت در ارتباط باشید." : "Contact admin for support.",
       btnTextGuides: lang === "fa" ? "💡 راهنمای اتصال" : "💡 Connection Guides",
       guidesText: guidesTextDefault,
+      lockChannel: false,
+      lockChannelRequired: false,
+      enableCryptoPos: false,
+      enableAghazPay: false,
+      enableStripe: false,
+      enablePayPal: false,
+      enablePerfectMoney: false,
+      enableCardToCard: false,
+      enableCardToCardAutoConfirm: false,
+      enableWalletMenu: false,
+      enableFreeTestPlan: false,
       admins: [
         {
           id: Math.random().toString(36).substring(2, 9),
@@ -140,6 +171,10 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
                 className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-mono placeholder:text-gray-600"
                 dir="ltr"
               />
+              <p className="mt-1.5 text-xs text-indigo-300 font-medium flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                {lang === "fa" ? "آیدی عددی خود را می‌توانید از ربات تلگرامی infouserbot@ دریافت کنید." : "Get your numeric ID from @infouserbot in Telegram."}
+              </p>
             </div>
           </div>
 

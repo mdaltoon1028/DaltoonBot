@@ -69,7 +69,7 @@ export default function SettingsPanel({
 
   // Dashboard credentials, Port, and Admins management
   const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
-  const [dashboardPassword, setDashboardPassword] = useState(settings.dashboardPassword || "Daltoon10");
+  const [dashboardPassword, setDashboardPassword] = useState(settings.dashboardPassword || "Daltoon");
   const [serverPort, setServerPort] = useState<number | string>(settings.serverPort || 3000);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number | string>(settings.autoRefreshInterval !== undefined ? settings.autoRefreshInterval : 0);
 
@@ -218,10 +218,10 @@ export default function SettingsPanel({
 
   const [welcomeText, setWelcomeText] = useState(settings.welcomeText || `<b>🛍️ به فروشگاه دالتون بات (Daltoon Bot) خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`);
   
-  const [supportText, setSupportText] = useState(settings.supportText || `📞 <b>پشتیبانی دالتون بات (Daltoon Bot):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @daltoon_support\n📢 کانال تلگرام دالتون بات: @daltoon_store\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`);
+  const [supportText, setSupportText] = useState(settings.supportText || `📞 <b>پشتیبانی دالتون بات (Daltoon Bot):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @example_support\n📢 کانال تلگرام دالتون بات: @example_channel\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`);
 
-  const [tgChannel, setTgChannel] = useState(settings.tgChannel || "@daltoon_channel");
-  const [supportHandle, setSupportHandle] = useState(settings.supportHandle || "@daltoon_owner");
+  const [tgChannel, setTgChannel] = useState(settings.tgChannel || "@example_channel");
+  const [supportHandle, setSupportHandle] = useState(settings.supportHandle || "@example_owner");
 
   const [hideSupport, setHideSupport] = useState(!!settings.hideSupport);
   const [hideBuy, setHideBuy] = useState(!!settings.hideBuy);
@@ -514,7 +514,7 @@ export default function SettingsPanel({
               <input
                 type="text"
                 className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
-                placeholder={lang === "fa" ? "@daltoon_channel یا لینک کامل" : "@daltoon_channel or full invite link"}
+                placeholder={lang === "fa" ? "@example_channel یا لینک کامل" : "@example_channel or full invite link"}
                 value={mandatoryJoinChannel}
                 onChange={(e) => setMandatoryJoinChannel(e.target.value)}
               />
@@ -873,7 +873,7 @@ export default function SettingsPanel({
                     <input
                       type="text"
                       className="w-full bg-[#13192e] border border-slate-800 rounded-lg p-2 text-xs text-white"
-                      placeholder="e.g. daltoon_admin"
+                      placeholder="e.g. general_admin"
                       value={newAdminUser}
                       onChange={(e) => setNewAdminUser(e.target.value)}
                     />
@@ -1113,11 +1113,11 @@ export default function SettingsPanel({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-800/60 pb-4 mb-2">
               <div>
                 <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa" ? "📢 آیدی کانال تلگرام (مثال: @daltoon_channel)" : "📢 Telegram Channel ID (e.g., @daltoon_channel)"}
+                  {lang === "fa" ? "📢 آیدی کانال تلگرام (مثال: @example_channel)" : "📢 Telegram Channel ID (e.g., @example_channel)"}
                 </label>
                 <input
                   type="text"
-                  placeholder="@daltoon_channel"
+                  placeholder="@example_channel"
                   className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
                   value={tgChannel}
                   onChange={(e) => setTgChannel(e.target.value)}
@@ -1126,11 +1126,11 @@ export default function SettingsPanel({
 
               <div>
                 <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa" ? "👤 آیدی پشتیبان فنی تلگرام (مثال: @daltoon_owner)" : "👤 Technical Support Handle (e.g., @daltoon_owner)"}
+                  {lang === "fa" ? "👤 آیدی پشتیبان فنی تلگرام (مثال: @example_owner)" : "👤 Technical Support Handle (e.g., @example_owner)"}
                 </label>
                 <input
                   type="text"
-                  placeholder="@daltoon_owner"
+                  placeholder="@example_owner"
                   className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
                   value={supportHandle}
                   onChange={(e) => setSupportHandle(e.target.value)}
@@ -1179,7 +1179,7 @@ export default function SettingsPanel({
               </label>
               <textarea
                 rows={3}
-                placeholder={lang === "fa" ? "مثلا: کانال آموزش کلاینت‌ها: @daltoon_setup" : "e.g., Client Tutorial Channel: @daltoon_setup"}
+                placeholder={lang === "fa" ? "مثلا: کانال آموزش کلاینت‌ها: @example_setup" : "e.g., Client Tutorial Channel: @example_setup"}
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-emerald-200 focus:ring-1 focus:ring-indigo-500 font-mono"
                 value={purchaseSuccessNote}
                 onChange={(e) => setPurchaseSuccessNote(e.target.value)}

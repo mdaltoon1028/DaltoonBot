@@ -67,16 +67,17 @@ async function mainMenu() {
     const pass = config.dashboardPassword || "Daltoon10";
     
     console.log(`\x1b[33m[1]\x1b[0m 🔄 Update Project Services`);
-    console.log(`\x1b[33m[2]\x1b[0m 📊 View Services Status (status)`);
-    console.log(`\x1b[33m[3]\x1b[0m 🚀 Start (Run Dashboard & Bot via PM2)`);
-    console.log(`\x1b[33m[4]\x1b[0m 🛑 Stop Services`);
-    console.log(`\x1b[33m[5]\x1b[0m ♻️  Restart Services`);
-    console.log(`\x1b[33m[6]\x1b[0m 🔑 Change Username & Password`);
-    console.log(`\x1b[33m[7]\x1b[0m 🔌 Change Port [Current: \x1b[32m${port}\x1b[0m]`);
-    console.log(`\x1b[33m[8]\x1b[0m 🚪 Exit`);
+    console.log(`\x1b[33m[2]\x1b[0m 🗑️  Uninstall Project`);
+    console.log(`\x1b[33m[3]\x1b[0m 📊 View Services Status (status)`);
+    console.log(`\x1b[33m[4]\x1b[0m 🚀 Start (Run Dashboard & Bot via PM2)`);
+    console.log(`\x1b[33m[5]\x1b[0m 🛑 Stop Services`);
+    console.log(`\x1b[33m[6]\x1b[0m ♻️  Restart Services`);
+    console.log(`\x1b[33m[7]\x1b[0m 🔑 Change Username & Password`);
+    console.log(`\x1b[33m[8]\x1b[0m 🔌 Change Port [Current: \x1b[32m${port}\x1b[0m]`);
+    console.log(`\x1b[33m[9]\x1b[0m 🚪 Exit`);
     console.log("\x1b[36m====================================================\x1b[0m");
     
-    const choice = await ask("\x1b[1mSelect option [1-8]: \x1b[0m");
+    const choice = await ask("\x1b[1mSelect option [1-9]: \x1b[0m");
     
     if (choice === '1') {
       clearScreen();
@@ -92,6 +93,29 @@ async function mainMenu() {
       await ask("\nPress ENTER to return to main menu...");
     } 
     else if (choice === '2') {
+      clearScreen();
+      printHeader();
+      console.log("\x1b[31m=== WARNING: UNINSTALL PROJECT ===\x1b[0m");
+      console.log("This will permanently remove the bot, dashboard, and all project files.");
+      const confirm = await ask("Are you sure you want to proceed? (Type 'yes' to confirm): ");
+      if (confirm.toLowerCase() === 'yes') {
+        console.log("Stopping background services...");
+        try { execSync("pm2 stop daltoon-store daltoon-bot || true"); } catch(e){}
+        try { execSync("pm2 delete daltoon-store daltoon-bot || true"); } catch(e){}
+        try { execSync("pm2 save --force || true"); } catch(e){}
+        console.log("Starting self-destruct sequence and removing files...");
+        try { 
+          // Async self destruct so CLI can exit cleanly
+          exec(`rm -rf /opt/daltoon-store && npm uninstall -g pm2 || true`); 
+        } catch(e){}
+        console.log("\n\x1b[32m✔ Project successfully uninstalled!\x1b[0m");
+        process.exit(0);
+      } else {
+        console.log("Uninstall cancelled.");
+      }
+      await ask("\nPress ENTER to return to main menu...");
+    }
+    else if (choice === '3') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== SERVICES STATUS & HEALTH MONITOR ===\x1b[0m");
@@ -138,7 +162,7 @@ async function mainMenu() {
       
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '3') {
+    else if (choice === '4') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== STARTING DALTOON SERVICES ===\x1b[0m");
@@ -156,7 +180,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '4') {
+    else if (choice === '5') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== STOPPING SERVICES ===\x1b[0m");
@@ -170,7 +194,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '5') {
+    else if (choice === '6') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== RESTARTING SERVICES ===\x1b[0m");
@@ -185,12 +209,12 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '6') {
+    else if (choice === '7') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== CHANGE DASHBOARD CREDENTIALS ===\x1b[0m");
       console.log(`Current Username: \x1b[35m${user}\x1b[0m`);
-      console.log(`Current Password: \x1b[35m${pass}\x1b[0m`);
+      console.log(`Current Password: \x1b[35m${"*".repeat(pass.length)}\x1b[0m`);
       const newUsername = await ask("Enter new Username (Leave empty to keep current): ");
       const newPassword = await ask("Enter new Password (Leave empty to keep current): ");
       
@@ -214,7 +238,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '7') {
+    else if (choice === '8') {
       clearScreen();
       printHeader();
       console.log("\x1b[33m=== CHANGE PORT ===\x1b[0m");
@@ -226,6 +250,9 @@ async function mainMenu() {
         db.settings.panel_config = JSON.stringify(config);
         if (writeDb(db)) {
           console.log(`\n\x1b[32m✔ Server Port successfully changed to ${newPort}!\x1b[0m`);
+          console.log(`Attempting to allow port ${newPort} through UFW firewall...`);
+          try { execSync(`ufw allow ${newPort}/tcp`, { stdio: 'ignore' }); } catch(e){}
+          try { execSync(`iptables -I INPUT -p tcp --dport ${newPort} -j ACCEPT`, { stdio: 'ignore' }); } catch(e){}
           console.log(`Please restart the server to bind to this new port.`);
         }
       } else {
@@ -233,7 +260,7 @@ async function mainMenu() {
       }
       await ask("\nPress ENTER to return to main menu...");
     }
-    else if (choice === '8') {
+    else if (choice === '9') {
       console.log("\n\x1b[32mGoodbye!\x1b[0m\n");
       rl.close();
       break;

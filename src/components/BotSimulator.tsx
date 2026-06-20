@@ -403,7 +403,7 @@ export default function BotSimulator({
           userId: currentUser.userId,
           planId: selectedPlanToBuy.id,
           planName: selectedPlanToBuy.name,
-          subLink: `vless://mock_vless_uuid_${randomSubId}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_Mock_${randomSubId}`,
+          subLink: `vless://mock_vless_uuid_${randomSubId}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Mock_${randomSubId}`,
           expireDate,
           trafficLimitGb: selectedPlanToBuy.trafficGb,
           trafficUsedGb: 0,
@@ -537,7 +537,7 @@ export default function BotSimulator({
                userId: currentUser.userId,
                planId: "free_test_1d_1g",
                planName: "Free Test 1 Day - 1GB",
-               subLink: `vless://mock_test_uuid_${randomSubId}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_Test_${randomSubId}`,
+               subLink: `vless://mock_test_uuid_${randomSubId}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Test_${randomSubId}`,
                expireDate,
                trafficLimitGb: 1, // 1 GB
                trafficUsedGb: 0,
@@ -833,7 +833,7 @@ export default function BotSimulator({
       
       setTimeout(() => {
         const fakeUuid = "mock-uuid-" + Math.floor(Math.random() * 100000);
-        const nextSubLink = `vless://${fakeUuid}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_Mock_${subId}`;
+        const nextSubLink = `vless://${fakeUuid}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Mock_${subId}`;
 
         setSimulatedKeys(prev => prev.map(item => item.id === subId ? { ...item, subLink: nextSubLink } : item));
 

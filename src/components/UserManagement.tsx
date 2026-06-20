@@ -141,7 +141,7 @@ export default function UserManagement({
     const expireDate = new Date(Date.now() + parsedExpiryDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     
     // Auto populate a default connection string if they didn't supply one, using sub domain layout
-    const generatedVless = manualSubLink.trim() || `vless://${Math.random().toString(36).substring(2)}@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon-${manualPlanName || "Manual"}`;
+    const generatedVless = manualSubLink.trim() || `vless://${Math.random().toString(36).substring(2)}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Secret-${manualPlanName || "Manual"}`;
 
     const newKey = {
       id: randomId,
