@@ -35,6 +35,7 @@ const app = express();
 console.log("[AI Studio Debug] process.env.GEMINI_API_KEY loaded:", process.env.GEMINI_API_KEY ? `Yes (length: ${process.env.GEMINI_API_KEY.length}, starts with: ${process.env.GEMINI_API_KEY.substring(0, 5)})` : "No (undefined/empty)");
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 console.log(`[Database] Connecting to JSON file database at: ${dbJsonPath}`);
 
 // Define types for pure JSON database to align perfectly with schema
@@ -1327,9 +1328,42 @@ app.post("/api/xui/test-connection", async (req, res) => {
 // BROADCAST ENDPOINT
 app.post("/api/broadcast", async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!text) {
-      return res.status(400).json({ success: false, error: "Missing message text." });
+    const { text, attachment, serverUrl } = req.body;
+    if (!text && !attachment) {
+      return res.status(400).json({ success: false, error: "متن پیام یا رسانه برای ارسال الزامی است." });
+    }
+
+    // Process attachment if provided
+    let fileUrl = "";
+    if (attachment && attachment.fileData) {
+      try {
+        const uploadsDir = path.join(process.cwd(), "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        let base64Data = attachment.fileData;
+        if (base64Data.includes(";base64,")) {
+          base64Data = base64Data.split(";base64,").pop() || "";
+        }
+        
+        const buffer = Buffer.from(base64Data, "base64");
+        const ext = path.extname(attachment.fileName) || (
+          attachment.fileType === "image" ? ".jpg" : 
+          attachment.fileType === "video" ? ".mp4" : 
+          attachment.fileType === "voice" ? ".ogg" : ".bin"
+        );
+        const uniqueFileName = `broadcast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
+        const filePath = path.join(uploadsDir, uniqueFileName);
+        
+        fs.writeFileSync(filePath, buffer);
+        
+        const originUrl = serverUrl || "https://ais-dev-cri25e3qykgpuufepdfpmw-413733104605.europe-west3.run.app";
+        fileUrl = `${originUrl}/uploads/${uniqueFileName}`;
+        console.log(`[Broadcast] File written to: ${filePath}, public url: ${fileUrl}`);
+      } catch (err: any) {
+        console.error("[Broadcast] Failed storing attachment file:", err);
+      }
     }
 
     const db = readJsonDb();
@@ -1345,16 +1379,42 @@ app.post("/api/broadcast", async (req, res) => {
       for (const u of users) {
         if (u.userId) {
           try {
-            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            // Determine API method and payload based on attachment presence and type
+            let apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+            let payload: any = {
+              chat_id: u.userId,
+              parse_mode: "HTML"
+            };
+
+            if (fileUrl) {
+              const fileType = attachment?.fileType || "file";
+              if (fileType === "image") {
+                apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+                payload.photo = fileUrl;
+                payload.caption = text || "";
+              } else if (fileType === "video") {
+                apiUrl = `https://api.telegram.org/bot${botToken}/sendVideo`;
+                payload.video = fileUrl;
+                payload.caption = text || "";
+              } else if (fileType === "voice") {
+                apiUrl = `https://api.telegram.org/bot${botToken}/sendVoice`;
+                payload.voice = fileUrl;
+                payload.caption = text || "";
+              } else {
+                apiUrl = `https://api.telegram.org/bot${botToken}/sendDocument`;
+                payload.document = fileUrl;
+                payload.caption = text || "";
+              }
+            } else {
+              payload.text = text;
+            }
+
+            await fetch(apiUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                chat_id: u.userId,
-                text: text,
-                parse_mode: "HTML"
-              })
+               },
+               body: JSON.stringify(payload)
             });
             count++;
             // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling

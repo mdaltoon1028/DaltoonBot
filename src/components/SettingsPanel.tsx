@@ -20,7 +20,13 @@ import {
   Send,
   Power,
   Activity,
-  RefreshCw
+  RefreshCw,
+  Paperclip,
+  Mic,
+  Image as ImageIcon,
+  Film,
+  FileUp,
+  X
 } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -50,6 +56,13 @@ export default function SettingsPanel({
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastStatus, setBroadcastStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [activeAttachment, setActiveAttachment] = useState<{
+    fileData: string;
+    fileName: string;
+    fileType: "image" | "video" | "voice" | "file";
+  } | null>(null);
+  const [activeUploadType, setActiveUploadType] = useState<"image" | "video" | "voice" | "file">("file");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Dashboard credentials, Port, and Admins management
   const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
@@ -138,16 +151,36 @@ export default function SettingsPanel({
     });
   };
 
+  const triggerUpload = (type: "image" | "video" | "voice" | "file") => {
+    if (fileInputRef.current) {
+      if (type === "image") {
+        fileInputRef.current.accept = "image/*";
+      } else if (type === "video") {
+        fileInputRef.current.accept = "video/*";
+      } else if (type === "voice") {
+        fileInputRef.current.accept = "audio/*";
+      } else {
+        fileInputRef.current.accept = "*/*";
+      }
+      setActiveUploadType(type);
+      fileInputRef.current.click();
+    }
+  };
+
   const handleSendBroadcast = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!broadcastText.trim()) return;
+    if (!broadcastText.trim() && !activeAttachment) return;
     setIsBroadcasting(true);
     setBroadcastStatus(null);
     try {
       const response = await fetch("/api/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: broadcastText.trim() })
+        body: JSON.stringify({ 
+          text: broadcastText.trim(),
+          attachment: activeAttachment,
+          serverUrl: window.location.origin
+        })
       });
       const data = await response.json();
       if (data.success) {
@@ -158,6 +191,7 @@ export default function SettingsPanel({
             : `📣 Broadcast message dispatched successfully to all ${data.count || 0} registered users!`
         });
         setBroadcastText("");
+        setActiveAttachment(null);
       } else {
         setBroadcastStatus({
           type: "error",
@@ -262,6 +296,123 @@ export default function SettingsPanel({
             onChange={(e) => setBroadcastText(e.target.value)}
           />
 
+          {/* Media Attachment Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-indigo-950/40">
+            <div className="flex items-center gap-2" dir="rtl">
+              <span className="text-[11px] text-gray-500 ml-1">{lang === "fa" ? "افزودن رسانه:" : "Attach media:"}</span>
+              
+              <button
+                type="button"
+                onClick={() => triggerUpload("image")}
+                title={lang === "fa" ? "ارسال تصویر" : "Upload Image"}
+                className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-450 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
+                <span>{lang === "fa" ? "تصویر" : "Image"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => triggerUpload("video")}
+                title={lang === "fa" ? "ارسال فیلم/ویدئو" : "Upload Video"}
+                className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-455 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
+              >
+                <Film className="w-3.5 h-3.5 text-blue-400" />
+                <span>{lang === "fa" ? "فیلم/ویدئو" : "Video"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => triggerUpload("voice")}
+                title={lang === "fa" ? "ارسال ویس/صوت" : "Upload Voice"}
+                className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-460 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
+              >
+                <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{lang === "fa" ? "ویس" : "Voice"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => triggerUpload("file")}
+                title={lang === "fa" ? "ارسال فایل/سند" : "Upload File/Doc"}
+                className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-465 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
+              >
+                <Paperclip className="w-3.5 h-3.5 text-amber-400" />
+                <span>{lang === "fa" ? "فایل" : "File"}</span>
+              </button>
+            </div>
+
+            {/* Hidden Input field for robust cross-browser uploads */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setActiveAttachment({
+                    fileData: reader.result as string,
+                    fileName: file.name,
+                    fileType: activeUploadType
+                  });
+                };
+                reader.readAsDataURL(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+
+          {/* Attachment Preview Panel */}
+          {activeAttachment && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-[#111827] border border-indigo-500/20 text-xs text-right animate-fadeIn mt-2" dir="rtl">
+              <div className="flex items-center gap-3">
+                {activeAttachment.fileType === "image" && (
+                  <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-gray-800 bg-gray-950 shrink-0">
+                    <img src={activeAttachment.fileData} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+                {activeAttachment.fileType === "video" && (
+                  <div className="w-11 h-11 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/15">
+                    <Film className="w-4 h-4" />
+                  </div>
+                )}
+                {activeAttachment.fileType === "voice" && (
+                  <div className="w-11 h-11 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/15">
+                    <Mic className="w-4 h-4" />
+                  </div>
+                )}
+                {activeAttachment.fileType === "file" && (
+                  <div className="w-11 h-11 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/15">
+                    <Paperclip className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-white max-w-[220px] truncate">{activeAttachment.fileName}</div>
+                  <div className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400 capitalize">
+                      {lang === "fa" 
+                        ? activeAttachment.fileType === "image" ? "تصوير" : activeAttachment.fileType === "video" ? "فیلم/ویدئو" : activeAttachment.fileType === "voice" ? "ویس" : "فایل"
+                        : activeAttachment.fileType
+                      }
+                    </span>
+                    <span>{lang === "fa" ? "آماده ارسال..." : "Ready to broadcast..."}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveAttachment(null)}
+                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition cursor-pointer"
+                title={lang === "fa" ? "حذف پیوست" : "Remove Attachment"}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {broadcastStatus && (
             <div className={`p-3 rounded-lg text-xs leading-relaxed ${
               broadcastStatus.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
@@ -270,12 +421,12 @@ export default function SettingsPanel({
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-1">
             <button
               onClick={handleSendBroadcast}
-              disabled={isBroadcasting || !broadcastText.trim()}
+              disabled={isBroadcasting || (!broadcastText.trim() && !activeAttachment)}
               className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
-                broadcastText.trim()
+                (broadcastText.trim() || activeAttachment)
                   ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                   : "bg-gray-800 text-gray-500 cursor-not-allowed"
               }`}
@@ -373,7 +524,7 @@ export default function SettingsPanel({
               >
                 <div
                   className={`pointer-events-none flex items-center justify-center h-7 w-7 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ${
-                    autoWarningConfigBtn ? 'translate-x-8 text-emerald-600' : 'translate-x-0 text-slate-400'
+                    autoWarningConfigBtn ? 'translate-x-0 text-emerald-600' : 'translate-x-8 text-slate-400'
                   }`}
                 >
                   <Power className="w-3.5 h-3.5 stroke-[2.5]" />
