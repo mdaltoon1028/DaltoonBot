@@ -358,32 +358,6 @@ export default function BotButtonsPanel({
                       <label className="block text-[11px] text-gray-400 mb-1 flex items-center justify-between">
                         <span>{btn.label}</span>
                         <div className="flex gap-1 items-center">
-                          {key === "btnFreeTest" && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isFreeTestActive) {
-                                  // Turn off: show modal to get reason
-                                  setTempFreeTestMessage(freeTestDisabledMessage);
-                                  setShowFreeTestMessageConfig(true);
-                                } else {
-                                  // Turn on directly
-                                  setIsFreeTestActive(true);
-                                }
-                              }}
-                              title={lang === "fa" ? "فعال یا غیرفعال کردن سرویس تست رایگان" : "Service Status"}
-                              className={`p-1 px-2 mr-2 rounded-lg transition-all flex items-center gap-1 text-[10px] uppercase font-bold cursor-pointer z-10 ${
-                                btn.disabled ? "opacity-50 pointer-events-none" : ""
-                              } ${
-                                isFreeTestActive 
-                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30" 
-                                  : "bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30"
-                              }`}
-                            >
-                              <Activity className="w-3.5 h-3.5" />
-                              {isFreeTestActive ? (lang === "fa" ? "سرویس فعال" : "ON") : (lang === "fa" ? "سرویس غیرفعال" : "OFF")}
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => moveMainButton(idx, "up")}
@@ -406,7 +380,7 @@ export default function BotButtonsPanel({
                         <input
                           type="text"
                           disabled={btn.disabled}
-                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnGuides" ? "pl-24" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnGuides" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
                           value={btn.value}
                           onChange={(e) => btn.setter(e.target.value)}
                         />
@@ -422,6 +396,30 @@ export default function BotButtonsPanel({
                         >
                           <Power className="w-4 h-4" />
                         </button>
+                        {key === "btnFreeTest" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isFreeTestActive) {
+                                setTempFreeTestMessage(freeTestDisabledMessage);
+                                setShowFreeTestMessageConfig(true);
+                              } else {
+                                setIsFreeTestActive(true);
+                              }
+                            }}
+                            title={lang === "fa" ? "فعال یا غیرفعال کردن سرویس تست رایگان" : "Service Status"}
+                            className={`absolute left-[44px] top-1/2 -translate-y-1/2 p-1.5 px-2 rounded-lg transition-all flex items-center gap-1 text-[10px] uppercase font-bold cursor-pointer z-10 ${
+                              btn.disabled ? "opacity-50 pointer-events-none" : ""
+                            } ${
+                              isFreeTestActive 
+                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30" 
+                                : "bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30"
+                            }`}
+                          >
+                            <Activity className="w-3.5 h-3.5" />
+                            {isFreeTestActive ? (lang === "fa" ? "سرویس فعال" : "ON") : (lang === "fa" ? "سرویس غیرفعال" : "OFF")}
+                          </button>
+                        )}
                         {key === "btnGuides" && (
                           <button
                             type="button"

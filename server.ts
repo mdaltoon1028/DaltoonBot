@@ -2129,7 +2129,7 @@ app.post("/api/login", async (req, res) => {
 app.get("/api/backup-download", (req, res) => {
   try {
     if (fs.existsSync(dbJsonPath)) {
-      res.download(dbJsonPath, "bot_database.json");
+      res.download(dbJsonPath, "Daltoon_Bot.json");
     } else {
       res.status(404).json({ error: "Database file not found." });
     }
@@ -2189,12 +2189,12 @@ async function performAutoBackup() {
     const formData = new FormData();
     formData.append("chat_id", String(ownerId));
     
-    const dateStr = new Date().toLocaleString("fa-IR");
+    const dateStr = new Date().toLocaleString("fa-IR", { timeZone: "Asia/Tehran" });
     const periods: any = { hourly: "ساعتی", daily: "روزانه", weekly: "هفتگی", monthly: "ماهانه" };
-    const caption = `📦 پشتیبان‌گیری خودکار دالتون بات\n\n🕒 تاریخ: ${dateStr}\nتنظیمات: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}`;
+    const caption = `📦 پشتیبان‌گیری خودکار\n\n🕒 تاریخ: ${dateStr}\nتنظیمات: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}\n\n#DaltoonBot`;
     
     formData.append("caption", caption);
-    formData.append("document", blob, "bot_database.json");
+    formData.append("document", blob, "Daltoon_Bot.json");
 
     await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: 'POST',

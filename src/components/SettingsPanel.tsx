@@ -588,7 +588,7 @@ export default function SettingsPanel({
         <p className="text-xs text-gray-400 leading-relaxed">
           {lang === "fa"
             ? "بکاپ‌های دوره‌ای باعث اطمینان خاطر شما از حفظ اطلاعات سیستم می‌شود. فایل بکاپ به تلگرام Owner ارسال می‌گردد."
-            : "Periodically backup the bot_database.json and send it to the system owner's Telegram account."}
+            : "Periodically backup the Daltoon_Bot.json and send it to the system owner's Telegram account."}
         </p>
 
         {autoBackupEnabled && (
