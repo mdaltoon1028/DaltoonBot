@@ -18,9 +18,24 @@ try {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
-const dbJsonPath = __dirname.endsWith("dist")
-  ? path.resolve(__dirname, "..", "Daltoon_Bot.json")
-  : path.resolve(__dirname, "Daltoon_Bot.json");
+const dbJsonPath = (() => {
+  const customFile = "database.json";
+  const defaultFile = "Daltoon_Bot.json";
+  
+  const legacyPath = __dirname.endsWith("dist")
+    ? path.resolve(__dirname, "..", customFile)
+    : path.resolve(__dirname, customFile);
+
+  const defaultPath = __dirname.endsWith("dist")
+    ? path.resolve(__dirname, "..", defaultFile)
+    : path.resolve(__dirname, defaultFile);
+
+  if (fs.existsSync(legacyPath)) {
+    console.log(`[Database Setup] Found legacy/mounted database file in ${legacyPath}. Active.`);
+    return legacyPath;
+  }
+  return defaultPath;
+})();
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {

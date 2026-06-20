@@ -18,7 +18,13 @@ load_dotenv()
 
 # Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+DB_FILE_LEGACY = os.path.join(SCRIPT_DIR, "database.json")
+DB_FILE_DEFAULT = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+
+if os.path.exists(DB_FILE_LEGACY):
+    DB_FILE = DB_FILE_LEGACY
+else:
+    DB_FILE = DB_FILE_DEFAULT
 
 def write_db_json(data):
     """ Atomic save to prevent corruption """
