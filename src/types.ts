@@ -7,6 +7,7 @@ export interface PanelSettings {
   panelPassword: string;
   activeInboundIds: number[];
   ownerId: number;
+  geminiApiKey?: string;
   cardNumber?: string;
   cardHolder?: string;
   bankName?: string;

@@ -461,6 +461,23 @@ function getAiClient(): GoogleGenAI {
   if (!aiClient) {
     let key = process.env.GEMINI_API_KEY;
     if (!key) {
+      // Try to load from database settings first, which persists across deployments and doesn't rely on .env files
+      try {
+        const db = readJsonDb();
+        if (db && db.settings && db.settings.panel_config) {
+          const cfg = JSON.parse(db.settings.panel_config);
+          if (cfg && cfg.geminiApiKey && cfg.geminiApiKey.trim() !== "") {
+            key = cfg.geminiApiKey.trim();
+            process.env.GEMINI_API_KEY = key;
+            console.log("[AI Studio DB Load] Successfully loaded GEMINI_API_KEY from database settings.");
+          }
+        }
+      } catch (e: any) {
+        console.warn("[AI Studio DB Load Warning] Could not parse geminiApiKey from bot_database.json settings:", e.message);
+      }
+    }
+
+    if (!key) {
       // Direct file-based parser fallback for absolute correctness across nested environments
       try {
         const envPaths = [
@@ -612,6 +629,9 @@ app.post("/api/settings", async (req, res) => {
 
     db.settings.panel_config = configValue;
     writeJsonDb(db);
+    
+    // Reset cached AI client so newly saved GEMINI_API_KEY settings will take effect immediately
+    aiClient = null;
 
     // Notify newly appointed admins via Telegram Bot
     const botToken = payload.botToken || prevSettings.botToken;

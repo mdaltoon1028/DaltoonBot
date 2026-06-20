@@ -42,6 +42,7 @@ export default function SettingsPanel({
   // Form state
   const [botToken, setBotToken] = useState(settings.botToken || "");
   const [ownerId, setOwnerId] = useState(settings.ownerId ? settings.ownerId.toString() : "");
+  const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || "");
   
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(settings.purchaseSuccessNote || "");
   
@@ -86,6 +87,7 @@ export default function SettingsPanel({
       ...settings,
       botToken,
       ownerId: parseInt(ownerId) || 0,
+      geminiApiKey,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -115,6 +117,7 @@ export default function SettingsPanel({
       ...settings,
       botToken,
       ownerId: parseInt(ownerId) || 0,
+      geminiApiKey,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -196,6 +199,7 @@ export default function SettingsPanel({
       ...settings,
       botToken,
       ownerId: parseInt(ownerId) || 0,
+      geminiApiKey,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -296,6 +300,18 @@ export default function SettingsPanel({
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.geminiApiKeyLabel}</label>
+              <input
+                type="text"
+                placeholder="AIzaSy..."
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+              />
+              <span className="text-[10px] text-gray-400 mt-1 block">{t.geminiApiKeyDesc}</span>
             </div>
 
             <div>
