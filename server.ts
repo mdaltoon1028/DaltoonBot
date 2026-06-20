@@ -2200,7 +2200,22 @@ app.post("/api/login", async (req, res) => {
 app.get("/api/backup-download", (req, res) => {
   try {
     if (fs.existsSync(dbJsonPath)) {
-      res.download(dbJsonPath, "Daltoon_Bot.json");
+      const raw = fs.readFileSync(dbJsonPath, "utf8");
+      const db = JSON.parse(raw);
+      
+      // Compress and optimize binary-like image strings inside the database to keep backups tiny
+      if (db.transactions && Array.isArray(db.transactions)) {
+        db.transactions = db.transactions.map((t: any) => {
+          if (t.receiptImage && t.receiptImage.length > 500 && t.receiptImage.startsWith("data:")) {
+            return { ...t, receiptImage: "placeholder_cleared" };
+          }
+          return t;
+        });
+      }
+      
+      res.setHeader("Content-Disposition", "attachment; filename=Daltoon_Bot.json");
+      res.setHeader("Content-Type", "application/json");
+      res.send(JSON.stringify(db, null, 2));
     } else {
       res.status(404).json({ error: "Database file not found." });
     }
@@ -2216,15 +2231,29 @@ app.post("/api/backup-restore", express.json({limit: '50mb'}), (req, res) => {
       return res.status(400).json({ success: false, error: "فایل بکاپ ارسال نشد." });
     }
     
-    let parsed;
+    let parsed: any;
     try {
-      parsed = JSON.parse(backupData);
+      if (typeof backupData === "string") {
+        parsed = JSON.parse(backupData);
+      } else {
+        parsed = backupData;
+      }
     } catch(e) {
       return res.status(400).json({ success: false, error: "فرمت فایل بکاپ معتبر نیست (باید JSON باشد)." });
     }
 
-    if (typeof parsed !== "object") {
+    if (typeof parsed !== "object" || parsed === null) {
        return res.status(400).json({ success: false, error: "اطلاعات فایل بکاپ نامعتبر است." });
+    }
+
+    // Always keep backup data clean and minimal
+    if (parsed.transactions && Array.isArray(parsed.transactions)) {
+      parsed.transactions = parsed.transactions.map((t: any) => {
+        if (t.receiptImage && t.receiptImage.length > 500 && t.receiptImage.startsWith("data:")) {
+          return { ...t, receiptImage: "placeholder_cleared" };
+        }
+        return t;
+      });
     }
 
     fs.writeFileSync(dbJsonPath, JSON.stringify(parsed, null, 2), "utf8");
