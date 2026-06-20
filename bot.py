@@ -441,18 +441,45 @@ def register_tg_user(tg_id, username, referral_id=None):
         if referral_id and referral_id != tg_id:
             referrer = next((u for u in db["users"] if u["userId"] == referral_id), None)
             if referrer:
-                settings = db.get("settings", {})
-                percent = settings.get("referralRewardPercent", 5)
-                amount = settings.get("referralBaseAmount", 100000)
-                reward = max(0, round((amount * percent) / 100))
-                referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
-                referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
-                referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
                 new_user["referredBy"] = referral_id
+                
+                # Parse settings
+                import json
                 try:
-                    bot.send_message(referral_id, f"🎉 <b>تبریک!</b>\nیک نفر با لینک شما وارد ربات شد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
-                except Exception as e:
-                    print("Could not notify referrer:", e)
+                    s_str = db.get("settings", {}).get("panel_config", "{}")
+                    settings = json.loads(s_str)
+                except:
+                    settings = {}
+                
+                condition = settings.get("referralRewardCondition", "invite")
+                if condition == "invite":
+                    percent = settings.get("referralRewardPercent", 5)
+                    amount = settings.get("referralBaseAmount", 100000)
+                    reward = max(0, round((amount * percent) / 100))
+                    
+                    if reward > 0:
+                        referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
+                        referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
+                        referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
+                        try:
+                            bot.send_message(referral_id, f"🎉 <b>تبریک!</b>\nیک نفر با لینک شما وارد ربات شد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
+                        except Exception as e:
+                            print("Could not notify referrer:", e)
+                            
+                        # Level 2 Referral
+                        l2_percent = settings.get("referralL2Percent", 0)
+                        if l2_percent > 0:
+                            l2_reward = max(0, round((amount * l2_percent) / 100))
+                            if l2_reward > 0 and referrer.get("referredBy"):
+                                l2_referrer_id = referrer.get("referredBy")
+                                l2_referrer = next((u for u in db["users"] if u["userId"] == l2_referrer_id), None)
+                                if l2_referrer:
+                                    l2_referrer["walletBalance"] = float(l2_referrer.get("walletBalance", 0.0)) + float(l2_reward)
+                                    l2_referrer["referralRewardTotal"] = int(l2_referrer.get("referralRewardTotal", 0)) + l2_reward
+                                    try:
+                                        bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی!</b>\nیکی از زیرمجموعه‌های شما یک نفر را دعوت کرد و مبلغ <b>{l2_reward:,}</b> تومان به شما رسید.", parse_mode="HTML")
+                                    except:
+                                        pass
 
         db["users"].append(new_user)
         write_db_json(db)
@@ -475,6 +502,63 @@ def update_user_wallet_balance(tg_id, amount):
     if user:
         user["walletBalance"] = max(0.0, float(user.get("walletBalance", 0.0)) + float(amount))
         write_db_json(db)
+
+def process_referral_on_purchase(user, amount_spent):
+    if not user.get("referredBy") or user.get("hasPurchasedPlan"):
+        return
+        
+    db = read_db_json()
+    import json
+    try:
+        settings = json.loads(db.get("settings", {}).get("panel_config", "{}"))
+    except:
+        settings = {}
+        
+    condition = settings.get("referralRewardCondition", "invite")
+    if condition != "purchase":
+        return
+        
+    referrer_id = user.get("referredBy")
+    referrer = next((u for u in db["users"] if u["userId"] == referrer_id), None)
+    if not referrer:
+        return
+        
+    percent = settings.get("referralRewardPercent", 5)
+    calc_amount = settings.get("referralBaseAmount", 100000) # This is typically used for fixed rewards, but user may want percentage of spent 
+    # For purchases, we use amount_spent! But wait, if they have base calculation amount? No, base calculation amount typically replaces the purchase amount if set, or is the reward amount. 
+    # Since they define it as "مبلغ پایه محاسبه", let's use it if available, else amount_spent. But "مبلغ پایه محاسبه" refers to the fixed reward base!
+    # "مبلغ پایه محاسبه" is fixed for referrals in this bot so we will just use that!
+    reward = max(0, round((calc_amount * percent) / 100))
+    
+    if reward > 0:
+        referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
+        referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
+        referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
+        try:
+            bot.send_message(referrer_id, f"🎉 <b>تبریک!</b>\nکاربری که با لینک شما وارد شده بود اولین خرید خود را انجام داد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
+        except:
+            pass
+            
+        # L2 logic
+        l2_percent = settings.get("referralL2Percent", 0)
+        if l2_percent > 0 and referrer.get("referredBy"):
+            l2_referrer_id = referrer.get("referredBy")
+            l2_referrer = next((u for u in db["users"] if u["userId"] == l2_referrer_id), None)
+            if l2_referrer:
+                l2_reward = max(0, round((calc_amount * l2_percent) / 100))
+                l2_referrer["walletBalance"] = float(l2_referrer.get("walletBalance", 0.0)) + float(l2_reward)
+                l2_referrer["referralRewardTotal"] = int(l2_referrer.get("referralRewardTotal", 0)) + l2_reward
+                try:
+                    bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی!</b>\nزیرمجموعهِ زیرمجموعه شما اولین خرید خود را انجام داد و <b>{l2_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
+                except:
+                    pass
+
+    # Mark user so they don't give "first purchase" reward again
+    user_in_db = next((u for u in db["users"] if u["userId"] == user["userId"]), None)
+    if user_in_db:
+        user_in_db["hasPurchasedPlan"] = True
+    
+    write_db_json(db)
 
 def update_user_balance(tg_id, new_balance):
     db = read_db_json()
@@ -1072,7 +1156,13 @@ def handle_main_menu_callback(call):
 
     # 6. Referral
     elif action == "mm_btnReferral":
-        settings = db.get("settings", {})
+        import json
+        try:
+            settings_str = db.get("settings", {}).get("panel_config", "{}")
+            settings = json.loads(settings_str)
+        except:
+            settings = {}
+            
         bot_username = settings.get("botTelegramHandle", "").strip()
         if not bot_username or bot_username in ["your_bot_id", "bot_username"]:
             try:
@@ -1185,6 +1275,9 @@ def process_purchase_username(message, plan_id, spec):
         new_balance = int(user['walletBalance']) - spec['price']
         
     update_user_balance(tg_id, new_balance)
+    
+    if spec['price'] > 0 and not is_privileged:
+        process_referral_on_purchase(user, spec['price'])
 
     # Add client to X-UI panel
     client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
@@ -1797,6 +1890,8 @@ def process_colleague_prefix(message, package):
         return
         
     update_user_balance(tg_id, bal - package["price"])
+    if package["price"] > 0:
+        process_referral_on_purchase(user, package["price"])
     
     import random
     import string

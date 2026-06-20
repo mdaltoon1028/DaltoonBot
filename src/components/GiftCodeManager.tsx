@@ -41,6 +41,8 @@ export default function GiftCodeManager({
   const [botTelegramHandle, setBotTelegramHandle] = useState(settings?.botTelegramHandle || "");
   const [referralRewardAmount, setReferralRewardAmount] = useState(settings?.referralRewardAmount ?? 0);
   const [referralRewardPercent, setReferralRewardPercent] = useState(settings?.referralRewardPercent ?? 5);
+  const [referralL2Percent, setReferralL2Percent] = useState(settings?.referralL2Percent ?? 0);
+  const [referralRewardCondition, setReferralRewardCondition] = useState<'invite' | 'purchase'>(settings?.referralRewardCondition || 'invite');
   const [calculationAmount, setCalculationAmount] = useState<number>(settings?.referralBaseAmount ?? 100000);
   const [referralMessage, setReferralMessage] = useState(settings?.referralMessage || 
     "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n" + 
@@ -98,6 +100,8 @@ export default function GiftCodeManager({
         botTelegramHandle,
         referralRewardAmount,
         referralRewardPercent,
+        referralL2Percent,
+        referralRewardCondition,
         referralBaseAmount: calculationAmount,
         referralMessage
       });
@@ -505,6 +509,24 @@ export default function GiftCodeManager({
                 />
               </div>
               
+              <div className="space-y-4 pt-2 pb-2 lg:col-span-3">
+                <label className="text-sm font-medium text-gray-300">{isFa ? 'زمان پاداش‌دهی (تب انتخاب)' : 'Reward Condition'}</label>
+                <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-700 w-full overflow-hidden">
+                  <button
+                    onClick={() => setReferralRewardCondition('invite')}
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'invite' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {isFa ? 'هنگام ورود کاربر با لینک شما (Invite)' : 'On User Invite'}
+                  </button>
+                  <button
+                    onClick={() => setReferralRewardCondition('purchase')}
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'purchase' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {isFa ? 'هنگام اولین خرید کاربر (Purchase)' : 'On First Purchase'}
+                  </button>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">{isFa ? 'درصد پاداش به ازای دعوت (%)' : 'Reward Percentage per Invite'}</label>
                 <div className="relative">
@@ -518,6 +540,22 @@ export default function GiftCodeManager({
                     max="100"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-amber-300">{isFa ? 'درصد پاداش لایه دوم (تیم)' : 'Level 2 Reward Percentage'}</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={referralL2Percent}
+                    onChange={(e) => setReferralL2Percent(Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-amber-300 focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
+                    placeholder="2"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400/50 select-none">%</span>
                 </div>
               </div>
 
