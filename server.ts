@@ -980,6 +980,44 @@ app.post("/api/gift-codes/edit", (req, res) => {
   }
 });
 
+app.post("/api/bot/validate-token", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== "string" || !token.includes(":")) {
+      return res.json({ success: false, error: "توکن نامعتبر است (فرمت نامعتبر)" });
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      const data: any = await response.json();
+      if (data && data.ok) {
+        return res.json({ success: true, bot: data.result });
+      } else {
+        const errorDesc = data && data.description ? data.description : "Unauthorized (401)";
+        return res.json({ success: false, error: errorDesc });
+      }
+    } catch (fetchErr: any) {
+      clearTimeout(timeout);
+      console.warn("[Token Validation Error] Telegram request timed out or was filtered:", fetchErr.message);
+      // Because telegram is filtered in Iran, we allow proceeding if a network error occurs
+      return res.json({ 
+        success: true, 
+        warning: true, 
+        message: "به دلیل فیلترینگ تلگرام روی سرور، بررسی خودکار انجام نشد اما تنظیمات ثبت خواهد شد." 
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post("/api/settings", async (req, res) => {
   try {
     const payload = { ...req.body };
@@ -1970,6 +2008,15 @@ app.post("/api/inbounds/toggle", async (req, res) => {
     }
     
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/vpn-plans", (req, res) => {
+  try {
+    const db = readJsonDb();
+    res.json({ success: true, vpnPlans: db.vpn_plans || [] });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

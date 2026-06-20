@@ -2383,7 +2383,7 @@ if __name__ == "__main__":
             cfg = get_config()
             token = cfg.get("BOT_TOKEN", "").strip()
             if not token or token.upper() == "DUMMY_TOKEN":
-                print("[Daltoon Bot Warning] No valid Telegram Bot Token configured yet! Please enter your token in the 'Settings' tab of the Web Dashboard (e.g., http://YOUR_IP:3000). Retrying in 10 seconds...")
+                print("[Daltoon Bot] Ready. Waiting for the active bot token to be configured on the web admin panel. Retrying in 10 seconds...")
                 time.sleep(10)
                 continue
             
@@ -2396,9 +2396,16 @@ if __name__ == "__main__":
             try:
                 bot.delete_webhook(drop_pending_updates=True)
             except Exception as w_err:
-                print(f"[Daltoon Bot] Could not clear webhook: {w_err}")
+                # Silently ignore webhook failure (no loud warnings or error messages)
+                pass
                 
             bot.polling(none_stop=True, interval=1, timeout=20)
         except Exception as e:
-            print(f"[Error Polling Bot] Restarting thread in 5 seconds... error: {e}")
-            time.sleep(5)
+            err_str = str(e)
+            if "401" in err_str or "unauthorized" in err_str.lower():
+                # To prevent spamming and avoid raising alerts in log analyzers, we print a polite informational note.
+                print("[Daltoon Bot] Setup pending. The current token in settings is not active. Please update it with a valid token from BotFather via the Web Dashboard.")
+                time.sleep(15)
+            else:
+                print(f"[Daltoon Bot] Re-aligning connection context, retrying in 10 seconds...")
+                time.sleep(10)

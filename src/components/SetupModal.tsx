@@ -13,6 +13,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
   const [botToken, setBotToken] = useState(() => sessionStorage.getItem("setup_botToken") || "");
   const [ownerId, setOwnerId] = useState(() => sessionStorage.getItem("setup_ownerId") || "");
   const [error, setError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
     sessionStorage.setItem("setup_nickname", nickname);
@@ -26,7 +27,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
     sessionStorage.setItem("setup_ownerId", ownerId);
   }, [ownerId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nickname.trim() || !botToken.trim() || !ownerId.trim()) {
       setError(lang === "fa" ? "لطفا تمامی فیلدها را پر کنید." : "Please fill out all fields.");
@@ -37,6 +38,31 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
       setError(lang === "fa" ? "آیدی عددی باید فقط شامل اعداد باشد." : "Owner ID must be a number.");
       return;
     }
+
+    setIsValidating(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/bot/validate-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: botToken.trim() })
+      });
+      const data = await response.json();
+      
+      if (!data.success) {
+        setError(lang === "fa" 
+          ? `❌ توکن وارد شده نامعتبر است یا توسط BotFather منقضی/پاک شده است! تلگرام خطای روبرو را گزارش داد: ${data.error}`
+          : `❌ The token entered is invalid or has expired/been deleted by BotFather! Telegram reported: ${data.error}`
+        );
+        setIsValidating(false);
+        return;
+      }
+    } catch (err: any) {
+      console.warn("Base validation connection issue:", err.message);
+    }
+
+    setIsValidating(false);
     
     sessionStorage.removeItem("setup_nickname");
     sessionStorage.removeItem("setup_botToken");
@@ -110,7 +136,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in">
+      <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in animate-duration-300">
         <div className="bg-gradient-to-r from-indigo-500/10 to-transparent p-6 border-b border-[#1e293b]">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-500/20 p-3 rounded-xl border border-indigo-500/30">
@@ -120,7 +146,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
               <h2 className="text-xl font-bold text-white mb-1">
                 {lang === "fa" ? "راه‌اندازی اولیه دالتون بات" : "Daltoon Bot Initial Setup"}
               </h2>
-              <p className="text-xs text-indigo-300/80 font-medium">
+              <p className="text-xs text-indigo-300/80 font-medium font-sans">
                 {lang === "fa" ? "توسعه یافته توسط mDaltoon" : "Developed by mDaltoon"}
               </p>
             </div>
@@ -129,7 +155,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl text-sm font-medium">
+            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl text-xs md:text-sm font-medium leading-relaxed font-sans">
               {error}
             </div>
           )}
@@ -143,11 +169,12 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
               <input
                 type="text"
                 value={nickname}
+                disabled={isValidating}
                 onChange={e => setNickname(e.target.value)}
                 placeholder={lang === "fa" ? "مثال: فروشگاه پروکسی من" : "e.g. My Proxy Store"}
-                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all placeholder:text-gray-600"
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all placeholder:text-gray-600 disabled:opacity-50"
               />
-              <p className="text-xs text-gray-500 mt-1.5">
+              <p className="text-xs text-gray-500 mt-1.5 font-sans">
                 {lang === "fa" ? "این نام در پیام‌های خوش‌آمدگویی و داخل ربات به جای Daltoon قرار می‌گیرد." : "This name will be placed in welcome messages instead of Daltoon."}
               </p>
             </div>
@@ -160,12 +187,13 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
               <input
                 type="text"
                 value={botToken}
+                disabled={isValidating}
                 onChange={e => setBotToken(e.target.value)}
                 placeholder="1234567890:AAH..."
-                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-mono placeholder:text-gray-600"
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-mono placeholder:text-gray-600 disabled:opacity-50"
                 dir="ltr"
               />
-              <p className="text-[11px] text-emerald-400/80 mt-1.5 flex items-center gap-1">
+              <p className="text-[11px] text-emerald-400/80 mt-1.5 flex items-center gap-1 font-sans">
                 <Info className="w-3 h-3" />
                 {lang === "fa" ? "توکن ربات خود را از BotFather@ دریافت کنید." : "Get your token from @BotFather."}
               </p>
@@ -179,12 +207,13 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
               <input
                 type="text"
                 value={ownerId}
+                disabled={isValidating}
                 onChange={e => setOwnerId(e.target.value)}
                 placeholder={lang === "fa" ? "فقط عدد (مثلا: 123456789)" : "Numbers only"}
-                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-mono placeholder:text-gray-600"
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-mono placeholder:text-gray-600 disabled:opacity-50"
                 dir="ltr"
               />
-              <p className="mt-1.5 text-xs text-indigo-300 font-medium flex items-center gap-1">
+              <p className="mt-1.5 text-xs text-indigo-300 font-medium flex items-center gap-1 font-sans">
                 <Info className="w-3 h-3" />
                 {lang === "fa" ? "آیدی عددی خود را می‌توانید از ربات تلگرامی infouserbot@ دریافت کنید." : "Get your numeric ID from @infouserbot in Telegram."}
               </p>
@@ -193,11 +222,18 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4"
+            disabled={isValidating}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700 disabled:text-gray-300 text-white font-medium py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4 cursor-pointer disabled:cursor-not-allowed"
           >
-            {lang === "fa" ? "ذخیره و ورود به داشبورد" : "Save and Enter Dashboard"}
-            <ArrowRight className="w-5 h-5 rtl:hidden" />
-            <ArrowRight className="w-5 h-5 hidden rtl:block rotate-180" />
+            {isValidating ? (
+              <span className="font-sans">{lang === "fa" ? "در حال بررسی اتصال به تلگرام..." : "Verifying Telegram Bot Token..."}</span>
+            ) : (
+              <span className="flex items-center gap-2 font-sans justify-center w-full">
+                {lang === "fa" ? "ذخیره و ورود به داشبورد" : "Save and Enter Dashboard"}
+                <ArrowRight className="w-5 h-5 rtl:hidden" />
+                <ArrowRight className="w-5 h-5 hidden rtl:block rotate-180" />
+              </span>
+            )}
           </button>
         </form>
       </div>
