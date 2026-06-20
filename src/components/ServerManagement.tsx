@@ -69,6 +69,7 @@ export default function ServerManagement({
   const [panelUsername, setPanelUsername] = useState(settings.panelUsername || "");
   const [panelPassword, setPanelPassword] = useState(settings.panelPassword || "");
   const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
+  const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
   
   // Collapse/Expand state for Inbounds display option
   const [showInbounds, setShowInbounds] = useState(false);
@@ -76,6 +77,72 @@ export default function ServerManagement({
     return settings.activeInboundIds || [];
   });
   const [inboundsSuccess, setInboundsSuccess] = useState(false);
+
+  // Sync inputs with parent settings prop changes
+  useEffect(() => {
+    setBaseUrl(settings.baseUrl || "");
+    setSubUrl(settings.subUrl || "");
+    setPanelUsername(settings.panelUsername || "");
+    setPanelPassword(settings.panelPassword || "");
+    setCheckedInboundIds(settings.activeInboundIds || []);
+  }, [settings]);
+
+  const handleDisconnectConfiguration = () => {
+    try {
+      setTestStatus({ type: "idle", message: "" });
+      onSaveSettings({
+        ...settings,
+        baseUrl: "",
+        subUrl: "",
+        panelUrl: "",
+        panelUsername: "",
+        panelPassword: "",
+        panelConnectionActive: false,
+        activeInboundIds: []
+      });
+      setBaseUrl("");
+      setSubUrl("");
+      setPanelUsername("");
+      setPanelPassword("");
+      setCheckedInboundIds([]);
+      setTestStatus({
+        type: "error",
+        message: lang === "fa" ? "🔌 اتصال با موفقیت قطع شد و اطلاعات پاک شدند." : "🔌 Connection disconnected and credentials cleared."
+      });
+      setTimeout(() => {
+        setTestStatus({ type: "idle", message: "" });
+      }, 3500);
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveConfiguration = () => {
+    setSaveStatus({ type: "loading", message: "" });
+    try {
+      onSaveSettings({
+        ...settings,
+        baseUrl,
+        subUrl,
+        panelUrl: baseUrl,
+        panelUsername,
+        panelPassword,
+        activeInboundIds: checkedInboundIds
+      });
+      setSaveStatus({
+        type: "success",
+        message: lang === "fa" ? "✅ اطلاعات پنل ۳x-ui با موفقیت ذخیره شد." : "✅ Panel configuration saved successfully."
+      });
+      setTimeout(() => {
+        setSaveStatus({ type: "idle", message: "" });
+      }, 3500);
+    } catch (err: any) {
+      setSaveStatus({
+        type: "error",
+        message: lang === "fa" ? "❌ خطا در ذخیره اطلاعات." : "❌ Failed to save configuration."
+      });
+    }
+  };
 
   const handleTestConnection = async () => {
     setTestStatus({ 
@@ -396,6 +463,19 @@ export default function ServerManagement({
           </div>
         </div>
 
+        {settings.panelConnectionActive && (
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              onClick={handleDisconnectConfiguration}
+              className="w-full sm:w-auto px-6 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/40 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-2 active:scale-95"
+            >
+              <X className="w-4 h-4" />
+              {lang === "fa" ? "قطع اتصال از پنل ۳x-ui" : "Disconnect Connection from 3x-ui Panel"}
+            </button>
+          </div>
+        )}
+
         {/* Test connection status alert feedback box */}
         {testStatus.type !== "idle" && (
           <div className={`p-3 rounded-lg text-xs leading-relaxed ${
@@ -535,6 +615,28 @@ export default function ServerManagement({
                 </div>
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Centered Save Information button exactly below this card */}
+      <div className="flex flex-col items-center justify-center pt-2 pb-4 space-y-2.5">
+        <button
+          type="button"
+          onClick={handleSaveConfiguration}
+          className="mx-auto px-10 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-sm transition-all duration-300 shadow-lg hover:shadow-emerald-500/10 cursor-pointer flex items-center justify-center gap-2.5 active:scale-95 min-w-[220px]"
+        >
+          <Save className="w-4.5 h-4.5" />
+          {lang === "fa" ? "ذخیره اطلاعات پنل" : "Save Panel Information"}
+        </button>
+
+        {saveStatus.type !== "idle" && (
+          <div className={`p-2.5 px-6 rounded-xl text-xs font-semibold leading-relaxed animate-fade-in ${
+            saveStatus.type === "success" 
+              ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" 
+              : "bg-rose-500/15 text-rose-400 border border-rose-500/20"
+          }`}>
+            <span>{saveStatus.message}</span>
           </div>
         )}
       </div>
