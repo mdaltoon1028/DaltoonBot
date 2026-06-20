@@ -53,25 +53,36 @@ const dbJsonPath = (() => {
     }
   };
 
-  // 1. If defaultFile (Daltoon_Bot.json) exists and has actual data, prioritize it!
+  // 1. Automatic database migration: If legacyPath has actual data but defaultPath doesn't, migrate it!
+  if (!fileHasData(defaultPath) && fileHasData(legacyPath)) {
+    console.log(`[Database Migration] Default DB (${defaultPath}) is empty/seeded, but legacy DB (${legacyPath}) has active data. Migrating...`);
+    try {
+      fs.copyFileSync(legacyPath, defaultPath);
+      console.log(`[Database Migration] Migration completed successfully!`);
+    } catch (migErr: any) {
+      console.error(`[Database Migration Error] Failed to migrate database:`, migErr.message);
+    }
+  }
+
+  // 2. If defaultFile (Daltoon_Bot.json) exists and has actual data, prioritize it!
   if (fileHasData(defaultPath)) {
     console.log(`[Database Setup] Active database found at: ${defaultPath}`);
     return defaultPath;
   }
   
-  // 2. If legacyPath (database.json) has actual data, use it!
+  // 3. If legacyPath (database.json) has actual data, use it!
   if (fileHasData(legacyPath)) {
     console.log(`[Database Setup] Legacy database found with data at: ${legacyPath}`);
     return legacyPath;
   }
 
-  // 3. Fallback: If defaultFile exists at all, use it even if empty
+  // 4. Fallback: If defaultFile exists at all, use it even if empty
   if (fs.existsSync(defaultPath)) {
     console.log(`[Database Setup] Using existing default empty db at: ${defaultPath}`);
     return defaultPath;
   }
 
-  // 4. Fallback to legacy path if it exists at all
+  // 5. Fallback to legacy path if it exists at all
   if (fs.existsSync(legacyPath)) {
     console.log(`[Database Setup] Using existing legacy empty db at: ${legacyPath}`);
     return legacyPath;
