@@ -106,6 +106,8 @@ def get_config():
         "BTN_PROFILE": "👤 اطلاعات حساب (My Profile)",
         "BTN_WALLET": "💳 شارژ کیف پول (Top-up Wallet)",
         "BTN_SUPPORT": "📞 پشتیبانی فنی (Support)",
+        "BTN_TICKET_SUPPORT": "🎫 تیکت به پشتیبانی",
+        "HIDE_TICKET_SUPPORT": False,
         "ADMINS": [],
         "MANDATORY_JOIN_ACTIVE": False,
         "MANDATORY_JOIN_CHANNEL": "",
@@ -132,6 +134,7 @@ def get_config():
             config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
             config["BTN_AI_CHAT"] = panel_cfg.get("btnTextAiChat", "🤖 چت با ربات")
             config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "💵 کیف پول + شارژ")
+            config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
 
             config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
             config["HIDE_MY_SUBS"] = bool(panel_cfg.get("hideBtnMySubs", False))
@@ -144,12 +147,13 @@ def get_config():
             config["HIDE_REFERRAL"] = bool(panel_cfg.get("hideBtnReferral", False))
             config["HIDE_COLLEAGUES"] = panel_cfg.get("hideBtnColleagues", True)
             config["HIDE_AI_CHAT"] = panel_cfg.get("hideBtnAiChat", True)
+            config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg.get("hideBtnTicketSupport", False))
             config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
             if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
                 config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
 
             config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
-                "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
+                "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
             ])
 
             if panel_cfg.get("botToken"):
@@ -515,7 +519,7 @@ def get_custom_keyboard():
 
     buttons = []
     order = cfg.get("BUTTONS_ORDER", [
-        "btnBuyNew", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
+        "btnBuyNew", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
     ])
     
     # Backward compatibility: enforce addition of referral & wallet if missing
@@ -523,6 +527,7 @@ def get_custom_keyboard():
     if "btnReferral" not in order: order.append("btnReferral")
     if "btnColleagues" not in order: order.append("btnColleagues")
     if "btnAiChat" not in order: order.append("btnAiChat")
+    if "btnTicketSupport" not in order: order.append("btnTicketSupport")
 
     for key in order:
         if key == "btnBuyNew" and not cfg.get("HIDE_BUY_NEW", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید"), callback_data="mm_btnBuyNew"))
@@ -533,6 +538,7 @@ def get_custom_keyboard():
         elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری"), callback_data="mm_btnProfile"))
         elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "💵 کیف پول + شارژ"), callback_data="mm_btnWallet"))
         elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی"), callback_data="mm_btnSupport"))
+        elif key == "btnTicketSupport" and not cfg.get("HIDE_TICKET_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_TICKET_SUPPORT", "🎫 تیکت به پشتیبانی"), callback_data="mm_btnTicketSupport"))
         elif key == "btnFreeTest" and not cfg.get("HIDE_FREETEST", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_FREETEST", "🎁 موجودی رایگان"), callback_data="mm_btnFreeTest"))
         elif key == "btnInstantSupport" and not cfg.get("HIDE_INSTANT_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_INSTANT_SUPPORT", "🤖 پشتیبانی آنی"), callback_data="mm_btnInstantSupport"))
         elif key == "btnFeedback" and not cfg.get("HIDE_FEEDBACK", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_FEEDBACK", "💌 بازخورد کاربر ها"), callback_data="mm_btnFeedback"))
@@ -960,6 +966,16 @@ def handle_main_menu_callback(call):
                 "پاسخگویی سریع فعال است: ۱۰ صبح الی ۳ شب"
             )
         bot.send_message(message.chat.id, support_txt, parse_mode="HTML")
+        
+    elif action == "mm_btnTicketSupport":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(
+            message.chat.id, 
+            "🎫 <b>لطفاً متن تیکت یا مشکل خود را به صورت کامل بنویسید و ارسال کنید:</b>\n\n(جهت انصراف کلمه «انصراف» را ارسال کنید)", 
+            parse_mode="HTML", 
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_ticket_message)
         
     # 5. Free Test
     elif action == "mm_btnFreeTest":
@@ -1813,6 +1829,59 @@ def process_colleague_login_password(message, acc):
     bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود.", reply_markup=get_custom_keyboard())
     show_colleague_panel_msg(message, acc)
     return
+
+def process_ticket_message(message):
+    tg_id = message.from_user.id
+    username = message.from_user.username or f"user_{tg_id}"
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ ثبت تیکت لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+
+    if not text:
+        msg = bot.send_message(message.chat.id, "⚠️ <b>لطفاً متن پیام تیکت خود را بفرستید:</b>\n\n(امکان ارسال پیام غیرمتنی در این بخش وجود ندارد. برای انصراف «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_ticket_message)
+        return
+
+    # Notify admins and owner
+    cfg = get_config()
+    targets = set()
+    owner_id = cfg.get("OWNER_ID")
+    if owner_id and owner_id > 0:
+        targets.add(owner_id)
+    for adm_id in cfg.get("ADMINS", []):
+        if adm_id and adm_id > 0:
+            targets.add(adm_id)
+
+    # Log action
+    try:
+        log_action(tg_id, username, "ثبت تیکت پشتیبانی", f"متن پیام: {text}")
+    except Exception as e:
+        print("Error logging ticket:", e)
+
+    # Deliver to each administrator
+    admin_notified_count = 0
+    for target_id in targets:
+        try:
+            admin_msg = (
+                f"🎫 <b>تیکت جدید از کاربر!</b>\n\n"
+                f"👤 <b>کاربر:</b> @{username} (<code>{tg_id}</code>)\n"
+                f"📝 <b>متن پیام/مشکل:</b>\n"
+                f"<blockquote>{text}</blockquote>"
+            )
+            bot.send_message(target_id, admin_msg, parse_mode="HTML")
+            admin_notified_count += 1
+        except Exception as ex:
+            print(f"[Admin Notify Ticket Warning for user ID {target_id}] {ex}")
+
+    # Success feedback
+    success_text = (
+        "✅ <b>تیکت شما ثبت شد!</b>\n\n"
+        "پیام به ادمین فرستاده شد. کارشناسان ما در اسرع وقت پیام شما را پاسخ خواهند داد."
+    )
+    bot.reply_to(message, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
 
 def process_gift_code(message):
     tg_id = message.from_user.id

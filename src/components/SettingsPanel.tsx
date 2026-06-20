@@ -467,17 +467,20 @@ export default function SettingsPanel({
           <button
             type="button"
             onClick={() => setMandatoryJoinActive(!mandatoryJoinActive)}
-            className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-300 ease-in-out focus:outline-none items-center ${
-              mandatoryJoinActive ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+            className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-300 focus:outline-none ${
+              mandatoryJoinActive ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.35)]' : 'bg-slate-800'
             }`}
-            style={{ direction: "ltr" }}
+            style={{ direction: 'ltr' }}
           >
             <div
-              className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
-                mandatoryJoinActive ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
-              }`}
+              className="absolute flex items-center justify-center h-4 w-4 rounded-full bg-white transition-all duration-300 ease-in-out"
+              style={{
+                left: mandatoryJoinActive ? "22px" : "2px",
+                top: "2px",
+                color: mandatoryJoinActive ? "#059669" : "#94a3b8"
+              }}
             >
-              <Power className="w-3 h-3 stroke-[3.0]" />
+              <Power className="w-2.5 h-2.5 stroke-[3.5]" />
             </div>
           </button>
         </h3>
@@ -573,7 +576,7 @@ export default function SettingsPanel({
               <input
                 type="text"
                 required
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-mono focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-mono focus:ring-1 focus:ring-indigo-500 font-mono"
                 value={ownerId}
                 onChange={(e) => setOwnerId(e.target.value)}
               />
@@ -583,21 +586,19 @@ export default function SettingsPanel({
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">{t.webhookStatusLabel}</label>
               <div className="flex items-center gap-2 bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-emerald-400 font-semibold font-mono">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                {t.pollingActive}
+                <span>{lang === "fa" ? "فعال و آنلاین" : "Active / Online"}</span>
               </div>
             </div>
 
-
-            {/* ⚙️ Service Expiry Notification Toggle Switch with beautiful stylish power slider */}
-            <div className="md:col-span-2 border-t border-[#1f2937]/50 pt-5 mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
+            <div className="md:col-span-2 bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-lg flex items-center justify-between gap-4">
+              <div>
                 <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Power className={`w-4 h-4 transition-colors ${autoWarningConfigBtn ? 'text-emerald-400' : 'text-slate-500'}`} />
-                  {lang === "fa" ? "ارسال خودکار اخطار اتمام سرویس" : "Automatic Service Expiry Alert"}
+                  <Power className="w-4 h-4 text-indigo-400" />
+                  {lang === "fa" ? "هشدار خودکار اتمام حجم/زمان" : "Auto Usage/Time Warning"}
                 </h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed max-w-xl">
+                <p className="text-xs text-gray-400 mt-1">
                   {lang === "fa" 
-                    ? "ربات به صورت هوشمند به کاربران دارای ۱ گیگ حجم باقی‌مانده یا ۱ روز زمان مانده، اخطار پیشرفته جهت تمدید ارسال خواهد کرد."
+                    ? "ربات به صورت خودکار در صورتی که کمتر از ۱ گیگابایت یا ۱ روز از طرح کاربر باقی مانده باشد، پیامی جهت تمدید ارسال خواهد کرد."
                     : "Bot automatically alerts users when less than 1 GB or 1 Day of their plan remains."}
                 </p>
               </div>
@@ -605,7 +606,7 @@ export default function SettingsPanel({
               <button
                 type="button"
                 onClick={() => setAutoWarningConfigBtn(!autoWarningConfigBtn)}
-                className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-300 ease-in-out focus:outline-none items-center ${
+                className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-350 ease-in-out focus:outline-none items-center ${
                   autoWarningConfigBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
                 }`}
                 style={{ direction: "ltr" }}
