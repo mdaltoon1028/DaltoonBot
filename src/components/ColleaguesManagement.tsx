@@ -22,6 +22,16 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
     setTimeout(() => setLocalToast(null), 4000);
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    showToast(
+      lang === "fa"
+        ? `✅ ${label} کپی شد!`
+        : `✅ ${label} copied!`
+    );
+  };
+
   // Package Form
   const [showAddPackage, setShowAddPackage] = useState(false);
   const [editPackageId, setEditPackageId] = useState<string | null>(null);
@@ -334,8 +344,30 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <td className="px-4 py-3 text-sm text-gray-300 font-mono">{acc.userId || '-'}</td>
                   <td className="px-4 py-3 text-sm text-white font-bold">{acc.packageTitle}</td>
                   <td className="px-4 py-3 text-sm text-gray-300">{acc.prefix || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-indigo-300 font-mono">{acc.username}</td>
-                  <td className="px-4 py-3 text-sm text-amber-300 font-mono tracking-wider">{acc.password}</td>
+                  <td className="px-4 py-3 text-sm text-indigo-300 font-mono">
+                    <div className="flex items-center gap-1.5 justify-start">
+                      <span>{acc.username}</span>
+                      <button
+                        onClick={() => copyToClipboard(acc.username, lang === "fa" ? "یوزرنیم" : "Username")}
+                        className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
+                        title={lang === "fa" ? "کپی یوزرنیم" : "Copy Username"}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-amber-300 font-mono tracking-wider">
+                    <div className="flex items-center gap-1.5 justify-start">
+                      <span>{acc.password}</span>
+                      <button
+                        onClick={() => copyToClipboard(acc.password, lang === "fa" ? "رمز عبور" : "Password")}
+                        className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-amber-400 transition cursor-pointer"
+                        title={lang === "fa" ? "کپی رمز عبور" : "Copy Password"}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-400 font-mono">{acc.trafficGb} GB</td>
                   <td className="px-4 py-3 text-sm text-blue-400 font-mono">{acc.usedTrafficGb || 0} GB</td>
                   <td className="px-4 py-3 text-sm text-rose-400 font-mono">{acc.realUsedTrafficGb || 0} GB</td>
