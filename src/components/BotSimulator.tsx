@@ -132,7 +132,7 @@ export default function BotSimulator({
       else if (key === "btnGuides" && !settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
       else if (key === "btnProfile" && !settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
       else if (key === "btnWallet" && !settings?.hideBtnWallet) buttons.push(settings?.btnTextWallet || "💵 کیف پول + شارژ");
-      else if (key === "btnSupport" && !settings?.hideBtnSupport && !settings?.hideSupport) buttons.push(settings?.btnTextSupport || "🎧 پشتیبانی");
+      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "🎧 پشتیبانی");
       else if (key === "btnTicketSupport" && !settings?.hideBtnTicketSupport) buttons.push(settings?.btnTextTicketSupport || "🎫 تیکت به پشتیبانی");
       else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
       else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
