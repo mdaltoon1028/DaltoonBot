@@ -460,6 +460,33 @@ let aiClient: GoogleGenAI | null = null;
 function getAiClient(): GoogleGenAI {
   if (!aiClient) {
     let key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      // Direct file-based parser fallback for absolute correctness across nested environments
+      try {
+        const envPaths = [
+          path.resolve(process.cwd(), ".env"),
+          path.resolve(__dirname, ".env"),
+          path.resolve(__dirname, "..", ".env"),
+          path.resolve(__dirname, "../..", ".env"),
+          "/.env"
+        ];
+        for (const envPath of envPaths) {
+          if (fs.existsSync(envPath)) {
+            const content = fs.readFileSync(envPath, "utf8");
+            const match = content.match(/GEMINI_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/);
+            if (match && match[1]) {
+              key = match[1].trim();
+              process.env.GEMINI_API_KEY = key; // Backguard env
+              console.log(`[AI Studio Direct Load] Loaded GEMINI_API_KEY directly from file: ${envPath}`);
+              break;
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("[AI Studio Direct Load Error]", e.message);
+      }
+    }
+    
     if (key) {
       key = key.trim();
       if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
