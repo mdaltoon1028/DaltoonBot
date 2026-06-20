@@ -447,6 +447,66 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     return None, None
 
+def delete_vpn_client_api(client_email, client_uuid=None):
+    """ Call Sanaei 3x-ui API to delete client """
+    cfg = get_config()
+    base_url = cfg.get('XUI_URL', '')
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
+    if not login_xui():
+        return False
+
+    valid_ids = []
+    try:
+        list_url = f"{base_url}/panel/api/inbounds/list"
+        list_res = session.get(list_url, timeout=8, verify=False)
+        res_json = list_res.json()
+        if res_json.get("success") and isinstance(res_json.get("obj"), list):
+            valid_ids = [int(item["id"]) for item in res_json["obj"]]
+            
+            # Find UUID if not provided
+            if not client_uuid:
+                for inbound in res_json["obj"]:
+                    clients = inbound.get("settings", "")
+                    import json
+                    try:
+                        c_json = json.loads(clients)
+                        c_list = c_json.get("clients", [])
+                        for c in c_list:
+                            if c.get("email") == client_email:
+                                client_uuid = c.get("id")
+                                break
+                    except: pass
+                    if client_uuid: break
+    except:
+        pass
+
+    if not client_uuid:
+        return False
+
+    success = False
+    
+    if valid_ids:
+        for inbound_id in valid_ids:
+            try:
+                del_url = f"{base_url}/panel/api/inbounds/{inbound_id}/delClient/{client_uuid}"
+                resp = session.post(del_url, timeout=5, verify=False)
+                if resp.status_code == 200 and resp.json().get("success"):
+                    success = True
+            except:
+                pass
+                
+    try:
+        del_url2 = f"{base_url}/panel/api/clients/{client_uuid}/del"
+        resp2 = session.post(del_url2, timeout=5, verify=False)
+        if resp2.status_code == 200 and resp2.json().get("success"):
+            success = True
+    except:
+        pass
+
+    return success
+
 # --- User Management DB Queries ---
 def set_user_pending_charge(tg_id, amount):
     db = read_db_json()
@@ -1472,6 +1532,65 @@ def callback_handler(call):
         verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
         return
 
+    if call.data.startswith("cdel_"):
+        bot.answer_callback_query(call.id)
+        sub_id = call.data.split("_")[1]
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("بله، حذف کن", callback_data=f"ccdel_{sub_id}"),
+            types.InlineKeyboardButton("خیر، انصراف", callback_data="btn_back_home")
+        )
+        bot.edit_message_text(
+            "❓ <b>آیا از حذف این کاربر مطمئن هستید؟</b>\n(این عملیات کاربر را از دیتابیس ربات و پنل سرور برای همیشه پاک خواهد کرد)", 
+            chat_id=call.message.chat.id, 
+            message_id=call.message.message_id, 
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        return
+
+    if call.data.startswith("ccdel_"):
+        bot.answer_callback_query(call.id)
+        sub_id = call.data.split("_")[1]
+        db = read_db_json()
+        keys = db.get("subscription_keys", [])
+        
+        idx = next((i for i, k in enumerate(keys) if k["id"] == sub_id), -1)
+        if idx == -1:
+            bot.edit_message_text("❌ زیرمجموعه یافت نشد یا قبلا به درستی حذف شده است.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+            
+        sub = keys[idx]
+        acc_id = sub.get("colleagueAccountId")
+        
+        # Call API to delete globally
+        import threading
+        def _bg_del():
+            delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"))
+        
+        threading.Thread(target=_bg_del).start()
+        
+        # Deduct used
+        accounts = db.get("colleague_accounts", [])
+        acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), -1)
+        if acc_idx != -1:
+            acc = accounts[acc_idx]
+            used = max(0, acc.get("usedTrafficGb", 0) - sub.get("trafficLimitGb", 0))
+            acc["usedTrafficGb"] = used
+            accounts[acc_idx] = acc
+            db["colleague_accounts"] = accounts
+            
+        keys.pop(idx)
+        db["subscription_keys"] = keys
+        write_db_json(db)
+        
+        bot.edit_message_text("✅ کاربر با موفقیت حذف شد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        
+        if acc_idx != -1:
+            show_colleague_panel(call.message, db["colleague_accounts"][acc_idx])
+            
+        return
+
     if call.data.startswith("col_"):
         bot.answer_callback_query(call.id)
         parts = call.data.split("_")
@@ -1875,6 +1994,9 @@ def process_col_search_user(message, acc):
         result_text += f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ انقضا: {expire_date}\n🔗 <code>{url}</code>\n\n"
         
     markup = types.InlineKeyboardMarkup()
+    for k in found_keys:
+        name_short = (k.get("clientName") or k.get("planName", "نامشخص"))[:15]
+        markup.row(types.InlineKeyboardButton(f"🗑 حذف: {name_short}", callback_data=f"cdel_{k['id']}"))
     markup.row(types.InlineKeyboardButton("🔙 بازگشت به پنل همکار", callback_data=f"col_panel_{acc['id']}"))
     
     bot.send_message(message.chat.id, result_text, parse_mode="HTML", reply_markup=markup)
@@ -1960,9 +2082,9 @@ def process_col_create_days(message, acc, name, gb):
         import random, string
         client_uuid = str(uuid.uuid4())
         fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-        cfg_url = db.get("settings", {}).get("baseUrl", "http://localhost:3000")
-        if not cfg_url.startswith("http"):
-            cfg_url = "http://" + cfg_url
+        
+        cfg = get_config()
+        cfg_url = cfg.get("SUB_URL", "http://localhost:3000")
         sub_link = f"{cfg_url}/sub/{fallback_sub_id}"
 
     expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
@@ -1979,7 +2101,8 @@ def process_col_create_days(message, acc, name, gb):
         "trafficLimitGb": gb,
         "trafficUsedGb": 0.0,
         "status": "active",
-        "colleagueAccountId": live_acc["id"]
+        "colleagueAccountId": live_acc["id"],
+        "clientUuid": client_uuid
     }
     
     if "subscription_keys" not in db:
