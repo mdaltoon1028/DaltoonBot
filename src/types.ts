@@ -12,6 +12,7 @@ export interface PanelSettings {
   cardHolder?: string;
   bankName?: string;
   welcomeText?: string;
+  guidesText?: string;
   supportText?: string;
   tgChannel?: string;
   supportHandle?: string;
@@ -56,6 +57,18 @@ export interface PanelSettings {
   mainButtonsOrder?: string[];
   purchaseSuccessNote?: string;
   panelConnectionActive?: boolean;
+
+  // New Payment Gateways
+  gatewayPlisioWallet?: string;
+  gatewayNowpaymentsKey?: string;
+  gatewayCryptomusKey?: string;
+  gatewayCryptomusMerchantId?: string;
+  gatewayHeleketWallet?: string;
+  gatewayStarsStatus?: boolean;
+
+  // Auto Warning config
+  autoWarningConfigBtn?: boolean;
+
   admins?: Array<{
     id: string;
     userId: number;
@@ -167,4 +180,33 @@ export interface BotActionLog {
   action: string;
   details: string;
 }
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  type: "percent" | "extend_days";
+  value: number; // discount percent or days of free extension
+  maxUsage: number;
+  totalUsage: number;
+  usedBy: number[];
+  createdAt: string;
+}
+
+export interface TicketMessage {
+  sender: "user" | "admin";
+  message: string;
+  date: string;
+}
+
+export interface Ticket {
+  id: string; // unique tracking number
+  userId: number;
+  username: string;
+  subject: string;
+  status: "open" | "answered" | "closed";
+  messages: TicketMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 

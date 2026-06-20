@@ -72,6 +72,9 @@ export default function BotButtonsPanel({
   const [hideBtnAiChat, setHideBtnAiChat] = useState(settings.hideBtnAiChat !== undefined ? settings.hideBtnAiChat : true); // default hidden
 
   const [keyboardLayout, setKeyboardLayout] = useState<"horizontal" | "vertical" | "stepped">(settings.keyboardLayout || "stepped");
+  const [guidesText, setGuidesText] = useState(settings.guidesText || "");
+  const [showGuidesModal, setShowGuidesModal] = useState(false);
+  const [tempGuidesText, setTempGuidesText] = useState("");
   
   const defaultOrder = [
     "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
@@ -197,6 +200,7 @@ export default function BotButtonsPanel({
       btnTextBuyNew,
       btnTextMySubs,
       btnTextGuides,
+      guidesText,
       btnTextProfile,
       btnTextSupport,
       btnTextFreeTest,
@@ -358,7 +362,7 @@ export default function BotButtonsPanel({
                         <input
                           type="text"
                           disabled={btn.disabled}
-                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 ${key === "btnGuides" ? "pr-12" : ""} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
                           value={btn.value}
                           onChange={(e) => btn.setter(e.target.value)}
                         />
@@ -374,6 +378,19 @@ export default function BotButtonsPanel({
                         >
                           <Power className="w-4 h-4" />
                         </button>
+                        {key === "btnGuides" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTempGuidesText(guidesText || "🌐 راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)\n\n...");
+                              setShowGuidesModal(true);
+                            }}
+                            title={lang === "fa" ? "ویرایش متن راهنما" : "Edit Guide Description"}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-indigo-600/30 hover:bg-indigo-500 text-indigo-300 hover:text-white transition-all cursor-pointer border border-indigo-500/20"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -571,6 +588,66 @@ export default function BotButtonsPanel({
         </div>
 
       </form>
+
+      {showGuidesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl bg-[#0d121f] border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="p-5 border-b border-gray-800/60 flex items-center justify-between">
+              <span className="text-sm font-semibold text-white flex items-center gap-2">
+                <Edit className="w-4 h-4 text-indigo-400" />
+                {lang === "fa" ? "ویرایش توضیحات راهنمای اتصال" : "Edit Connection Guide Text"}
+              </span>
+              <button 
+                type="button"
+                onClick={() => setShowGuidesModal(false)}
+                className="text-gray-400 hover:text-white transition duration-150 text-xl font-bold p-1 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="p-5 flex-1 overflow-auto space-y-3">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">
+                {lang === "fa" ? "📝 توضیحات برای دکمه راهنمای اتصال" : "📝 Description for Connection Guide button"}
+              </label>
+              <textarea
+                value={tempGuidesText}
+                onChange={(e) => setTempGuidesText(e.target.value)}
+                rows={10}
+                className="w-full bg-[#161c2a] border border-gray-700/80 rounded-xl p-3.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition resize-y leading-relaxed text-right"
+                dir="rtl"
+                placeholder={lang === "fa" ? "توضیحات دکمه آموزش را اینجا بنویسید..." : "Write connection guide content here..."}
+              />
+              <p className="text-[10px] text-gray-400 leading-relaxed text-right" dir="rtl">
+                {lang === "fa" 
+                  ? "• می‌توانید از کدهای HTML مانند <b>برای ضخیم کردن متن</b> و یا <code>برای کپی سریع کلمات</code> استفاده فرمایید." 
+                  : "• You can use HTML codes like <b>bold</b> and <code>monospace</code> for rich formatting."}
+              </p>
+            </div>
+            
+            <div className="p-4 bg-[#0a0e17] border-t border-gray-800/60 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowGuidesModal(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold cursor-pointer transition border border-gray-700/60"
+              >
+                {lang === "fa" ? "انصراف" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuidesText(tempGuidesText);
+                  setShowGuidesModal(false);
+                }}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg text-xs font-semibold cursor-pointer transition shadow-lg shadow-indigo-600/10 flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {lang === "fa" ? "ثبت موقت" : "Save Temporarily"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

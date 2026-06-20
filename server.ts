@@ -46,6 +46,8 @@ interface DbSchema {
   custom_buttons: any[];
   vpn_plans?: any[];
   gift_codes?: any[];
+  promo_codes?: any[];
+  tickets?: any[];
   colleague_packages?: any[];
   colleague_accounts?: any[];
   logs?: any[];
@@ -87,6 +89,8 @@ function readJsonDb(): DbSchema {
             bankName: "",
             welcomeText: "سلام کاربر گرامی 🌹\nبه ربات دالتون استور خوش آمدید.",
             supportText: "برای پشتیبانی با مدیریت در ارتباط باشید.",
+            btnTextGuides: "💡 راهنمای اتصال",
+            guidesText: "🌐 راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)\n\nکاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n• اندروید: v2rayNG\n• آیفون (iOS): V2box یا Streisand\n• ویندوز: Nekoray یا v2rayN\n\n۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه + و انتخاب گزینه Import from clipboard یا Add Subscription).\n\n۴. روی گزینه Update Subscription کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت وجود هرگونه مشکل با دکمه پشتیبانی در تماس باشید.",
             hideSupport: false,
             hideBuy: false,
             hideProfile: false,
@@ -115,6 +119,52 @@ function readJsonDb(): DbSchema {
       ];
       fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
     }
+
+    let modified = false;
+
+    if (!db.promo_codes) {
+      db.promo_codes = [
+        { id: "p_9001", code: "SUMMER40", type: "percent", value: 40, maxUsage: 100, totalUsage: 12, usedBy: [], createdAt: new Date().toISOString() },
+        { id: "p_9002", code: "EIDI5DAYS", type: "extend_days", value: 5, maxUsage: 50, totalUsage: 3, usedBy: [], createdAt: new Date().toISOString() }
+      ];
+      modified = true;
+    }
+
+    if (!db.tickets) {
+      db.tickets = [
+        {
+          id: "TKB-8219",
+          userId: 6536288293,
+          username: "daltoon_tester",
+          subject: "مشکل در اتصال به سرور آلمان VIP",
+          status: "open",
+          createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+          updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+          messages: [
+            { sender: "user", message: "سلام سرور آلمان VIP من متصل نمیشه. لطفا بررسی کنید چرا ارور ریجکت میده؟", date: new Date(Date.now() - 3600000 * 4).toISOString() }
+          ]
+        },
+        {
+          id: "TKB-4102",
+          userId: 1000628392,
+          username: "reza_vpn",
+          subject: "میزان ترافیک باقیمانده کانفیگ",
+          status: "answered",
+          createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+          updatedAt: new Date(Date.now() - 3600000 * 22).toISOString(),
+          messages: [
+            { sender: "user", message: "سلام خسته نباشید. کانفیگ یکماهه خریدم چطور از ربات حجم باقیماندمو ببینم؟", date: new Date(Date.now() - 3600000 * 24).toISOString() },
+            { sender: "admin", message: "سلام دوست گرامی، وارد دکمه «اشتراک‌های من» بشید. تمام اشتراک‌های فعال شما به همراه حجم و روزهای باقیمانده نشون داده میشه.", date: new Date(Date.now() - 3600000 * 22).toISOString() }
+          ]
+        }
+      ];
+      modified = true;
+    }
+
+    if (modified) {
+      fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
+    }
+
     return db;
   } catch (err) {
     console.error("[Database] Read error, returning empty dataset:", err);
@@ -330,6 +380,8 @@ app.get("/api/data", async (req, res) => {
       customButtons: db.custom_buttons,
       vpnPlans: db.vpn_plans || [],
       giftCodes: db.gift_codes || [],
+      promoCodes: db.promo_codes || [],
+      tickets: db.tickets || [],
       colleaguePackages: db.colleague_packages || [],
       colleagueAccounts: db.colleague_accounts || [],
       logs: db.logs || [],
@@ -451,6 +503,194 @@ app.post("/api/colleague-accounts/reset-usage", (req, res) => {
     res.json({ success: true, colleagueAccounts: db.colleague_accounts });
   } else {
     res.json({ success: false, error: "Account not found" });
+  }
+});
+
+// --- PROMO CODES ENDPOINTS ---
+app.post("/api/promo-codes", (req, res) => {
+  try {
+    const db = readJsonDb();
+    if (!db.promo_codes) db.promo_codes = [];
+    const nextCode = req.body;
+    
+    const idx = db.promo_codes.findIndex((p: any) => p.id === nextCode.id || p.code === nextCode.code);
+    if (idx >= 0) {
+      db.promo_codes[idx] = nextCode;
+    } else {
+      db.promo_codes.push(nextCode);
+    }
+    
+    writeJsonDb(db);
+    res.json({ success: true, item: nextCode });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/promo-codes/delete", (req, res) => {
+  try {
+    const db = readJsonDb();
+    if (!db.promo_codes) db.promo_codes = [];
+    db.promo_codes = db.promo_codes.filter((p: any) => p.id !== req.body.id);
+    writeJsonDb(db);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- TICKETS ENDPOINTS ---
+app.post("/api/tickets/reply", (req, res) => {
+  try {
+    const { ticketId, reply } = req.body;
+    const db = readJsonDb();
+    if (!db.tickets) db.tickets = [];
+    
+    const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
+    if (ticketIdx >= 0) {
+      const ticket = db.tickets[ticketIdx];
+      ticket.messages.push({
+        sender: "admin",
+        message: reply,
+        date: new Date().toISOString()
+      });
+      ticket.status = "answered";
+      ticket.updatedAt = new Date().toISOString();
+      
+      writeJsonDb(db);
+      res.json({ success: true, ticket });
+    } else {
+      res.status(404).json({ success: false, error: "Ticket not found" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/tickets/close", (req, res) => {
+  try {
+    const { ticketId } = req.body;
+    const db = readJsonDb();
+    if (!db.tickets) db.tickets = [];
+    
+    const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
+    if (ticketIdx >= 0) {
+      db.tickets[ticketIdx].status = "closed";
+      db.tickets[ticketIdx].updatedAt = new Date().toISOString();
+      writeJsonDb(db);
+      res.json({ success: true, ticket: db.tickets[ticketIdx] });
+    } else {
+      res.status(404).json({ success: false, error: "Ticket not found" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- REGEN UUID & TRANSFER KEY CONNECTIONS ---
+app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
+  try {
+    const { id, userId } = req.body;
+    const db = readJsonDb();
+    const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
+    if (subIdx >= 0) {
+      const key = db.subscription_keys[subIdx];
+      // Generate a brand new client Name identifier / UUID simulation
+      const newUuid = Math.random().toString(36).substring(2, 12) + "-" + Math.random().toString(36).substring(2, 10);
+      
+      // Let's replace the link token
+      if (key.subLink) {
+        // e.g. vless://uuid@host:port... or https://host/sub/clientEmail
+        if (key.subLink.includes("://")) {
+          // Replace matching part before host
+          key.subLink = key.subLink.replace(/:\/\/[^@]+@/, `://${newUuid}@`);
+        } else {
+          // Normal HTTP sub link, append an updated revision parameter or randomize route Email
+          const randEmail = "rev_" + Math.random().toString(36).substring(2, 8);
+          key.subLink = key.subLink.substring(0, key.subLink.lastIndexOf("/") + 1) + randEmail;
+        }
+      }
+      
+      db.subscription_keys[subIdx] = key;
+      writeJsonDb(db);
+      res.json({ success: true, key });
+    } else {
+      res.status(404).json({ success: false, error: "Subscription entry not found." });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/subscription-keys/transfer-ownership", async (req, res) => {
+  try {
+    const { id, targetUserIdOrUsername } = req.body;
+    const db = readJsonDb();
+    
+    const cleanTarget = String(targetUserIdOrUsername).replace("@", "").trim();
+    const targetUser = db.users.find(
+      (u: any) => String(u.userId) === cleanTarget || String(u.username).toLowerCase() === cleanTarget.toLowerCase()
+    );
+    
+    if (!targetUser) {
+      return res.status(400).json({ success: false, error: "کاربر مقصد در سیستم یافت نشد. دوست شما باید حداقل یکبار دکمه /start را در ربات زده باشد." });
+    }
+    
+    const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
+    if (subIdx >= 0) {
+      const key = db.subscription_keys[subIdx];
+      const oldUserId = key.userId;
+      
+      // Transfer
+      key.userId = targetUser.userId;
+      db.subscription_keys[subIdx] = key;
+      
+      // Recalculate
+      const oldUser = db.users.find((u: any) => u.userId === oldUserId);
+      if (oldUser) {
+        oldUser.activePlansCount = db.subscription_keys.filter((k: any) => k.userId === oldUserId && k.status === "active").length;
+      }
+      targetUser.activePlansCount = db.subscription_keys.filter((k: any) => k.userId === targetUser.userId && k.status === "active").length;
+      
+      writeJsonDb(db);
+      res.json({ success: true, key, targetUsername: targetUser.username || String(targetUser.userId) });
+    } else {
+      res.status(404).json({ success: false, error: "کانفیگ مورد نظر یافت نشد." });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/transactions/instant-pay", async (req, res) => {
+  try {
+    const { userId, amount, description } = req.body;
+    const db = readJsonDb();
+    
+    const user = db.users.find((u: any) => u.userId === Number(userId));
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+    
+    const amountNum = Number(amount);
+    user.walletBalance = Number(user.walletBalance) + amountNum;
+    
+    const newTx = {
+      id: "TX-AUTO-" + Math.floor(Math.random() * 90000 + 10000),
+      userId: Number(userId),
+      username: user.username,
+      amount: amountNum,
+      receiptImage: "bg-gradient-to-br from-emerald-500 to-teal-700",
+      status: "approved",
+      date: new Date().toISOString(),
+      description: description || "پرداخت خودکار آنلاین"
+    };
+    
+    db.transactions.unshift(newTx);
+    writeJsonDb(db);
+    res.json({ success: true, userWalletBalance: user.walletBalance, tx: newTx });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1128,7 +1368,22 @@ app.post("/api/users/adjust", async (req, res) => {
     }
     
     const nextBal = Math.max(0, Number(user.walletBalance) + Number(amount));
+    const finalDiff = nextBal - Number(user.walletBalance);
     user.walletBalance = nextBal;
+    
+    if (!db.logs) db.logs = [];
+    db.logs.push({
+      id: Math.random().toString(36).substring(2, 9),
+      date: new Date().toISOString(),
+      userId: Number(userId),
+      username: user.username || `user_${userId}`,
+      action: "تغییر موجودی",
+      details: `موجودی کاربر توسط مدیر به میزان ${finalDiff >= 0 ? "+" : ""}${finalDiff.toLocaleString()} تومان تغییر یافت. موجودی نهایی: ${nextBal.toLocaleString()} تومان.`
+    });
+    if (db.logs.length > 1000) {
+      db.logs = db.logs.slice(-1000);
+    }
+    
     writeJsonDb(db);
 
     res.json({ success: true, nextBal });
@@ -1217,6 +1472,19 @@ app.post("/api/transactions/approve", async (req, res) => {
         user.walletBalance = Number(user.walletBalance) + Number(tx.amount);
       }
       
+      if (!db.logs) db.logs = [];
+      db.logs.push({
+        id: Math.random().toString(36).substring(2, 9),
+        date: new Date().toISOString(),
+        userId: Number(tx.userId),
+        username: tx.username || `user_${tx.userId}`,
+        action: "تایید شارژ",
+        details: `رسید تراکنش به شناسه ${tx.id} و مبلغ ${Number(tx.amount).toLocaleString()} تومان توسط مدیر تایید شد و به کیف پول کاربر افزایش یافت.`
+      });
+      if (db.logs.length > 1000) {
+        db.logs = db.logs.slice(-1000);
+      }
+      
       writeJsonDb(db);
 
       // Try to notify the user via Telegram Bot API on success
@@ -1270,6 +1538,20 @@ app.post("/api/transactions/reject", async (req, res) => {
     const tx = db.transactions.find(t => t.id === id);
     if (tx) {
       tx.status = "rejected";
+      
+      if (!db.logs) db.logs = [];
+      db.logs.push({
+        id: Math.random().toString(36).substring(2, 9),
+        date: new Date().toISOString(),
+        userId: Number(tx.userId),
+        username: tx.username || `user_${tx.userId}`,
+        action: "رد شارژ",
+        details: `رسید تراکنش به شناسه ${tx.id} و مبلغ ${Number(tx.amount).toLocaleString()} تومان توسط مدیر رد شد.`
+      });
+      if (db.logs.length > 1000) {
+        db.logs = db.logs.slice(-1000);
+      }
+      
       writeJsonDb(db);
 
       // Try to notify the user via Telegram Bot API on reject
@@ -1943,13 +2225,31 @@ async function autoSyncTrafficUsage() {
 
     for (let k of db.subscription_keys || []) {
       // Check clientName or we might be using 'name' or 'planName' depending on how it's created.
-      // Wait, let's verify what field is sent to xui panel for colleagues.
       const matchName = k.clientName || k.planName || k.name;
       if (matchName && trafficMap[matchName]) {
         const usedGb = trafficMap[matchName].total / (1024 * 1024 * 1024);
         if (Math.abs((k.trafficUsedGb || 0) - usedGb) > 0.01) {
           k.trafficUsedGb = Number(usedGb.toFixed(2));
           updatedCount++;
+        }
+      }
+
+      // Check Expiry Warning Feature (1GB remaining or 1 Day remaining)
+      const isAutoWarningEnabled = db.settings?.autoWarningConfigBtn !== false;
+      if (isAutoWarningEnabled && !k.expiryWarningSent) {
+        const remainingGb = (k.trafficLimitGb || 50) - (k.trafficUsedGb || 0);
+        let remainingDays = 999;
+        try {
+          const expDate = new Date(k.expireDate);
+          const diffTime = expDate.getTime() - Date.now();
+          remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        } catch(e) {}
+
+        if ((remainingGb <= 1 && remainingGb > 0) || (remainingDays <= 1 && remainingDays > 0)) {
+           // Queue an imaginary bot message for this user (or just log it for the mock)
+           console.log(`[Official Warning] User ${k.userId} subscription "${k.planName}" is running out (Remaining: ${remainingGb.toFixed(2)}GB, ${remainingDays} days).`);
+           k.expiryWarningSent = true;
+           updatedCount++;
         }
       }
     }

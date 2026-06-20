@@ -15,11 +15,13 @@ import {
   Menu,
   Briefcase,
   X,
-  Clock
+  Clock,
+  Tag,
+  MessageSquare
 } from "lucide-react";
 
 // Types & Data
-import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton, GiftCode } from "./types";
+import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton, GiftCode, PromoCode, Ticket } from "./types";
 import { Language, translations } from "./locales";
 import { 
   initialSettings, 
@@ -40,6 +42,8 @@ import ColleaguesManagement from "./components/ColleaguesManagement";
 import SettingsPanel from "./components/SettingsPanel";
 import BotButtonsPanel from "./components/BotButtonsPanel";
 import GiftCodeManager from "./components/GiftCodeManager";
+import PromoCodeManager from "./components/PromoCodeManager";
+import TicketManager from "./components/TicketManager";
 import BotLogs from "./components/BotLogs";
 import { LoginScreen } from "./components/LoginScreen";
 
@@ -187,7 +191,17 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleagues" | "buttons" | "giftcodes" | "logs" | "settings" | "guide" | "xui_connector">(() => {
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>(() => {
+    const cached = localStorage.getItem("daltoon_promo_codes");
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  const [tickets, setTickets] = useState<Ticket[]>(() => {
+    const cached = localStorage.getItem("daltoon_tickets");
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleagues" | "buttons" | "giftcodes" | "promocodes" | "tickets" | "logs" | "settings" | "guide" | "xui_connector">(() => {
     const cached = localStorage.getItem("daltoon_active_tab");
     return (cached as any) || "dashboard";
   });
@@ -321,6 +335,14 @@ export default function App() {
   }, [giftCodes]);
 
   useEffect(() => {
+    localStorage.setItem("daltoon_promo_codes", JSON.stringify(promoCodes));
+  }, [promoCodes]);
+
+  useEffect(() => {
+    localStorage.setItem("daltoon_tickets", JSON.stringify(tickets));
+  }, [tickets]);
+
+  useEffect(() => {
     localStorage.setItem("daltoon_colleague_packages", JSON.stringify(colleaguePackages));
   }, [colleaguePackages]);
 
@@ -345,6 +367,8 @@ export default function App() {
         if (json.inbounds) setInbounds(json.inbounds);
         if (json.customButtons) setCustomButtons(json.customButtons);
         if (json.giftCodes) setGiftCodes(json.giftCodes);
+        if (json.promoCodes) setPromoCodes(json.promoCodes);
+        if (json.tickets) setTickets(json.tickets);
         if (json.colleaguePackages) setColleaguePackages(json.colleaguePackages);
         if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
         if (json.logs) setLogs(json.logs);
@@ -410,6 +434,65 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, amount })
     }).catch(err => console.warn("Failed syncing adjusted wallet:", err));
+  };
+
+  const handleAddPromoCode = (code: string, type: "percent" | "extend_days", value: number, maxUsage: number) => {
+    const nextCode = {
+      id: Math.random().toString(36).substring(2, 9),
+      code,
+      type,
+      value,
+      maxUsage,
+      totalUsage: 0,
+      usedBy: [],
+      createdAt: new Date().toISOString()
+    };
+    setPromoCodes(prev => [nextCode, ...prev]);
+
+    fetch("/api/promo-codes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextCode)
+    }).then(() => refreshData())
+      .catch(err => console.warn(err));
+  };
+
+  const handleDeletePromoCode = (id: string) => {
+    setPromoCodes(prev => prev.filter(p => p.id !== id));
+    fetch("/api/promo-codes/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    }).then(() => refreshData())
+      .catch(err => console.warn(err));
+  };
+
+  const handleReplyTicket = (ticketId: string, replyMessage: string) => {
+    fetch("/api/tickets/reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId, reply: replyMessage })
+    }).then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          refreshData();
+        }
+      })
+      .catch(err => console.warn(err));
+  };
+
+  const handleCloseTicket = (ticketId: string) => {
+    fetch("/api/tickets/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId })
+    }).then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          refreshData();
+        }
+      })
+      .catch(err => console.warn(err));
   };
 
   const toggleUserBan = (userId: number) => {
@@ -759,6 +842,35 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("promocodes")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                activeTab === "promocodes" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Tag className="w-4 h-4" />
+              {lang === "fa" ? "کدهای تخفیف" : "Promo Codes"}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("tickets")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition relative ${
+                activeTab === "tickets" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              {lang === "fa" ? "سیستم تیکت" : "Support Tickets"}
+              {tickets.filter(t => t.status === "open").length > 0 && (
+                <span className={`absolute ${lang === "fa" ? "left-4" : "right-4"} bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse`}>
+                  {tickets.filter(t => t.status === "open").length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setActiveTab("logs")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
                 activeTab === "logs" 
@@ -1002,6 +1114,24 @@ export default function App() {
               }}
               settings={settings}
               onSaveSettings={saveSettings}
+              lang={lang}
+            />
+          )}
+
+          {activeTab === "promocodes" && (
+            <PromoCodeManager
+              promoCodes={promoCodes}
+              onAddCode={handleAddPromoCode}
+              onDeleteCode={handleDeletePromoCode}
+              lang={lang}
+            />
+          )}
+
+          {activeTab === "tickets" && (
+            <TicketManager
+              tickets={tickets}
+              onReplyTicket={handleReplyTicket}
+              onCloseTicket={handleCloseTicket}
               lang={lang}
             />
           )}

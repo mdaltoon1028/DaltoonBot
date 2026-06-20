@@ -7,7 +7,9 @@ export const initialSettings: PanelSettings = {
   panelUsername: "Daltoon",
   panelPassword: "Daltoon10",
   activeInboundIds: [1, 12, 16, 19, 24, 26],
-  ownerId: 6536288293
+  ownerId: 6536288293,
+  btnTextGuides: "💡 راهنمای اتصال",
+  guidesText: "🌐 راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)\n\nکاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n• اندروید: v2rayNG\n• آیفون (iOS): V2box یا Streisand\n• ویندوز: Nekoray یا v2rayN\n\n۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه + و انتخاب گزینه Import from clipboard یا Add Subscription).\n\n۴. روی گزینه Update Subscription کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت وجود هرگونه مشکل با دکمه پشتیبانی در تماس باشید."
 };
 
 export const initialInbounds: InboundInfo[] = [

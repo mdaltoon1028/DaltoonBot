@@ -71,6 +71,7 @@ export default function BotSimulator({
   // Invoice form fields
   const [invoiceAmount, setInvoiceAmount] = useState("");
   const [invoiceDesc, setInvoiceDesc] = useState("");
+  const [transferringKeyId, setTransferringKeyId] = useState<string | null>(null);
 
   useEffect(() => {
     setInvoiceDesc(lang === "fa" ? "واریز کارت به کارت" : "Card-to-Card Transfer");
@@ -153,6 +154,33 @@ export default function BotSimulator({
     ]);
     setSelectedPlanToBuy(null);
     setShowInvoiceUpload(false);
+    
+    // Simulate auto warning
+    const isAutoWarningEnabled = settings?.autoWarningConfigBtn !== false;
+    if (isAutoWarningEnabled) {
+      const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
+      activeUserKeys.forEach(k => {
+        const total = k.trafficLimitGb || 50;
+        const used = k.trafficUsedGb || 0;
+        const remainingGb = total - used;
+        let remainingDays = 999;
+        try {
+          const expDate = new Date(k.expireDate);
+          const diffTime = expDate.getTime() - Date.now();
+          remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        } catch(e) {}
+        
+        if ((remainingGb <= 1 && remainingGb > 0) || (remainingDays <= 1 && remainingDays > 0)) {
+           setTimeout(() => {
+             addBotReply(lang === "fa" 
+               ? `⚠️ <b>اخطار رسمی اتمام سرویس:</b>\n\nمشترک گرامی، سرویس <b>${k.planName}</b> شما رو به اتمام است.\n\nباقیمانده حجم: ${remainingGb.toFixed(2)} گیگابایت\nباقیمانده زمان: ${remainingDays} روز\n\nجهت جلوگیری از قطع شدن دسترسی، لطفاً هرچه سریع‌تر از منوی مدیریت اشتراک‌ها اقدام به تمدید نمایید.` 
+               : `⚠️ <b>Official Expiry Warning:</b>\n\nYour service <b>${k.planName}</b> is about to expire.\n\nRemaining: ${remainingGb.toFixed(2)} GB / ${remainingDays} Days.\n\nPlease renew to avoid interruption.`, 
+               1500, undefined, [[{ text: lang === "fa" ? "💳 تمدید این سرویس" : "💳 Renew Now", action: `manage_sub_${k.id}` }]]);
+           }, 2000);
+        }
+      });
+    }
+
   }, [activeUserId, lang, customButtons, settings]);
 
   const addBotReply = (text: string, delayMs = 600, keyboard?: string[][], inlineButtons?: ({ text: string; action: string } | { text: string; action: string }[])[]) => {
@@ -183,6 +211,50 @@ export default function BotSimulator({
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
     setMessages(prev => [...prev, userMsg]);
+
+    // Handle Transfer ownership receiver input
+    if (transferringKeyId) {
+      const targetUser = text.trim();
+      const subId = transferringKeyId;
+      setTransferringKeyId(null);
+
+      if (targetUser.includes("انصراف") || targetUser.includes("Cancel") || targetUser.includes("بازگشت") || targetUser.includes("منوی اصلی")) {
+        addBotReply(lang === "fa" ? "❌ عملیات انتقال مالکیت لغو شد." : "❌ Ownership transfer cancelled.", 500, getKeyboard());
+        return;
+      }
+
+      addBotReply(lang === "fa" ? "⏳ در حال اعتبارسنجی کاربر مقصد و انتقال مالکیت..." : "⏳ Initiating ownership transfer...", 500);
+
+      fetch("/api/subscription-keys/transfer-ownership", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: subId, targetUserIdOrUsername: targetUser })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          // Remove from local keys state immediately
+          setKeys(prev => prev.filter(k => k.id !== subId));
+          addBotReply(
+            lang === "fa"
+              ? `🎉 <b>انتقال با موفقیت انجام شد!</b>\n\nسرویس شما به عنوان هدیه با موفقیت به پنل کاربر <b>@${data.targetUsername}</b> منتقل شد و از حساب شما کسر گردید.`
+              : `🎉 <b>Transfer Complete!</b>\n\nThis subscription has been successfully gifted to @${data.targetUsername}.`,
+            800,
+            getKeyboard()
+          );
+        } else {
+          addBotReply(
+            lang === "fa" ? `❌ خطا در انتقال:\n${data.error}` : `❌ Transfer failed: ${data.error}`,
+            600,
+            getKeyboard()
+          );
+        }
+      })
+      .catch(() => {
+        addBotReply(lang === "fa" ? "❌ کاربر یافت نشد یا خطایی رخ داد." : "❌ Target user not found.", 500, getKeyboard());
+      });
+      return;
+    }
 
     // Check plan cancellation
     if (selectedPlanToBuy && (text.includes("انصراف") || text.includes("بازگشت") || text.includes("منوی اصلی") || text.includes("منصرف") || text.includes("Cancel") || text.includes("cancel") || text.includes("برگشت") || text.includes("انصراف و برگشت"))) {
@@ -341,40 +413,25 @@ export default function BotSimulator({
     }
     else if (text === (settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید") || text.includes("اشتراک های من") || text.includes("🗂")) {
       const activeUserKeys = keys.filter(k => k.userId === currentUser.userId);
-      let subDetails = "";
-      if (lang === "fa") {
-        if (activeUserKeys.length > 0) {
-          subDetails = "🔑 <b>سرویس‌های فعال شما:</b>\n\n" + activeUserKeys.map((k, i) => {
-            const total = k.trafficLimitGb || 50;
-            const used = k.trafficUsedGb || 0;
-            const remaining = Math.max(0, total - used);
-            
-            // Calculate remaining days
-            let remainingDays = "نامشخص";
-            try {
-              const expDate = new Date(k.expireDate);
-              const now = new Date();
-              const diffTime = expDate.getTime() - now.getTime();
-              const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-              remainingDays = diffDays.toString();
-            } catch(e) {}
-            
-            return `🔹 <b>سرویس ${i + 1}: ${k.planName}</b>\n` +
-                   `━━━━━━━━━━━━━━━━━━\n` +
-                   `⏳ <b>اعتبار:</b> ${k.expireDate}\n` +
-                   `📅 <b>روز باقی مانده:</b> ${remainingDays} روز\n\n` +
-                   `🌐 <b>حجم کل:</b> ${total} گیگابایت\n` +
-                   `📉 <b>حجم مصرفی:</b> ${used.toFixed(2)} گیگابایت\n` +
-                   `🪫 <b>حجم باقی‌مانده:</b> ${remaining.toFixed(2)} گیگابایت\n\n` +
-                   `🔗 <b>لینک اتصال (اشتراک):</b>\n<code>${k.subLink}</code>\n` +
-                   `━━━━━━━━━━━━━━━━━━`;
-          }).join("\n\n");
-        } else {
-          subDetails = "❌ شما تا کنون هیچ سرویس اشتراکی دریافت نکرده‌اید.";
-        }
-        addBotReply(subDetails, 600);
+      if (activeUserKeys.length > 0) {
+        const inlineSubsButtons = activeUserKeys.map((k, idx) => [
+          { text: lang === "fa" ? `⚙️ مدیریت: ${k.planName} (${idx + 1})` : `⚙️ Manage: ${k.planName} (${idx + 1})`, action: `manage_sub_${k.id}` }
+        ]);
+        addBotReply(
+          lang === "fa"
+            ? `🗂 <b>تعداد اشتراک‌های فعال شما: ${activeUserKeys.length} سرویس</b>\n\nجهت تمدید ساب، ابطال و تغییر کلید خصوصی (Reset UUID)، یا انتقال مالکیت به دوست روی دکمه مدیریت آن ضربه بزنید:`
+            : `🗂 <b>You have ${activeUserKeys.length} active subscription(s):</b>\n\nClick a subscription to manage, reset its UUID, or transfer ownership to a companion:`,
+          600,
+          undefined,
+          inlineSubsButtons
+        );
       } else {
-        addBotReply("Subscriptions listed here (English mode).", 600);
+        addBotReply(
+          lang === "fa"
+            ? "❌ شما تا کنون هیچ سرویس اشتراکی در حساب خود دریافت نکرده‌اید."
+            : "❌ You have no active subscriptions registered." ,
+          600
+        );
       }
     }
     else if (text === (settings?.btnTextFreeTest || "🎁 موجودی رایگان") || text.includes("🎁") || text.includes("رایگان") || text.includes("Free")) {
@@ -387,7 +444,10 @@ export default function BotSimulator({
         addBotReply(lang === "fa" ? "💌 با تشکر از بازخورد شما. نظرات شما ثبت خواهد شد." : "Thank you for your feedback.", 500);
     }
     else if (text === (settings?.btnTextGuides || "💡 آموزش ها") || text.includes("💡") || text.includes("آموزش")) {
-        addBotReply(lang === "fa" ? "💡 لینک آموزش اتصال به زودی در اینجا قرار میگیرد." : "Tutorials coming soon.", 500);
+        const defaultGuideText = lang === "fa" 
+          ? "🌐 <b>راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)</b>\n\nکاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n• اندروید: v2rayNG\n• آیفون (iOS): V2box یا Streisand\n• ویندوز: Nekoray یا v2rayN\n\n۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه + و انتخاب گزینه Import from clipboard یا Add Subscription).\n\n۴. روی گزینه Update Subscription کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت بروز هرگونه مشکل با دکمه پشتیبانی در تماس باشید."
+          : "Tutorials coming soon.";
+        addBotReply(settings?.guidesText || defaultGuideText, 400);
     }
     else if (text === (settings?.btnTextReferral || "👥 زیرمجموعه گیری") || text.includes("👥") || text.includes("زیرمجموعه")) {
       const botUsername = settings?.botTelegramHandle || "your_bot_id";
@@ -516,15 +576,278 @@ export default function BotSimulator({
       return;
     }
 
-    if (action.startsWith("charge_")) {
+    // --- OPTION 3: INTERACTIVE SUBSCRIPTION MANAGER ---
+    if (action.startsWith("manage_sub_")) {
+      const subId = action.substring(11);
+      const k = keys.find(item => item.id === subId);
+      if (k) {
+        const total = k.trafficLimitGb || 50;
+        const used = k.trafficUsedGb || 0;
+        const remaining = Math.max(0, total - used);
+        let remainingDays = "نامشخص";
+        try {
+          const expDate = new Date(k.expireDate);
+          const now = new Date();
+          const diffTime = expDate.getTime() - now.getTime();
+          remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24))).toString();
+        } catch(e) {}
+
+        const detailsText = lang === "fa"
+          ? `⚙️ <b>مدیریت لایسنس: ${k.planName}</b>\n━━━━━━━━━━━━━━━━━━\n` +
+            `⏳ <b>تاریخ انقضا:</b> ${k.expireDate}\n` +
+            `📅 <b>روز باقیمانده:</b> ${remainingDays} روز\n` +
+            `🌐 <b>حجم کل:</b> ${total} گیگابایت\n` +
+            `📉 <b>حجم مصرفی:</b> ${used.toFixed(2)} گیگابایت\n` +
+            `🪫 <b>حجم باقیمانده:</b> ${remaining.toFixed(2)} گیگابایت\n\n` +
+            `🔗 <b>لینک سابسکریپشن شما:</b>\n<code>${k.subLink}</code>\n━━━━━━━━━━━━━━━━━━\n` +
+            `⚠️ <b>سیستم مدیریت امنیت لایسنس:</b>\n` +
+            `• <b>تغییر UUID:</b> اگر حس می‌کنید اتصال لو رفته، UUID را ریست کنید تا لینک ساب جدید تمیز بگیرید.\n` +
+            `• <b>انتقال مالکیت:</b> انتقال کلید خریداری شده به پنل دوست دیگر.`
+          : `⚙️ <b>Manage License: ${k.planName}</b>\n━━━━━━━━━━━━━━━━━━\n` +
+            `⏳ <b>Expiration:</b> ${k.expireDate}\n` +
+            `📅 <b>Remaining days:</b> ${remainingDays} days\n` +
+            `🌐 <b>Total Volume:</b> ${total} GB\n` +
+            `📉 <b>Used Volume:</b> ${used.toFixed(2)} GB\n` +
+            `🪫 <b>Remaining Volume:</b> ${remaining.toFixed(2)} GB\n\n` +
+            `🔗 <b>Subscription URL:</b>\n<code>${k.subLink}</code>\n━━━━━━━━━━━━━━━━━━`;
+
+        addBotReply(
+          detailsText,
+          500,
+          undefined,
+          [
+            [
+              { text: lang === "fa" ? "🔄 تغییر کلید (Reset UUID)" : "🔄 Reset UUID", action: `warn_regen_${k.id}` },
+              { text: lang === "fa" ? "🎁 انتقال مالکیت به دوست" : "🎁 Transfer Owner", action: `warn_transfer_${k.id}` }
+            ],
+            [
+              { text: lang === "fa" ? "🔙 برگشت به منوی کل" : "🔙 Core Menu", action: "btn_back_home" }
+            ]
+          ]
+        );
+      }
+      return;
+    }
+
+    if (action.startsWith("warn_regen_")) {
+      const subId = action.substring(11);
       addBotReply(
         lang === "fa"
-          ? `📸 شما در حال شارژ حساب هستید. لطفاً وجه را به کارت بانکی واریز و فیش آن را بارگذاری کنید.`
-          : `📸 Please transfer the funds and upload your digital receipt below.`,
+          ? "⚠️ <b>هشدار تعویض شناسه اتصال (Reset UUID)</b>\n\nبا تغییر شناسه، اتصال روی تمام برنامه‌های کلاینت قبلی شما باطل شده و فوراً قطع می‌گردد.\nآیا مایل به تولید لینک اتصال جدید هستید؟"
+          : "⚠️ <b>Change UUID Warning</b>\n\nDoing this invalidates the old config URL globally. Are you sure you wish to rotate?",
+        500,
+        undefined,
+        [
+          [
+            { text: lang === "fa" ? "✅ بله، کلید جدید صادر شود" : "✅ Yes, issue new UUID", action: `confirm_regen_${subId}` },
+            { text: lang === "fa" ? "❌ انصراف" : "❌ Cancel", action: `manage_sub_${subId}` }
+          ]
+        ]
+      );
+      return;
+    }
+
+    if (action.startsWith("confirm_regen_")) {
+      const subId = action.substring(14);
+      addBotReply(lang === "fa" ? "⏳ در حال باطل ساختن لایسنس قبلی و تخصیص شناسه اتصال جدید..." : "⏳ Rotatig encryption credentials...", 500);
+      
+      fetch("/api/subscription-keys/regenerate-uuid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: subId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setKeys(prev => prev.map(item => item.id === subId ? { ...item, subLink: data.key.subLink } : item));
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.key.subLink)}`;
+          setIsTyping(true);
+          setTimeout(() => {
+            setIsTyping(false);
+            setMessages(prev => [
+              ...prev,
+              {
+                id: Math.random().toString(),
+                sender: "bot",
+                text: lang === "fa"
+                  ? `🎉 <b>کلید اتصال شما بازنشانی شد!</b>\n\n🔑 آدرس سابسکریپشن نوین شما:\n\n<code>${data.key.subLink}</code>\n\n⚠️ لینک قبلی دیگر متصل نخواهد شد. لطفاً پیوند بالا را کپی و در نرم‌افزار ایمپورت کنید.`
+                  : `🎉 <b>Subscription Key Generated!</b>\n\nNew URL:\n\n<code>${data.key.subLink}</code>`,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                keyboard: getKeyboard(),
+                imageUrl: qrUrl
+              }
+            ]);
+          }, 1000);
+        }
+      });
+      return;
+    }
+
+    if (action.startsWith("warn_transfer_")) {
+      const subId = action.substring(14);
+      setTransferringKeyId(subId);
+      addBotReply(
+        lang === "fa"
+          ? "🎁 <b>مراحل هدیه دادن و انتقال مالکیت لایسنس سرویس</b>\n\nلطفاً <b>آیدی عددی تلگرام</b> یا <b>آیدی تلگرامی</b> کاربر مقصد را (به انگلیسی، بدون علامت @) در همین چت ارسال کنید:\n\nمثال: <code>6536288293</code> یا <code>reza_vpn</code>\n\n⚠️ توجه: پس از انتقال مالکیت، این کانفیگ و حجم و روزهایش متعلق به آیدی مقصد شده و از دسترسی شما خارج می‌شود."
+          : "🎁 <b>Gift Subscription Transfer</b>\n\nPlease enter the destination <b>Telegram User ID</b> or <b>Username</b> (no @) into this chat:",
+        500,
+        [
+          [lang === "fa" ? "🏠 بازگشت به منوی اصلی" : "🏠 Main Menu"]
+        ]
+      );
+      return;
+    }
+
+    // --- OPTION 4: AUTOMATED VALUE-ADDED PAYMENT GATEWAYS ---
+    if (action.startsWith("charge_")) {
+      const amount = parseInt(action.substring(7));
+      addBotReply(
+        lang === "fa"
+          ? `💳 <b>فاکتور شارژ کیف پول - مبلغ ${amount.toLocaleString()} تومان</b>\n\nلطفاً جهت پرداخت آنی و شارژ کاملاً خودکار، یکی از درگاه‌های الکترونیکی یا روش انتقال دستی زیر را انتخاب کنید:`
+          : `💳 <b>Top-up Invoice - ${amount.toLocaleString()} Toman</b>\n\nPlease choose an instant payment gateway below for automatic real-time account delivery:`,
         600,
         undefined,
-        [{ text: "📸 بارگذاری فیش (Upload Slip)", action: "upload_receipt" }]
+        [
+          [
+            { text: "⭐️ ستاره‌های تلگرام (Telegram Stars)", action: `gateway_stars_${amount}` }
+          ],
+          [
+            { text: "🟢 Plisio (کریپتو)", action: `gateway_plisio_${amount}` },
+            { text: "🟡 NowPayments (ارزی)", action: `gateway_nowpayments_${amount}` }
+          ],
+          [
+            { text: "🔵 Cryptomus", action: `gateway_cryptomus_${amount}` },
+            { text: "🟣 Heleket", action: `gateway_heleket_${amount}` }
+          ],
+          [
+            { text: "📸 انتقال دستی (فیش کارت‌به‌کارت)", action: `manual_slip_${amount}` }
+          ],
+          [
+            { text: "🔙 برگشت", action: "btn_back_home" }
+          ]
+        ] as any
       );
+      return;
+    }
+
+    if (action.startsWith("manual_slip_")) {
+      const amountStr = action.substring(12);
+      setInvoiceAmount(amountStr);
+      setShowInvoiceUpload(true);
+      return;
+    }
+
+    if (action.startsWith("gateway_stars_")) {
+      const amount = action.substring(14);
+      const starsCost = Math.max(1, Math.round(parseInt(amount) / 1500));
+      addBotReply(
+        lang === "fa"
+          ? `⭐️ <b>شارژ آنلاین با ستاره‌های تلگرام (Telegram Stars)</b>\n\n💵 مبلغ شارژ: ${parseInt(amount).toLocaleString()} تومان\n💎 تعرفه: <b>${starsCost} ستاره تلگرام ⭐️</b>\n\n👇 جهت پرداخت و افزایش اعتبار آنی حساب خود روی دکمه پرداخت زیر ضربه بزنید:`
+          : `⭐️ <b>Telegram Stars Payment Gateway</b>\n\n💵 Amount: ${parseInt(amount).toLocaleString()} T\n💎 Cost: <b>${starsCost} Stars (⭐️)</b>\n\n👇 Complete payment instantly via stars below:`,
+        500,
+        undefined,
+        [
+          [
+            { text: `⭐️ پرداخت فوری ${starsCost} ستاره تلگرام`, action: `pay_stars_success_${amount}` }
+          ],
+          [
+            { text: "❌ انصراف", action: "btn_back_home" }
+          ]
+        ]
+      );
+      return;
+    }
+
+    if (action.startsWith("gateway_plisio_") || action.startsWith("gateway_nowpayments_") || action.startsWith("gateway_cryptomus_") || action.startsWith("gateway_heleket_")) {
+      let isPlisio = action.startsWith("gateway_plisio_");
+      let isNowpay = action.startsWith("gateway_nowpayments_");
+      let isCryptomus = action.startsWith("gateway_cryptomus_");
+      let isHeleket = action.startsWith("gateway_heleket_");
+
+      let amountStr = isPlisio 
+        ? action.substring(15) 
+        : isNowpay 
+          ? action.substring(20) 
+          : isCryptomus 
+            ? action.substring(18) 
+            : action.substring(16);
+
+      let gatewayName = isPlisio ? "Plisio" : isNowpay ? "NowPayments" : isCryptomus ? "Cryptomus" : "Heleket";
+      
+      const parsedAmount = parseInt(amountStr);
+      const usdtCost = (parsedAmount / 70000).toFixed(2);
+      const actionName = `pay_crypto_success_${gatewayName.toLowerCase()}_${amountStr}`;
+
+      addBotReply(
+        lang === "fa"
+          ? `🌐 <b>درگاه مستقیم ارزی مدرن (${gatewayName})</b>\n\n💵 مبلغ سفارش: ${parsedAmount.toLocaleString()} تومان\n💰 ارزش تتر: <b>${usdtCost} USDT</b>\n\n👇 روی دکمه زیر کلیک کرده تا وارد فاکتور سیستم ${gatewayName} شوید:`
+          : `🌐 <b>${gatewayName} Instant Terminal</b>\n\n💵 Price: ${parsedAmount.toLocaleString()} T\n💰 Cost: <b>${usdtCost} USDT</b>\n\n👇 Complete the checkout below via ${gatewayName}:`,
+        500,
+        undefined,
+        [
+          [
+            { text: `🔗 ورود به پرداخت ${gatewayName}`, action: actionName }
+          ],
+          [
+            { text: "❌ انصراف", action: "btn_back_home" }
+          ]
+        ]
+      );
+      return;
+    }
+
+    // Handle gate checkout status callback replies
+    if (action.startsWith("pay_stars_success_") || action.startsWith("pay_crypto_success_")) {
+      let isStars = action.startsWith("pay_stars_success_");
+      let amountStr = "";
+      let gatewayName = "ارزی رمزارزی";
+
+      if (isStars) {
+        amountStr = action.substring(18);
+        gatewayName = "ستاره‌های تلگرام (Stars)";
+      } else {
+        // e.g. pay_crypto_success_plisio_100000
+        const segments = action.replace("pay_crypto_success_", "").split("_");
+        gatewayName = segments[0].toUpperCase();
+        amountStr = segments[1];
+      }
+      
+      const amount = parseInt(amountStr);
+      addBotReply(lang === "fa" ? "⏳ در حال استعلام وضعیت پرداخت از بستر بلاک‌چین..." : "⏳ Confirming receipt state...", 500);
+      
+      fetch("/api/transactions/instant-pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.userId,
+          amount,
+          description: `شارژ خودکار آنی از طریق ${gatewayName}`
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          // Immediately update clients state with new balance
+          setUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: data.userWalletBalance } : u));
+          
+          setIsTyping(true);
+          setTimeout(() => {
+            setIsTyping(false);
+            setMessages(prev => [
+              ...prev,
+              {
+                id: Math.random().toString(),
+                sender: "bot",
+                text: lang === "fa"
+                  ? `🎉 <b>پرداخت با موفقیت تایید شد!</b>\n\n💰 اعتبار کیف پول شما به صورت <b>آنی و کاملاً خودکار</b> به مبلغ <b>${amount.toLocaleString()} تومان</b> افزایش یافت.\n\n💵 موجودی فعلی: ${data.userWalletBalance.toLocaleString()} تومان\n\nممنون از اعتماد شما ☘️ اکنون با خیال راحت می‌توانید خرید نمایید.`
+                  : `🎉 <b>Payment Approved Successfully!</b>\n\nYour Toman wallet is <b>instantly & automatically</b> credited with <b>${amount.toLocaleString()} Toman</b>.\n\n💰 Current Balance: ${data.userWalletBalance.toLocaleString()} Toman. Enjoy!`,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                keyboard: getKeyboard()
+              }
+            ]);
+          }, 800);
+        }
+      });
       return;
     }
 

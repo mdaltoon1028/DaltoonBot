@@ -190,7 +190,16 @@ export default function SettingsPanel({
   const [hideBuy, setHideBuy] = useState(!!settings.hideBuy);
   const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
   const [hideWallet, setHideWallet] = useState(!!settings.hideWallet);
-  
+
+  // Advanced Payment Gateways and Extras
+  const [gatewayPlisioWallet, setGatewayPlisioWallet] = useState(settings.gatewayPlisioWallet || "");
+  const [gatewayNowpaymentsKey, setGatewayNowpaymentsKey] = useState(settings.gatewayNowpaymentsKey || "");
+  const [gatewayCryptomusKey, setGatewayCryptomusKey] = useState(settings.gatewayCryptomusKey || "");
+  const [gatewayCryptomusMerchantId, setGatewayCryptomusMerchantId] = useState(settings.gatewayCryptomusMerchantId || "");
+  const [gatewayHeleketWallet, setGatewayHeleketWallet] = useState(settings.gatewayHeleketWallet || "");
+  const [gatewayStarsStatus, setGatewayStarsStatus] = useState(settings.gatewayStarsStatus !== undefined ? settings.gatewayStarsStatus : true);
+  const [autoWarningConfigBtn, setAutoWarningConfigBtn] = useState(settings.autoWarningConfigBtn !== undefined ? settings.autoWarningConfigBtn : true);
+
   const [saved, setSaved] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -216,7 +225,14 @@ export default function SettingsPanel({
       serverPort: Number(serverPort) || 3000,
       autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
-      admins: adminsList
+      admins: adminsList,
+      gatewayPlisioWallet,
+      gatewayNowpaymentsKey,
+      gatewayCryptomusKey,
+      gatewayCryptomusMerchantId,
+      gatewayHeleketWallet,
+      gatewayStarsStatus,
+      autoWarningConfigBtn
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -515,6 +531,112 @@ export default function SettingsPanel({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Electronic Payment Gateways */}
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
+          <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-400" />
+            {lang === "fa" ? "درگاه‌های پرداخت الکترونیک و سرویس‌ها" : "Electronic Gateways & Services"}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {lang === "fa" 
+              ? "مدیریت حرفه‌ای کلیدهای پرداخت ارزی، کریپتو و تنظیمات اتوماسیون (تمامی کلیدها به صورت امن نگهداری می‌شوند)." 
+              : "Professional management of crypto keys and automation mechanisms."}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "آدرس کیف پول Plisio (تتر TRC20/TON)" : "Plisio Wallet Base"}
+              </label>
+              <input
+                type="text"
+                placeholder="TXABC..."
+                className="w-full bg-[#1f2937] border border-gray-700/80 rounded-lg p-2.5 text-xs text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={gatewayPlisioWallet}
+                onChange={(e) => setGatewayPlisioWallet(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "کد امنیتی NowPayments (API Key)" : "NowPayments API Key"}
+              </label>
+              <input
+                type="text"
+                placeholder="NP-xxxxxxxx..."
+                className="w-full bg-[#1f2937] border border-gray-700/80 rounded-lg p-2.5 text-xs text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={gatewayNowpaymentsKey}
+                onChange={(e) => setGatewayNowpaymentsKey(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "کد امنیتی Cryptomus (API Key)" : "Cryptomus Key"}
+              </label>
+              <input
+                type="password"
+                placeholder="************"
+                className="w-full bg-[#1f2937] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={gatewayCryptomusKey}
+                onChange={(e) => setGatewayCryptomusKey(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "نشان تجاری Cryptomus (Merchant ID)" : "Cryptomus Merchant"}
+              </label>
+              <input
+                type="text"
+                placeholder="xxxx-xxxx-xxxx"
+                className="w-full bg-[#1f2937] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={gatewayCryptomusMerchantId}
+                onChange={(e) => setGatewayCryptomusMerchantId(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa" ? "درگاه پرداخت Heleket (توکن / آدرس)" : "Heleket Token"}
+              </label>
+              <input
+                type="text"
+                placeholder="HK-ABC..."
+                className="w-full bg-[#1f2937] border border-gray-700/80 rounded-lg p-2.5 text-xs text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={gatewayHeleketWallet}
+                onChange={(e) => setGatewayHeleketWallet(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col justify-center space-y-4 pt-2 border-t border-[#1f2937] md:border-t-0 md:pt-0">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800"
+                  checked={gatewayStarsStatus}
+                  onChange={(e) => setGatewayStarsStatus(e.target.checked)}
+                />
+                <span className="text-xs text-gray-300 font-medium">
+                  {lang === "fa" ? "پشتیبانی از درگاه Telegram Stars (ستاره‌های تلگرام)" : "Enable Gateway: Telegram Stars"}
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded text-rose-500 bg-gray-700 border-gray-600 focus:ring-rose-500 focus:ring-offset-gray-800"
+                  checked={autoWarningConfigBtn}
+                  onChange={(e) => setAutoWarningConfigBtn(e.target.checked)}
+                />
+                <span className="text-xs text-gray-300 font-medium whitespace-nowrap">
+                  {lang === "fa" ? "فعال‌سازی ارسال اخطار اتمام سرویس (۱ گیگ یا ۱ روز مانده)" : "Send expiry limits warning before 1 Day/1GB"}
+                </span>
+              </label>
             </div>
           </div>
         </div>

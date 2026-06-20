@@ -190,6 +190,8 @@ def get_config():
                 config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
             if "purchaseSuccessNote" in panel_cfg:
                 config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
+            if "guidesText" in panel_cfg:
+                config["GUIDES_TEXT"] = panel_cfg["guidesText"]
             if "tgChannel" in panel_cfg:
                 config["TG_CHANNEL"] = panel_cfg["tgChannel"]
             if "supportHandle" in panel_cfg:
@@ -423,6 +425,10 @@ def register_tg_user(tg_id, username):
         db["users"].append(new_user)
         write_db_json(db)
         print(f"[Database] Registered new user into JSON: {tg_id}")
+        try:
+            log_action(tg_id, username or f"user_{tg_id}", "ثبت‌نام کاربر", f"کاربر جدید با شناسه {tg_id} برای اولین بار عضو ربات شد.")
+        except Exception as e:
+            print("Error logging user registration:", e)
     elif username and user.get("username") != username:
         user["username"] = username
         write_db_json(db)
@@ -569,6 +575,11 @@ def start_cmd(message):
     if user and user.get('status') == 'banned':
         bot.reply_to(message, "❌ حساب کاربری شما به علت تخلف غیرفعال شده است. جهت اتصال به پشتیبانی پیام دهید.")
         return
+
+    try:
+        log_action(tg_id, username or f"user_{tg_id}", "ورود به ربات", "کاربر وارد ربات شد و منوی اصلی را دریافت کرد.")
+    except Exception as e:
+        print("Error logging user entry:", e)
 
     cfg = get_config()
     custom_welcome = cfg.get("WELCOME_TEXT")
@@ -827,6 +838,26 @@ def handle_main_menu_callback(call):
             types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
         )
         bot.edit_message_text(instructions, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
+
+    # 3.5 Connection Guides
+    elif action == "mm_btnGuides":
+        custom_guides = cfg.get("GUIDES_TEXT")
+        if custom_guides:
+            guides_txt = custom_guides
+        else:
+            guides_txt = (
+                "🌐 <b>راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)</b>\n\n"
+                "کاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n"
+                "۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n"
+                "• اندروید: <code>v2rayNG</code>\n"
+                "• آیفون (iOS): <code>V2box</code> یا <code>Streisand</code>\n"
+                "• ویندوز: <code>Nekoray</code> یا <code>v2rayN</code>\n\n"
+                "۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n"
+                "۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه <b>+</b> و انتخاب گزینه <b>Import from clipboard</b> یا <b>Add Subscription</b>).\n\n"
+                "۴. روی گزینه <b>Update Subscription</b> کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n"
+                "۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت وجود هرگونه مشکل با دکمه پشتیبانی در تماس باشید."
+            )
+        bot.send_message(message.chat.id, guides_txt, parse_mode="HTML")
 
     # 4. Support chat
     elif action == "mm_btnSupport":
@@ -1852,6 +1883,10 @@ def handle_receipt_upload(message):
             }
             db["transactions"].insert(0, new_tx)
             write_db_json(db)
+            try:
+                log_action(int(tg_id), username or f"user_{tg_id}", "ارسال رسید تراکنش", f"کاربر فیش واریزی به مبلغ {extracted_amount:,} تومان را ارسال کرد ( شناسه: {tx_id} ).")
+            except Exception as e:
+                print("Error logging submit receipt:", e)
             
             reply_text = (
                 f"✅ <b>فیش پرداختی شما با موفقیت دریافت شد!</b>\n\n"
