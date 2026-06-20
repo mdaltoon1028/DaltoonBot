@@ -3,6 +3,8 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { spawn, ChildProcess, exec } from "child_process";
+import { GoogleGenAI } from "@google/genai";
+import "dotenv/config";
 
 // Disable SSL verification for outgoing requests to 3x-ui panels
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -441,6 +443,83 @@ app.post("/api/colleague-accounts/reset-usage", (req, res) => {
     res.json({ success: false, error: "Account not found" });
   }
 });
+
+// --- AI Chatbot Feature ---
+let aiClient: GoogleGenAI | null = null;
+
+function getAiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error("GEMINI_API_KEY environment variable is required.");
+    }
+    aiClient = new GoogleGenAI({ apiKey: key });
+  }
+  return aiClient;
+}
+
+app.post("/api/ai/chat", async (req, res) => {
+  try {
+    const { message, userId } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    const ai = getAiClient();
+    const dbData = readJsonDb();
+    
+    // Clean settings to remove sensitive information before sharing context
+    const safeSettings = { ...dbData.settings };
+    delete safeSettings.panelPassword;
+    delete safeSettings.panelUsername;
+    delete safeSettings.botToken;
+    delete safeSettings.dashboardPassword;
+    
+    // Convert panel_config string to parsed object
+    let safePanelConfig: any = {};
+    if (safeSettings.panel_config) {
+      try {
+        const parsed = JSON.parse(safeSettings.panel_config);
+        delete parsed.panelPassword;
+        delete parsed.panelUsername;
+        delete parsed.botToken;
+        delete parsed.dashboardPassword;
+        safePanelConfig = parsed;
+      } catch (e) {
+        // ignore JSON issue
+      }
+    }
+    safeSettings.panel_config = JSON.stringify(safePanelConfig);
+
+    const activeUsersCount = (dbData.users || []).filter((u: any) => u.status === 'active').length;
+
+    const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به سرور V2ray / X-UI به نام "Daltoon Servers" (دالتون سرور) هستید. 
+شما باید به سوالات مرتبط با برنامه‌ها، خدمات، و وضعیت سرور پاسخ‌های مفید، محترمانه و دقیق بدهید.
+
+زمینه و اطلاعات حال حاضر سیستم:
+- بسته‌های خرید کاربر (VIP/Standard): ${JSON.stringify(dbData.vpn_plans || [])}
+- بسته‌های ویژه همکاران (عمده): ${JSON.stringify(dbData.colleague_packages || [])}
+- تعداد کل کاربران سیستم: ${activeUsersCount}
+- آیدی مدیریت جهت پشتیبانی: ${safeSettings.supportHandle || safePanelConfig.supportHandle || "@daltoon_owner"}
+- راهنما و متن قوانین پیش‌فرض: ${safeSettings.supportText || safePanelConfig.supportText || ""}
+
+لطفاً کوتاه، زیبا و با ادبیات مناسب پاسخ دهید. از ارائه اطلاعات محرمانه خودداری کنید. سوال کاربر: ${message}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: message,
+      config: {
+         systemInstruction: systemPrompt
+      }
+    });
+    
+    res.json({ response: response.text });
+  } catch (error: any) {
+    console.error("[AI Chat API Error]:", error);
+    res.status(500).json({ error: error.message || "Failed to generate AI response." });
+  }
+});
+
 // ---------------------------
 
 app.post("/api/gift-codes/edit", (req, res) => {

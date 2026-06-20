@@ -36,6 +36,8 @@ export interface PanelSettings {
   hideBtnReferral?: boolean;
   btnTextColleagues?: string;
   hideBtnColleagues?: boolean;
+  btnTextAiChat?: string;
+  hideBtnAiChat?: boolean;
   botTelegramHandle?: string;
   referralRewardAmount?: number;
   referralRewardPercent?: number;

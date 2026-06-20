@@ -707,8 +707,9 @@ export default function ServerManagement({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {vpnPlans.map((plan) => {
+            <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {vpnPlans.map((plan) => {
                 const isConfirmDeleting = confirmDeletingId === plan.id;
 
                 return (
@@ -788,6 +789,7 @@ export default function ServerManagement({
                   </div>
                 );
               })}
+            </div>
             </div>
           )}
         </div>

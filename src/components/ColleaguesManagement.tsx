@@ -245,9 +245,10 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {packages.map(p => (
-              <div key={p.id} className="bg-slate-800/50 p-4 rounded-xl border border-white/10 relative">
+          <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {packages.map(p => (
+                <div key={p.id} className="bg-slate-800/50 p-4 rounded-xl border border-white/10 relative">
                 <button
                   onClick={() => deletePackage(p.id)}
                   disabled={loading}
@@ -282,11 +283,12 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
               </div>
             )}
           </div>
+          </div>
         </div>
       )}
 
       {activeTab === "accounts" && (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
           <table className="w-full text-right" dir="rtl">
             <thead className="bg-slate-900/60 pb-2">
               <tr>

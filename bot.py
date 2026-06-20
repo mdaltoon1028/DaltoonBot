@@ -127,6 +127,7 @@ def get_config():
             config["BTN_FEEDBACK"] = panel_cfg.get("btnTextFeedback", "💌 بازخورد کاربر ها")
             config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
             config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
+            config["BTN_AI_CHAT"] = panel_cfg.get("btnTextAiChat", "🤖 چت با ربات")
             config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "💵 کیف پول + شارژ")
 
             config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
@@ -139,12 +140,13 @@ def get_config():
             config["HIDE_FEEDBACK"] = bool(panel_cfg.get("hideBtnFeedback", False))
             config["HIDE_REFERRAL"] = bool(panel_cfg.get("hideBtnReferral", False))
             config["HIDE_COLLEAGUES"] = panel_cfg.get("hideBtnColleagues", True)
+            config["HIDE_AI_CHAT"] = panel_cfg.get("hideBtnAiChat", True)
             config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
             if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
                 config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
 
             config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
-                "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+                "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
             ])
 
             if panel_cfg.get("botToken"):
@@ -496,19 +498,21 @@ def get_custom_keyboard():
 
     buttons = []
     order = cfg.get("BUTTONS_ORDER", [
-        "btnBuyNew", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+        "btnBuyNew", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnWallet", "btnSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
     ])
     
     # Backward compatibility: enforce addition of referral & wallet if missing
     if "btnWallet" not in order: order.append("btnWallet")
     if "btnReferral" not in order: order.append("btnReferral")
     if "btnColleagues" not in order: order.append("btnColleagues")
+    if "btnAiChat" not in order: order.append("btnAiChat")
 
     for key in order:
         if key == "btnBuyNew" and not cfg.get("HIDE_BUY_NEW", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید"), callback_data="mm_btnBuyNew"))
         elif key == "btnMySubs" and not cfg.get("HIDE_MY_SUBS", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_MY_SUBS", "🗂 اشتراک های من / تمدید"), callback_data="mm_btnMySubs"))
         elif key == "btnGuides" and not cfg.get("HIDE_GUIDES", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
         elif key == "btnColleagues" and not cfg.get("HIDE_COLLEAGUES", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"), callback_data="mm_btnColleagues"))
+        elif key == "btnAiChat" and not cfg.get("HIDE_AI_CHAT", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"), callback_data="mm_btnAiChat"))
         elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری"), callback_data="mm_btnProfile"))
         elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "💵 کیف پول + شارژ"), callback_data="mm_btnWallet"))
         elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی"), callback_data="mm_btnSupport"))
@@ -612,7 +616,18 @@ def handle_main_menu_callback(call):
     db = read_db_json()
     user = get_user_data(tg_id)
     
-    if action == "mm_btnBuyNew" or action == "mm_btnBuy":
+    if action == "mm_btnAiChat":
+        msg = bot.edit_message_text(
+            "🤖 <b>چت هوشمند فعال شد!</b>\n\nسوال خود را بپرسید تا با استفاده از هوش‌مصنوعی پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+            chat_id=message.chat.id,
+            message_id=message.message_id,
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(message, process_ai_chat)
+        return
+
+    elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
         db_plans = db.get("vpn_plans", [])
         
         # Build the dynamic list of premium packages
@@ -1289,6 +1304,33 @@ def callback_handler(call):
             bot.answer_callback_query(call.id)
         except Exception as e:
             print(f"[Error Charge Custom Init] {e}")
+
+def process_ai_chat(message):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ چت با هوش‌مصنوعی متوقف شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    typing_msg = bot.send_message(message.chat.id, "🤖 <i>در حال تایپ...</i>", parse_mode="HTML")
+    
+    try:
+        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text}, timeout=60)
+        bot.delete_message(message.chat.id, typing_msg.message_id)
+        if response.status_code == 200:
+            data = response.json()
+            reply = data.get("response", "پاسخی دریافت نشد.")
+            msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
+            bot.register_next_step_handler(msg, process_ai_chat)
+        else:
+            msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}): {response.text}. دوباره بپرسید:", reply_markup=get_cancel_keyboard())
+            bot.register_next_step_handler(msg, process_ai_chat)
+    except Exception as e:
+        bot.delete_message(message.chat.id, typing_msg.message_id)
+        msg = bot.send_message(message.chat.id, f"❌ خطا در ارتباط: {e}\nمجدداً تلاش کنید:", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_ai_chat)
 
 def process_colleague_login_username(message):
     tg_id = message.from_user.id

@@ -272,7 +272,7 @@ export default function GiftCodeManager({
         <div className="p-4 border-b border-slate-700/50">
           <h3 className="text-sm font-semibold text-white">{lang === 'fa' ? 'کدهای هدیه ثبت شده' : 'Registered Gift Codes'}</h3>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
           <table className="w-full text-right text-slate-300">
             <thead className="bg-slate-900/50 text-slate-400 text-sm">
               <tr>
