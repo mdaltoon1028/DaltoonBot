@@ -2441,6 +2441,35 @@ app.post("/api/system/update", async (req, res) => {
   try {
     const { exec } = require('child_process');
     
+    // Increment version first in package.json using custom carry-over rules (e.g. 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0)
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const pkgPath = path.join(process.cwd(), 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        const currentVersion = pkg.version || "1.0.1";
+        const parts = currentVersion.split('.').map(Number);
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          let [major, minor, patch] = parts;
+          patch += 1;
+          if (patch > 9) {
+            patch = 0;
+            minor += 1;
+            if (minor > 9) {
+              minor = 0;
+              major += 1;
+            }
+          }
+          pkg.version = `${major}.${minor}.${patch}`;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf8');
+          console.log(`[Auto-Update] Version updated to ${pkg.version}`);
+        }
+      }
+    } catch (vErr: any) {
+      console.error("[Auto-Update] Version increment failed", vErr.message);
+    }
+    
     res.json({ success: true, message: "به‌روزرسانی در پس‌زمینه آغاز شد. سیستم به‌زودی راه‌اندازی مجدد می‌شود..." });
     
     // Run update sequence asynchronously
