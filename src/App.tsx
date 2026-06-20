@@ -45,6 +45,7 @@ import GiftCodeManager from "./components/GiftCodeManager";
 import TicketManager from "./components/TicketManager";
 import BotLogs from "./components/BotLogs";
 import { LoginScreen } from "./components/LoginScreen";
+import ConfirmationModal from "./components/ConfirmationModal";
 
 const LionAndSunFlag = () => (
   <div className="inline-flex items-center select-none" title="پرچم شیر و خورشید ایران">
@@ -215,6 +216,7 @@ export default function App() {
   const [appVersion, setAppVersion] = useState("2.0.0");
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
 
   useEffect(() => {
     fetch("/api/system/check-update")
@@ -227,7 +229,11 @@ export default function App() {
   }, []);
 
   const handleUpdate = () => {
-    if (!window.confirm(lang === "fa" ? "آیا از بروزرسانی سیستم مطمئن هستید؟" : "Are you sure you want to update?")) return;
+    setShowUpdateConfirm(true);
+  };
+
+  const executeUpdate = () => {
+    setShowUpdateConfirm(false);
     setIsUpdating(true);
     setToastMessage(lang === "fa" ? "در حال بروزرسانی..." : "Updating...");
     fetch("/api/system/update", { method: "POST" })
@@ -1147,6 +1153,14 @@ export default function App() {
               setCustomButtons={setCustomButtons}
             />
           )}
+
+          <ConfirmationModal 
+            isOpen={showUpdateConfirm}
+            message={lang === "fa" ? "آیا از بروزرسانی سیستم مطمئن هستید؟ توجه: سیستم مدتی در دسترس نخواهد بود." : "Are you sure you want to update the system? Note: It will be unavailable during restart."}
+            onConfirm={executeUpdate}
+            onCancel={() => setShowUpdateConfirm(false)}
+            lang={lang}
+          />
         </div>
 
       </main>

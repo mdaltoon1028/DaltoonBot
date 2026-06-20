@@ -12,21 +12,21 @@ export default function ConfirmationModal({ isOpen, message, onConfirm, onCancel
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-2xl shadow-2xl w-full max-w-sm space-y-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
+      <div className="bg-slate-900/80 border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4">
         <p className="text-white text-sm font-medium leading-relaxed">{message}</p>
-        <div className="flex gap-3 pt-2">
+        <div className="flex gap-3 pt-4">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 bg-[#1f2937] hover:bg-[#2d3748] text-gray-300 rounded-lg text-xs font-semibold transition"
+            className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md text-gray-300 rounded-xl text-sm font-medium transition-all duration-200"
           >
             {lang === "fa" ? "انصراف" : "Cancel"}
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition"
+            className="flex-1 px-4 py-2.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 backdrop-blur-md text-indigo-300 rounded-xl text-sm font-medium transition-all duration-200 shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
           >
-            {lang === "fa" ? "تایید" : "Confirm"}
+            {lang === "fa" ? "تأیید بروزرسانی" : "Confirm"}
           </button>
         </div>
       </div>

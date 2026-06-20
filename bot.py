@@ -424,7 +424,7 @@ def pop_user_pending_charge(tg_id):
         return amount
     return None
 
-def register_tg_user(tg_id, username):
+def register_tg_user(tg_id, username, referral_id=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if not user:
@@ -437,6 +437,23 @@ def register_tg_user(tg_id, username):
             "joinDate": join_date,
             "status": "active"
         }
+        
+        if referral_id and referral_id != tg_id:
+            referrer = next((u for u in db["users"] if u["userId"] == referral_id), None)
+            if referrer:
+                settings = db.get("settings", {})
+                percent = settings.get("referralRewardPercent", 5)
+                amount = settings.get("referralBaseAmount", 100000)
+                reward = max(0, round((amount * percent) / 100))
+                referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
+                referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
+                referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
+                new_user["referredBy"] = referral_id
+                try:
+                    bot.send_message(referral_id, f"🎉 <b>تبریک!</b>\nیک نفر با لینک شما وارد ربات شد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
+                except Exception as e:
+                    print("Could not notify referrer:", e)
+
         db["users"].append(new_user)
         write_db_json(db)
         print(f"[Database] Registered new user into JSON: {tg_id}")
@@ -654,7 +671,12 @@ def start_cmd(message):
     tg_id = message.from_user.id
     username = message.from_user.username
     
-    register_tg_user(tg_id, username)
+    parts = message.text.split()
+    referral_id = None
+    if len(parts) > 1 and parts[1].isdigit():
+        referral_id = int(parts[1])
+        
+    register_tg_user(tg_id, username, referral_id=referral_id)
     user = get_user_data(tg_id)
     
     if user and user.get('status') == 'banned':
@@ -1051,12 +1073,24 @@ def handle_main_menu_callback(call):
     # 6. Referral
     elif action == "mm_btnReferral":
         settings = db.get("settings", {})
-        bot_username = settings.get("botTelegramHandle", "your_bot_id")
+        bot_username = settings.get("botTelegramHandle", "").strip()
+        if not bot_username or bot_username in ["your_bot_id", "bot_username"]:
+            try:
+                bot_info = bot.get_me()
+                bot_username = bot_info.username
+            except:
+                bot_username = "your_bot_id"
+        
+        bot_username = bot_username.replace("@", "")
         percent = settings.get("referralRewardPercent", 5)
         amount = settings.get("referralBaseAmount", 100000)
         calculated_reward = max(0, round((amount * percent) / 100))
         uid = str(tg_id)
         link = f"https://t.me/{bot_username}?start={uid}"
+        
+        user = next((u for u in db.get("users", []) if u["userId"] == tg_id), {})
+        referrals_count = user.get("referralCount", 0)
+        referrals_reward = user.get("referralRewardTotal", 0)
         
         default_msg = (
             "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n"
@@ -1064,17 +1098,27 @@ def handle_main_menu_callback(call):
             "{link}\n\n"
             "🎁 با دعوت از هر دوست، {reward} تومان (معادل {percent}% مبلغ پایه) پاداش دریافت می‌کنید.\n\n"
             "📊 آمار دعوت شما\n"
-            "• افراد وارد شده با لینک: 0\n"
-            "• پاداش دریافت شده: 0 تومان"
+            f"• افراد وارد شده با لینک: {referrals_count}\n"
+            f"• پاداش دریافت شده: {referrals_reward:,} تومان"
         )
         
         raw_template = settings.get("referralMessage", default_msg)
         
+        # In case the user had a custom template, we should still try to insert the real stats.
+        # But if the custom template text is exactly the old default msg with hardcoded "0", fix it
+        if "افراد وارد شده با لینک: 0" in raw_template:
+            raw_template = raw_template.replace("افراد وارد شده با لینک: 0", f"افراد وارد شده با لینک: {referrals_count}")
+        if "پاداش دریافت شده: 0 تومان" in raw_template:
+            raw_template = raw_template.replace("پاداش دریافت شده: 0 تومان", f"پاداش دریافت شده: {referrals_reward:,} تومان")
+            
+        # Optional: you could define `{referrals_count}` and `{referrals_reward}` placeholders in the template
         reply_text = raw_template.replace("{uid}", uid)\
             .replace("{link}", link)\
             .replace("{percent}", str(percent))\
             .replace("{amount}", f"{amount:,}")\
-            .replace("{reward}", f"{calculated_reward:,}")
+            .replace("{reward}", f"{calculated_reward:,}")\
+            .replace("{referrals_count}", str(referrals_count))\
+            .replace("{referrals_reward}", f"{referrals_reward:,}")
             
         markup = types.InlineKeyboardMarkup()
         markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))

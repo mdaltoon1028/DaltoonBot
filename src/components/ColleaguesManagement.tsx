@@ -448,24 +448,24 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
 
       {/* Confirmation Modal Container */}
       {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn font-sans">
-          <div className="bg-[#0f172a] border border-gray-800 rounded-2xl w-full max-w-sm p-5 space-y-5 shadow-2xl text-right font-sans" dir="rtl">
-            <div className="flex items-center gap-2 text-amber-400 border-b border-gray-800 pb-2.5">
-              <AlertCircle className="w-4 h-4 ml-1 text-amber-400" />
-              <h3 className="text-xs font-bold text-white">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in font-sans">
+          <div className="bg-slate-900/80 border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4" dir={lang === "fa" ? "rtl" : "ltr"}>
+            <div className="flex items-center gap-2 text-amber-400 border-b border-white/5 pb-3">
+              <AlertCircle className="w-5 h-5 text-amber-400" />
+              <h3 className="text-sm font-bold text-white">
                 {lang === "fa" ? "تایید نهایی عملیات" : "Confirm Operation"}
               </h3>
             </div>
             
-            <p className="text-xs text-gray-400 leading-relaxed font-sans">
+            <p className="text-white text-sm font-medium leading-relaxed font-sans">
               {confirmAction.message}
             </p>
 
-            <div className="flex items-center justify-end gap-2 pt-1.5 font-sans">
+            <div className="flex items-center gap-3 pt-4 font-sans">
               <button
                 type="button"
                 onClick={() => setConfirmAction(null)}
-                className="px-3.5 py-1.5 rounded-lg bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-semibold cursor-pointer transition font-sans border border-gray-800"
+                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md text-gray-300 rounded-xl text-sm font-medium transition-all duration-200"
               >
                 {lang === "fa" ? "انصراف" : "Cancel"}
               </button>
@@ -475,7 +475,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   confirmAction.onConfirm();
                   setConfirmAction(null);
                 }}
-                className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold cursor-pointer transition font-sans"
+                className="flex-1 px-4 py-2.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 backdrop-blur-md text-indigo-300 rounded-xl text-sm font-medium transition-all duration-200 shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
               >
                 {lang === "fa" ? "تایید" : "Confirm"}
               </button>
