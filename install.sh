@@ -139,6 +139,11 @@ db.settings.panel_config = JSON.stringify(panel_config);
 fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 "
 
+# Allow custom port through firewall
+echo -e "${YELLOW}Configuring firewall for port $DASH_PORT...${NC}"
+ufw allow $DASH_PORT/tcp > /dev/null 2>&1 || true
+iptables -I INPUT -p tcp --dport $DASH_PORT -j ACCEPT > /dev/null 2>&1 || true
+
 # 6. Install PM2 and Start Server
 echo -e "${GREEN}[6/6] Setting up process manager PM2...${NC}"
 npm install -g pm2

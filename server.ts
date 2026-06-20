@@ -2272,37 +2272,25 @@ app.get("/api/system/check-update", async (req, res) => {
 
 app.post("/api/system/update", async (req, res) => {
   try {
-    const { execSync } = require('child_process');
-    // Run git pull to get latest updates
-    console.log("[Auto-Update] Running git pull...");
-    execSync('git pull', { stdio: 'pipe' });
+    const { exec } = require('child_process');
     
-    console.log("[Auto-Update] Bump version...");
-    try {
-      execSync('npm --no-git-tag-version version patch', { stdio: 'pipe' });
-    } catch(e) {
-      console.log("Could not bump version", e);
-    }
+    res.json({ success: true, message: "به‌روزرسانی در پس‌زمینه آغاز شد. سیستم به‌زودی راه‌اندازی مجدد می‌شود..." });
     
-    console.log("[Auto-Update] Running npm install...");
-    execSync('npm install', { stdio: 'pipe' });
-
-    console.log("[Auto-Update] Running build...");
-    execSync('npm run build', { stdio: 'pipe' });
-
-    res.json({ success: true, message: "به‌روزرسانی با موفقیت انجام شد. سیستم در حال راه‌اندازی مجدد است..." });
-    
-    // Allow response to send, then exit process to trigger restart by PM2/Docker
+    // Run update sequence asynchronously
     setTimeout(() => {
-      console.log("[Auto-Update] Restarting process...");
-      process.exit(1);
-    }, 2000);
+      console.log("[Auto-Update] Starting background update sequence...");
+      exec('git stash && git pull && npm install && npm run build && pm2 restart all', (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          console.error("[Auto-Update Error]", error.message);
+        } else {
+          console.log("[Auto-Update] Update completed successfully.");
+        }
+      });
+    }, 1000);
+    
   } catch (err: any) {
     console.error("[Auto-Update Error]", err.message);
-    let errMsg = err.message;
-    if (err.stdout) errMsg += "\n" + err.stdout.toString();
-    if (err.stderr) errMsg += "\n" + err.stderr.toString();
-    res.status(500).json({ success: false, error: errMsg });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

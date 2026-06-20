@@ -82,11 +82,11 @@ async function mainMenu() {
     if (choice === '1') {
       clearScreen();
       printHeader();
-      console.log("\x1b[33m=== EXECUTING SYSTEM INSTALLATION SCRIPT ===\x1b[0m");
-      console.log("Fetching and executing official installation curl script...\n");
+      console.log("\x1b[33m=== EXECUTING SYSTEM UPDATE ===\x1b[0m");
+      console.log("Fetching latest updates and building...\n");
       try {
-        execSync("bash <(curl -s link https://raw.githubusercontent.com/mdaltoon1028/DaltoonBot/main/install.sh || curl -s https://raw.githubusercontent.com/mdaltoon1028/DaltoonBot/main/install.sh)", { cwd: __dirname, stdio: "inherit", shell: "/bin/bash" });
-        console.log("\n\x1b[32m✔ Installer script finished execution!\x1b[0m");
+        execSync("git stash && git pull && npm install && npm run build && pm2 restart all", { cwd: __dirname, stdio: "inherit" });
+        console.log("\n\x1b[32m✔ Project successfully updated!\x1b[0m");
       } catch (err) {
         console.log("\x1b[31mError during update operations:\x1b[0m", err.message);
       }

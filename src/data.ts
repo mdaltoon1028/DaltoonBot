@@ -2,10 +2,10 @@ import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey
 
 export const initialSettings: PanelSettings = {
   botToken: "",
-  baseUrl: "https://m.daltoon-server.ir:8443",
-  panelUrl: "https://m.daltoon-server.ir:8443/Daltoon",
-  panelUsername: "Daltoon",
-  panelPassword: "Daltoon10",
+  baseUrl: "https://panel.example.com:8443",
+  panelUrl: "https://panel.example.com:8443/secretPath",
+  panelUsername: "admin",
+  panelPassword: "Daltoon",
   activeInboundIds: [1, 12, 16, 19, 24, 26],
   ownerId: 6536288293,
   btnTextGuides: "💡 راهنمای اتصال",
