@@ -2114,6 +2114,37 @@ def process_ticket_message(message):
         bot.register_next_step_handler(msg, process_ticket_message)
         return
 
+    import random
+    from datetime import datetime
+
+    # Create ticket in JSON database for dashboard visibility
+    ticket_id = f"TKB-{random.randint(1000, 9999)}"
+    try:
+        db = read_db_json()
+        if "tickets" not in db or not isinstance(db["tickets"], list):
+            db["tickets"] = []
+        
+        new_ticket = {
+            "id": ticket_id,
+            "userId": tg_id,
+            "username": username,
+            "subject": "پشتیبانی تلگرام",
+            "status": "open",
+            "createdAt": datetime.now().isoformat(),
+            "updatedAt": datetime.now().isoformat(),
+            "messages": [
+                {
+                    "sender": "user",
+                    "message": text,
+                    "date": datetime.now().isoformat()
+                }
+            ]
+        }
+        db["tickets"].append(new_ticket)
+        write_db_json(db)
+    except Exception as dberr:
+        print("Error saving ticket to db:", dberr)
+
     # Notify admins and owner
     cfg = get_config()
     targets = set()
@@ -2126,7 +2157,7 @@ def process_ticket_message(message):
 
     # Log action
     try:
-        log_action(tg_id, username, "ثبت تیکت پشتیبانی", f"متن پیام: {text}")
+        log_action(tg_id, username, "ثبت تیکت پشتیبانی", f"متن پیام: {text} - شناسه تیکت: {ticket_id}")
     except Exception as e:
         print("Error logging ticket:", e)
 
@@ -2136,9 +2167,11 @@ def process_ticket_message(message):
         try:
             admin_msg = (
                 f"🎫 <b>تیکت جدید از کاربر!</b>\n\n"
+                f"🆔 <b>شناسه تیکت:</b> <code>{ticket_id}</code>\n"
                 f"👤 <b>کاربر:</b> @{username} (<code>{tg_id}</code>)\n"
                 f"📝 <b>متن پیام/مشکل:</b>\n"
-                f"<blockquote>{text}</blockquote>"
+                f"<blockquote>{text}</blockquote>\n"
+                f"👉 <i>می‌توانید به این تیکت در داشبورد پاسخ دهید.</i>"
             )
             bot.send_message(target_id, admin_msg, parse_mode="HTML")
             admin_notified_count += 1
@@ -2147,8 +2180,8 @@ def process_ticket_message(message):
 
     # Success feedback
     success_text = (
-        "✅ <b>تیکت شما ثبت شد!</b>\n\n"
-        "پیام به ادمین فرستاده شد. کارشناسان ما در اسرع وقت پیام شما را پاسخ خواهند داد."
+        f"✅ <b>تیکت شما ثبت شد! (شناسه: {ticket_id})</b>\n\n"
+        f"پیام شما در داشبورد ثبت گردید و برای ادمین‌ها ارسال شد. کارشناسان ما در اسرع وقت پاسخگو خواهند بود."
     )
     bot.reply_to(message, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
 

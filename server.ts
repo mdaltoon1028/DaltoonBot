@@ -201,20 +201,17 @@ function readJsonDb(): DbSchema {
     const db = JSON.parse(raw);
     
     let modified = false;
-    // Backport empty arrays on existing database structures
-    if (!db.vpn_plans) {
-      db.vpn_plans = [];
-      modified = true;
-    }
-
-    if (!db.promo_codes) {
-      db.promo_codes = [];
-      modified = true;
-    }
-
-    if (!db.tickets) {
-      db.tickets = [];
-      modified = true;
+    // Backport empty arrays on existing database structures to guarantee safety
+    const arraysToEnsure = [
+      "users", "transactions", "subscription_keys", "inbounds", "custom_buttons",
+      "vpn_plans", "gift_codes", "colleague_packages", "colleague_accounts",
+      "promo_codes", "tickets", "logs"
+    ];
+    for (const key of arraysToEnsure) {
+      if (!db[key] || !Array.isArray(db[key])) {
+        db[key] = [];
+        modified = true;
+      }
     }
 
     if (modified) {
@@ -689,6 +686,21 @@ app.post("/api/tickets/reply", (req, res) => {
       ticket.updatedAt = new Date().toISOString();
       
       writeJsonDb(db);
+
+      // Notify the user on Telegram of the admin reply
+      const settings = getSystemSettings(db);
+      if (settings.botToken && ticket.userId) {
+        const notifyMsg = 
+          `📨 <b>پاسخ پشتیبانی به تیکت شما!</b>\n\n` +
+          `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n` +
+          `💬 <b>متن پاسخ:</b>\n` +
+          `<blockquote>${reply}</blockquote>\n\n` +
+          `🍀 <i>از اعتماد و شکیبایی شما سپاسگزاریم.</i>`;
+        sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(err => {
+          console.error("[Telegram Ticket Reply Auto-Notify Error]", err);
+        });
+      }
+
       res.json({ success: true, ticket });
     } else {
       res.status(404).json({ success: false, error: "Ticket not found" });
@@ -706,10 +718,25 @@ app.post("/api/tickets/close", (req, res) => {
     
     const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
     if (ticketIdx >= 0) {
-      db.tickets[ticketIdx].status = "closed";
-      db.tickets[ticketIdx].updatedAt = new Date().toISOString();
+      const ticket = db.tickets[ticketIdx];
+      ticket.status = "closed";
+      ticket.updatedAt = new Date().toISOString();
       writeJsonDb(db);
-      res.json({ success: true, ticket: db.tickets[ticketIdx] });
+
+      // Notify the user on Telegram of ticket closure
+      const settings = getSystemSettings(db);
+      if (settings.botToken && ticket.userId) {
+        const notifyMsg = 
+          `🔒 <b>تیکت شما بسته شد!</b>\n\n` +
+          `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n\n` +
+          `💬 تیکت شما توسط پشتیبانی فنی دالتون استور بررسی و بسته شد.\n` +
+          `اگر همچنان نیاز به راهنمایی بیشتری دارید، می‌توانید تیکت جدیدی در ربات ثبت فرمایید.`;
+        sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(err => {
+          console.error("[Telegram Ticket Close Auto-Notify Error]", err);
+        });
+      }
+
+      res.json({ success: true, ticket });
     } else {
       res.status(404).json({ success: false, error: "Ticket not found" });
     }
