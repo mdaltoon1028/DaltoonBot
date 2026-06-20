@@ -1787,6 +1787,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
         expireDate: expireDate,
         trafficLimitGb: Number(trafficLimitGb),
         trafficUsedGb: 0,
+        createdAtMs: Date.now(),
         status: "active" as const
       };
 
@@ -2055,6 +2056,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       expireDate: expireDate,
       trafficLimitGb: plan.trafficGb,
       trafficUsedGb: 0,
+      createdAtMs: Date.now(),
       status: "active" as const
     };
 
@@ -2285,6 +2287,24 @@ async function autoCleanExpiredFreeTrials() {
   }
 }
 
+async function sendTelegramMessage(botToken: string, chatId: string | number, text: string) {
+  if (!botToken || botToken === "DUMMY_TOKEN") return;
+  try {
+    const fetchRef = globalThis.fetch || fetch;
+    await fetchRef(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    });
+  } catch (err) {
+    console.error(`[Telegram Warning] Fail to send to ${chatId}:`, err);
+  }
+}
+
 async function autoSyncTrafficUsage() {
   try {
     const db = readJsonDb();
@@ -2308,33 +2328,59 @@ async function autoSyncTrafficUsage() {
       "Accept": "application/json"
     };
 
-    // Get all inbounds
-    const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 10000);
-    if (!inbRes.ok) return;
-    
-    const inbJson = await inbRes.json();
-    if (!inbJson.success || !Array.isArray(inbJson.obj)) return;
+    // Try to get clientTraffics API directly for accurate unique stats
+    let trafficJson = null;
+    try {
+        const ctRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/getClientTraffics`, { method: "GET", headers }, 8000);
+        if (ctRes.ok) trafficJson = await ctRes.json();
+    } catch(e) {}
 
-    let updatedCount = 0;
-    
-    // Create a map of emails to their total used traffic (in bytes)
     const trafficMap: Record<string, { up: number, down: number, total: number }> = {};
     
-    for (let inb of inbJson.obj) {
-      let clientStats = inb.clientStats || [];
-      for (let cs of clientStats) {
+    if (trafficJson && trafficJson.success && Array.isArray(trafficJson.obj)) {
+      for (let cs of trafficJson.obj) {
         if (cs.email) {
-          if (!trafficMap[cs.email]) trafficMap[cs.email] = { up: 0, down: 0, total: 0 };
-          trafficMap[cs.email].up += Number(cs.up) || 0;
-          trafficMap[cs.email].down += Number(cs.down) || 0;
-          trafficMap[cs.email].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+          const lMail = cs.email.toLowerCase();
+          if (!trafficMap[lMail]) trafficMap[lMail] = { up: 0, down: 0, total: 0 };
+          trafficMap[lMail].up += Number(cs.up) || 0;
+          trafficMap[lMail].down += Number(cs.down) || 0;
+          trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+        }
+      }
+    } else {
+      // Get all inbounds fallback
+      const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 10000);
+      if (!inbRes.ok) return;
+      
+      const inbJson = await inbRes.json();
+      if (!inbJson.success || !Array.isArray(inbJson.obj)) return;
+
+      const seenStats = new Set<string>();
+
+      for (let inb of inbJson.obj) {
+        let clientStats = inb.clientStats || [];
+        for (let cs of clientStats) {
+          if (cs.email) {
+            // deduplicate if id exists
+            if (cs.id !== undefined && cs.id !== null) {
+              const statKey = `${cs.id}_${cs.email}`;
+              if (seenStats.has(statKey)) continue;
+              seenStats.add(statKey);
+            }
+            const lMail = cs.email.toLowerCase();
+            if (!trafficMap[lMail]) trafficMap[lMail] = { up: 0, down: 0, total: 0 };
+            trafficMap[lMail].up += Number(cs.up) || 0;
+            trafficMap[lMail].down += Number(cs.down) || 0;
+            trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+          }
         }
       }
     }
 
+    let updatedCount = 0;
+    
     for (let k of db.subscription_keys || []) {
-      // Check clientName or we might be using 'name' or 'planName' depending on how it's created.
-      const matchName = k.clientName || k.planName || k.name;
+      const matchName = (k.clientName || k.planName || k.name || "").toLowerCase();
       if (matchName && trafficMap[matchName]) {
         const usedGb = trafficMap[matchName].total / (1024 * 1024 * 1024);
         if (Math.abs((k.trafficUsedGb || 0) - usedGb) > 0.01) {
@@ -2345,20 +2391,50 @@ async function autoSyncTrafficUsage() {
 
       // Check Expiry Warning Feature (1GB remaining or 1 Day remaining)
       const isAutoWarningEnabled = String(db.settings?.autoWarningConfigBtn || "true") !== "false";
+      let expDateObj = null;
+      let remainingDays = 999;
+      const remainingGb = (k.trafficLimitGb || 50) - (k.trafficUsedGb || 0);
+      
+      try {
+        expDateObj = new Date(k.expireDate);
+        remainingDays = Math.ceil((expDateObj.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      } catch(e) {}
+      
       if (isAutoWarningEnabled && !k.expiryWarningSent) {
-        const remainingGb = (k.trafficLimitGb || 50) - (k.trafficUsedGb || 0);
-        let remainingDays = 999;
-        try {
-          const expDate = new Date(k.expireDate);
-          const diffTime = expDate.getTime() - Date.now();
-          remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        } catch(e) {}
-
         if ((remainingGb <= 1 && remainingGb > 0) || (remainingDays <= 1 && remainingDays > 0)) {
-           // Queue an imaginary bot message for this user (or just log it for the mock)
-           console.log(`[Official Warning] User ${k.userId} subscription "${k.planName}" is running out (Remaining: ${remainingGb.toFixed(2)}GB, ${remainingDays} days).`);
+           console.log(`[Official Warning] User ${k.userId} subscription "${k.planName || k.clientName}" is running out.`);
+           const msg = `⚠️ <b>هشدار اتمام سرویس</b>\n\nکاربر گرامی، سرویس شما در حال اتمام است.\n\n🌐 نام سرویس: ${k.planName || "بدون نام"}\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔻 حجم باقیمانده: ${remainingGb.toFixed(2)} GB\n⏳ روز باقیمانده: ${remainingDays} روز\n\nلطفاً نسبت به تمدید سرویس خود اقدام نمایید.`;
+           await sendTelegramMessage(settings.botToken, k.userId, msg);
            k.expiryWarningSent = true;
            updatedCount++;
+        }
+      }
+
+      // Check No-Connection Warning Alert
+      const isNoConnAlertEnabled = String(db.settings?.autoWarningNoConnectionBtn || "true") !== "false";
+      if (isNoConnAlertEnabled && !k.noConnectionWarningSent && Math.abs(k.trafficUsedGb || 0) < 0.001) {
+        if (expDateObj) {
+           // We infer creation date from expire date and limit duration. For simplicity, just check if 1 day passed since 'now' and start date if possible.
+           // However, without a clean createdAt, we can approximate: if duration is standard 30 and remaining is <= 29.
+           // Better yet, just check if `k.createdAtMs` exists. Since we don't have it, we'll mark existing ones to avoid spam.
+           if (!k.createdAtMs) {
+               // Assign current time to old ones to avoid spamming everyone suddenly
+               k.createdAtMs = Date.now();
+               updatedCount++;
+           } else {
+               const daysSinceCreation = (Date.now() - k.createdAtMs) / (1000 * 60 * 60 * 24);
+               if (daysSinceCreation >= 1) {
+                   console.log(`[Official Warning] User ${k.userId} hasn't connected for 1 day.`);
+                   let jalaliDate = k.expireDate;
+                   try {
+                     jalaliDate = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(k.expireDate));
+                   } catch(e) {}
+                   const msg = `🔔 <b>پیام سیستم:</b>\n\n🤔 <b>آیا مشکلی در اتصال به VPN دارید؟</b>\n\nسرویس شما 1 روز پیش فعال شده اما هنوز به آن متصل نشده‌اید.\n\n🖌️ نام سرویس: ${k.planName || "بدون نام"}\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔺حجم بسته: ${(k.trafficLimitGb || 0).toFixed(2)} GB\n🔻حجم باقی مانده: ${remainingGb.toFixed(2)} GB\n📅 تاریخ انقضا: ${jalaliDate}\n\n🔧 <b>اگر در اتصال مشکل دارید:</b>\n• راهنمای اتصال را مطالعه کنید\n• اپلیکیشن VPN خود را بررسی کنید\n• در صورت نیاز به پشتیبانی پیام دهید`;
+                   await sendTelegramMessage(settings.botToken, k.userId, msg);
+                   k.noConnectionWarningSent = true;
+                   updatedCount++;
+               }
+           }
         }
       }
     }

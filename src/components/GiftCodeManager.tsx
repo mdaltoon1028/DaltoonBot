@@ -39,11 +39,13 @@ export default function GiftCodeManager({
 
   // Referral Settings States
   const [botTelegramHandle, setBotTelegramHandle] = useState(settings?.botTelegramHandle || "");
-  const [referralRewardAmount, setReferralRewardAmount] = useState(settings?.referralRewardAmount ?? 0);
-  const [referralRewardPercent, setReferralRewardPercent] = useState(settings?.referralRewardPercent ?? 5);
-  const [referralL2Percent, setReferralL2Percent] = useState(settings?.referralL2Percent ?? 0);
-  const [referralRewardCondition, setReferralRewardCondition] = useState<'invite' | 'purchase'>(settings?.referralRewardCondition || 'invite');
-  const [calculationAmount, setCalculationAmount] = useState<number>(settings?.referralBaseAmount ?? 100000);
+  const [referralRewardAmount, setReferralRewardAmount] = useState<number | ''>(settings?.referralRewardAmount ?? 0);
+  const [referralRewardPercent, setReferralRewardPercent] = useState<number | ''>(settings?.referralRewardPercent ?? 5);
+  const [referralL2Percent, setReferralL2Percent] = useState<number | ''>(settings?.referralL2Percent ?? 0);
+  const [referralL3Percent, setReferralL3Percent] = useState<number | ''>(settings?.referralL3Percent ?? 0);
+  const [referralL4Percent, setReferralL4Percent] = useState<number | ''>(settings?.referralL4Percent ?? 0);
+  const [referralRewardCondition, setReferralRewardCondition] = useState<'invite' | 'purchase' | 'both'>(settings?.referralRewardCondition || 'invite');
+  const [calculationAmount, setCalculationAmount] = useState<number | ''>(settings?.referralBaseAmount ?? 100000);
   const [referralMessage, setReferralMessage] = useState(settings?.referralMessage || 
     "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n" + 
     "در ضمن کد معرف اختصاصی شما {uid} می باشد.\n\n" + 
@@ -98,11 +100,13 @@ export default function GiftCodeManager({
       onSaveSettings({
         ...settings,
         botTelegramHandle,
-        referralRewardAmount,
-        referralRewardPercent,
-        referralL2Percent,
+        referralRewardAmount: referralRewardAmount === '' ? 0 : referralRewardAmount,
+        referralRewardPercent: referralRewardPercent === '' ? 0 : referralRewardPercent,
+        referralL2Percent: referralL2Percent === '' ? 0 : referralL2Percent,
+        referralL3Percent: referralL3Percent === '' ? 0 : referralL3Percent,
+        referralL4Percent: referralL4Percent === '' ? 0 : referralL4Percent,
         referralRewardCondition,
-        referralBaseAmount: calculationAmount,
+        referralBaseAmount: calculationAmount === '' ? 0 : calculationAmount,
         referralMessage
       });
       setSavedSettings(true);
@@ -516,13 +520,19 @@ export default function GiftCodeManager({
                     onClick={() => setReferralRewardCondition('invite')}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'invite' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                   >
-                    {isFa ? 'هنگام ورود کاربر با لینک شما (Invite)' : 'On User Invite'}
+                    {isFa ? 'فقط هنگام ورود (Invite)' : 'On Invite Only'}
                   </button>
                   <button
                     onClick={() => setReferralRewardCondition('purchase')}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'purchase' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                   >
-                    {isFa ? 'هنگام اولین خرید کاربر (Purchase)' : 'On First Purchase'}
+                    {isFa ? 'فقط هنگام خرید (Purchase)' : 'On Purchase Only'}
+                  </button>
+                  <button
+                    onClick={() => setReferralRewardCondition('both')}
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'both' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {isFa ? 'هر دو (هم ورود هم خرید)' : 'Both'}
                   </button>
                 </div>
               </div>
@@ -533,7 +543,7 @@ export default function GiftCodeManager({
                   <input
                     type="number"
                     value={referralRewardPercent}
-                    onChange={(e) => setReferralRewardPercent(Number(e.target.value))}
+                    onChange={(e) => setReferralRewardPercent(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
                     placeholder="5"
                     min="0"
@@ -549,7 +559,7 @@ export default function GiftCodeManager({
                   <input
                     type="number"
                     value={referralL2Percent}
-                    onChange={(e) => setReferralL2Percent(Number(e.target.value))}
+                    onChange={(e) => setReferralL2Percent(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-amber-300 focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
                     placeholder="2"
                     min="0"
@@ -560,12 +570,45 @@ export default function GiftCodeManager({
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium text-blue-300">{isFa ? 'درصد پاداش لایه سوم (تیم)' : 'Level 3 Reward Percentage'}</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={referralL3Percent}
+                    onChange={(e) => setReferralL3Percent(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-blue-300 focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
+                    placeholder="1"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400/50 select-none">%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-purple-300">{isFa ? 'درصد پاداش لایه چهارم (تیم)' : 'Level 4 Reward Percentage'}</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={referralL4Percent}
+                    onChange={(e) => setReferralL4Percent(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-purple-300 focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
+                    placeholder="0.5"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400/50 select-none">%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">{isFa ? 'مبلغ پایه محاسبه (تومان)' : 'Base Calculation Amount'}</label>
                 <div className="relative">
                   <input
                     type="number"
                     value={calculationAmount}
-                    onChange={(e) => setCalculationAmount(Number(e.target.value))}
+                    onChange={(e) => setCalculationAmount(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-506 transition-all text-left dir-ltr"
                     placeholder="100000"
                     min="0"
@@ -582,13 +625,13 @@ export default function GiftCodeManager({
                 </p>
                 <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
                   <span className="bg-emerald-500/10 px-2 py-1 rounded text-emerald-300 font-mono text-xs">
-                    {Math.max(0, Math.round((calculationAmount * referralRewardPercent) / 100)).toLocaleString()} 
+                    {Math.max(0, Math.round(((calculationAmount || 0) as number * ((referralRewardPercent || 0) as number)) / 100)).toLocaleString()} 
                   </span>
-                  <span>{isFa ? 'تومان پاداش به ازای هر نفر که عضو شود' : 'Toman per referral'}</span>
+                  <span>{isFa ? 'تومان پاداش' : 'Toman'}</span>
                 </p>
               </div>
               <div className="text-xs text-gray-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/60 font-mono">
-                {calculationAmount.toLocaleString()} × {referralRewardPercent}%
+                {Number(calculationAmount || 0).toLocaleString()} × {Number(referralRewardPercent || 0)}%
               </div>
             </div>
 

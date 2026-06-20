@@ -233,6 +233,7 @@ export default function SettingsPanel({
   const [gatewayHeleketWallet, setGatewayHeleketWallet] = useState(settings.gatewayHeleketWallet || "");
   const [gatewayStarsStatus, setGatewayStarsStatus] = useState(settings.gatewayStarsStatus !== undefined ? settings.gatewayStarsStatus : true);
   const [autoWarningConfigBtn, setAutoWarningConfigBtn] = useState(settings.autoWarningConfigBtn !== undefined ? settings.autoWarningConfigBtn : true);
+  const [autoWarningNoConnectionBtn, setAutoWarningNoConnectionBtn] = useState(settings.autoWarningNoConnectionBtn !== undefined ? settings.autoWarningNoConnectionBtn : true);
 
   // Mandatory Join config state
   const [mandatoryJoinActive, setMandatoryJoinActive] = useState(settings.mandatoryJoinActive !== undefined ? settings.mandatoryJoinActive : false);
@@ -272,6 +273,7 @@ export default function SettingsPanel({
       gatewayHeleketWallet,
       gatewayStarsStatus,
       autoWarningConfigBtn,
+      autoWarningNoConnectionBtn,
       mandatoryJoinActive,
       mandatoryJoinChannel,
       mandatoryJoinText
@@ -590,35 +592,68 @@ export default function SettingsPanel({
               </div>
             </div>
 
-            <div className="md:col-span-2 bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-lg flex items-center justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Power className="w-4 h-4 text-indigo-400" />
-                  {lang === "fa" ? "هشدار خودکار اتمام حجم/زمان" : "Auto Usage/Time Warning"}
-                </h4>
-                <p className="text-xs text-gray-400 mt-1">
-                  {lang === "fa" 
-                    ? "ربات به صورت خودکار در صورتی که کمتر از ۱ گیگابایت یا ۱ روز از طرح کاربر باقی مانده باشد، پیامی جهت تمدید ارسال خواهد کرد."
-                    : "Bot automatically alerts users when less than 1 GB or 1 Day of their plan remains."}
-                </p>
-              </div>
-              
-              <button
-                type="button"
-                onClick={() => setAutoWarningConfigBtn(!autoWarningConfigBtn)}
-                className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-350 ease-in-out focus:outline-none items-center ${
-                  autoWarningConfigBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
-                }`}
-                style={{ direction: "ltr" }}
-              >
-                <div
-                  className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
-                    autoWarningConfigBtn ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
-                  }`}
-                >
-                  <Power className="w-3 h-3 stroke-[3.0]" />
+            <div className="md:col-span-2 space-y-3">
+              <div className="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-lg flex items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Power className="w-4 h-4 text-indigo-400" />
+                    {lang === "fa" ? "هشدار خودکار اتمام حجم/زمان" : "Auto Usage/Time Warning"}
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {lang === "fa" 
+                      ? "ربات به صورت خودکار در صورتی که کمتر از ۱ گیگابایت یا ۱ روز از طرح کاربر باقی مانده باشد، پیامی جهت تمدید ارسال خواهد کرد."
+                      : "Bot automatically alerts users when less than 1 GB or 1 Day of their plan remains."}
+                  </p>
                 </div>
-              </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setAutoWarningConfigBtn(!autoWarningConfigBtn)}
+                  className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-350 ease-in-out focus:outline-none items-center ${
+                    autoWarningConfigBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+                  }`}
+                  style={{ direction: "ltr" }}
+                >
+                  <div
+                    className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
+                      autoWarningConfigBtn ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
+                    }`}
+                  >
+                    <Power className="w-3 h-3 stroke-[3.0]" />
+                  </div>
+                </button>
+              </div>
+
+              <div className="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-lg flex items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Power className="w-4 h-4 text-indigo-400" />
+                    {lang === "fa" ? "اخطار عدم اتصال پس از ۱ روز" : "No Connection Alert (1 Day)"}
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {lang === "fa" 
+                      ? "در صورتی که روز بعد از خرید، کاربر هنوز حجمی مصرف نکرده باشد، پیگیری ربات فعال می‌شود."
+                      : "Bot will alert the user if they haven't connected 1 day after getting their subscription."}
+                  </p>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setAutoWarningNoConnectionBtn(!autoWarningNoConnectionBtn)}
+                  className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-350 ease-in-out focus:outline-none items-center ${
+                    autoWarningNoConnectionBtn ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-[0_0_12px_rgba(16,185,129,0.4)] border-emerald-400' : 'bg-slate-800 border-slate-700'
+                  }`}
+                  style={{ direction: "ltr" }}
+                >
+                  <div
+                    className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-xl ring-0 transition duration-300 ease-in-out ml-0.5 ${
+                      autoWarningNoConnectionBtn ? 'translate-x-[24px] text-emerald-600' : 'translate-x-0 text-slate-400'
+                    }`}
+                  >
+                    <Power className="w-3 h-3 stroke-[3.0]" />
+                  </div>
+                </button>
+              </div>
             </div>
 
           </div>

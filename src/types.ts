@@ -46,7 +46,9 @@ export interface PanelSettings {
   referralRewardAmount?: number;
   referralRewardPercent?: number;
   referralL2Percent?: number;
-  referralRewardCondition?: 'invite' | 'purchase';
+  referralL3Percent?: number;
+  referralL4Percent?: number;
+  referralRewardCondition?: 'invite' | 'purchase' | 'both';
   referralBaseAmount?: number;
   referralMessage?: string;
   dashboardUsername?: string;
@@ -72,6 +74,7 @@ export interface PanelSettings {
 
   // Auto Warning config
   autoWarningConfigBtn?: boolean;
+  autoWarningNoConnectionBtn?: boolean;
 
   // Mandatory Join Config
   mandatoryJoinActive?: boolean;

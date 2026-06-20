@@ -452,7 +452,7 @@ def register_tg_user(tg_id, username, referral_id=None):
                     settings = {}
                 
                 condition = settings.get("referralRewardCondition", "invite")
-                if condition == "invite":
+                if condition in ["invite", "both"]:
                     percent = settings.get("referralRewardPercent", 5)
                     amount = settings.get("referralBaseAmount", 100000)
                     reward = max(0, round((amount * percent) / 100))
@@ -468,18 +468,45 @@ def register_tg_user(tg_id, username, referral_id=None):
                             
                         # Level 2 Referral
                         l2_percent = settings.get("referralL2Percent", 0)
-                        if l2_percent > 0:
-                            l2_reward = max(0, round((amount * l2_percent) / 100))
-                            if l2_reward > 0 and referrer.get("referredBy"):
-                                l2_referrer_id = referrer.get("referredBy")
-                                l2_referrer = next((u for u in db["users"] if u["userId"] == l2_referrer_id), None)
-                                if l2_referrer:
-                                    l2_referrer["walletBalance"] = float(l2_referrer.get("walletBalance", 0.0)) + float(l2_reward)
-                                    l2_referrer["referralRewardTotal"] = int(l2_referrer.get("referralRewardTotal", 0)) + l2_reward
-                                    try:
-                                        bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی!</b>\nیکی از زیرمجموعه‌های شما یک نفر را دعوت کرد و مبلغ <b>{l2_reward:,}</b> تومان به شما رسید.", parse_mode="HTML")
-                                    except:
-                                        pass
+                        if l2_percent > 0 and referrer.get("referredBy"):
+                            l2_referrer_id = referrer.get("referredBy")
+                            l2_referrer = next((u for u in db["users"] if u["userId"] == l2_referrer_id), None)
+                            if l2_referrer:
+                                l2_reward = max(0, round((amount * l2_percent) / 100))
+                                l2_referrer["walletBalance"] = float(l2_referrer.get("walletBalance", 0.0)) + float(l2_reward)
+                                l2_referrer["referralRewardTotal"] = int(l2_referrer.get("referralRewardTotal", 0)) + l2_reward
+                                try:
+                                    bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی لایه 2!</b>\nیکی از زیرمجموعه‌های شما یک نفر را دعوت کرد و مبلغ <b>{l2_reward:,}</b> تومان به شما رسید.", parse_mode="HTML")
+                                except:
+                                    pass
+
+                                # Level 3 Referral
+                                l3_percent = settings.get("referralL3Percent", 0)
+                                if l3_percent > 0 and l2_referrer.get("referredBy"):
+                                    l3_referrer_id = l2_referrer.get("referredBy")
+                                    l3_referrer = next((u for u in db["users"] if u["userId"] == l3_referrer_id), None)
+                                    if l3_referrer:
+                                        l3_reward = max(0, round((amount * l3_percent) / 100))
+                                        l3_referrer["walletBalance"] = float(l3_referrer.get("walletBalance", 0.0)) + float(l3_reward)
+                                        l3_referrer["referralRewardTotal"] = int(l3_referrer.get("referralRewardTotal", 0)) + l3_reward
+                                        try:
+                                            bot.send_message(l3_referrer_id, f"🎊 <b>پاداش تیمی لایه 3!</b>\nزیرمجموعه لایه سوم شما عضو جدیدی آورد و مبلغ <b>{l3_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
+                                        except:
+                                            pass
+
+                                        # Level 4 Referral
+                                        l4_percent = settings.get("referralL4Percent", 0)
+                                        if l4_percent > 0 and l3_referrer.get("referredBy"):
+                                            l4_referrer_id = l3_referrer.get("referredBy")
+                                            l4_referrer = next((u for u in db["users"] if u["userId"] == l4_referrer_id), None)
+                                            if l4_referrer:
+                                                l4_reward = max(0, round((amount * l4_percent) / 100))
+                                                l4_referrer["walletBalance"] = float(l4_referrer.get("walletBalance", 0.0)) + float(l4_reward)
+                                                l4_referrer["referralRewardTotal"] = int(l4_referrer.get("referralRewardTotal", 0)) + l4_reward
+                                                try:
+                                                    bot.send_message(l4_referrer_id, f"🎊 <b>پاداش تیمی لایه 4!</b>\nزیرمجموعه لایه چهارم شما عضو جدیدی آورد و مبلغ <b>{l4_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
+                                                except:
+                                                    pass
 
         db["users"].append(new_user)
         write_db_json(db)
@@ -515,7 +542,7 @@ def process_referral_on_purchase(user, amount_spent):
         settings = {}
         
     condition = settings.get("referralRewardCondition", "invite")
-    if condition != "purchase":
+    if condition not in ["purchase", "both"]:
         return
         
     referrer_id = user.get("referredBy")
@@ -524,15 +551,17 @@ def process_referral_on_purchase(user, amount_spent):
         return
         
     percent = settings.get("referralRewardPercent", 5)
-    calc_amount = settings.get("referralBaseAmount", 100000) # This is typically used for fixed rewards, but user may want percentage of spent 
-    # For purchases, we use amount_spent! But wait, if they have base calculation amount? No, base calculation amount typically replaces the purchase amount if set, or is the reward amount. 
-    # Since they define it as "مبلغ پایه محاسبه", let's use it if available, else amount_spent. But "مبلغ پایه محاسبه" refers to the fixed reward base!
-    # "مبلغ پایه محاسبه" is fixed for referrals in this bot so we will just use that!
+    calc_amount = settings.get("referralBaseAmount", 100000)
     reward = max(0, round((calc_amount * percent) / 100))
     
     if reward > 0:
         referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
-        referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
+        # We don't increment referralCount again on purchase if they already got it on invite?
+        # Typically "referralCount" is invite count. We just leave it, or maybe we increment if condition is "purchase".
+        # Let's just add the reward. If condition was 'both', we don't want to double count the invite itself.
+        if condition == "purchase":
+            referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
+            
         referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
         try:
             bot.send_message(referrer_id, f"🎉 <b>تبریک!</b>\nکاربری که با لینک شما وارد شده بود اولین خرید خود را انجام داد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
@@ -549,9 +578,37 @@ def process_referral_on_purchase(user, amount_spent):
                 l2_referrer["walletBalance"] = float(l2_referrer.get("walletBalance", 0.0)) + float(l2_reward)
                 l2_referrer["referralRewardTotal"] = int(l2_referrer.get("referralRewardTotal", 0)) + l2_reward
                 try:
-                    bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی!</b>\nزیرمجموعهِ زیرمجموعه شما اولین خرید خود را انجام داد و <b>{l2_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
+                    bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی لایه 2!</b>\nزیرمجموعهِ زیرمجموعه شما اولین خرید خود را انجام داد و <b>{l2_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
                 except:
                     pass
+
+                # L3 logic
+                l3_percent = settings.get("referralL3Percent", 0)
+                if l3_percent > 0 and l2_referrer.get("referredBy"):
+                    l3_referrer_id = l2_referrer.get("referredBy")
+                    l3_referrer = next((u for u in db["users"] if u["userId"] == l3_referrer_id), None)
+                    if l3_referrer:
+                        l3_reward = max(0, round((calc_amount * l3_percent) / 100))
+                        l3_referrer["walletBalance"] = float(l3_referrer.get("walletBalance", 0.0)) + float(l3_reward)
+                        l3_referrer["referralRewardTotal"] = int(l3_referrer.get("referralRewardTotal", 0)) + l3_reward
+                        try:
+                            bot.send_message(l3_referrer_id, f"🎊 <b>پاداش تیمی لایه 3!</b>\nزیرمجموعه لایه سوم شما اولین خرید خود را انجام داد و <b>{l3_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
+                        except:
+                            pass
+
+                        # L4 logic
+                        l4_percent = settings.get("referralL4Percent", 0)
+                        if l4_percent > 0 and l3_referrer.get("referredBy"):
+                            l4_referrer_id = l3_referrer.get("referredBy")
+                            l4_referrer = next((u for u in db["users"] if u["userId"] == l4_referrer_id), None)
+                            if l4_referrer:
+                                l4_reward = max(0, round((calc_amount * l4_percent) / 100))
+                                l4_referrer["walletBalance"] = float(l4_referrer.get("walletBalance", 0.0)) + float(l4_reward)
+                                l4_referrer["referralRewardTotal"] = int(l4_referrer.get("referralRewardTotal", 0)) + l4_reward
+                                try:
+                                    bot.send_message(l4_referrer_id, f"🎊 <b>پاداش تیمی لایه 4!</b>\nزیرمجموعه لایه چهارم شما اولین خرید خود را انجام داد و <b>{l4_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
+                                except:
+                                    pass
 
     # Mark user so they don't give "first purchase" reward again
     user_in_db = next((u for u in db["users"] if u["userId"] == user["userId"]), None)
@@ -600,6 +657,7 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
         "expireDate": expire_date,
         "trafficLimitGb": float(limit_gb),
         "trafficUsedGb": 0.0,
+        "createdAtMs": int(time.time() * 1000),
         "status": "active"
     }
     db["subscription_keys"].append(new_sub)
