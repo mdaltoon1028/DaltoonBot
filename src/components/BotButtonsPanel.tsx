@@ -380,15 +380,15 @@ export default function BotButtonsPanel({
                         <input
                           type="text"
                           disabled={btn.disabled}
-                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 pl-12 ${key === "btnGuides" ? "pr-12" : ""} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnGuides" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
                           value={btn.value}
                           onChange={(e) => btn.setter(e.target.value)}
                         />
                         <button
                           type="button"
                           onClick={btn.toggleDisabled}
-                          title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه" : "Toggle visibility"}
-                          className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all cursor-pointer ${
+                          title={lang === "fa" ? "فعال/غیرفعال کردن این دکمه در ربات" : "Toggle visibility"}
+                          className={`absolute left-1 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all cursor-pointer z-10 ${
                             !btn.disabled 
                               ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:bg-emerald-500/30" 
                               : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-red-400"
@@ -404,7 +404,7 @@ export default function BotButtonsPanel({
                               setShowGuidesModal(true);
                             }}
                             title={lang === "fa" ? "ویرایش متن راهنما" : "Edit Guide Description"}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-white transition-all cursor-pointer border border-amber-500/20"
+                            className="absolute left-[44px] top-1/2 -translate-y-1/2 p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-white transition-all cursor-pointer border border-amber-500/20 z-10"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
@@ -422,8 +422,8 @@ export default function BotButtonsPanel({
                                 setIsFreeTestActive(true);
                               }
                             }}
-                            title={lang === "fa" ? "وضعیت سرویس (روشن/خاموش)" : "Service Status"}
-                            className={`absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all flex items-center gap-1 text-[10px] uppercase font-bold cursor-pointer ${
+                            title={lang === "fa" ? "فعال یا غیرفعال کردن سرویس تست رایگان" : "Service Status"}
+                            className={`absolute left-[44px] top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all flex items-center gap-1 text-[10px] uppercase font-bold cursor-pointer z-10 ${
                               btn.disabled ? "opacity-50 pointer-events-none" : ""
                             } ${
                               isFreeTestActive 
