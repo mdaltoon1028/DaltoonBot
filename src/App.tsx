@@ -46,6 +46,7 @@ import TicketManager from "./components/TicketManager";
 import BotLogs from "./components/BotLogs";
 import { LoginScreen } from "./components/LoginScreen";
 import ConfirmationModal from "./components/ConfirmationModal";
+import SetupModal from "./components/SetupModal";
 
 const LionAndSunFlag = () => (
   <div className="inline-flex items-center select-none" title="پرچم شیر و خورشید ایران">
@@ -217,6 +218,15 @@ export default function App() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && settings && (!settings.botToken || settings.botToken.trim() === "")) {
+      setShowSetupModal(true);
+    } else {
+      setShowSetupModal(false);
+    }
+  }, [isAuthenticated, settings?.botToken]);
 
   useEffect(() => {
     fetch("/api/system/check-update")
@@ -661,6 +671,12 @@ export default function App() {
     });
   };
 
+  const handleSetupComplete = (updates: Partial<PanelSettings>) => {
+    const newSettings = { ...settings, ...updates };
+    saveSettings(newSettings);
+    setShowSetupModal(false);
+  };
+
   const handleOpenSimulatedChat = (userId: number) => {
     setSimulatedUserId(userId);
     setActiveTab("simulator");
@@ -719,6 +735,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#070913] text-gray-100 flex flex-col font-sans select-none antialiased" dir={lang === "fa" ? "rtl" : "ltr"}>
       
+      {showSetupModal && <SetupModal lang={lang} onComplete={handleSetupComplete} />}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#0f172a]/95 text-white text-xs md:text-sm font-semibold rounded-xl px-5 py-3 border border-indigo-500/30 shadow-[0_4px_20px_rgba(99,102,241,0.25)] flex items-center gap-2 backdrop-blur-md animate-fade-in transition duration-300">

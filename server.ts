@@ -64,18 +64,14 @@ function readJsonDb(): DbSchema {
         users: [],
         transactions: [],
         subscription_keys: [],
-        vpn_plans: [
-          { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationDays: 30, trafficGb: 30, price: 95000, category: "Standard", configStock: [] },
-          { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationDays: 30, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
-          { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationDays: 30, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
-          { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationDays: 90, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
-          { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationDays: 30, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
-        ],
+        vpn_plans: [],
         colleague_packages: [],
         colleague_accounts: [],
         inbounds: [],
         custom_buttons: [],
         gift_codes: [],
+        promo_codes: [],
+        tickets: [],
         settings: {
           panel_config: JSON.stringify({
             botToken: "",
@@ -88,17 +84,17 @@ function readJsonDb(): DbSchema {
             cardNumber: "",
             cardHolder: "",
             bankName: "",
-            welcomeText: "سلام کاربر گرامی 🌹\nبه ربات دالتون استور خوش آمدید.",
-            supportText: "برای پشتیبانی با مدیریت در ارتباط باشید.",
-            btnTextGuides: "💡 راهنمای اتصال",
-            guidesText: "🌐 راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)\n\nکاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n• اندروید: v2rayNG\n• آیفون (iOS): V2box یا Streisand\n• ویندوز: Nekoray یا v2rayN\n\n۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه + و انتخاب گزینه Import from clipboard یا Add Subscription).\n\n۴. روی گزینه Update Subscription کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت وجود هرگونه مشکل با دکمه پشتیبانی در تماس باشید.",
+            welcomeText: "",
+            supportText: "",
+            btnTextGuides: "",
+            guidesText: "",
             hideSupport: false,
             hideBuy: false,
             hideProfile: false,
             hideWallet: false,
-            dashboardUsername: "Daltoon",
-            dashboardPassword: "Daltoon10",
-            serverPort: 3000,
+            dashboardUsername: process.env.DASHBOARD_USERNAME || "admin",
+            dashboardPassword: process.env.DASHBOARD_PASSWORD || "admin",
+            serverPort: process.env.DASHBOARD_PORT ? parseInt(process.env.DASHBOARD_PORT, 10) : 3000,
             admins: []
           })
         }
@@ -109,56 +105,20 @@ function readJsonDb(): DbSchema {
     const raw = fs.readFileSync(dbJsonPath, "utf8");
     const db = JSON.parse(raw);
     
-    // Backport vpn_plans on existing database structures
+    let modified = false;
+    // Backport empty arrays on existing database structures
     if (!db.vpn_plans) {
-      db.vpn_plans = [
-        { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationDays: 30, trafficGb: 30, price: 95000, category: "Standard", configStock: [] },
-        { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationDays: 30, trafficGb: 50, price: 135000, category: "Standard", configStock: [] },
-        { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationDays: 30, trafficGb: 100, price: 210000, category: "VIP", configStock: [] },
-        { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationDays: 90, trafficGb: 200, price: 420000, category: "VIP", configStock: [] },
-        { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationDays: 30, trafficGb: 20, price: 110000, category: "Unlimited VoIP", configStock: [] }
-      ];
-      fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
+      db.vpn_plans = [];
+      modified = true;
     }
 
-    let modified = false;
-
     if (!db.promo_codes) {
-      db.promo_codes = [
-        { id: "p_9001", code: "SUMMER40", type: "percent", value: 40, maxUsage: 100, totalUsage: 12, usedBy: [], createdAt: new Date().toISOString() },
-        { id: "p_9002", code: "EIDI5DAYS", type: "extend_days", value: 5, maxUsage: 50, totalUsage: 3, usedBy: [], createdAt: new Date().toISOString() }
-      ];
+      db.promo_codes = [];
       modified = true;
     }
 
     if (!db.tickets) {
-      db.tickets = [
-        {
-          id: "TKB-8219",
-          userId: 6536288293,
-          username: "daltoon_tester",
-          subject: "مشکل در اتصال به سرور آلمان VIP",
-          status: "open",
-          createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
-          updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-          messages: [
-            { sender: "user", message: "سلام سرور آلمان VIP من متصل نمیشه. لطفا بررسی کنید چرا ارور ریجکت میده؟", date: new Date(Date.now() - 3600000 * 4).toISOString() }
-          ]
-        },
-        {
-          id: "TKB-4102",
-          userId: 1000628392,
-          username: "reza_vpn",
-          subject: "میزان ترافیک باقیمانده کانفیگ",
-          status: "answered",
-          createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-          updatedAt: new Date(Date.now() - 3600000 * 22).toISOString(),
-          messages: [
-            { sender: "user", message: "سلام خسته نباشید. کانفیگ یکماهه خریدم چطور از ربات حجم باقیماندمو ببینم؟", date: new Date(Date.now() - 3600000 * 24).toISOString() },
-            { sender: "admin", message: "سلام دوست گرامی، وارد دکمه «اشتراک‌های من» بشید. تمام اشتراک‌های فعال شما به همراه حجم و روزهای باقیمانده نشون داده میشه.", date: new Date(Date.now() - 3600000 * 22).toISOString() }
-          ]
-        }
-      ];
+      db.tickets = [];
       modified = true;
     }
 
@@ -169,7 +129,7 @@ function readJsonDb(): DbSchema {
     return db;
   } catch (err) {
     console.error("[Database] Read error, returning empty dataset:", err);
-    return { users: [], transactions: [], subscription_keys: [], inbounds: [], custom_buttons: [], vpn_plans: [], settings: {}, gift_codes: [] };
+    return { users: [], transactions: [], subscription_keys: [], inbounds: [], custom_buttons: [], vpn_plans: [], settings: {}, gift_codes: [], promo_codes: [], tickets: [], colleague_packages: [], colleague_accounts: [] };
   }
 }
 
@@ -2221,13 +2181,43 @@ async function checkAutoBackup() {
 
     const lastBackup = Number(db.settings.lastAutoBackup) || 0;
     const now = Date.now();
-    const diffHours = (now - lastBackup) / (1000 * 60 * 60);
+    
+    const nowT = new Date(new Date(now).toLocaleString("en-US", { timeZone: "Asia/Tehran" }));
+    const lastT = new Date(new Date(lastBackup).toLocaleString("en-US", { timeZone: "Asia/Tehran" }));
+
+    const nowFa = new Date(now).toLocaleDateString("fa-IR", { timeZone: "Asia/Tehran" });
+    const lastFa = new Date(lastBackup).toLocaleDateString("fa-IR", { timeZone: "Asia/Tehran" });
     
     let shouldBackup = false;
-    if (settings.autoBackupInterval === 'hourly' && diffHours >= 1) shouldBackup = true;
-    if (settings.autoBackupInterval === 'daily' && diffHours >= 24) shouldBackup = true;
-    if (settings.autoBackupInterval === 'weekly' && diffHours >= 168) shouldBackup = true;
-    if (settings.autoBackupInterval === 'monthly' && diffHours >= 720) shouldBackup = true;
+
+    if (lastBackup === 0) {
+      shouldBackup = true;
+    } else if (now - lastBackup > 32 * 24 * 60 * 60 * 1000) {
+      shouldBackup = true;
+    } else {
+      if (settings.autoBackupInterval === 'hourly') {
+        if (nowT.getHours() !== lastT.getHours() || nowFa !== lastFa) {
+          shouldBackup = true;
+        }
+      } else if (settings.autoBackupInterval === 'daily') {
+        if (nowFa !== lastFa) {
+          shouldBackup = true;
+        }
+      } else if (settings.autoBackupInterval === 'weekly') {
+        if (now - lastBackup >= 7 * 24 * 60 * 60 * 1000) {
+          shouldBackup = true;
+        } else if (nowT.getDay() === 6 && nowFa !== lastFa) { // Saturday
+          shouldBackup = true;
+        }
+      } else if (settings.autoBackupInterval === 'monthly') {
+        const nowParts = nowFa.split("/");
+        const lastParts = lastFa.split("/");
+        // Year or Month changed
+        if (nowParts[0] !== lastParts[0] || nowParts[1] !== lastParts[1]) {
+          shouldBackup = true;
+        }
+      }
+    }
     
     if (shouldBackup) {
       await performAutoBackup();
@@ -2449,7 +2439,7 @@ async function autoSyncTrafficUsage() {
         if (ctRes.ok) trafficJson = await ctRes.json();
     } catch(e) {}
 
-    const trafficMap: Record<string, { up: number, down: number, total: number }> = {};
+    const trafficMap: Record<string, { up: number, down: number, total: number, expiryTime?: number, totalGb?: number }> = {};
     
     if (trafficJson && trafficJson.success && Array.isArray(trafficJson.obj)) {
       for (let cs of trafficJson.obj) {
@@ -2459,6 +2449,8 @@ async function autoSyncTrafficUsage() {
           trafficMap[lMail].up += Number(cs.up) || 0;
           trafficMap[lMail].down += Number(cs.down) || 0;
           trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+          if (cs.expiryTime) trafficMap[lMail].expiryTime = Number(cs.expiryTime);
+          if (cs.total) trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
         }
       }
     } else {
@@ -2486,6 +2478,8 @@ async function autoSyncTrafficUsage() {
             trafficMap[lMail].up += Number(cs.up) || 0;
             trafficMap[lMail].down += Number(cs.down) || 0;
             trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+            if (cs.expiryTime) trafficMap[lMail].expiryTime = Number(cs.expiryTime);
+            if (cs.total) trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
           }
         }
       }
@@ -2500,6 +2494,22 @@ async function autoSyncTrafficUsage() {
         if (Math.abs((k.trafficUsedGb || 0) - usedGb) > 0.01) {
           k.trafficUsedGb = Number(usedGb.toFixed(2));
           updatedCount++;
+        }
+        
+        if (trafficMap[matchName].totalGb && trafficMap[matchName].totalGb! > 0) {
+           const capGb = trafficMap[matchName].totalGb!;
+           if (Math.abs((k.trafficLimitGb || 0) - capGb) > 0.01) {
+               k.trafficLimitGb = Number(capGb.toFixed(2));
+               updatedCount++;
+           }
+        }
+
+        if (trafficMap[matchName].expiryTime && trafficMap[matchName].expiryTime! > 0) {
+            const newExpiryISO = new Date(trafficMap[matchName].expiryTime!).toISOString();
+            if (k.expireDate !== newExpiryISO) {
+                k.expireDate = newExpiryISO;
+                updatedCount++;
+            }
         }
       }
 
@@ -2617,9 +2627,9 @@ async function startServer() {
   setInterval(autoCleanExpiredFreeTrials, 10 * 60 * 1000);
   setTimeout(autoCleanExpiredFreeTrials, 10000); // Also run shortly after startup
 
-  // Start background cron job for auto syncing traffic every 5 minutes
-  setInterval(autoSyncTrafficUsage, 5 * 60 * 1000);
-  setTimeout(autoSyncTrafficUsage, 15000); // Also run shortly after startup
+  // Start background cron job for auto syncing traffic every 10 seconds
+  setInterval(autoSyncTrafficUsage, 10 * 1000);
+  setTimeout(autoSyncTrafficUsage, 5000); // Also run shortly after startup
 
   // Start background cron job for auto backup check every minute
   setInterval(checkAutoBackup, 60 * 1000);
