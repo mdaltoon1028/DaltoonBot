@@ -4,7 +4,15 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { spawn, ChildProcess, exec } from "child_process";
 import { GoogleGenAI } from "@google/genai";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+// Explicit absolute dotenv loads for absolute correctness across nested builds
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+try {
+  dotenv.config({ path: path.resolve(__dirname, ".env") });
+  dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
+} catch (e) {}
 
 // Disable SSL verification for outgoing requests to 3x-ui panels
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -23,6 +31,8 @@ function getServerPort(): number {
 // Set up server port
 const PORT = getServerPort();
 const app = express();
+
+console.log("[AI Studio Debug] process.env.GEMINI_API_KEY loaded:", process.env.GEMINI_API_KEY ? `Yes (length: ${process.env.GEMINI_API_KEY.length}, starts with: ${process.env.GEMINI_API_KEY.substring(0, 5)})` : "No (undefined/empty)");
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 console.log(`[Database] Connecting to JSON file database at: ${dbJsonPath}`);
@@ -449,7 +459,14 @@ let aiClient: GoogleGenAI | null = null;
 
 function getAiClient(): GoogleGenAI {
   if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
+    let key = process.env.GEMINI_API_KEY;
+    if (key) {
+      key = key.trim();
+      if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+        key = key.substring(1, key.length - 1);
+      }
+      key = key.trim();
+    }
     if (!key) {
       throw new Error("لطفا کلید دسترسی (GEMINI_API_KEY) را در تنظیمات داشبورد و یا فایل .env تنظیم کنید.");
     }
@@ -506,7 +523,7 @@ app.post("/api/ai/chat", async (req, res) => {
 لطفاً کوتاه، زیبا و با ادبیات مناسب پاسخ دهید. از ارائه اطلاعات محرمانه خودداری کنید. سوال کاربر: ${message}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: message,
       config: {
          systemInstruction: systemPrompt
