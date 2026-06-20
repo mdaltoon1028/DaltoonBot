@@ -161,6 +161,35 @@ function writeJsonDb(data: DbSchema) {
   }
 }
 
+function getSystemSettings(db?: any) {
+  const data = db || readJsonDb();
+  let parsedSettings = {};
+  if (data.settings && data.settings.panel_config) {
+    try {
+      parsedSettings = JSON.parse(data.settings.panel_config);
+    } catch(e) {}
+  }
+  
+  const settings: any = {
+    botToken: process.env.BOT_TOKEN || "",
+    baseUrl: process.env.XUI_URL || "",
+    panelUrl: "",
+    panelUsername: process.env.PANEL_USER || "",
+    panelPassword: process.env.PANEL_PASS || "",
+    activeInboundIds: [],
+    ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
+    cardNumber: process.env.CARD_NUMBER || "",
+    cardHolder: process.env.CARD_HOLDER || "",
+    bankName: "",
+    ...parsedSettings
+  };
+
+  if (!settings.botToken && process.env.BOT_TOKEN) settings.botToken = process.env.BOT_TOKEN;
+  if (!settings.ownerId && process.env.OWNER_ID) settings.ownerId = Number(process.env.OWNER_ID);
+  
+  return settings;
+}
+
 let botProcess: ChildProcess | null = null;
 
 function startPythonBot() {
@@ -187,16 +216,8 @@ function startPythonBot() {
 
   // Load latest settings to check if BOT_TOKEN is empty
   const db = readJsonDb();
-  let parsedSettings: any = {};
-  try {
-    parsedSettings = db.settings.panel_config 
-      ? JSON.parse(db.settings.panel_config)
-      : {};
-  } catch (e) {
-    console.warn("[Bot Manager] Could not parse panel_config:", e);
-  }
-
-  const token = parsedSettings.botToken;
+  const settings = getSystemSettings(db);
+  const token = settings.botToken;
 
   if (!token || token === "DUMMY_TOKEN" || token.trim() === "") {
     console.log("[Bot Manager] Bot token is empty or dummy. Python bot will not start.");
@@ -263,33 +284,7 @@ app.post("/api/database/reset", async (req, res) => {
 app.get("/api/data", async (req, res) => {
   try {
     const db = readJsonDb();
-    const parsedSettings = db.settings.panel_config 
-      ? JSON.parse(db.settings.panel_config)
-      : {};
-      
-    const settings = {
-      botToken: process.env.BOT_TOKEN || "",
-      baseUrl: "",
-      panelUrl: "",
-      panelUsername: "",
-      panelPassword: "",
-      activeInboundIds: [],
-      ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
-      cardNumber: process.env.CARD_NUMBER || "",
-      cardHolder: process.env.CARD_HOLDER || "",
-      bankName: "",
-      welcomeText: "",
-      supportText: "",
-      hideSupport: false,
-      hideBuy: false,
-      hideProfile: false,
-      hideWallet: false,
-      dashboardUsername: "Daltoon",
-      dashboardPassword: "Daltoon10",
-      serverPort: 3000,
-      admins: [],
-      ...parsedSettings
-    };
+    const settings = getSystemSettings(db);
 
     // Ensure admins list is properly formatted
     if (!settings.admins || !Array.isArray(settings.admins)) {
@@ -888,7 +883,7 @@ app.post("/api/settings", async (req, res) => {
     const db = readJsonDb();
     
     // Compare admins list to find newly added ones
-    const prevSettings = db.settings.panel_config ? JSON.parse(db.settings.panel_config) : {};
+    const prevSettings = getSystemSettings(db);
     const prevAdmins = prevSettings.admins || [];
     const newAdmins = payload.admins || [];
     
@@ -1347,11 +1342,8 @@ app.post("/api/broadcast", async (req, res) => {
     }
 
     const db = readJsonDb();
-    const parsedSettings = db.settings.panel_config 
-      ? JSON.parse(db.settings.panel_config)
-      : {};
-    
-    const botToken = parsedSettings.botToken;
+    const settings = getSystemSettings(db);
+    const botToken = settings.botToken;
     const users = db.users || [];
     let count = 0;
 
@@ -1714,34 +1706,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
   try {
     const { userId, clientName, trafficLimitGb, expiryDays, planName } = req.body;
     const db = readJsonDb();
-
-    const parsedSettings = db.settings.panel_config 
-      ? JSON.parse(db.settings.panel_config)
-      : {};
-    const settings = {
-      botToken: process.env.BOT_TOKEN || "",
-      baseUrl: "",
-      panelUrl: "",
-      panelUsername: "",
-      panelPassword: "",
-      activeInboundIds: [],
-      ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
-      cardNumber: process.env.CARD_NUMBER || "",
-      cardHolder: process.env.CARD_HOLDER || "",
-      bankName: "",
-      welcomeText: "",
-      supportText: "",
-      hideSupport: false,
-      hideBuy: false,
-      hideProfile: false,
-      hideWallet: false,
-      dashboardUsername: "Daltoon",
-      dashboardPassword: "Daltoon10",
-      serverPort: 3000,
-      admins: [],
-      panelConnectionActive: false,
-      ...parsedSettings
-    };
+    const settings = getSystemSettings(db);
 
     if (!settings.panelConnectionActive) {
       return res.status(400).json({ success: false, error: "اتصال به پنل ۳x-ui در تنظیمات غیرفعال است." });
@@ -1965,33 +1930,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
     }
     const user = db.users[userIdx];
 
-    const parsedSettings = db.settings.panel_config 
-      ? JSON.parse(db.settings.panel_config)
-      : {};
-    const settings = {
-      botToken: process.env.BOT_TOKEN || "",
-      baseUrl: "",
-      panelUrl: "",
-      panelUsername: "",
-      panelPassword: "",
-      activeInboundIds: [],
-      ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
-      cardNumber: process.env.CARD_NUMBER || "",
-      cardHolder: process.env.CARD_HOLDER || "",
-      bankName: "",
-      welcomeText: "",
-      supportText: "",
-      hideSupport: false,
-      hideBuy: false,
-      hideProfile: false,
-      hideWallet: false,
-      dashboardUsername: "Daltoon",
-      dashboardPassword: "Daltoon10",
-      serverPort: 3000,
-      admins: [],
-      panelConnectionActive: false,
-      ...parsedSettings
-    };
+    const settings = getSystemSettings(db);
 
     const ownerId = Number(settings.ownerId || 6536288293);
     const admins = Array.isArray(settings.admins) ? settings.admins : [];
@@ -2068,13 +2007,11 @@ app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
     const db = readJsonDb();
     
-    const parsedSettings = db.settings.panel_config 
-      ? JSON.parse(db.settings.panel_config)
-      : {};
+    const settings = getSystemSettings(db);
       
-    const dbUser = parsedSettings.dashboardUsername || "Daltoon";
-    const dbPass = parsedSettings.dashboardPassword || "Daltoon10";
-    const dbAdmins = parsedSettings.admins || [];
+    const dbUser = settings.dashboardUsername || "Daltoon";
+    const dbPass = settings.dashboardPassword || "Daltoon10";
+    const dbAdmins = settings.admins || [];
     
     // Check main super admin credentials
     const isMainAdmin = (username === dbUser && password === dbPass);
@@ -2341,7 +2278,7 @@ async function autoCleanExpiredFreeTrials() {
 
     console.log(`[Auto Cleanup] Found ${keysToDelete.length} expired free trials. Deleting...`);
 
-    const parsedSettings = db.settings.panel_config ? JSON.parse(db.settings.panel_config) : null;
+    const parsedSettings = getSystemSettings(db);
     if (parsedSettings && parsedSettings.panelConnectionActive && parsedSettings.baseUrl) {
       const cleanedUrl = normalizeXuiUrl(parsedSettings.baseUrl);
       const loginResult = await loginXuiPanel(cleanedUrl, parsedSettings.panelUsername, parsedSettings.panelPassword);
@@ -2419,10 +2356,10 @@ async function sendTelegramMessage(botToken: string, chatId: string | number, te
 async function autoSyncTrafficUsage() {
   try {
     const db = readJsonDb();
-    const settings = db.settings?.panel_config ? JSON.parse(db.settings.panel_config) : null;
+    const settings = getSystemSettings(db);
     
     // Only continue if panel is connected
-    if (!settings || !settings.panelConnectionActive || !settings.baseUrl) {
+    if (!settings.panelConnectionActive || !settings.baseUrl) {
       return;
     }
 
