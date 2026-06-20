@@ -563,10 +563,13 @@ export default function BotSimulator({
 
       let rawTemplate = settings?.referralMessage || (lang === "fa" ? defaultMsgFa : defaultMsgEn);
       
+      const purchasePercent = settings?.referralPurchasePercent ?? 5;
+
       let replyText = rawTemplate
         .replace(/{uid}/g, uid.toString())
         .replace(/{link}/g, link)
         .replace(/{percent}/g, percent.toString())
+        .replace(/{purchase_percent}/g, purchasePercent.toString())
         .replace(/{amount}/g, amount.toLocaleString())
         .replace(/{reward}/g, calculatedReward.toLocaleString());
 

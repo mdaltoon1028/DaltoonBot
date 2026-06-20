@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { PanelSettings, CustomButton } from "../types";
 import { Language, translations } from "../locales";
+import ConfirmationModal from "./ConfirmationModal";
 import { 
   Command, 
   Sparkles, 
@@ -34,6 +35,8 @@ export default function BotButtonsPanel({
   setCustomButtons
 }: BotButtonsPanelProps) {
   const t = translations[lang];
+
+  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{isOpen: boolean, action: (() => void) | null, message: string}>({ isOpen: false, action: null, message: "" });
 
   // Primary buttons text & visibility states
   const [btnTextBuyNew, setBtnTextBuyNew] = useState(settings.btnTextBuyNew || "🛒 خرید اشتراک جدید");
@@ -555,7 +558,11 @@ export default function BotButtonsPanel({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteButton(btn.id)}
+                            onClick={() => setDeleteConfirmConfig({
+                              isOpen: true,
+                              action: () => handleDeleteButton(btn.id),
+                              message: lang === "fa" ? "آیا از حذف این دکمه اختصاصی اطمینان دارید؟" : "Are you sure you want to delete this custom button?"
+                            })}
                             className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer"
                             title="Remove button"
                           >
@@ -687,6 +694,20 @@ export default function BotButtonsPanel({
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={deleteConfirmConfig.isOpen}
+        message={deleteConfirmConfig.message}
+        lang={lang}
+        isDangerous={true}
+        onCancel={() => setDeleteConfirmConfig({ isOpen: false, action: null, message: "" })}
+        onConfirm={() => {
+          if (deleteConfirmConfig.action) {
+            deleteConfirmConfig.action();
+          }
+          setDeleteConfirmConfig({ isOpen: false, action: null, message: "" });
+        }}
+      />
     </div>
   );
 }

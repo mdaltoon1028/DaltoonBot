@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { PanelSettings, CustomButton, VpnPlan, InboundInfo } from "../types";
 import { Language, translations } from "../locales";
+import ConfirmationModal from "./ConfirmationModal";
 import { 
   Settings, 
   Key, 
@@ -51,6 +52,8 @@ export default function SettingsPanel({
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || "");
   
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(settings.purchaseSuccessNote || "");
+  
+  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{isOpen: boolean, action: (() => void) | null, message: string}>({ isOpen: false, action: null, message: "" });
   
   // Broadcast text states
   const [broadcastText, setBroadcastText] = useState("");
@@ -858,7 +861,11 @@ export default function SettingsPanel({
                         {adminsList.length > 1 && (
                           <button
                             type="button"
-                            onClick={() => handleRemoveAdmin(adm.id)}
+                            onClick={() => setDeleteConfirmConfig({
+                              isOpen: true, 
+                              action: () => handleRemoveAdmin(adm.id), 
+                              message: lang === "fa" ? "آیا از حذف این ادمین اطمینان دارید؟" : "Are you sure you want to delete this admin?"
+                            })}
                             className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer shrink-0"
                             title="Remove Admin"
                           >
@@ -1130,6 +1137,19 @@ export default function SettingsPanel({
         </div>
 
       </form>
+      <ConfirmationModal
+        isOpen={deleteConfirmConfig.isOpen}
+        message={deleteConfirmConfig.message}
+        lang={lang}
+        isDangerous={true}
+        onCancel={() => setDeleteConfirmConfig({ isOpen: false, action: null, message: "" })}
+        onConfirm={() => {
+          if (deleteConfirmConfig.action) {
+            deleteConfirmConfig.action();
+          }
+          setDeleteConfirmConfig({ isOpen: false, action: null, message: "" });
+        }}
+      />
     </div>
   );
 }

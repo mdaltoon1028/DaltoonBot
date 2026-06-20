@@ -6,9 +6,21 @@ interface ConfirmationModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   lang: "fa" | "en";
+  confirmText?: string;
+  cancelText?: string;
+  isDangerous?: boolean;
 }
 
-export default function ConfirmationModal({ isOpen, message, onConfirm, onCancel, lang }: ConfirmationModalProps) {
+export default function ConfirmationModal({ 
+  isOpen, 
+  message, 
+  onConfirm, 
+  onCancel, 
+  lang,
+  confirmText,
+  cancelText,
+  isDangerous = false
+}: ConfirmationModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -20,13 +32,17 @@ export default function ConfirmationModal({ isOpen, message, onConfirm, onCancel
             onClick={onCancel}
             className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md text-gray-300 rounded-xl text-sm font-medium transition-all duration-200"
           >
-            {lang === "fa" ? "انصراف" : "Cancel"}
+            {cancelText ? cancelText : (lang === "fa" ? "انصراف" : "Cancel")}
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 backdrop-blur-md text-indigo-300 rounded-xl text-sm font-medium transition-all duration-200 shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+            className={`flex-1 px-4 py-2.5 backdrop-blur-md rounded-xl text-sm font-medium transition-all duration-200 ${
+              isDangerous 
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.2)] hover:shadow-[0_0_20px_rgba(244,63,94,0.4)]'
+                : 'bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]'
+            }`}
           >
-            {lang === "fa" ? "تأیید بروزرسانی" : "Confirm"}
+            {confirmText ? confirmText : (lang === "fa" ? "بله، تأیید" : "Yes, Confirm")}
           </button>
         </div>
       </div>

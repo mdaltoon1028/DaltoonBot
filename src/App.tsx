@@ -359,8 +359,8 @@ export default function App() {
     localStorage.setItem("daltoon_logs", JSON.stringify(logs));
   }, [logs]);
 
-  const refreshData = async () => {
-    setIsRefreshing(true);
+  const refreshData = async (isAuto: boolean = false) => {
+    if (!isAuto) setIsRefreshing(true);
     try {
       const response = await fetch("/api/data");
       const json = await response.json();
@@ -378,33 +378,37 @@ export default function App() {
         if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
         if (json.logs) setLogs(json.logs);
         if (json.settings && json.settings.botToken) setSettings(json.settings);
-        console.log("[Full-Stack Sync] SQLite bot_database.db refreshed successfully.");
         
-        setToastMessage(lang === "fa" ? "✅ اطلاعات داشبورد با موفقیت بروزرسانی شد." : "✅ Dashboard data refreshed successfully.");
+        if (!isAuto) {
+          console.log("[Full-Stack Sync] JSON database refreshed successfully.");
+          setToastMessage(lang === "fa" ? "✅ اطلاعات داشبورد با موفقیت بروزرسانی شد." : "✅ Dashboard data refreshed successfully.");
+          setTimeout(() => {
+            setToastMessage(null);
+          }, 3000);
+        }
+      }
+    } catch (err) {
+      console.warn("[Full-Stack Sync] Failed connecting to Express Database.", err);
+      if (!isAuto) {
+        setToastMessage(lang === "fa" ? "❌ خطا در دریافت اطلاعات از سرور." : "❌ Failed refreshing data from server.");
         setTimeout(() => {
           setToastMessage(null);
         }, 3000);
       }
-    } catch (err) {
-      console.warn("[Full-Stack Sync] Failed connecting to Express Database.", err);
-      setToastMessage(lang === "fa" ? "❌ خطا در دریافت اطلاعات از سرور." : "❌ Failed refreshing data from server.");
-      setTimeout(() => {
-        setToastMessage(null);
-      }, 3000);
     } finally {
-      setIsRefreshing(false);
+      if (!isAuto) setIsRefreshing(false);
     }
   };
 
   // Fetch complete SQLite database state on mount and update automatically
   useEffect(() => {
-    refreshData();
+    refreshData(false);
   }, []);
 
   useEffect(() => {
     if (settings?.autoRefreshInterval && settings.autoRefreshInterval > 0) {
       const interval = setInterval(() => {
-        refreshData();
+        refreshData(true);
       }, settings.autoRefreshInterval * 1000);
       return () => clearInterval(interval);
     }

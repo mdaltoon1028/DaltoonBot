@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save, Tag, Calendar, Percent, Clock } from 'lucide-react';
 import { GiftCode, PromoCode, PanelSettings } from '../types';
 import { Language } from '../locales';
+import ConfirmationModal from "./ConfirmationModal";
 
 interface GiftCodeManagerProps {
   giftCodes: GiftCode[];
@@ -37,10 +38,13 @@ export default function GiftCodeManager({
   const [maxUsage, setMaxUsage] = useState('1');
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{isOpen: boolean, action: (() => void) | null, message: string}>({ isOpen: false, action: null, message: "" });
+
   // Referral Settings States
   const [botTelegramHandle, setBotTelegramHandle] = useState(settings?.botTelegramHandle || "");
   const [referralRewardAmount, setReferralRewardAmount] = useState<number | ''>(settings?.referralRewardAmount ?? 0);
   const [referralRewardPercent, setReferralRewardPercent] = useState<number | ''>(settings?.referralRewardPercent ?? 5);
+  const [referralPurchasePercent, setReferralPurchasePercent] = useState<number | ''>(settings?.referralPurchasePercent ?? 5);
   const [referralL2Percent, setReferralL2Percent] = useState<number | ''>(settings?.referralL2Percent ?? 0);
   const [referralL3Percent, setReferralL3Percent] = useState<number | ''>(settings?.referralL3Percent ?? 0);
   const [referralL4Percent, setReferralL4Percent] = useState<number | ''>(settings?.referralL4Percent ?? 0);
@@ -102,6 +106,7 @@ export default function GiftCodeManager({
         botTelegramHandle,
         referralRewardAmount: referralRewardAmount === '' ? 0 : referralRewardAmount,
         referralRewardPercent: referralRewardPercent === '' ? 0 : referralRewardPercent,
+        referralPurchasePercent: referralPurchasePercent === '' ? 0 : referralPurchasePercent,
         referralL2Percent: referralL2Percent === '' ? 0 : referralL2Percent,
         referralL3Percent: referralL3Percent === '' ? 0 : referralL3Percent,
         referralL4Percent: referralL4Percent === '' ? 0 : referralL4Percent,
@@ -301,7 +306,11 @@ export default function GiftCodeManager({
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => onDeleteCode(gc.id)}
+                            onClick={() => setDeleteConfirmConfig({
+                              isOpen: true,
+                              action: () => onDeleteCode(gc.id),
+                              message: lang === "fa" ? "آیا از حذف این کدهدیه اطمینان دارید؟" : "Are you sure you want to delete this gift code?"
+                            })}
                             className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all"
                             title="حذف کد"
                           >
@@ -455,7 +464,11 @@ export default function GiftCodeManager({
                       </div>
 
                       <button
-                        onClick={() => onDeletePromoCode && onDeletePromoCode(pc.id)}
+                        onClick={() => onDeletePromoCode && setDeleteConfirmConfig({
+                          isOpen: true,
+                          action: () => onDeletePromoCode(pc.id),
+                          message: lang === "fa" ? "آیا از حذف این تخفیف اطمینان دارید؟" : "Are you sure you want to delete this promo code?"
+                        })}
                         className="p-1 px-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white transition duration-150 cursor-pointer border border-red-500/20"
                         title={isFa ? "حذف" : "Delete"}
                       >
@@ -537,20 +550,42 @@ export default function GiftCodeManager({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'درصد پاداش به ازای دعوت (%)' : 'Reward Percentage per Invite'}</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={referralRewardPercent}
-                    onChange={(e) => setReferralRewardPercent(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
-                    placeholder="5"
-                    min="0"
-                    max="100"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
-                </div>
+              <div className="space-y-4">
+                {(referralRewardCondition === 'invite' || referralRewardCondition === 'both') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300">{isFa ? 'درصد پاداش به ازای دعوت (%)' : 'Reward Percentage per Invite'}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={referralRewardPercent}
+                        onChange={(e) => setReferralRewardPercent(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
+                        placeholder="3"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
+                    </div>
+                  </div>
+                )}
+                
+                {(referralRewardCondition === 'purchase' || referralRewardCondition === 'both') && (
+                  <div className="space-y-2 bg-indigo-950/20 p-4 rounded-xl border border-indigo-500/20">
+                    <label className="text-sm font-medium text-indigo-300">{isFa ? 'درصد پاداش به ازای خرید زیرمجموعه (%)' : 'Reward Percentage per Purchase'}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={referralPurchasePercent}
+                        onChange={(e) => setReferralPurchasePercent(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full bg-slate-900/50 border border-indigo-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-505 transition-all text-left dir-ltr pr-8"
+                        placeholder="5"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -639,7 +674,7 @@ export default function GiftCodeManager({
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-300">{isFa ? 'متن پیام مجموعه گیری اختصاصی کاربر' : 'Referral Message Content'}</label>
                 <span className="text-[10px] text-gray-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                  {isFa ? 'متغیرها: {uid}, {link}, {amount}, {percent}, {reward}' : 'Vars: {uid}, {link}, {amount}, {percent}, {reward}'}
+                  {isFa ? 'متغیرها: {uid}, {link}, {amount}, {percent}, {purchase_percent}, {reward}' : 'Vars: {uid}, {link}, {amount}, {percent}, {purchase_percent}, {reward}'}
                 </span>
               </div>
               <textarea
@@ -668,6 +703,20 @@ export default function GiftCodeManager({
           </div>
         </div>
       )}
+      
+      <ConfirmationModal
+        isOpen={deleteConfirmConfig.isOpen}
+        message={deleteConfirmConfig.message}
+        lang={lang || 'fa'}
+        isDangerous={true}
+        onCancel={() => setDeleteConfirmConfig({ isOpen: false, action: null, message: "" })}
+        onConfirm={() => {
+          if (deleteConfirmConfig.action) {
+            deleteConfirmConfig.action();
+          }
+          setDeleteConfirmConfig({ isOpen: false, action: null, message: "" });
+        }}
+      />
     </div>
   );
 }

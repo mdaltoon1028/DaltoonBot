@@ -44,7 +44,8 @@ export interface PanelSettings {
   hideBtnAiChat?: boolean;
   botTelegramHandle?: string;
   referralRewardAmount?: number;
-  referralRewardPercent?: number;
+  referralRewardPercent?: number; // Kept as invite percent
+  referralPurchasePercent?: number; // New: Purchase percent
   referralL2Percent?: number;
   referralL3Percent?: number;
   referralL4Percent?: number;
