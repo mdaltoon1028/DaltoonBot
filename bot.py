@@ -1916,7 +1916,13 @@ def handle_buy_pay(call):
         
     elif method == "wallet":
         user = next((u for u in db["users"] if u["userId"] == tg_id), None)
-        if not user or user.get("walletBalance", 0) < spec["price"]:
+        
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if not is_privileged and (not user or user.get("walletBalance", 0) < spec["price"]):
             bot.answer_callback_query(call.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.", show_alert=True)
             return
             
@@ -1924,14 +1930,17 @@ def handle_buy_pay(call):
         bot.edit_message_text("✅ در حال ساخت کانفیگ... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
         
         # Deduct wallet
-        new_balance = user.get("walletBalance", 0) - int(spec["price"])
-        update_user_balance(tg_id, new_balance)
-        
-        if spec['price'] > 0:
-            process_referral_on_purchase(user, spec['price'])
-        
-        # log 
-        log_action(tg_id, user.get("username", str(tg_id)), "خرید از کیف پول", f"بسته {spec['name']} مبلغ {spec['price']:,} تومان کسر شد.")
+        if not is_privileged:
+            new_balance = user.get("walletBalance", 0) - int(spec["price"])
+            update_user_balance(tg_id, new_balance)
+            
+            if spec['price'] > 0:
+                process_referral_on_purchase(user, spec['price'])
+                
+            # log 
+            log_action(tg_id, user.get("username", str(tg_id)), "خرید از کیف پول", f"بسته {spec['name']} مبلغ {spec['price']:,} تومان کسر شد.")
+        else:
+            log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"بسته {spec['name']} بصورت رایگان ایجاد شد.")
         
         # API creation
         client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
@@ -2102,22 +2111,29 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
     # Store promo in callback data safely or 'none' if empty
     promo_code = spec.get("applied_promo", "none")
     
-    markup.add(types.InlineKeyboardButton("💳 پرداخت از موجودی کیف پول", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
-    markup.add(types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buy_pay:card:{plan_id}:{username_input}:{promo_code}"))
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
     
-    if cfg.get("GATEWAY_PLISIO_WALLET"):
+    if is_privileged:
+        markup.add(types.InlineKeyboardButton("🎁 تایید مستقیم (ایجاد کانفیگ ادمین)", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
+    else:
+        markup.add(types.InlineKeyboardButton("💳 پرداخت از موجودی کیف پول", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
+        markup.add(types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buy_pay:card:{plan_id}:{username_input}:{promo_code}"))
+    
+    if not is_privileged and cfg.get("GATEWAY_PLISIO_WALLET"):
         markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (Plisio)", callback_data=f"buy_pay:plisio:{plan_id}:{username_input}:{promo_code}"))
         
-    if cfg.get("GATEWAY_NOWPAYMENTS_KEY"):
+    if not is_privileged and cfg.get("GATEWAY_NOWPAYMENTS_KEY"):
         markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (NowPayments)", callback_data=f"buy_pay:nowpayments:{plan_id}:{username_input}:{promo_code}"))
         
-    if cfg.get("GATEWAY_CRYPTOMUS_KEY"):
+    if not is_privileged and cfg.get("GATEWAY_CRYPTOMUS_KEY"):
         markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (Cryptomus)", callback_data=f"buy_pay:cryptomus:{plan_id}:{username_input}:{promo_code}"))
         
-    if cfg.get("GATEWAY_HELEKET_WALLET"):
+    if not is_privileged and cfg.get("GATEWAY_HELEKET_WALLET"):
         markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (Heleket)", callback_data=f"buy_pay:heleket:{plan_id}:{username_input}:{promo_code}"))
         
-    if cfg.get("GATEWAY_STARS_STATUS"):
+    if not is_privileged and cfg.get("GATEWAY_STARS_STATUS"):
         markup.add(types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"buy_pay:stars:{plan_id}:{username_input}:{promo_code}"))
 
     markup.add(types.InlineKeyboardButton("❌ انصراف", callback_data="btn_back_home"))
@@ -2937,7 +2953,12 @@ def callback_handler(call):
         user = get_user_data(tg_id)
         bal = user.get("walletBalance", 0)
         
-        if bal < package["price"]:
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if not is_privileged and bal < package["price"]:
             shortage = package["price"] - bal
             markup = types.InlineKeyboardMarkup()
             markup.row(types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="mm_btnWallet"))
@@ -3574,13 +3595,19 @@ def process_colleague_prefix(message, package):
         user = get_user_data(tg_id)
         bal = user.get("walletBalance", 0)
         
-        if bal < package["price"]:
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if not is_privileged and bal < package["price"]:
             bot.send_message(message.chat.id, "❌ موجودی ناکافی است.", reply_markup=get_custom_keyboard())
             return
             
-        update_user_balance(tg_id, bal - package["price"])
-        if package["price"] > 0:
-            process_referral_on_purchase(user, package["price"])
+        if not is_privileged:
+            update_user_balance(tg_id, bal - package["price"])
+            if package["price"] > 0:
+                process_referral_on_purchase(user, package["price"])
         
         import random
         import string
