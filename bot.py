@@ -8,6 +8,8 @@ Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
 import os
 import sys
 sys.path.append("/root/.local/lib/python3.10/site-packages")
+import telebot
+from telebot import types
 import time
 import uuid
 import json
@@ -258,12 +260,7 @@ def get_config():
 cfg_boot = get_config()
 
 # Ensure dependencies are loaded
-try:
-    import telebot
-    from telebot import types
-except ImportError:
-    print("Error: pyTelegramBotAPI package is not installed. Run: pip install pyTelegramBotAPI python-dotenv requests")
-    sys.exit(1)
+# (Already imported at top)
 
 # Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML")
@@ -1147,6 +1144,7 @@ def verify_mandatory_join_and_warn(chat_id, user_id):
     return False
 
 # --- Bot Command Handlers ---
+
 
 @bot.message_handler(commands=['start', 'help'])
 def start_cmd(message):
@@ -3998,6 +3996,10 @@ if __name__ == "__main__":
 
             try:
                 bot.delete_webhook(drop_pending_updates=True)
+                # Send a startup notification to the owner to verify connectivity
+                owner_id = cfg.get("OWNER_ID")
+                if owner_id:
+                    bot.send_message(owner_id, "🚀 <b>ربات دالتون استور با موفقیت متصل شد و آنلاین است!</b>", parse_mode="HTML")
             except Exception as w_err:
                 # Silently ignore webhook failure (no loud warnings or error messages)
                 pass
@@ -4010,5 +4012,6 @@ if __name__ == "__main__":
                 print("[Daltoon Bot] Setup pending. The current token in settings is not active. Please update it with a valid token from BotFather via the Web Dashboard.")
                 time.sleep(15)
             else:
+                print(f"[Daltoon Bot] Polling error: {e}")
                 print(f"[Daltoon Bot] Re-aligning connection context, retrying in 10 seconds...")
                 time.sleep(10)
