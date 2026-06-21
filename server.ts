@@ -1432,22 +1432,25 @@ async function addVpnClientApi(
         body: JSON.stringify(payload)
       }, 8000);
 
+      let isSuccess = false;
       if (addRes.ok) {
         const addText = await addRes.text();
-        const addJson = JSON.parse(addText);
-        if (addJson && addJson.success) {
-          console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
-          
-          // Use subUrl if provided in settings, otherwise fallback to cleanedUrl
-          const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-            ? normalizeXuiUrl(settings.subUrl) 
-            : cleanedUrl;
-            
-          const subLink = `${subBase}/sub/${xuiSubId}`;
-          return { success: true, clientUuid, subLink }; // Ensure we use clientUuid
-        } else {
-          console.warn(`[Sanaei API Response] Creation error: ${addText}`);
-          lastError = addJson?.msg || addText;
+        try {
+          const addJson = JSON.parse(addText);
+          if (addJson && addJson.success) {
+            console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
+            const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
+              ? normalizeXuiUrl(settings.subUrl) 
+              : cleanedUrl;
+            const subLink = `${subBase}/sub/${xuiSubId}`;
+            return { success: true, clientUuid, subLink };
+          } else {
+            console.warn(`[Sanaei API Response] Global creation error/unsupported: ${addText}`);
+            lastError = addJson?.msg || addText;
+          }
+        } catch (e) {
+          console.warn(`[Sanaei API Response] Global creation returned non-json: ${addText.substring(0, 50)}`);
+          lastError = "Non-JSON response";
         }
       } else {
         lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
@@ -1455,6 +1458,46 @@ async function addVpnClientApi(
     } catch (err: any) {
       console.error(`[Sanaei API Error] Failed to create global client: ${err.message}`);
       lastError = err.message;
+    }
+
+    // Fallback to older Sanaei per-inbound addition
+    console.log(`[Sanaei API Fallback] Attempting per-inbound addition for user '${clientEmail}'...`);
+    let fallbackSuccess = false;
+    for (const inbId of inboundIds) {
+      try {
+        const classicUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
+        const classicPayload = {
+          id: inbId,
+          settings: JSON.stringify({ clients: [ payload.client ] })
+        };
+        const cRes = await xuiFetch(classicUrl, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(classicPayload)
+        }, 8000);
+        if (cRes.ok) {
+          const cText = await cRes.text();
+          try {
+            const cJson = JSON.parse(cText);
+            if (cJson && cJson.success) {
+              console.log(`[Sanaei API Fallback Sync] Added user '${clientEmail}' to inbound ${inbId}`);
+              fallbackSuccess = true;
+            } else {
+              console.warn(`[Sanaei API Fallback error inbound ${inbId}]: ${cText}`);
+            }
+          } catch(e) {}
+        }
+      } catch (ce) {
+        console.error(`[Sanaei API Fallback Exception inbound ${inbId}]:`, ce);
+      }
+    }
+    
+    if (fallbackSuccess) {
+      const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
+        ? normalizeXuiUrl(settings.subUrl) 
+        : cleanedUrl;
+      const subLink = `${subBase}/sub/${xuiSubId}`;
+      return { success: true, clientUuid, subLink };
     }
 
     return { success: false, error: "تعریف کلاینت موفق نبود. خطا: " + lastError };

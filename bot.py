@@ -446,6 +446,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     # Always fetch all valid inbounds from panel
     valid_ids = []
+    session = get_session()
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
         list_res = session.get(list_url, timeout=8, verify=False)
@@ -471,15 +472,44 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     try:
         headers = {"Accept": "application/json"}
         response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
-        res_json = response.json()
+        # Catch HTML/404 responses from older panels gracefully
+        res_json = {}
+        try:
+            res_json = response.json()
+        except:
+            pass
+            
         if res_json.get("success"):
             print(f"[Sanaei API Sync] Created user '{client_email}' globally on inbounds successfully.")
             sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
             return client_uuid, sub_link
         else:
-            print(f"[Sanaei API Response] Creation error: {response.text}")
+            print(f"[Sanaei API Response] Creation error/unsupported: {response.text}")
+            raise Exception("Force fallback")
     except Exception as e:
-        print(f"[Sanaei API Request Error] Global client add timeout or error: {e}")
+        print(f"[Sanaei API Request Error] Global client add error: {e}. Falling back to per-inbound addition...")
+        fallback_success = False
+        import json
+        for inb_id in inbound_ids:
+            classic_url = f"{base_url}/panel/api/inbounds/addClient"
+            classic_payload = {
+                "id": inb_id,
+                "settings": json.dumps({"clients": [client_config]})
+            }
+            try:
+                c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=10, verify=False)
+                c_res_json = c_res.json()
+                if c_res_json.get("success"):
+                    print(f"[Sanaei API Fallback Sync] Added user '{client_email}' to inbound {inb_id}")
+                    fallback_success = True
+                else:
+                    print(f"[Sanaei API Fallback error inbound {inb_id}]: {c_res.text}")
+            except Exception as ce:
+                print(f"[Sanaei API Fallback Exception inbound {inb_id}]: {ce}")
+        
+        if fallback_success:
+            sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
+            return client_uuid, sub_link
 
     return None, None
 
@@ -1907,32 +1937,17 @@ def handle_buy_pay(call):
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
         sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
         
-        new_sub = {
-            "id": sub_id,
-            "userId": tg_id,
-            "planId": plan_id,
-            "planName": spec["name"],
-            "clientUuid": client_uuid,
-            "clientName": username_input,
-            "trafficGb": spec["traffic"],
-            "durationDays": spec["duration"],
-            "expireDate": expire_date,
-            "status": "active",
-            "subscriptionUrl": sub_link,
-            "purchasePrice": spec["price"],
-            "purchaseDate": time.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        db = read_db_json()
-        if "subscriptions" not in db:
-            db["subscriptions"] = []
-        db["subscriptions"].append(new_sub)
-        
-        for u in db["users"]:
-            if u["userId"] == tg_id:
-                u["activePlansCount"] = u.get("activePlansCount", 0) + 1
-        write_db_json(db)
-        
+        create_sub_key(
+            key_id=sub_id, 
+            tg_id=tg_id, 
+            plan_id=plan_id, 
+            plan_name=spec['name'], 
+            sub_link=sub_link, 
+            expire_date=expire_date, 
+            limit_gb=spec['traffic'],
+            client_name=username_input,
+            client_uuid=client_uuid
+        )
         clear_user_pending_purchase(tg_id)
         
         success_msg = (
