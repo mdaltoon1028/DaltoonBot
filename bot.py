@@ -121,6 +121,7 @@ def get_config():
     config = {
         "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
         "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
+        "BOT_NICKNAME": "دالتون",
         "XUI_URL": os.getenv("XUI_URL", "https://m.daltoon-server.ir:8443/Daltoon").rstrip("/"),
         "SUB_URL": "https://m.daltoon-server.ir:8443",
         "XUI_USER": os.getenv("XUI_USER", "Daltoon"),
@@ -139,7 +140,7 @@ def get_config():
         "SUPPORT_HANDLE": "@daltoon_owner",
         "BTN_BUY": "🛍️ خرید کانفیگ (Our Plans)",
         "BTN_PROFILE": "👤 اطلاعات حساب (My Profile)",
-        "BTN_WALLET": "💳 شارژ کیف پول (Top-up Wallet)",
+        "BTN_WALLET": "شارژ کیف پول 💳",
         "BTN_SUPPORT": "📞 پشتیبانی فنی (Support)",
         "BTN_TICKET_SUPPORT": "🎫 تیکت به پشتیبانی",
         "HIDE_TICKET_SUPPORT": False,
@@ -168,8 +169,9 @@ def get_config():
             config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
             config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
             config["BTN_AI_CHAT"] = panel_cfg.get("btnTextAiChat", "🤖 چت با ربات")
-            config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "💵 کیف پول + شارژ")
+            config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "شارژ کیف پول 💳")
             config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
+            config["WALLET_CHARGE_AMOUNTS"] = panel_cfg.get("walletChargeAmounts", [200000, 300000, 400000, 500000, 1000000])
 
             config["IS_FREETEST_ACTIVE"] = panel_cfg.get("isFreeTestActive", True)
             config["FREETEST_DISABLED_MSG"] = panel_cfg.get("freeTestDisabledMessage", "اکانت تست رایگان فعلا موجود نیست.")
@@ -231,7 +233,9 @@ def get_config():
                 config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
             if "hideProfile" in panel_cfg:
                 config["HIDE_PROFILE"] = bool(panel_cfg["hideProfile"])
-            if "hideWallet" in panel_cfg:
+            if "hideBtnWallet" in panel_cfg:
+                config["HIDE_WALLET"] = bool(panel_cfg["hideBtnWallet"])
+            elif "hideWallet" in panel_cfg:
                 config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
             if "keyboardLayout" in panel_cfg:
                 config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
@@ -483,93 +487,94 @@ def delete_vpn_client_api(client_email, client_uuid=None):
     except Exception as e:
         print(f"[Sanaei API Error] Fetching inbounds list failed: {e}")
 
-    # Find UUID with high-res fuzzy/prefix/suffix matching if not provided or to verify
-    if not client_uuid and all_clients:
-        import re
-        from collections import Counter
-        
-        def normalize(s):
-            if not s:
-                return ""
-            s = s.lower().strip()
-            # Remove prefixes like "col-", "prefix-", etc.
-            if '-' in s:
-                parts = s.split('-')
-                if len(parts) > 1:
-                    s = parts[-1]
-            return re.sub(r'[^a-z0-9]', '', s)
+    # Build reliable target IDs list containing both provided UUID and any matching panel UUIDs
+    ids_to_delete = []
+    if client_uuid:
+        ids_to_delete.append(str(client_uuid))
 
-        target_norm = normalize(client_email)
-        best_match = None
-        
-        if target_norm:
-            # 1. Exact normalized match
-            for c in all_clients:
-                email = c.get("email", "")
-                if normalize(email) == target_norm:
-                    best_match = c
-                    break
-            
-            # 2. Substring match
-            if not best_match:
-                sub_matches = []
-                for c in all_clients:
-                    email_norm = normalize(c.get("email", ""))
-                    if target_norm in email_norm or email_norm in target_norm:
-                        sub_matches.append(c)
-                if sub_matches:
-                    sub_matches.sort(key=lambda x: abs(len(normalize(x.get("email", ""))) - len(target_norm)))
-                    best_match = sub_matches[0]
-                    
-            # 3. Fuzzy character counter matching (tolerant of typos)
-            if not best_match:
-                best_ratio = 0.0
-                for c in all_clients:
-                    email_norm = normalize(c.get("email", ""))
-                    if not email_norm:
-                        continue
+    # Perform highly resilient lookup on all clients in the panel to match names/emails
+    import re
+    from collections import Counter
+    
+    def normalize(s):
+        if not s:
+            return ""
+        s = s.lower().strip()
+        # strip prefixes
+        if '-' in s:
+            parts = s.split('-')
+            if len(parts) > 1:
+                s = parts[-1]
+        return re.sub(r'[^a-z0-9]', '', s)
+
+    target_norm = normalize(client_email)
+    
+    if all_clients and target_norm:
+        # 1. Look for exact matches or normalized exact matches
+        for c in all_clients:
+            c_email = c.get("email", "")
+            c_id = c.get("id")
+            if c_id and str(c_id) not in ids_to_delete:
+                if c_email.lower() == client_email.lower() or normalize(c_email) == target_norm:
+                    ids_to_delete.append(str(c_id))
+                    print(f"[Sanaei Delete API] Found exact name-match candidate: '{c_email}' (UUID: {c_id})")
+
+        # 2. Look for substring matches
+        for c in all_clients:
+            c_email = c.get("email", "")
+            c_id = c.get("id")
+            if c_id and str(c_id) not in ids_to_delete:
+                c_email_norm = normalize(c_email)
+                if target_norm in c_email_norm or c_email_norm in target_norm:
+                    ids_to_delete.append(str(c_id))
+                    print(f"[Sanaei Delete API] Found substring-match candidate: '{c_email}' (UUID: {c_id})")
+
+        # 3. Look for extremely tolerant fuzzy/typo matches (such as ahura-amiiir vs ahura-amirrrr)
+        # We lower the ratio threshold to 0.45 for deletion to be absolutely sure we catch typo variations
+        for c in all_clients:
+            c_email = c.get("email", "")
+            c_id = c.get("id")
+            if c_id and str(c_id) not in ids_to_delete:
+                c_email_norm = normalize(c_email)
+                if c_email_norm:
                     c1 = Counter(target_norm)
-                    c2 = Counter(email_norm)
+                    c2 = Counter(c_email_norm)
                     intersect = sum((c1 & c2).values())
-                    total_len = len(target_norm) + len(email_norm)
+                    total_len = len(target_norm) + len(c_email_norm)
                     ratio = (2.0 * intersect) / total_len if total_len > 0 else 0.0
-                    if ratio > 0.70 and ratio > best_ratio:
-                        best_ratio = ratio
-                        best_match = c
-            
-            if best_match:
-                client_uuid = best_match.get("id")
-                print(f"[Sanaei Delete API] Found best match for '{client_email}' -> '{best_match.get('email')}' with UUID {client_uuid}")
-            else:
-                print(f"[Sanaei Delete API] No matching client found in panel for email/name '{client_email}'")
+                    if ratio > 0.45:
+                        ids_to_delete.append(str(c_id))
+                        print(f"[Sanaei Delete API] Found fuzzy typo-tolerant match candidate: '{c_email}' [ratio: {ratio:.2f}] (UUID: {c_id})")
 
-    if not client_uuid:
-        print("[Sanaei Delete API] Client UUID could not be resolved.")
+    if not ids_to_delete:
+        print(f"[Sanaei Delete API] No UUIDs or matching panel clients found to delete for '{client_email}'.")
         return False
 
+    print(f"[Sanaei Delete API] Executing deletion commands for UUIDs: {ids_to_delete}")
     success = False
     
-    # 1. Standard delete from individual inbounds
-    if valid_ids:
-        for inbound_id in valid_ids:
-            try:
-                del_url = f"{base_url}/panel/api/inbounds/{inbound_id}/delClient/{client_uuid}"
-                resp = session.post(del_url, timeout=5, verify=False)
-                if resp.status_code == 200 and resp.json().get("success"):
-                    success = True
-                    print(f"[Sanaei Delete API] Deleted client {client_uuid} from inbound {inbound_id}")
-            except Exception as e:
-                print(f"[Sanaei Delete API] Inbound delete exception on {inbound_id}: {e}")
-                
-    # 2. Global client delete endpoint (some newer 3x-ui panels use this)
-    try:
-        del_url2 = f"{base_url}/panel/api/clients/{client_uuid}/del"
-        resp2 = session.post(del_url2, timeout=5, verify=False)
-        if resp2.status_code == 200 and resp2.json().get("success"):
-            success = True
-            print(f"[Sanaei Delete API] Globally deleted client {client_uuid} via global client del")
-    except Exception as e:
-        print(f"[Sanaei Delete API] Global client del exception: {e}")
+    for uid in ids_to_delete:
+        # 1. Standard delete from individual inbounds
+        if valid_ids:
+            for inbound_id in valid_ids:
+                try:
+                    del_url = f"{base_url}/panel/api/inbounds/{inbound_id}/delClient/{uid}"
+                    resp = session.post(del_url, timeout=5, verify=False)
+                    if resp.status_code == 200 and resp.json().get("success"):
+                        success = True
+                        print(f"[Sanaei Delete API] Deleted client {uid} from inbound {inbound_id}")
+                except Exception as e:
+                    print(f"[Sanaei Delete API] Inbound delete exception on {inbound_id} for {uid}: {e}")
+                    
+        # 2. Global client delete endpoint (some newer 3x-ui panels use this)
+        try:
+            del_url2 = f"{base_url}/panel/api/clients/{uid}/del"
+            resp2 = session.post(del_url2, timeout=5, verify=False)
+            if resp2.status_code == 200 and resp2.json().get("success"):
+                success = True
+                print(f"[Sanaei Delete API] Globally deleted client {uid} via global client del")
+        except Exception as e:
+            print(f"[Sanaei Delete API] Global client del exception for {uid}: {e}")
 
     return success
 
@@ -604,10 +609,12 @@ def register_tg_user(tg_id, username, referral_id=None):
             "status": "active"
         }
         
-        if referral_id and referral_id != tg_id:
-            referrer = next((u for u in db["users"] if u["userId"] == referral_id), None)
+        if referral_id and str(referral_id) != str(tg_id):
+            referrer = next((u for u in db["users"] if str(u["userId"]) == str(referral_id)), None)
             if referrer:
-                new_user["referredBy"] = referral_id
+                new_user["referredBy"] = int(referral_id)
+                # Recalculate or increment the referral count to be 100% sure we don't drop invites
+                referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
                 
                 # Parse settings
                 import json
@@ -625,10 +632,9 @@ def register_tg_user(tg_id, username, referral_id=None):
                     
                     if reward > 0:
                         referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
-                        referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
                         referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
                         try:
-                            bot.send_message(referral_id, f"🎉 <b>تبریک!</b>\nیک نفر با لینک شما وارد ربات شد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
+                            bot.send_message(int(referral_id), f"🎉 <b>تبریک!</b>\nیک نفر با لینک شما وارد ربات شد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
                         except Exception as e:
                             print("Could not notify referrer:", e)
                             
@@ -722,12 +728,6 @@ def process_referral_on_purchase(user, amount_spent):
     
     if reward > 0:
         referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
-        # We don't increment referralCount again on purchase if they already got it on invite?
-        # Typically "referralCount" is invite count. We just leave it, or maybe we increment if condition is "purchase".
-        # Let's just add the reward. If condition was 'both', we don't want to double count the invite itself.
-        if condition == "purchase":
-            referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
-            
         referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
         try:
             bot.send_message(referrer_id, f"🎉 <b>تبریک!</b>\nکاربری که با لینک شما وارد شده بود اولین خرید خود را انجام داد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
@@ -861,7 +861,7 @@ def get_custom_keyboard():
         elif key == "btnColleagues" and not cfg.get("HIDE_COLLEAGUES", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"), callback_data="mm_btnColleagues"))
         elif key == "btnAiChat" and not cfg.get("HIDE_AI_CHAT", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"), callback_data="mm_btnAiChat"))
         elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری"), callback_data="mm_btnProfile"))
-        elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "💵 کیف پول + شارژ"), callback_data="mm_btnWallet"))
+        elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "شارژ کیف پول 💳"), callback_data="mm_btnWallet"))
         elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی"), callback_data="mm_btnSupport"))
         elif key == "btnTicketSupport" and not cfg.get("HIDE_TICKET_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_TICKET_SUPPORT", "🎫 تیکت به پشتیبانی"), callback_data="mm_btnTicketSupport"))
         elif key == "btnFreeTest" and not cfg.get("HIDE_FREETEST", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_FREETEST", "🎁 موجودی رایگان"), callback_data="mm_btnFreeTest"))
@@ -1010,7 +1010,7 @@ def start_cmd(message):
         welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
     else:
         welcome_text = (
-            f"<b>🚀 به ربات پرسرعت Daltoon Servers خوش آمدید!</b>\n\n"
+            f"<b>🚀 به ربات پرسرعت {bot_nickname} خوش آمدید!</b>\n\n"
             f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
             f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
             f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
@@ -1063,55 +1063,24 @@ def handle_main_menu_callback(call):
         return
 
     elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
-        db_plans = db.get("vpn_plans", [])
+        cfg = get_config()
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
-        # Build the dynamic list of premium packages
-        plans_data = []
-        if db_plans:
-            for dp in db_plans:
-                plans_data.append({
-                    "id": dp["id"],
-                    "name": dp["name"],
-                    "price": dp["price"],
-                    "traffic": dp.get("trafficGb", 30),
-                    "duration": dp.get("durationDays", 30)
-                })
-        else:
-            # Fallback legacy values
-            plans_data = [
-                {"id": "std_30g", "name": "Standard 30GB - ۳۰ روزه", "price": 45000, "traffic": 30, "duration": 30},
-                {"id": "vip_70g", "name": "VIP Premium 70GB - ۶۰ روزه", "price": 95000, "traffic": 70, "duration": 60},
-                {"id": "ult_150g", "name": "Unlimited VoIP 150GB - ۹۰ روزه", "price": 185000, "traffic": 150, "duration": 90}
-            ]
-        
-        # Build a magnificent, highly detailed list text for supreme look
-        plans_list_text = ""
-        for p in plans_data:
-            plans_list_text += f"💎 <b>{p['name']}</b>\n"
-            plans_list_text += f"   ├ 💾 حجم: <code>{p['traffic']} گیگابایت</code> ┃ 🕒 اعتبار: <code>{p['duration']} روز</code>\n"
-            plans_list_text += f"   └ 💰 قیمت: <code>{p['price']:,} تومان</code>\n\n"
-
         message_body = (
-            "🛍️ <b>پلان‌های سرعت اختصاصی دالتون:</b>\n\n"
-            "لطفاً یکی از تعرفه‌های زیر را جهت خرید مستقیم و فعال‌سازی فوری انتخاب نمایید. هزینه طرح انتخابی به طور خودکار از کیف پول تلگرام شما کسر خواهد شد:\n\n"
-            f"{plans_list_text}"
-            "👇 جهت خرید آنلاین و تحویل آنی، روی دکمه طرح مورد نظر خود در زیر کلیک کنید:"
+            f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
+            "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
+            "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
         )
 
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for p in plans_data:
-            clean_name = p['name']
-            if clean_name.startswith("پلن "):
-                clean_name = clean_name[4:]
-            elif clean_name.startswith("پلان "):
-                clean_name = clean_name[5:]
-            
-            btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
-            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
+        markup.add(
+            types.InlineKeyboardButton("⚡️ Standard", callback_data="plcat_Standard"),
+            types.InlineKeyboardButton("⭐️ Vip", callback_data="plcat_VIP"),
+            types.InlineKeyboardButton("🚀 Unlimited VoIp", callback_data="plcat_Unlimited VoIP")
+        )
         
         markup.row(
-            types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"),
-            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
         )
             
         bot.edit_message_text(
@@ -1243,17 +1212,26 @@ def handle_main_menu_callback(call):
             f"پس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود."
         )
         markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("💵 ۲۰۰,۰۰۰ تومان", callback_data="charge_amount_200000"),
-            types.InlineKeyboardButton("💵 ۳۰۰,۰۰۰ تومان", callback_data="charge_amount_300000")
-        )
-        markup.add(
-            types.InlineKeyboardButton("💵 ۴۰۰,۰۰۰ تومان", callback_data="charge_amount_400000"),
-            types.InlineKeyboardButton("💵 ۵۰۰,۰۰۰ تومان", callback_data="charge_amount_500000")
-        )
-        markup.add(
-            types.InlineKeyboardButton("🔥 ۱,۰۰۰,۰۰۰ تومان", callback_data="charge_amount_1000000")
-        )
+        charge_amounts = cfg.get("WALLET_CHARGE_AMOUNTS", [200000, 300000, 400000, 500000, 1000000])
+        
+        row_buttons = []
+        for amt in charge_amounts:
+            try:
+                amt_val = int(amt)
+            except Exception:
+                amt_val = 200000
+                
+            btn_label = f"💵 {amt_val:,} تومان"
+            if amt_val >= 1000000:
+                btn_label = f"🔥 {amt_val:,} تومان"
+            row_buttons.append(types.InlineKeyboardButton(btn_label, callback_data=f"charge_amount_{amt_val}"))
+            
+        for i in range(0, len(row_buttons), 2):
+            if i + 1 < len(row_buttons):
+                markup.add(row_buttons[i], row_buttons[i+1])
+            else:
+                markup.add(row_buttons[i])
+                
         markup.add(
             types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount")
         )
@@ -1412,8 +1390,30 @@ def handle_main_menu_callback(call):
         link = f"https://t.me/{bot_username}?start={uid}"
         
         user = next((u for u in db.get("users", []) if u["userId"] == tg_id), {})
-        referrals_count = user.get("referralCount", 0)
-        referrals_reward = user.get("referralRewardTotal", 0)
+        
+        # Calculate real referrals count dynamically from current users state
+        db_users = db.get("users", [])
+        real_referrals_count = 0
+        for u in db_users:
+            ref_by = u.get("referredBy")
+            if ref_by is not None:
+                try:
+                    if int(ref_by) == int(tg_id):
+                        real_referrals_count += 1
+                except:
+                    if str(ref_by) == str(tg_id):
+                        real_referrals_count += 1
+                        
+        if user:
+            # Sync user's referralCount to make sure stats in DB match exactly
+            if "referralCount" not in user or user["referralCount"] < real_referrals_count:
+                user["referralCount"] = real_referrals_count
+                write_db_json(db)
+            referrals_count = user.get("referralCount", 0)
+            referrals_reward = user.get("referralRewardTotal", 0)
+        else:
+            referrals_count = real_referrals_count
+            referrals_reward = 0
         
         default_msg = (
             "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n"
@@ -1770,6 +1770,67 @@ def callback_handler(call):
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
         
+    if call.data.startswith("plcat_"):
+        bot.answer_callback_query(call.id)
+        category_name = call.data.split("_", 1)[1]
+        
+        db = read_db_json()
+        db_plans = db.get("vpn_plans", [])
+        
+        plans_data = []
+        for dp in db_plans:
+            cat = dp.get("category", "Standard")
+            # Case insensitive comparison for robustness
+            if cat.lower() == category_name.lower():
+                plans_data.append({
+                    "id": dp["id"],
+                    "name": dp["name"],
+                    "price": dp["price"],
+                    "traffic": dp.get("trafficGb", 30),
+                    "duration": dp.get("durationDays", 30)
+                })
+                
+        cfg = get_config()
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        
+        display_cat = category_name
+        if category_name.lower() == "standard":
+            display_cat = "Standard"
+        elif category_name.lower() == "vip":
+            display_cat = "Vip"
+        elif category_name.lower() == "unlimited voip" or category_name.lower() == "unlimitedvoip":
+            display_cat = "Unlimited VoIp"
+            
+        message_body = (
+            f"⚡️ <b>پلن‌های بخش {display_cat} - {nickname}</b>\n\n"
+            "لطفاً یکی از تعرفه‌های معتبر زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:"
+        )
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for p in plans_data:
+            clean_name = p['name']
+            if clean_name.startswith("پلن "):
+                clean_name = clean_name[4:]
+            elif clean_name.startswith("پلان "):
+                clean_name = clean_name[5:]
+                
+            btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
+            
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data="mm_btnBuyNew"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+        )
+        
+        bot.edit_message_text(
+            message_body,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        return
+        
     if call.data.startswith("buy_"):
         plan_id = call.data[4:]
         
@@ -1918,7 +1979,7 @@ def callback_handler(call):
         else:
             balance = f"{int(user.get('walletBalance') or 0):,}" if user else "0"
             welcome_text = (
-                f"<b>🚀 به ربات پرسرعت دالتون سرور بازگشتید!</b>\n\n"
+                f"<b>🚀 به ربات پرسرعت {bot_nickname} بازگشتید!</b>\n\n"
                 f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
                 f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
                 f"💰 موجودی کیف پول: <code>{balance}</code> تومان\n\n"

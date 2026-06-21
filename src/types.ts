@@ -97,6 +97,7 @@ export interface PanelSettings {
   // Auto Backup
   autoBackupEnabled?: boolean;
   autoBackupInterval?: string;
+  walletChargeAmounts?: number[];
 }
 
 export interface InboundInfo {

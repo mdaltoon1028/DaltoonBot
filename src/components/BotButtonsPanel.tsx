@@ -17,7 +17,8 @@ import {
   Power,
   ChevronUp,
   ChevronDown,
-  Activity
+  Activity,
+  Coins
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
@@ -72,7 +73,7 @@ export default function BotButtonsPanel({
   const [btnTextFeedback, setBtnTextFeedback] = useState(settings.btnTextFeedback || "💌 بازخورد کاربر ها");
   const [hideBtnFeedback, setHideBtnFeedback] = useState(!!settings.hideBtnFeedback);
 
-  const [btnTextWallet, setBtnTextWallet] = useState(settings.btnTextWallet || "💵 کیف پول + شارژ");
+  const [btnTextWallet, setBtnTextWallet] = useState(settings.btnTextWallet || "شارژ کیف پول 💳");
   const [hideBtnWallet, setHideBtnWallet] = useState(!!settings.hideBtnWallet);
 
   const [btnTextReferral, setBtnTextReferral] = useState(settings.btnTextReferral || "👥 زیرمجموعه گیری");
@@ -88,6 +89,14 @@ export default function BotButtonsPanel({
   const [guidesText, setGuidesText] = useState(settings.guidesText || "");
   const [showGuidesModal, setShowGuidesModal] = useState(false);
   const [tempGuidesText, setTempGuidesText] = useState("");
+
+  const [walletChargeAmounts, setWalletChargeAmounts] = useState<number[]>(() => {
+    return settings.walletChargeAmounts && Array.isArray(settings.walletChargeAmounts)
+      ? settings.walletChargeAmounts
+      : [200000, 300000, 400000, 500000, 1000000];
+  });
+  const [showWalletAmountsModal, setShowWalletAmountsModal] = useState(false);
+  const [tempChargeAmounts, setTempChargeAmounts] = useState<number[]>([]);
   
   const defaultOrder = [
     "btnBuyNew", "btnWallet", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
@@ -240,7 +249,8 @@ export default function BotButtonsPanel({
       hideBtnColleagues,
       hideBtnAiChat,
       keyboardLayout,
-      mainButtonsOrder
+      mainButtonsOrder,
+      walletChargeAmounts
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -380,7 +390,7 @@ export default function BotButtonsPanel({
                         <input
                           type="text"
                           disabled={btn.disabled}
-                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnGuides" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnGuides" || key === "btnWallet" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
                           value={btn.value}
                           onChange={(e) => btn.setter(e.target.value)}
                         />
@@ -428,6 +438,19 @@ export default function BotButtonsPanel({
                               setShowGuidesModal(true);
                             }}
                             title={lang === "fa" ? "ویرایش متن راهنما" : "Edit Guide Description"}
+                            className="absolute left-[44px] top-1/2 -translate-y-1/2 p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-white transition-all cursor-pointer border border-amber-500/20 z-10"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {key === "btnWallet" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTempChargeAmounts([...walletChargeAmounts]);
+                              setShowWalletAmountsModal(true);
+                            }}
+                            title={lang === "fa" ? "ویرایش مبالغ شارژ کیف پول" : "Edit Wallet Charge Amounts"}
                             className="absolute left-[44px] top-1/2 -translate-y-1/2 p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-white transition-all cursor-pointer border border-amber-500/20 z-10"
                           >
                             <Pencil className="w-4 h-4" />
@@ -713,7 +736,8 @@ export default function BotButtonsPanel({
                     hideBtnColleagues,
                     hideBtnAiChat,
                     keyboardLayout,
-                    mainButtonsOrder
+                    mainButtonsOrder,
+                    walletChargeAmounts
                   });
                   setShowGuidesModal(false);
                 }}
@@ -797,7 +821,8 @@ export default function BotButtonsPanel({
                     hideBtnColleagues,
                     hideBtnAiChat,
                     keyboardLayout,
-                    mainButtonsOrder
+                    mainButtonsOrder,
+                    walletChargeAmounts
                   });
                   
                   setShowFreeTestMessageConfig(false);
@@ -806,6 +831,131 @@ export default function BotButtonsPanel({
               >
                 <Check className="w-3.5 h-3.5" />
                 {lang === "fa" ? "غیرفعال‌سازی و ذخیره" : "Disable & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallet Charge Amounts Modal */}
+      {showWalletAmountsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-[#111827] border border-slate-700/60 p-6 rounded-2xl w-full max-w-lg shadow-[0_0_40px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <Coins className="w-5 h-5 text-amber-400" />
+              {lang === "fa" ? "تنظیم مبالغ شارژ کیف پول" : "Wallet Charge Amounts"}
+            </h3>
+            <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+              {lang === "fa" 
+                ? "مبالغی که جهت دکمه‌های شارژ سریع در ربات برای افزایش موجودی نمایش داده می‌شود را مشخص کنید (به تومان). کاربران با انتخاب هرکدام، لینک پرداخت کارت‌به‌کارت دریافت می‌کنند." 
+                : "Set preset charge amounts (in Tomans) for quick recharging buttons in the bot. Users will be shown these ready options."}
+            </p>
+            
+            <div className="space-y-3">
+              {tempChargeAmounts.map((amt, idx) => (
+                <div key={idx} className="flex gap-2 items-center bg-[#0a0e17] p-2.5 rounded-xl border border-slate-800">
+                  <div className="text-gray-500 font-mono text-xs w-6 text-center">#{idx + 1}</div>
+                  <input
+                    type="number"
+                    className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium font-mono"
+                    value={amt}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      const copy = [...tempChargeAmounts];
+                      copy[idx] = val;
+                      setTempChargeAmounts(copy);
+                    }}
+                    placeholder="مبلغ به تومان"
+                  />
+                  <div className="text-[10px] text-gray-400 font-mono font-bold w-28 text-left">
+                    {amt > 0 ? `${amt.toLocaleString()} تومان` : "۰"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempChargeAmounts(tempChargeAmounts.filter((_, i) => i !== idx));
+                    }}
+                    className="p-1 px-2 text-red-400 hover:bg-red-500/10 rounded-lg border border-red-500/10 transition cursor-pointer"
+                    title={lang === "fa" ? "حذف" : "Remove"}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              
+              {tempChargeAmounts.length === 0 && (
+                <p className="text-xs text-center text-gray-500 py-4">
+                  {lang === "fa" ? "هیچ مبلغی تعریف نشده است." : "No amounts defined."}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTempChargeAmounts([...tempChargeAmounts, 100000]);
+              }}
+              className="mt-4 w-full py-2 border border-dashed border-gray-700 hover:border-gray-500 text-indigo-400 text-xs flex items-center justify-center gap-1.5 rounded-xl transition cursor-pointer hover:bg-indigo-500/5 font-semibold"
+            >
+              <Plus className="w-4 h-4" />
+              {lang === "fa" ? "افزودن مبلغ جدید" : "Add New Preset Amount"}
+            </button>
+            
+            <div className="flex justify-end gap-3 mt-6 border-t border-gray-800/60 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWalletAmountsModal(false);
+                }}
+                className="px-4 py-2 bg-[#1f2937] hover:bg-slate-700 text-gray-300 rounded-lg text-xs font-semibold cursor-pointer transition border border-slate-700/50 hover:border-slate-600"
+              >
+                {lang === "fa" ? "انصراف" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWalletChargeAmounts(tempChargeAmounts);
+                  onSaveSettings({
+                    ...settings,
+                    btnTextBuyNew,
+                    btnTextMySubs,
+                    btnTextGuides,
+                    guidesText,
+                    btnTextProfile,
+                    btnTextSupport,
+                    btnTextTicketSupport,
+                    btnTextFreeTest,
+                    btnTextInstantSupport,
+                    btnTextFeedback,
+                    btnTextReferral,
+                    btnTextWallet,
+                    btnTextColleagues,
+                    btnTextAiChat,
+                    isFreeTestActive,
+                    freeTestDisabledMessage,
+                    hideBtnBuyNew,
+                    hideBtnMySubs,
+                    hideBtnGuides,
+                    hideBtnProfile,
+                    hideBtnSupport,
+                    hideBtnTicketSupport,
+                    hideBtnFreeTest,
+                    hideBtnInstantSupport,
+                    hideBtnFeedback,
+                    hideBtnReferral,
+                    hideBtnWallet,
+                    hideBtnColleagues,
+                    hideBtnAiChat,
+                    keyboardLayout,
+                    mainButtonsOrder,
+                    walletChargeAmounts: tempChargeAmounts
+                  });
+                  setShowWalletAmountsModal(false);
+                }}
+                className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg text-xs font-semibold cursor-pointer transition shadow-lg shadow-emerald-600/10 flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {lang === "fa" ? "ذخیره و تایید" : "Save Changes"}
               </button>
             </div>
           </div>

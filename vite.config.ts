@@ -21,11 +21,17 @@ export default defineConfig(() => {
           '**/storage/**',
           '**/*.log',
           '**/Daltoon_Bot.json',
+          '**/database.json',
           '**/*.json',
           '**/*.db',
           '**/*.sqlite',
           'Daltoon_Bot.json',
-          '**/backup/**'
+          'database.json',
+          'package.json',
+          '**/backup/**',
+          path.resolve(__dirname, 'Daltoon_Bot.json'),
+          path.resolve(__dirname, 'database.json'),
+          path.resolve(__dirname, 'package.json'),
         ]
       },
     },

@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-import { spawn, ChildProcess, exec } from "child_process";
+import { spawn, ChildProcess, exec, execSync } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
@@ -187,6 +187,9 @@ function readJsonDb(): DbSchema {
             hideBuy: false,
             hideProfile: false,
             hideWallet: false,
+            hideBtnWallet: false,
+            btnTextWallet: "شارژ کیف پول 💳",
+            walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
             dashboardUsername: process.env.DASHBOARD_USERNAME || "admin",
             dashboardPassword: process.env.DASHBOARD_PASSWORD || "admin",
             serverPort: process.env.DASHBOARD_PORT ? parseInt(process.env.DASHBOARD_PORT, 10) : 3000,
@@ -260,6 +263,9 @@ function getSystemSettings(db?: any) {
     hideBuy: false,
     hideProfile: false,
     hideWallet: false,
+    hideBtnWallet: false,
+    btnTextWallet: "شارژ کیف پول 💳",
+    walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
     dashboardUsername: process.env.PANEL_USER || "Daltoon",
     dashboardPassword: process.env.PANEL_PASS || "Daltoon10",
     serverPort: 3000,
@@ -965,15 +971,35 @@ app.post("/api/ai/chat", async (req, res) => {
 
 لطفاً کوتاه، زیبا و با ادبیات مناسب پاسخ دهید. از ارائه اطلاعات محرمانه خودداری کنید. سوال کاربر: ${message}`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: message,
-      config: {
-         systemInstruction: systemPrompt
+    let responseText = "";
+    let lastError = null;
+    const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`[AI Chat] Attempting generation with model: ${modelName}`);
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: message,
+          config: {
+             systemInstruction: systemPrompt
+          }
+        });
+        if (response && response.text) {
+          responseText = response.text;
+          break; // success!
+        }
+      } catch (err: any) {
+        console.warn(`[AI Chat Warning] Model ${modelName} failed or unavailable:`, err?.message || err);
+        lastError = err;
       }
-    });
-    
-    res.json({ response: response.text });
+    }
+
+    if (!responseText) {
+      throw lastError || new Error("تمامی مدل‌های پس‌زمینه موقتا شلوغ یا غیرقابل دسترس هستند. لطفا لحظاتی دیگر تلاش کنید.");
+    }
+
+    res.json({ response: responseText });
   } catch (error: any) {
     console.error("[AI Chat API Error]:", error);
     res.status(500).json({ error: error.message || "Failed to generate AI response." });
@@ -2411,82 +2437,88 @@ app.get("/api/system/version", (req, res) => {
 
 app.get("/api/system/check-update", async (req, res) => {
   try {
-    const { execSync } = require('child_process');
-    // Fetch latest from remote (this is light and safe)
-    execSync('git fetch', { stdio: 'ignore' });
-    
-    // Check if local branch is behind origin/main (or origin/master)
-    // We get the number of commits we are behind
-    const branchInfo = execSync('git rev-list HEAD...@{u} --count', { encoding: 'utf8' }).trim();
-    
-    // Check local package version
-    const fs = require('fs');
-    const path = require('path');
-    const pkgPath = path.join(process.cwd(), 'package.json');
-    let version = "2.0.0";
-    if (fs.existsSync(pkgPath)) {
-      version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version || version;
+    let updateAvailable = false;
+    try {
+      // Fetch latest from remote (this is light and safe)
+      execSync('git fetch', { stdio: 'ignore', timeout: 5000 });
+      // Check if local branch is behind origin/main (or origin/master)
+      const branchInfo = execSync('git rev-list HEAD...@{u} --count', { encoding: 'utf8', timeout: 5000 }).trim();
+      updateAvailable = parseInt(branchInfo, 10) > 0;
+    } catch (gitErr) {
+      // Ignore git fetch failures
     }
     
-    const updateAvailable = parseInt(branchInfo, 10) > 0;
+    // Check local package version
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    let version = "1.0.1";
+    if (fs.existsSync(pkgPath)) {
+      try {
+        version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version || version;
+      } catch {}
+    }
     
     res.json({ success: true, updateAvailable, version });
   } catch (err: any) {
-    // Graceful fallback if not a git repository
-    res.json({ success: false, updateAvailable: false, error: err.message });
+    // Graceful fallback with version included
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    let version = "1.0.1";
+    if (fs.existsSync(pkgPath)) {
+      try {
+        version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version || version;
+      } catch {}
+    }
+    res.json({ success: false, updateAvailable: false, error: err.message, version });
   }
 });
 
 app.post("/api/system/update", async (req, res) => {
   try {
-    const { exec } = require('child_process');
-    
-    // Increment version first in package.json using custom carry-over rules (e.g. 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0)
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const pkgPath = path.join(process.cwd(), 'package.json');
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-        const currentVersion = pkg.version || "1.0.1";
-        const parts = currentVersion.split('.').map(Number);
-        if (parts.length === 3 && !parts.some(isNaN)) {
-          let [major, minor, patch] = parts;
-          patch += 1;
-          if (patch > 9) {
-            patch = 0;
-            minor += 1;
-            if (minor > 9) {
-              minor = 0;
-              major += 1;
-            }
-          }
-          pkg.version = `${major}.${minor}.${patch}`;
-          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf8');
-          console.log(`[Auto-Update] Version updated to ${pkg.version}`);
-        }
-      }
-    } catch (vErr: any) {
-      console.error("[Auto-Update] Version increment failed", vErr.message);
-    }
-    
     res.json({ success: true, message: "به‌روزرسانی در پس‌زمینه آغاز شد. سیستم به‌زودی راه‌اندازی مجدد می‌شود..." });
     
     // Run update sequence asynchronously
     setTimeout(() => {
-      console.log("[Auto-Update] Starting background update sequence...");
-      exec('git stash && git pull && chmod +x daltoon-dashboard install.sh 2>/dev/null || true && npm install && npm run build && pm2 restart all', (error: any, stdout: string, stderr: string) => {
-        if (error) {
-          console.error("[Auto-Update Error]", error.message);
-        } else {
-          console.log("[Auto-Update] Update completed successfully.");
+      console.log("[Auto-Update] Starting background update sequence (stash -> pull)...");
+      exec('git stash && git pull || true', (pullError: any) => {
+        // Increment version in package.json AFTER git pull so it's not stashed away!
+        try {
+          const pkgPath = path.join(process.cwd(), 'package.json');
+          if (fs.existsSync(pkgPath)) {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            const currentVersion = pkg.version || "1.0.1";
+            const parts = currentVersion.split('.').map(Number);
+            if (parts.length === 3 && !parts.some(isNaN)) {
+              let [major, minor, patch] = parts;
+              patch += 1;
+              if (patch > 9) {
+                patch = 0;
+                minor += 1;
+                if (minor > 9) {
+                  minor = 0;
+                  major += 1;
+                }
+              }
+              pkg.version = `${major}.${minor}.${patch}`;
+              fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf8');
+              console.log(`[Auto-Update] Version successfully incremented to ${pkg.version} after git pull`);
+            }
+          }
+        } catch (vErr: any) {
+          console.error("[Auto-Update] Version increment failed", vErr.message);
         }
+
+        // Now run dependencies, rebuild, and restart all PM2 processes
+        exec('chmod +x daltoon-dashboard install.sh 2>/dev/null || true && npm install && npm run build && pm2 restart all', (buildError: any, stdout: string, stderr: string) => {
+          if (buildError) {
+            console.error("[Auto-Update Error in build]", buildError.message);
+          } else {
+            console.log("[Auto-Update] Update completed successfully.");
+          }
+        });
       });
     }, 1000);
     
   } catch (err: any) {
-    console.error("[Auto-Update Error]", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("[Auto-Update Catch Error]", err.message);
   }
 });
 
