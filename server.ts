@@ -268,7 +268,6 @@ let botProcess: ChildProcess | null = null;
 let pythonDepsInstalled = false;
 
 function startPythonBot() {
-  // Check if we are running in PM2 environment
   const isPM2 = process.env.PM2_HOME !== undefined || process.env.pm_id !== undefined || process.env.name === "daltoon-store";
 
   if (isPM2) {
@@ -307,7 +306,11 @@ function startPythonBot() {
       
       botProcess = spawn(pythonCmd, ["-u", botScriptPath], {
         cwd: process.cwd(),
-        env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        env: { 
+          ...process.env, 
+          PYTHONUNBUFFERED: "1",
+          PYTHONPATH: "/root/.local/lib/python3.10/site-packages"
+        },
         stdio: "pipe",
       });
 
@@ -340,13 +343,25 @@ function startPythonBot() {
 
   if (!pythonDepsInstalled) {
     console.log("[Bot Manager] Ensuring Python dependencies (pyTelegramBotAPI, python-dotenv, requests) are installed...");
-    exec("pip3 install pyTelegramBotAPI python-dotenv requests --break-system-packages || pip install pyTelegramBotAPI python-dotenv requests", (err, stdout, stderr) => {
+    // Use python3 -m pip which is more reliable
+    exec("python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages", (err, stdout, stderr) => {
       pythonDepsInstalled = true;
       if (err) {
         console.error("[Bot Manager] Failed to install Python dependencies:", err.message);
-      } else {
-        console.log("[Bot Manager] Python dependencies verified/installed successfully.");
+        console.error("[Bot Manager] PIP STDOUT:", stdout);
+        console.error("[Bot Manager] PIP STDERR:", stderr);
+        // Fallback: try without --break-system-packages
+        exec("python3 -m pip install pyTelegramBotAPI python-dotenv requests", (err2, stdout2, stderr2) => {
+           if (err2) {
+             console.error("[Bot Manager] Secondary PIP failed:", err2.message);
+           } else {
+             console.log("[Bot Manager] Python dependencies installed on second attempt.");
+           }
+           runBot();
+        });
+        return;
       }
+      console.log("[Bot Manager] Python dependencies verified/installed successfully.");
       runBot();
     });
   } else {

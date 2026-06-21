@@ -7,19 +7,26 @@ Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
 
 import os
 import sys
+sys.path.append("/root/.local/lib/python3.10/site-packages")
 import time
 import uuid
 import json
-import requests
-from dotenv import load_dotenv
+try:
+    import requests
+except ImportError:
+    pass
 
-# Load Environment Variables
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE_LEGACY = os.path.join(SCRIPT_DIR, "database.json")
+DB_FILE_PRIMARY = os.path.join(SCRIPT_DIR, "db.json")
 DB_FILE_DEFAULT = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+DB_FILE_LEGACY = os.path.join(SCRIPT_DIR, "database.json")
 
 def file_has_data(file_path):
     try:
@@ -44,14 +51,16 @@ def file_has_data(file_path):
     except Exception:
         return False
 
-if file_has_data(DB_FILE_DEFAULT):
+if file_has_data(DB_FILE_PRIMARY):
+    DB_FILE = DB_FILE_PRIMARY
+elif file_has_data(DB_FILE_DEFAULT):
     DB_FILE = DB_FILE_DEFAULT
 elif file_has_data(DB_FILE_LEGACY):
     DB_FILE = DB_FILE_LEGACY
-elif os.path.exists(DB_FILE_DEFAULT):
-    DB_FILE = DB_FILE_DEFAULT
+elif os.path.exists(DB_FILE_PRIMARY):
+    DB_FILE = DB_FILE_PRIMARY
 else:
-    DB_FILE = DB_FILE_DEFAULT
+    DB_FILE = DB_FILE_PRIMARY
 
 def read_db_json():
     """ Read core database structure always from shared json file """
@@ -258,16 +267,26 @@ except ImportError:
 
 # Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML")
-session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9,fa;q=0.8"
-})
+
+_session = None
+def get_session():
+    global _session
+    if _session is None:
+        import requests
+        _session = requests.Session()
+        _session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9,fa;q=0.8"
+        })
+    return _session
 
 # Clean SSL Warnings inside Python requests
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except ImportError:
+    pass
 
 # --- Sanaei 3x-ui Admin API Helpers ---
 def login_xui():
@@ -284,6 +303,7 @@ def login_xui():
     try:
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
         print(f"[Sanaei X-UI API] Connecting to handshake URL: {base_url}")
+        session = get_session()
         get_res = session.get(base_url, timeout=8, verify=False)
         
         csrf_token = ""
@@ -306,11 +326,11 @@ def login_xui():
         }
         if csrf_token:
             headers["X-Csrf-Token"] = csrf_token
-            session.headers.update({"X-Csrf-Token": csrf_token})
+            get_session().headers.update({"X-Csrf-Token": csrf_token})
             print(f"[Sanaei X-UI API] CSRF token applied to session headers.")
 
         print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
-        response = session.post(login_url, data=login_data, headers=headers, timeout=8, verify=False)
+        response = get_session().post(login_url, data=login_data, headers=headers, timeout=8, verify=False)
         
         # After login, the panel might issue a NEW CSRF token or update cookies
         if response.status_code == 200:
@@ -324,7 +344,7 @@ def login_xui():
                  match = re.search(r'<meta\s+name="csrf-token"\s+content="([^"]+)"', response.text)
                  if match:
                      new_token = match.group(1)
-                     session.headers.update({"X-Csrf-Token": new_token})
+                     get_session().headers.update({"X-Csrf-Token": new_token})
                      print(f"[Sanaei X-UI API] New POST-login CSRF token detected in body: {new_token}")
         try:
             res_json = response.json()
@@ -359,7 +379,7 @@ def check_client_exists(client_email):
         return False
     try:
         url = f"{base_url}/panel/api/inbounds/getClientTraffics/{client_email}"
-        response = session.get(url, timeout=5, verify=False)
+        response = get_session().get(url, timeout=5, verify=False)
         data = response.json()
         if data.get("success") and data.get("obj"):
             return True
@@ -2960,6 +2980,7 @@ def process_ai_chat(message):
     typing_msg = bot.send_message(message.chat.id, "🤖 <i>در حال تایپ...</i>", parse_mode="HTML")
     
     try:
+        import requests
         response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text}, timeout=60)
         bot.delete_message(message.chat.id, typing_msg.message_id)
         if response.status_code == 200:
@@ -3858,6 +3879,7 @@ def handle_receipt_upload(message):
         token = cfg.get("BOT_TOKEN", "").strip()
         download_url = f"https://api.telegram.org/file/bot{token}/{file_info.file_path}"
         
+        import requests
         response = requests.get(download_url, timeout=15)
         if response.status_code == 200:
             import base64
