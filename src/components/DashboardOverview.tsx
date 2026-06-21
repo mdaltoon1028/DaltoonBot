@@ -74,11 +74,6 @@ export default function DashboardOverview({
 
   return (
     <div id="dashboard-tab" className="space-y-6">
-      {/* System Resources */}
-      <div className="mb-8">
-        <SystemResourceMonitor lang={lang} />
-      </div>
-
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div id="stat-card-users" className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex items-center justify-between">
@@ -231,6 +226,11 @@ export default function DashboardOverview({
             </LineChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* Compact System Resource Monitoring Bar */}
+      <div className="pt-4 border-t border-[#1f2937]">
+        <SystemResourceMonitor lang={lang} />
       </div>
     </div>
   );

@@ -98,28 +98,67 @@ export default function SystemResourceMonitor({ lang }: { lang: Language }) {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <CircularProgress 
-        value={status.cpu.usage} 
-        label={t.cpuUsage || "CPU Usage"} 
-        icon={Cpu} 
-        colorClass="stroke-blue-500"
-        subtext={`Uptime: ${status.uptime}`}
-      />
-      <CircularProgress 
-        value={status.memory.usage} 
-        label={t.memoryUsage || "Memory"} 
-        icon={LayoutPanelLeft} 
-        colorClass="stroke-purple-500"
-        subtext={`${status.memory.used} / ${status.memory.total}`}
-      />
-      <CircularProgress 
-        value={status.disk.usage} 
-        label={t.diskUsage || "Disk"} 
-        icon={HardDrive} 
-        colorClass="stroke-amber-500"
-        subtext={`${status.disk.used} / ${status.disk.total}`}
-      />
+    <div className="bg-black/80 backdrop-blur-md border border-blue-500/30 p-2 rounded-lg flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-[10px] sm:text-xs font-mono">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col">
+          <span className="text-gray-500 text-[8px] leading-none mb-1">CPU LOAD</span>
+          <div className="flex items-center gap-2">
+            <div className="w-16 h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
+              <div 
+                className="h-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] transition-all duration-1000"
+                style={{ width: `${status.cpu.usage}%` }}
+              />
+            </div>
+            <span className="text-blue-400 font-bold min-w-[30px] tabular-nums">
+              {status.cpu.usage}%
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-3 border-l border-gray-800 pl-8">
+        <div className="flex flex-col">
+          <span className="text-gray-500 text-[8px] leading-none mb-1">MEMORY</span>
+          <div className="flex items-center gap-2">
+            <div className="w-16 h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
+              <div 
+                className="h-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)] transition-all duration-1000"
+                style={{ width: `${status.memory.usage}%` }}
+              />
+            </div>
+            <span className="text-purple-400 font-bold min-w-[30px] tabular-nums">
+              {status.memory.usage}%
+            </span>
+            <span className="text-[9px] text-gray-600 hidden sm:inline">
+              [{status.memory.used}/{status.memory.total}]
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 border-l border-gray-800 pl-8">
+        <div className="flex flex-col">
+          <span className="text-gray-500 text-[8px] leading-none mb-1">STORAGE</span>
+          <div className="flex items-center gap-2">
+            <div className="w-16 h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
+              <div 
+                className="h-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] transition-all duration-1000"
+                style={{ width: `${status.disk.usage}%` }}
+              />
+            </div>
+            <span className="text-amber-400 font-bold min-w-[30px] tabular-nums">
+              {status.disk.usage}%
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col border-l border-gray-800 pl-8 ml-auto hidden md:flex">
+        <span className="text-gray-500 text-[8px] leading-none mb-1 text-right">UPTIME</span>
+        <span className="text-emerald-400 font-bold tabular-nums text-right shadow-text-[0_0_5px_rgba(52,211,153,0.3)]">
+          {status.uptime}
+        </span>
+      </div>
     </div>
   );
 }

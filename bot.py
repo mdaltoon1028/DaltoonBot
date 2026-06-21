@@ -158,6 +158,22 @@ def get_config():
             panel_cfg = json.loads(settings_str)
             if "admins" in panel_cfg and isinstance(panel_cfg["admins"], list):
                 config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
+            # Sync Panel URLs and Credentials from shared settings
+            if panel_cfg.get("baseUrl"):
+                config["XUI_URL"] = panel_cfg.get("baseUrl").rstrip("/")
+            if panel_cfg.get("subUrl"):
+                config["SUB_URL"] = panel_cfg.get("subUrl").rstrip("/")
+            if panel_cfg.get("panelUsername"):
+                config["XUI_USER"] = panel_cfg.get("panelUsername")
+            if panel_cfg.get("panelPassword"):
+                config["XUI_PASS"] = panel_cfg.get("panelPassword")
+            if panel_cfg.get("ownerId"):
+                config["OWNER_ID"] = int(panel_cfg["ownerId"])
+            if panel_cfg.get("cardNumber"):
+                config["CARD_NUMBER"] = panel_cfg["cardNumber"]
+            if panel_cfg.get("cardHolder"):
+                config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+
             if panel_cfg.get("btnTextBuy"):
                 config["BTN_BUY"] = panel_cfg["btnTextBuy"]
             config["BTN_BUY_NEW"] = panel_cfg.get("btnTextBuyNew", "🛒 خرید اشتراک جدید")

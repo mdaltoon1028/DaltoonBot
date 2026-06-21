@@ -1385,6 +1385,9 @@ async function addVpnClientApi(
     }
 
     clientUuid = clientUuid || crypto.randomUUID();
+    // Generate a random 16-character subscription ID
+    const xuiSubId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    
     const addUrl = `${cleanedUrl}/panel/api/clients/add`;
     const payload = {
       client: {
@@ -1395,7 +1398,7 @@ async function addVpnClientApi(
         expiryTime: expiryTimeMs,
         enable: true,
         tgId: 0,
-        subId: clientEmail
+        subId: xuiSubId
       },
       inboundIds: inboundIds
     };
@@ -1429,7 +1432,7 @@ async function addVpnClientApi(
             ? normalizeXuiUrl(settings.subUrl) 
             : cleanedUrl;
             
-          const subLink = `${subBase}/sub/${clientEmail}`;
+          const subLink = `${subBase}/sub/${xuiSubId}`;
           return { success: true, clientUuid, subLink }; // Ensure we use clientUuid
         } else {
           console.warn(`[Sanaei API Response] Creation error: ${addText}`);
