@@ -243,6 +243,14 @@ def get_config():
                 config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
             if "purchaseSuccessNote" in panel_cfg:
                 config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
+            
+            # Load Gateway Configuration
+            for gw in ["gatewayPlisioWallet", "gatewayNowpaymentsKey", "gatewayCryptomusKey", "gatewayCryptomusMerchantId", "gatewayHeleketWallet"]:
+                if gw in panel_cfg:
+                    config[gw.replace("gateway", "GATEWAY_").upper()] = panel_cfg[gw]
+            if "gatewayStarsStatus" in panel_cfg:
+                config["GATEWAY_STARS_STATUS"] = bool(panel_cfg["gatewayStarsStatus"])
+
             if "guidesText" in panel_cfg:
                 config["GUIDES_TEXT"] = panel_cfg["guidesText"]
             if "tgChannel" in panel_cfg:
@@ -1003,7 +1011,7 @@ def get_custom_keyboard():
 
     buttons = []
     order = cfg.get("BUTTONS_ORDER", [
-        "btnBuyNew", "btnMySubs", "btnGuides", "btnColleagues", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
+        "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral", "btnColleagues"
     ])
     
     # Backward compatibility: enforce addition of referral & wallet if missing
@@ -1815,6 +1823,155 @@ def process_purchase_username_manual(message, plan_id, spec):
         reply_markup=markup
     )
 
+def handle_buy_pay(call):
+    data = call.data.split(":")
+    # buy_pay:method:plan_id:username:promo_code
+    method = data[1]
+    plan_id = data[2]
+    username_input = data[3]
+    promo_code = data[4] if len(data) > 4 else "none"
+    
+    tg_id = call.from_user.id
+    cfg = get_config()
+    db = read_db_json()
+    db_plans = db.get("vpn_plans", [])
+    db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
+    
+    if not db_plan:
+        bot.answer_callback_query(call.id, "خطا در یافتن طرح.")
+        return
+
+    spec = {
+        "id": db_plan["id"],
+        "name": db_plan["name"],
+        "price": db_plan["price"],
+        "traffic": db_plan.get("trafficGb", 30),
+        "duration": db_plan.get("durationDays", 30),
+        "price_original": db_plan["price"]
+    }
+    
+    if promo_code != "none":
+        promo_codes = db.get("promo_codes", [])
+        promo = next((p for p in promo_codes if p["code"].upper() == promo_code), None)
+        if promo:
+            if promo["type"] == "percent":
+                discount_amount = int(spec["price"] * (promo["value"] / 100))
+            elif promo["type"] == "fixed_amount":
+                discount_amount = int(promo["value"])
+            else:
+                discount_amount = 0
+            spec["price"] = max(0, spec["price"] - discount_amount)
+            spec["applied_promo"] = promo_code
+
+    if method == "card":
+        bot.answer_callback_query(call.id)
+        text_response = (
+            f"🛒 <b>خرید اشتراک (کارت به کارت)</b>\n"
+            f"👤 نام کاربری: <code>{username_input}</code>\n"
+            f"💰 مبلغ قابل پرداخت: <b>{spec.get('price', 0):,} تومان</b>\n\n"
+            f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+            f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
+            f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
+            f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+            f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
+        )
+        bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
+        
+    elif method == "wallet":
+        user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+        if not user or user.get("walletBalance", 0) < spec["price"]:
+            bot.answer_callback_query(call.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.", show_alert=True)
+            return
+            
+        bot.answer_callback_query(call.id, "✅ مبلغ از کیف پول شما کسر و سفارش شما ثبت شد!")
+        bot.edit_message_text("✅ در حال ساخت کانفیگ... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+        
+        # Deduct wallet
+        new_balance = user.get("walletBalance", 0) - int(spec["price"])
+        update_user_balance(tg_id, new_balance)
+        
+        if spec['price'] > 0:
+            process_referral_on_purchase(user, spec['price'])
+        
+        # log 
+        log_action(tg_id, user.get("username", str(tg_id)), "خرید از کیف پول", f"بسته {spec['name']} مبلغ {spec['price']:,} تومان کسر شد.")
+        
+        # API creation
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        if not sub_link:
+            client_uuid = str(uuid.uuid4())
+            import random, string
+            fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+            sub_link = f"{cfg.get('SUB_URL', 'https://tr.sub-daltoon.ir:2096')}/sub/{fallback_sub_id}"
+
+        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
+        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+        
+        new_sub = {
+            "id": sub_id,
+            "userId": tg_id,
+            "planId": plan_id,
+            "planName": spec["name"],
+            "clientUuid": client_uuid,
+            "clientName": username_input,
+            "trafficGb": spec["traffic"],
+            "durationDays": spec["duration"],
+            "expireDate": expire_date,
+            "status": "active",
+            "subscriptionUrl": sub_link,
+            "purchasePrice": spec["price"],
+            "purchaseDate": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        db = read_db_json()
+        if "subscriptions" not in db:
+            db["subscriptions"] = []
+        db["subscriptions"].append(new_sub)
+        
+        for u in db["users"]:
+            if u["userId"] == tg_id:
+                u["activePlansCount"] = u.get("activePlansCount", 0) + 1
+        write_db_json(db)
+        
+        clear_user_pending_purchase(tg_id)
+        
+        success_msg = (
+            f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
+            f"🛒 اشتراک: <b>{spec['name']}</b>\n"
+            f"👤 شناسه: <code>{username_input}</code>\n"
+            f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
+            f"🚥 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n\n"
+            f"🔗 <b>لینک اشتراک (V2Ray):</b>\n"
+            f"<code>{sub_link}</code>\n\n"
+            f"جهت استفاده لینک بالا را کپی کرده و در کلاینت خود وارد کنید."
+        )
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+        
+        try:
+            import urllib.parse
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            bot.send_photo(tg_id, qr_url, caption=success_msg, parse_mode="HTML", reply_markup=markup)
+        except Exception as e:
+            print(f"[Bot Warning] Failed to send QR Photo: {e}")
+            bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=markup)
+        
+    elif method in ["cryptomus", "nowpayments", "plisio", "heleket", "stars"]:
+        # Mock implementations
+        bot.answer_callback_query(call.id)
+        gw_names = {"cryptomus": "Cryptomus", "nowpayments": "NowPayments", "plisio": "Plisio", "heleket": "Heleket", "stars": "Telegram Stars"}
+        gw_name = gw_names.get(method, method.title())
+        text_response = (
+            f"🛒 <b>خرید اشتراک (پرداخت با {gw_name})</b>\n"
+            f"👤 نام کاربری: <code>{username_input}</code>\n"
+            f"💰 مبلغ نهایی: <b>{spec.get('price', 0):,} تومان</b>\n\n"
+            f"در اینجا کاربر به درگاه بانکی یا ارزی مربوطه برای این روش وصل خواهد شد.\n"
+        )
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("✅ پایان و تایید فرضی پرداخت", callback_data="btn_back_home"))
+        markup.add(types.InlineKeyboardButton("❌ انصراف", callback_data="btn_back_home"))
+        bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+
 def handle_discount_decision(call):
     data = call.data.split(":")
     # hasdisc:{decision}:{plan_id}:{username_input}
@@ -1895,6 +2052,7 @@ def process_promo_code_input(message, plan_id, username_input, spec):
         discount_amount = int(promo["value"])
     
     new_price = max(0, spec["price"] - discount_amount)
+    spec["price_original"] = spec["price"]
     spec["price"] = new_price
     spec["applied_promo"] = code_text
     
@@ -1913,14 +2071,36 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
         f"✅ <b>اطلاعات ثبت شد.</b>\n\n"
         f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n"
         f"👤 نام کاربری: <code>{username_input}</code>\n"
-        f"💰 مبلغ قابل پرداخت: <b>{spec.get('price', 0):,} تومان</b>\n\n"
-        f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-        f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-        f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
-        f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
-        f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
+        f"💰 مبلغ نهایی: <b>{price_text}</b>\n\n"
+        f"💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
     )
-    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=get_cancel_keyboard())
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    
+    # Store promo in callback data safely or 'none' if empty
+    promo_code = spec.get("applied_promo", "none")
+    
+    markup.add(types.InlineKeyboardButton("💳 پرداخت از موجودی کیف پول", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
+    markup.add(types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buy_pay:card:{plan_id}:{username_input}:{promo_code}"))
+    
+    if cfg.get("GATEWAY_PLISIO_WALLET"):
+        markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (Plisio)", callback_data=f"buy_pay:plisio:{plan_id}:{username_input}:{promo_code}"))
+        
+    if cfg.get("GATEWAY_NOWPAYMENTS_KEY"):
+        markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (NowPayments)", callback_data=f"buy_pay:nowpayments:{plan_id}:{username_input}:{promo_code}"))
+        
+    if cfg.get("GATEWAY_CRYPTOMUS_KEY"):
+        markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (Cryptomus)", callback_data=f"buy_pay:cryptomus:{plan_id}:{username_input}:{promo_code}"))
+        
+    if cfg.get("GATEWAY_HELEKET_WALLET"):
+        markup.add(types.InlineKeyboardButton("🪙 پرداخت ارزی (Heleket)", callback_data=f"buy_pay:heleket:{plan_id}:{username_input}:{promo_code}"))
+        
+    if cfg.get("GATEWAY_STARS_STATUS"):
+        markup.add(types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"buy_pay:stars:{plan_id}:{username_input}:{promo_code}"))
+
+    markup.add(types.InlineKeyboardButton("❌ انصراف", callback_data="btn_back_home"))
+    
+    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
 
 def process_purchase_username(message, plan_id, spec):
     tg_id = message.from_user.id
@@ -2073,6 +2253,11 @@ def callback_handler(call):
     if cfg.get("MANDATORY_JOIN_ACTIVE") and not is_user_member_of_channel(tg_id):
         bot.answer_callback_query(call.id, "❌ برای استفاده از دکمه‌های ربات، عضویت در کانال اسپانسر الزامی است.", show_alert=True)
         verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
+        return
+
+    # Buy Pay Selection Handler
+    if call.data.startswith("buy_pay:"):
+        handle_buy_pay(call)
         return
 
     # My Subscriptions Handlers
@@ -3229,7 +3414,14 @@ def process_col_create_days(message, acc, name, gb):
     bot.send_message(message.chat.id, "✅ کانفیگ در پنل X-UI ایجاد شد.", reply_markup=get_custom_keyboard())
     
     text_msg = f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n👤 <b>نام:</b> {full_name}\n🗄 <b>حجم:</b> {gb} گیگابایت\n⏳ <b>اعتبار:</b> {days} روز\n\n🔗 <code>{sub_link}</code>"
-    bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+    
+    try:
+        import urllib.parse
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+        bot.send_photo(message.chat.id, qr_url, caption=text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+    except Exception as e:
+        print(f"[Bot Warning] Failed to send QR Photo: {e}")
+        bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
     
     show_colleague_panel_msg(message, live_acc)
 

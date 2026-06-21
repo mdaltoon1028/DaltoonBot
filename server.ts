@@ -1975,18 +1975,38 @@ app.post("/api/transactions/approve", async (req, res) => {
           const cfg = JSON.parse(configStr);
           const botToken = cfg.botToken;
           if (botToken) {
-            const nickname = cfg.botNickname || "دالتون";
-            const messageText = messageTextForNotif;
             const https = require("https");
-            const postData = JSON.stringify({
+            
+            // Check if there is a newly generated subLink to attach a QR code
+            let qrUrl: string | null = null;
+            if (tx.type === "PLAN_PURCHASE" && typeof messageTextForNotif === "string" && messageTextForNotif.includes("✅ <b>کانفیگ شما آماده شد!</b>")) {
+               // extract the sublink safely, or we could have just passed it down
+               const match = messageTextForNotif.match(/<code>([^<]+)<\/code>/);
+               if (match && match[1]) {
+                   qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(match[1])}`;
+               }
+            }
+
+            const messageText = messageTextForNotif;
+            const postDataObj: any = {
               chat_id: tx.userId,
-              text: messageText,
               parse_mode: "HTML"
-            });
+            };
+            
+            if (qrUrl) {
+                postDataObj.photo = qrUrl;
+                postDataObj.caption = messageText;
+            } else {
+                postDataObj.text = messageText;
+            }
+            
+            const postData = JSON.stringify(postDataObj);
+            const endpointPath = qrUrl ? `/bot${botToken}/sendPhoto` : `/bot${botToken}/sendMessage`;
+            
             const options = {
               hostname: 'api.telegram.org',
               port: 443,
-              path: `/bot${botToken}/sendMessage`,
+              path: endpointPath,
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

@@ -116,7 +116,7 @@ export default function BotSimulator({
   const getKeyboard = () => {
     const layout = settings?.keyboardLayout || "stepped";
     const defaultOrder = [
-      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnInstantSupport", "btnFeedback", "btnReferral"
+      "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral", "btnColleagues"
     ];
     let order = [...(settings?.mainButtonsOrder || defaultOrder)];
     
