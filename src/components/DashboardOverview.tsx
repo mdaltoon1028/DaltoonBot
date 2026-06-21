@@ -1,5 +1,4 @@
-import React, { useState, useRef } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import React, { useState } from "react";
 import { InboundInfo, Transaction } from "../types";
 import { Language, translations } from "../locales";
 import SystemResourceMonitor from "./SystemResourceMonitor";
@@ -40,42 +39,11 @@ export default function DashboardOverview({
 }: DashboardOverviewProps) {
   const t = translations[lang];
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-
-  // Aggregate approved transactions
-  const approvedTx = transactions.filter(tx => tx.status === "approved");
-
-  // Sum within a flexible date range helper
-  const sumApprovedForDaysAgo = (daysFrom: number, daysTo: number) => {
-    const now = new Date();
-    const fromDate = new Date(now.getTime() - daysFrom * 24 * 60 * 60 * 1000);
-    const toDate = new Date(now.getTime() - daysTo * 24 * 60 * 60 * 1000);
-    
-    return approvedTx
-      .filter(tx => {
-        const d = new Date(tx.date);
-        return d >= fromDate && d <= toDate;
-      })
-      .reduce((acc, curr) => acc + curr.amount, 0);
-  };
-
-  // Aggregate approved transactions for the last 30 days
-  const last30DaysData = Array.from({ length: 30 }).map((_, i) => {
-    const daysAgo = 29 - i;
-    const date = new Date(new Date().getTime() - daysAgo * 24 * 60 * 60 * 1000);
-    const dateString = `${date.getMonth() + 1}/${date.getDate()}`;
-    const value = sumApprovedForDaysAgo(daysAgo + 1, daysAgo);
-    
-    return {
-      date: dateString,
-      revenue: value
-    };
-  });
 
   return (
     <div id="dashboard-tab" className="space-y-6">
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div id="stat-card-users" className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-400 uppercase tracking-wider">{t.metricTotalUsers}</span>
@@ -99,21 +67,6 @@ export default function DashboardOverview({
           </div>
           <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-400">
             <Server className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div id="stat-card-income" className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex items-center justify-between">
-          <div>
-            <span className="text-xs text-gray-400 uppercase tracking-wider">{t.metricRevenue}</span>
-            <h3 className="text-2xl font-bold font-display mt-1 text-violet-400">
-              {totalIncome.toLocaleString()} <span className="text-xs font-normal">{lang === "fa" ? "تومان" : "Toman"}</span>
-            </h3>
-            <span className="text-xs text-gray-400 flex items-center mt-1">
-              {t.fromApproved}
-            </span>
-          </div>
-          <div className="p-3 rounded-lg bg-violet-500/10 text-violet-400">
-            <Activity className="w-6 h-6" />
           </div>
         </div>
 

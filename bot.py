@@ -1748,11 +1748,120 @@ def process_purchase_username_manual(message, plan_id, spec):
         return
 
     set_user_pending_purchase(tg_id, plan_id, username_input)
+    
+    # User request: Ask for discount code after entering name
+    markup = types.InlineKeyboardMarkup()
+    markup.row(
+        types.InlineKeyboardButton("✅ بله، دارم", callback_data=f"hasdisc:yes:{plan_id}:{username_input}"),
+        types.InlineKeyboardButton("❌ خیر، ندارم", callback_data=f"hasdisc:no:{plan_id}:{username_input}")
+    )
+    bot.send_message(
+        message.chat.id,
+        "🎁 <b>آیا کد تخفیف دارید؟</b>",
+        parse_mode="HTML",
+        reply_markup=markup
+    )
+
+def handle_discount_decision(call):
+    data = call.data.split(":")
+    # hasdisc:{decision}:{plan_id}:{username_input}
+    decision = data[1]
+    plan_id = data[2]
+    username_input = data[3]
+    tg_id = call.from_user.id
+    
+    db = read_db_json()
+    db_plans = db.get("vpn_plans", [])
+    db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
+    
+    if not db_plan:
+        bot.answer_callback_query(call.id, "خطا در یافتن طرح.")
+        return
+
+    spec = {
+        "id": db_plan["id"],
+        "name": db_plan["name"],
+        "price": db_plan["price"],
+        "traffic": db_plan.get("trafficGb", 30),
+        "duration": db_plan.get("durationDays", 30)
+    }
+
+    if decision == "yes":
+        bot.answer_callback_query(call.id)
+        msg = bot.edit_message_text(
+            "🎟️ <b>لطفاً کد تخفیف خود را وارد کنید:</b>\n"
+            "(در صورت انصراف می‌توانید کد اشتباه بزنید یا عملیات را لغو کنید)",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_promo_code_input, plan_id, username_input, spec)
+    else:
+        bot.answer_callback_query(call.id)
+        send_final_purchase_message(call.message, plan_id, username_input, spec)
+
+def process_promo_code_input(message, plan_id, username_input, spec):
+    tg_id = message.from_user.id
+    if not message.text: return
+    code_text = message.text.strip().upper()
+    
+    if "انصراف" in code_text or code_text == "/START":
+        bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
+        return
+
+    db = read_db_json()
+    promo_codes = db.get("promo_codes", [])
+    promo = next((p for p in promo_codes if p["code"].upper() == code_text), None)
+    
+    if not promo:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hasdisc:no:{plan_id}:{username_input}"))
+        msg = bot.send_message(
+            message.chat.id,
+            "❌ <b>لطفا کد تخفیف رو صحیح وارد کنید یا در صورت نیاز انصراف بزنید و به پرداخت ادامه دهید:</b>",
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        bot.register_next_step_handler(msg, process_promo_code_input, plan_id, username_input, spec)
+        return
+
+    # Check usage limits
+    if promo.get("totalUsage", 0) >= promo.get("maxUsage", 9999):
+        bot.send_message(message.chat.id, "❌ متاسفانه ظرفیت استفاده از این کد تخفیف به پایان رسیده است.")
+        send_final_purchase_message(message, plan_id, username_input, spec)
+        return
+
+    # Apply discount
+    discount_amount = 0
+    new_price = spec["price"]
+    
+    if promo["type"] == "percent":
+        discount_amount = int(spec["price"] * (promo["value"] / 100))
+    elif promo["type"] == "fixed_amount":
+        discount_amount = int(promo["value"])
+    
+    new_price = max(0, spec["price"] - discount_amount)
+    spec["price"] = new_price
+    spec["applied_promo"] = code_text
+    
+    bot.send_message(message.chat.id, f"✅ <b>کد تخفیف اعمال شد!</b>\n💰 مبلغ تخفیف: {discount_amount:,} تومان")
+    send_final_purchase_message(message, plan_id, username_input, spec)
+
+def send_final_purchase_message(message, plan_id, username_input, spec):
+    tg_id = message.chat.id if hasattr(message, 'chat') else message.from_user.id
     cfg = get_config()
+    
+    price_text = f"{spec.get('price', 0):,} تومان"
+    if spec.get("applied_promo"):
+        price_text = f"<s>{spec.get('price_original', spec.get('price', 0)):,}</s> ➡️ <b>{spec.get('price', 0):,} تومان</b> (بر حسب تخفیف)"
+        
     text_response = (
-        f"✅ <b>نام کاربری ثبت شد.</b>\n\n"
-        f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n\n"
-        f"لطفاً مبلغ <b>{spec.get('price', 0):,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+        f"✅ <b>اطلاعات ثبت شد.</b>\n\n"
+        f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n"
+        f"👤 نام کاربری: <code>{username_input}</code>\n"
+        f"💰 مبلغ قابل پرداخت: <b>{spec.get('price', 0):,} تومان</b>\n\n"
+        f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
         f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
         f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
         f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
@@ -2246,8 +2355,8 @@ def callback_handler(call):
                 new_exp_days = (new_exp_dt - datetime.now()).days
                 new_exp_days = max(1, new_exp_days)
                 
-                delete_vpn_client_api(client_name, k.get("id"))
-                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("id"))
+                delete_vpn_client_api(client_name, k.get("client_uuid"))
+                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("client_uuid"))
                 
                 if not sub_link:
                     sub_link = k.get('subLink', '')
@@ -2711,6 +2820,10 @@ def callback_handler(call):
         )
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         bot.answer_callback_query(call.id)
+
+    elif call.data.startswith("hasdisc:"):
+        handle_discount_decision(call)
+        return
 
     elif call.data.startswith("charge_amount_"):
         try:

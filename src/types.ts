@@ -207,8 +207,8 @@ export interface BotActionLog {
 export interface PromoCode {
   id: string;
   code: string;
-  type: "percent" | "extend_days";
-  value: number; // discount percent or days of free extension
+  type: "percent" | "extend_days" | "fixed_amount";
+  value: number; // discount percent, days of extension, or fixed discount amount
   maxUsage: number;
   totalUsage: number;
   usedBy: number[];

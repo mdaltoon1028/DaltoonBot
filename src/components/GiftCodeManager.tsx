@@ -10,7 +10,7 @@ interface GiftCodeManagerProps {
   onDeleteCode: (id: string) => void;
   onEditCode?: (id: string, code: string, amount: number, maxUsage: number) => void;
   promoCodes?: PromoCode[];
-  onAddPromoCode?: (code: string, type: "percent" | "extend_days", value: number, maxUsage: number) => void;
+  onAddPromoCode?: (code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number) => void;
   onDeletePromoCode?: (id: string) => void;
   settings?: PanelSettings;
   onSaveSettings?: (settings: PanelSettings) => void;
@@ -63,10 +63,11 @@ export default function GiftCodeManager({
 
   // Promo Code Form States
   const [promoCode, setPromoCode] = useState("");
-  const [promoType, setPromoType] = useState<"percent" | "extend_days">("percent");
+  const [promoType, setPromoType] = useState<"percent" | "extend_days" | "fixed_amount">("percent");
   const [promoValue, setPromoValue] = useState("");
   const [promoMaxUsage, setPromoMaxUsage] = useState("50");
   const [promoSuccess, setPromoSuccess] = useState(false);
+  const [calcBasePrice, setCalcBasePrice] = useState<string>("100,000".replace(/,/g, ""));
 
   const isFa = lang === 'fa';
 
@@ -365,30 +366,94 @@ export default function GiftCodeManager({
                   </label>
                   <select
                     value={promoType}
-                    onChange={(e) => setPromoType(e.target.value as "percent" | "extend_days")}
+                    onChange={(e) => setPromoType(e.target.value as "percent" | "extend_days" | "fixed_amount")}
                     className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
                   >
                     <option value="percent">{isFa ? "درصدی (%)" : "Percentage (%)"}</option>
+                    <option value="fixed_amount">{isFa ? "مبلغی (تومان)" : "Amount (Toman)"}</option>
                     <option value="extend_days">{isFa ? "تمدید (روز)" : "Extension (Days)"}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs text-gray-400 font-semibold mb-1.5">
-                    {promoType === "percent" ? (isFa ? "📈 درصد تخفیف" : "Discount %") : (isFa ? "📅 تعداد روز" : "Extend Days")}
+                    {promoType === "percent" ? (isFa ? "📈 درصد تخفیف" : "Discount %") : promoType === "fixed_amount" ? (isFa ? "💰 مبلغ تخفیف" : "Discount Amount") : (isFa ? "📅 تعداد روز" : "Extend Days")}
                   </label>
                   <input
                     type="number"
                     required
                     min={1}
-                    max={promoType === "percent" ? 100 : 365}
+                    max={promoType === "percent" ? 100 : 10000000}
                     value={promoValue}
                     onChange={(e) => setPromoValue(e.target.value)}
-                    placeholder={promoType === "percent" ? "20" : "5"}
+                    placeholder={promoType === "percent" ? "20" : promoType === "fixed_amount" ? "50000" : "5"}
                     className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center font-bold"
                   />
                 </div>
               </div>
+
+              {promoType !== "extend_days" && (
+                <div className="bg-[#0b101d]/50 border border-indigo-500/10 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                      {isFa ? "🧮 محاسبه‌گر هوشمند ارزش تخفیف" : "🧮 Smart Discount Calculator"}
+                    </label>
+                    <div className="p-1 px-2 rounded-md bg-indigo-500/10 text-[9px] text-indigo-400 font-bold">
+                      {isFa ? "نمونه تست" : "Test Sample"}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={Number(calcBasePrice || 0).toLocaleString()}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/,/g, "");
+                          if (!isNaN(Number(val))) setCalcBasePrice(val);
+                        }}
+                        className="w-full bg-[#161c2a] border border-gray-700/50 rounded-lg p-2.5 text-xs text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-center"
+                      />
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-600 font-bold">
+                        {isFa ? "مبلغ" : "PRICE"}
+                      </div>
+                    </div>
+                    <div className="text-gray-600">
+                      <Plus className="w-3 h-3 rotate-45" />
+                    </div>
+                    <div className="relative w-24">
+                      <div className="w-full bg-[#161c2a]/50 border border-gray-800 rounded-lg p-2.5 text-xs text-amber-400 font-mono text-center">
+                        {promoValue || 0}{promoType === "percent" ? "%" : ""}
+                      </div>
+                    </div>
+                  </div>
+
+                  {calcBasePrice && promoValue && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-800/30">
+                      <div className="bg-[#161c2a]/30 p-2 rounded-lg border border-gray-800/40">
+                        <span className="block text-[9px] text-gray-500 mb-0.5">{isFa ? "سود مشتری" : "Customer Profit"}</span>
+                        <span className="text-[11px] text-amber-400 font-bold font-mono">
+                          {promoType === "percent" 
+                            ? Math.round((Number(calcBasePrice) * Number(promoValue)) / 100).toLocaleString()
+                            : Number(promoValue).toLocaleString()
+                          }
+                          <span className="text-[8px] font-normal mr-1 opacity-60">{isFa ? "تومان" : "TOM"}</span>
+                        </span>
+                      </div>
+                      <div className="bg-[#161c2a]/30 p-2 rounded-lg border border-gray-800/40">
+                        <span className="block text-[9px] text-gray-500 mb-0.5">{isFa ? "دریافتی شما" : "Final Revenue"}</span>
+                        <span className="text-[11px] text-emerald-400 font-bold font-mono">
+                          {promoType === "percent"
+                            ? (Number(calcBasePrice) - Math.round((Number(calcBasePrice) * Number(promoValue)) / 100)).toLocaleString()
+                            : (Number(calcBasePrice) - Number(promoValue)).toLocaleString()
+                          }
+                          <span className="text-[8px] font-normal mr-1 opacity-60">{isFa ? "تومان" : "TOM"}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1.5">
@@ -451,6 +516,11 @@ export default function GiftCodeManager({
                             <>
                               <Percent className="w-3.5 h-3.5 text-amber-500" />
                               <span>{isFa ? `${pc.value}٪ تخفیف` : `${pc.value}% Discount`}</span>
+                            </>
+                          ) : pc.type === "fixed_amount" ? (
+                            <>
+                              <Tag className="w-3.5 h-3.5 text-blue-400" />
+                              <span>{isFa ? `${pc.value.toLocaleString()} تومان تخفیف` : `${pc.value.toLocaleString()} Toman Discount`}</span>
                             </>
                           ) : (
                             <>
