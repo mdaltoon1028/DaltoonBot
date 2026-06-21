@@ -1729,7 +1729,8 @@ def callback_handler(call):
             )
             markup.add(
                 types.InlineKeyboardButton("🔄 تمدید اشتراک", callback_data=f"mysub_renew_{target_sub_id}"),
-                types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}")
+                types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}"),
+                types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"mysub_toggle_{target_sub_id}")
             )
             markup.row(
                 types.InlineKeyboardButton("🔙 بازگشت به لیست اشتراک‌ها", callback_data="mm_btnMySubs")
@@ -1738,10 +1739,60 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
             )
             
+            status = k.get("status", "active")
+            status_txt = "🟢 فعال" if status == "active" else "🔴 غیرفعال"
+
             text = (
                 f"🛠 <b>پورتال مدیریت اشتراک اختصاصی شما:</b>\n\n"
                 f"👤 نام سرویس: <code>{client_name}</code>\n"
-                f"📌 شناسه سیستم: <code>{k['id']}</code>\n\n"
+                f"📌 شناسه سیستم: <code>{k['id']}</code>\n"
+                f"📍 وضعیت فعلی: {status_txt}\n\n"
+                f"لطفاً یکی از گزینه‌های زیر را جهت مدیریت انتخاب نمایید:"
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "toggle":
+            k["status"] = "inactive" if k.get("status", "active") == "active" else "active"
+            
+            # Save
+            db = read_db_json()
+            subscription_keys = db.get("subscription_keys", [])
+            idx = next((i for i, sub in enumerate(subscription_keys) if sub["id"] == target_sub_id and sub["userId"] == tg_id), -1)
+            if idx != -1:
+                subscription_keys[idx] = k
+                db["subscription_keys"] = subscription_keys
+                write_db_json(db)
+            
+            bot.answer_callback_query(call.id, f"وضعیت به {k['status']} تغییر یافت.")                
+            # Re-render manage view
+            # Directly call the `manage` logic
+            client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("🔗 دریافت لینک ساب", callback_data=f"mysub_link_{target_sub_id}"),
+                types.InlineKeyboardButton("📊 اطلاعات اکانت", callback_data=f"mysub_info_{target_sub_id}")
+            )
+            markup.add(
+                types.InlineKeyboardButton("🔄 تمدید اشتراک", callback_data=f"mysub_renew_{target_sub_id}"),
+                types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}"),
+                types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"mysub_toggle_{target_sub_id}")
+            )
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به لیست اشتراک‌ها", callback_data="mm_btnMySubs")
+            )
+            markup.row(
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            )
+            
+            status = k.get("status", "active")
+            status_txt = "🟢 فعال" if status == "active" else "🔴 غیرفعال"
+
+            text = (
+                f"🛠 <b>پورتال مدیریت اشتراک اختصاصی شما:</b>\n\n"
+                f"👤 نام سرویس: <code>{client_name}</code>\n"
+                f"📌 شناسه سیستم: <code>{k['id']}</code>\n"
+                f"📍 وضعیت فعلی: {status_txt}\n\n"
                 f"لطفاً یکی از گزینه‌های زیر را جهت مدیریت انتخاب نمایید:"
             )
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
@@ -2193,11 +2244,46 @@ def callback_handler(call):
             markup = types.InlineKeyboardMarkup()
             markup.row(
                 types.InlineKeyboardButton("🔄 تمدید", callback_data=f"colu_renew_{acc_id}_{sub_id}"),
-                types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}")
+                types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}"),
+                types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"colu_toggle_{acc_id}_{sub_id}")
             )
             markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
             
+        elif action == "toggle":
+            # Toggle logic
+            sub["status"] = "inactive" if sub.get("status", "active") == "active" else "active"
+            keys[sub_idx] = sub
+            db["subscription_keys"] = keys
+            write_db_json(db)
+            
+            # Simple UI update
+            bot.answer_callback_query(call.id, f"وضعیت به {sub['status']} تغییر یافت.")                
+            # Re-render view
+            call.data = f"colu_view_{acc_id}_{sub_id}"
+            # This is a bit hacky to re-trigger, let's just re-display the view by calling the same code
+            
+            # Re-fetch sub to show new view
+            name = sub.get("clientName") or sub.get("planName", "نامشخص")
+            gb = sub.get("trafficLimitGb", 0)
+            used_gb = sub.get("trafficUsedGb", 0)
+            rem_gb = gb - used_gb
+            expire_date = sub.get("expireDate", "نامشخص")
+            url = sub.get("subLink", "")
+            status = sub.get("status", "active")
+            status_txt = "🟢 فعال" if status == "active" else "🔴 غیرفعال"
+
+            text = f"👤 <b>{name}</b>\nوضعیت: {status_txt}\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ انقضا: {expire_date}\n🔗 <code>{url}</code>\n\n"
+            
+            markup = types.InlineKeyboardMarkup()
+            markup.row(
+                types.InlineKeyboardButton("🔄 تمدید", callback_data=f"colu_renew_{acc_id}_{sub_id}"),
+                types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}"),
+                types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"colu_toggle_{acc_id}_{sub_id}")
+            )
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
+
         elif action == "renew":
             # Just request how much additional traffic to assign (which deducts from their bulk) and extend days?
             # Or just redirect to process_col_renew_user (needs to be implemented)
