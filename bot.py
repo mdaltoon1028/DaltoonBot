@@ -646,6 +646,29 @@ def pop_user_pending_charge(tg_id):
         return amount
     return None
 
+def set_user_pending_purchase(tg_id, plan_id, client_name):
+    db = read_db_json()
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        user["pendingPurchasePlanId"] = plan_id
+        user["pendingPurchaseClientName"] = client_name
+        write_db_json(db)
+
+def get_user_pending_purchase(tg_id):
+    db = read_db_json()
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName")
+    return None, None
+
+def clear_user_pending_purchase(tg_id):
+    db = read_db_json()
+    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    if user:
+        user.pop("pendingPurchasePlanId", None)
+        user.pop("pendingPurchaseClientName", None)
+        write_db_json(db)
+
 def register_tg_user(tg_id, username, referral_id=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
