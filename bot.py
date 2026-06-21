@@ -453,6 +453,48 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     return None, None
 
+def update_vpn_client_enabled_api(client_email, enable):
+    """ Call Sanaei 3x-ui API to update client enabled status """
+    cfg = get_config()
+    base_url = cfg.get('XUI_URL', '')
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
+    if not login_xui():
+        return False
+
+    try:
+        # 1. Fetch current client data
+        get_url = f"{base_url}/panel/api/clients/get/{client_email}"
+        get_res = session.get(get_url, timeout=8, verify=False)
+        res_json = get_res.json()
+        
+        if not res_json.get("success"):
+            print(f"[Sanaei Update API Error] Client '{client_email}' not found: {res_json.get('msg')}")
+            return False
+            
+        client_data = res_json.get("obj", {}).get("client", {})
+        if not client_data:
+            return False
+            
+        # 2. Update status
+        client_data["enable"] = enable
+        
+        # 3. Post full client data
+        update_url = f"{base_url}/panel/api/clients/update/{client_email}"
+        response = session.post(update_url, json=client_data, timeout=8, verify=False)
+        res_json = response.json()
+        
+        if res_json.get("success"):
+            print(f"[Sanaei Update API] Client '{client_email}' updated to enable={enable}")
+            return True
+        else:
+            print(f"[Sanaei Update API Error] Client update response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"[Sanaei Update API Error] Exception: {e}")
+        return False
+
 def delete_vpn_client_api(client_email, client_uuid=None):
     """ Call Sanaei 3x-ui API to delete client """
     cfg = get_config()
@@ -513,12 +555,19 @@ def delete_vpn_client_api(client_email, client_uuid=None):
     
     if all_clients and target_norm:
         # 1. Look for exact matches or normalized exact matches
+        print(f"[Debug] Searching to delete client '{client_email}' (norm: '{target_norm}') among {len(all_clients)} clients.")
         for c in all_clients:
             c_email = c.get("email", "")
             c_id = c.get("id")
+            
+            # Log for debugging
+            normalized_c_email = normalize(c_email)
+            print(f"[Debug] Checking candidate: email='{c_email}', norm='{normalized_c_email}', id={c_id}")
+            
             if c_id and str(c_id) not in ids_to_delete:
-                if c_email.lower() == client_email.lower() or normalize(c_email) == target_norm:
+                if c_email.lower() == client_email.lower() or normalized_c_email == target_norm:
                     ids_to_delete.append(str(c_id))
+                    print(f"[Debug] Match found! Adding ID {c_id} to ids_to_delete.")
                     print(f"[Sanaei Delete API] Found exact name-match candidate: '{c_email}' (UUID: {c_id})")
 
         # 2. Look for substring matches
@@ -1753,7 +1802,16 @@ def callback_handler(call):
             return
 
         elif sub_action == "toggle":
-            k["status"] = "inactive" if k.get("status", "active") == "active" else "active"
+            # New status
+            new_status = "inactive" if k.get("status", "active") == "active" else "active"
+            is_enabled = (new_status == "active")
+            
+            # Perform X-UI API Update
+            client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
+            update_vpn_client_enabled_api(client_name, is_enabled)
+            
+            # Update DB
+            k["status"] = new_status
             
             # Save
             db = read_db_json()
