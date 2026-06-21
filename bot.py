@@ -1480,7 +1480,7 @@ def handle_main_menu_callback(call):
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             free_username = f"test_{random_suffix}"
             
-        client_uuid, sub_link = add_vpn_client_api(free_username, 1, 1) # 1 GB, 1 day
+        client_uuid, sub_link = add_vpn_client_api(free_username, 0.2, 0.2) # 0.2 GB, 0.2 day
         
         if not sub_link:
             cfg = get_config()
@@ -1620,6 +1620,40 @@ def handle_main_menu_callback(call):
             bot.edit_message_text(cb[idx]["replyText"], chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
             
 # --- Callback Queries ---
+
+def process_purchase_username_manual(message, plan_id, spec):
+    tg_id = message.from_user.id
+    if not message.text:
+       return 
+    username_input = message.text.strip()
+    
+    # Validation logic
+    import re
+    if not re.match("^[a-zA-Z0-9_-]{3,15}$", username_input):
+        msg = bot.send_message(
+            message.chat.id,
+            "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\n"
+            "لطفاً یک نام کاربری جدید و معتبر ارسال کنید:",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
+        return
+
+    # Check existence
+    if check_client_exists(username_input):
+        msg = bot.send_message(
+            message.chat.id,
+            "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n\n"
+            "لطفاً نام جدیدی ارسال کنید:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
+        return
+
+    # Store pending purchase 
+    set_user_pending_purchase(tg_id, plan_id, username_input)
+    bot.send_message(message.chat.id, "✅ نام کاربری ثبت شد. لطفا اکنون عکس فیش واریزی خود را ارسال کنید تا بررسی شود.", reply_markup=get_cancel_keyboard())
 
 def process_purchase_username(message, plan_id, spec):
     tg_id = message.from_user.id
@@ -2561,27 +2595,36 @@ def callback_handler(call):
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
         
-        if not is_privileged and user['walletBalance'] < spec['price']:
-            bot.send_message(
-                call.message.chat.id, 
-                f"❌ <b>موجودی کیف پول شما کافی نیست!</b>\n\nمبلغ پلان: {spec['price']:,} تومان\nموجودی فعلی شما: {int(user['walletBalance']):,} تومان\n\nجهت خرید لطفا ابتدا حساب خود را شارژ کنید."
-            )
-            bot.answer_callback_query(call.id, "موجودی ناکافی!")
-            return
-
-        # Prompt for English client name without spaces
-        cost_display = "رایگان (ویژه مدیریت 👑)" if is_privileged else f"{spec['price']:,} تومان"
+        # Display payment info directly, skip balance check
+        cfg = get_config()
+        text_response = (
+            f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n\n"
+            f"لطفاً مبلغ <b>{spec['price']:,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+            f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
+            f"<code>{cfg['CARD_NUMBER']}</code>\n"
+            f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
+            f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
+        )
         msg = bot.send_message(
             call.message.chat.id,
-            f"✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>\n\n"
-            f"• طرح انتخابی: <code>{spec['name']}</code>\n"
-            f"• هزینه طرح: {cost_display}\n\n"
-            f"⚠️ نام کاربری نباید شامل فاصله یا حروف فارسی یا کاراکترهای خاص باشد. مثلاً: <code>Daltoon</code>",
+            text_response,
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
-        bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
+        
+        # Store pending purchase info
+        
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>\n"
+            f"• طرح انتخابی: <code>{spec['name']}</code>",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         bot.answer_callback_query(call.id)
+[ReplacementContent for lines 2564-2584 skipped for brevity in thought Process]
+
 
     elif call.data.startswith("charge_amount_"):
         try:
