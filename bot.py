@@ -75,6 +75,16 @@ def read_db_json():
         print(f"[JSON Database Error] {e}")
         return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
 
+def write_db_json(data):
+    """ Atomic persistence for the shared JSON structure """
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        return True
+    except Exception as e:
+        print(f"[JSON Database Write Error] {e}")
+        return False
+
 def normalize_xui_url(url):
     if not url:
         return ""
@@ -1148,6 +1158,7 @@ def verify_mandatory_join_and_warn(chat_id, user_id):
 
 @bot.message_handler(commands=['start', 'help'])
 def start_cmd(message):
+    print(f"[DEBUG] Received /start from {message.from_user.id} (@{message.from_user.username})")
     tg_id = message.from_user.id
     username = message.from_user.username
     
@@ -3962,6 +3973,10 @@ def handle_receipt_upload(message):
 if __name__ == "__main__":
     read_db_json()
     print("Daltoon Telegram Bot core fully online on JSON synchronization database...")
+    
+    # Flag to ensure startup sync only happens once per clean process start
+    startup_sync_complete = False
+    
     while True:
         try:
             cfg = get_config()
@@ -3975,43 +3990,44 @@ if __name__ == "__main__":
             if bot.token != token:
                 print(f"[Daltoon Bot] Loaded new Bot Token from Web Dashboard: {token[:8]}...****")
                 bot.token = token
+                startup_sync_complete = False # Re-sync if token changes
                 
-            print(f"[Daltoon Bot] Starting polling with active bot: {token[:8]}...")
-            try:
-                # Dynamically set Telegram menu commands to enable the "Menu" shortcut button for all users
-                commands = [
-                    types.BotCommand("start", "💥 شروع مجدد ربات و منوی اصلی"),
-                    types.BotCommand("buy", "🛒 خرید اشتراک جدید"),
-                    types.BotCommand("pay", "💳 شارژ کیف پول و پرداخت"),
-                    types.BotCommand("support", "🎫 تیکت به پشتیبانی")
-                ]
-                bot.set_my_commands(commands)
-                print("[Daltoon Bot] Registered menu commands: /start, /buy, /pay, and /support")
-            except Exception as cmd_err:
-                err_str = str(cmd_err).lower()
-                if "401" in err_str or "unauthorized" in err_str:
-                    print("[Daltoon Bot] Setup pending. Commands registration bypassed because token is unauthorized.")
-                else:
-                    print(f"[Daltoon Bot Warning] Could not register bot commands: {cmd_err}")
-
-            try:
-                bot.delete_webhook(drop_pending_updates=True)
-                # Send a startup notification to the owner to verify connectivity
-                owner_id = cfg.get("OWNER_ID")
-                if owner_id:
-                    bot.send_message(owner_id, "🚀 <b>ربات دالتون استور با موفقیت متصل شد و آنلاین است!</b>", parse_mode="HTML")
-            except Exception as w_err:
-                # Silently ignore webhook failure (no loud warnings or error messages)
-                pass
-                
-            bot.polling(none_stop=True, interval=1, timeout=20)
+            if not startup_sync_complete:
+                try:
+                    # Dynamically set Telegram menu commands
+                    commands = [
+                        types.BotCommand("start", "💥 شروع مجدد ربات و منوی اصلی"),
+                        types.BotCommand("buy", "🛒 خرید اشتراک جدید"),
+                        types.BotCommand("pay", "💳 شارژ کیف پول و پرداخت"),
+                        types.BotCommand("support", "🎫 تیکت به پشتیبانی")
+                    ]
+                    bot.set_my_commands(commands)
+                    
+                    # Ensure webhook is clean
+                    bot.delete_webhook(drop_pending_updates=True)
+                    
+                    # Notify owner of successful connection
+                    owner_id = cfg.get("OWNER_ID")
+                    if owner_id:
+                        bot.send_message(owner_id, "🚀 <b>ربات دالتون استور با موفقیت متصل شد و آنلاین است!</b>", parse_mode="HTML")
+                    
+                    print(f"[Daltoon Bot] Real-time connection established for @{bot.get_me().username}")
+                    startup_sync_complete = True
+                except Exception as setup_err:
+                    print(f"[Daltoon Bot Setup Error] {setup_err}")
+                    # If it's a token error, it will be caught by the outer block
+            
+            # Start real-time polling (interval=0 for maximum responsiveness)
+            bot.polling(none_stop=True, interval=0, timeout=30)
+            
         except Exception as e:
             err_str = str(e)
             if "401" in err_str or "unauthorized" in err_str.lower():
-                # To prevent spamming and avoid raising alerts in log analyzers, we print a polite informational note.
                 print("[Daltoon Bot] Setup pending. The current token in settings is not active. Please update it with a valid token from BotFather via the Web Dashboard.")
                 time.sleep(15)
+            elif "409" in err_str or "conflict" in err_str.lower():
+                print("[Daltoon Bot] Conflict detected (multiple instances). Cleaning up and retrying in 5 seconds...")
+                time.sleep(5)
             else:
-                print(f"[Daltoon Bot] Polling error: {e}")
-                print(f"[Daltoon Bot] Re-aligning connection context, retrying in 10 seconds...")
-                time.sleep(10)
+                print(f"[Daltoon Bot] Polling session ended/error: {e}")
+                time.sleep(5)
