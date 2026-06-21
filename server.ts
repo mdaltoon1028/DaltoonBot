@@ -1383,7 +1383,7 @@ async function addVpnClientApi(
         totalGB: totalBytes,
         expiryTime: expiryTimeMs,
         enable: true,
-        tgId: "",
+        tgId: 0,
         subId: clientEmail
       },
       inboundIds: inboundIds

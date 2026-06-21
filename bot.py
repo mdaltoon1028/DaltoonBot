@@ -520,6 +520,11 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                 if str(existing_c.get("id")) == uid:
                                     merged_c = existing_c.copy()
                                     merged_c["enable"] = enable
+                                    if "tgId" in merged_c and not isinstance(merged_c["tgId"], int):
+                                        try:
+                                            merged_c["tgId"] = int(merged_c["tgId"]) if str(merged_c["tgId"]).isdigit() else 0
+                                        except:
+                                            merged_c["tgId"] = 0
                                     session.post(upd_url, json=merged_c, timeout=5, verify=False)
                                     success = True
                         except: pass
