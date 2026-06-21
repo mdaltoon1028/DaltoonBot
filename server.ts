@@ -24,79 +24,8 @@ try {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
-const dbJsonPath = (() => {
-  const customFile = "database.json";
-  const defaultFile = "Daltoon_Bot.json";
-  
-  const legacyPath = _dirname.endsWith("dist")
-    ? path.resolve(_dirname, "..", customFile)
-    : path.resolve(_dirname, customFile);
+const dbJsonPath = path.join(process.cwd(), "db.json");
 
-  const defaultPath = _dirname.endsWith("dist")
-    ? path.resolve(_dirname, "..", defaultFile)
-    : path.resolve(_dirname, defaultFile);
-
-  // Helper inspect file for actual registered data
-  const fileHasData = (filePath: string): boolean => {
-    try {
-      if (!fs.existsSync(filePath)) return false;
-      const content = fs.readFileSync(filePath, "utf8").trim();
-      if (!content) return false;
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed.users) && parsed.users.length > 0) return true;
-      if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) return true;
-      if (parsed.settings && parsed.settings.panel_config) {
-        try {
-          const config = JSON.parse(parsed.settings.panel_config);
-          if (config.botToken && config.botToken !== "DUMMY_TOKEN" && config.botToken.trim() !== "") {
-            return true;
-          }
-        } catch (err) {}
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  };
-
-  // 1. Automatic database migration: If legacyPath has actual data but defaultPath doesn't, migrate it!
-  if (!fileHasData(defaultPath) && fileHasData(legacyPath)) {
-    console.log(`[Database Migration] Default DB (${defaultPath}) is empty/seeded, but legacy DB (${legacyPath}) has active data. Migrating...`);
-    try {
-      fs.copyFileSync(legacyPath, defaultPath);
-      console.log(`[Database Migration] Migration completed successfully!`);
-    } catch (migErr: any) {
-      console.error(`[Database Migration Error] Failed to migrate database:`, migErr.message);
-    }
-  }
-
-  // 2. If defaultFile (Daltoon_Bot.json) exists and has actual data, prioritize it!
-  if (fileHasData(defaultPath)) {
-    console.log(`[Database Setup] Active database found at: ${defaultPath}`);
-    return defaultPath;
-  }
-  
-  // 3. If legacyPath (database.json) has actual data, use it!
-  if (fileHasData(legacyPath)) {
-    console.log(`[Database Setup] Legacy database found with data at: ${legacyPath}`);
-    return legacyPath;
-  }
-
-  // 4. Fallback: If defaultFile exists at all, use it even if empty
-  if (fs.existsSync(defaultPath)) {
-    console.log(`[Database Setup] Using existing default empty db at: ${defaultPath}`);
-    return defaultPath;
-  }
-
-  // 5. Fallback to legacy path if it exists at all
-  if (fs.existsSync(legacyPath)) {
-    console.log(`[Database Setup] Using existing legacy empty db at: ${legacyPath}`);
-    return legacyPath;
-  }
-
-  console.log(`[Database Setup] Creating new database at: ${defaultPath}`);
-  return defaultPath;
-})();
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
@@ -234,6 +163,8 @@ function readJsonDb(): DbSchema {
 function writeJsonDb(data: DbSchema) {
   try {
     fs.writeFileSync(dbJsonPath, JSON.stringify(data, null, 2), "utf8");
+    // Restart bot to ensure all changes are picked up immediately
+    startPythonBot();
   } catch (err) {
     console.error("[Database] Write error to JSON store:", err);
   }

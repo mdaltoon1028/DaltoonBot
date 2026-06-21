@@ -16,88 +16,19 @@ from dotenv import load_dotenv
 # Load Environment Variables
 load_dotenv()
 
-# Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE_LEGACY = os.path.join(SCRIPT_DIR, "database.json")
-DB_FILE_DEFAULT = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
-
-def file_has_data(file_path):
-    try:
-        if not os.path.exists(file_path):
-            return False
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        if not content:
-            return False
-        parsed = json.loads(content)
-        if isinstance(parsed.get("users"), list) and len(parsed["users"]) > 0:
-            return True
-        if isinstance(parsed.get("transactions"), list) and len(parsed["transactions"]) > 0:
-            return True
-        settings = parsed.get("settings", {})
-        if settings and settings.get("panel_config"):
-            config = json.loads(settings["panel_config"])
-            token = config.get("botToken")
-            if token and token != "DUMMY_TOKEN" and token.strip() != "":
-                return True
-        return False
-    except Exception:
-        return False
-
-if file_has_data(DB_FILE_DEFAULT):
-    DB_FILE = DB_FILE_DEFAULT
-elif file_has_data(DB_FILE_LEGACY):
-    DB_FILE = DB_FILE_LEGACY
-elif os.path.exists(DB_FILE_DEFAULT):
-    DB_FILE = DB_FILE_DEFAULT
-elif os.path.exists(DB_FILE_LEGACY):
-    DB_FILE = DB_FILE_LEGACY
-else:
-    DB_FILE = DB_FILE_DEFAULT
-
-def write_db_json(data):
-    """ Atomic save to prevent corruption """
-    try:
-        temp_file = DB_FILE + ".tmp"
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        os.replace(temp_file, DB_FILE)
-    except Exception as e:
-        print(f"[Database Error] Fs output error: {e}")
+# Shared Database file path
+DB_FILE = os.path.join(SCRIPT_DIR, "db.json")
 
 def read_db_json():
-    """ Read core database structure and supply initial templates if newly established """
+    """ Read core database structure always from db.json shared with dashboard """
     if not os.path.exists(DB_FILE):
-        default_db = {
-            "users": [],
-            "transactions": [],
-            "subscription_keys": [],
-            "inbounds": [],
-            "custom_buttons": [],
-            "settings": {
-                "panel_config": json.dumps({
-                    "botToken": "",
-                    "baseUrl": "",
-                    "panelUrl": "",
-                    "panelUsername": "",
-                    "panelPassword": "",
-                    "activeInboundIds": [],
-                    "ownerId": 0,
-                    "dashboardUsername": "Daltoon",
-                    "dashboardPassword": "Daltoon10",
-                    "serverPort": 3000,
-                    "admins": []
-                })
-            }
-        }
-        write_db_json(default_db)
-        return default_db
+        return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[JSON Database Warning] Could not parse. Re-reading database files: {e}")
-        return {"users": [], "transactions": [], "subscription_keys": [], "inbounds": [], "custom_buttons": [], "settings": {}}
+        print(f"[JSON Database Error] {e}")
+        return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
 
 def normalize_xui_url(url):
     if not url:
@@ -1240,9 +1171,9 @@ def buy_cmd(message):
             categories.append(cat)
             seen_cats.add(cat)
             
-    # Fallback to defaults if no plans exist yet
+    # Fallback to empty if no plans exist yet
     if not categories:
-        categories = ["Standard", "VIP", "Unlimited VoIP"]
+        categories = [] 
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     for cat in categories:
@@ -1384,7 +1315,7 @@ def handle_main_menu_callback(call):
                 seen_cats.add(cat)
                 
         if not categories:
-            categories = ["Standard", "VIP", "Unlimited VoIP"]
+            categories = []
 
         markup = types.InlineKeyboardMarkup(row_width=1)
         for cat in categories:

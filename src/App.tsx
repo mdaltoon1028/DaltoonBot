@@ -170,8 +170,8 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const isAuth = localStorage.getItem("daltoon_dashboard_auth") === "true";
     const lastInteraction = parseInt(localStorage.getItem("daltoon_last_interaction") || "0", 10);
-    // Auto-logout if more than 1 hour passed since last interaction
-    if (isAuth && (Date.now() - lastInteraction > 3600000)) {
+  // Auto-logout if more than 24 hours passed since last interaction
+    if (isAuth && (Date.now() - lastInteraction > 86400000)) {
       localStorage.removeItem("daltoon_dashboard_auth");
       return false;
     }
@@ -267,10 +267,11 @@ export default function App() {
     return parseInt(localStorage.getItem("daltoon_last_interaction") || String(Date.now()), 10);
   });
 
-  // Inactivity timeout (1 hour)
+  // Inactivity timeout (24 hours)
   useEffect(() => {
     const checkTimeout = () => {
-      if (isAuthenticated && Date.now() - lastInteraction > 3600000) {
+      if (isAuthenticated && Date.now() - lastInteraction > 86400000) {
+        console.log("[Daltoon Session] Expired after 24h inactivity");
         localStorage.removeItem("daltoon_dashboard_auth");
         setIsAuthenticated(false);
       }
