@@ -1480,7 +1480,7 @@ def handle_main_menu_callback(call):
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             free_username = f"test_{random_suffix}"
             
-        client_uuid, sub_link = add_vpn_client_api(free_username, 1, 1) # 1 GB, 1 day
+        client_uuid, sub_link = add_vpn_client_api(free_username, 0.2, 0.2) # 0.2 GB, 0.2 day
         
         if not sub_link:
             cfg = get_config()
@@ -1651,9 +1651,18 @@ def process_purchase_username_manual(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         return
 
-    # Store pending purchase 
     set_user_pending_purchase(tg_id, plan_id, username_input)
-    bot.send_message(message.chat.id, "✅ نام کاربری ثبت شد. لطفا اکنون عکس فیش واریزی خود را ارسال کنید تا بررسی شود.", reply_markup=get_cancel_keyboard())
+    cfg = get_config()
+    text_response = (
+        f"✅ <b>نام کاربری ثبت شد.</b>\n\n"
+        f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n\n"
+        f"لطفاً مبلغ <b>{spec.get('price', 0):,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+        f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
+        f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
+        f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+        f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
+    )
+    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=get_cancel_keyboard())
 
 def process_purchase_username(message, plan_id, spec):
     tg_id = message.from_user.id
@@ -2595,25 +2604,7 @@ def callback_handler(call):
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
         
-        # Display payment info directly, skip balance check
-        cfg = get_config()
-        text_response = (
-            f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n\n"
-            f"لطفاً مبلغ <b>{spec['price']:,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-            f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-            f"<code>{cfg['CARD_NUMBER']}</code>\n"
-            f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
-            f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
-        )
-        msg = bot.send_message(
-            call.message.chat.id,
-            text_response,
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard()
-        )
-        
-        # Store pending purchase info
-        
+        # Ask for username first
         msg = bot.send_message(
             call.message.chat.id,
             f"✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>\n"
