@@ -3600,17 +3600,28 @@ def handle_receipt_upload(message):
     if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
          return
 
+    # Check for pending purchase
+    pending_plan_id, pending_username = get_user_pending_purchase(tg_id)
+
     # Look up selected amount or fallback to regex extraction or default
-    extracted_amount = pop_user_pending_charge(tg_id)
-    if not extracted_amount:
-        import re
-        digits = re.findall(r'\d+', caption.replace(",", "").replace("，", ""))
-        if digits:
-             extracted_amount = int("".join(digits))
-             if extracted_amount < 1000 or extracted_amount > 100000000:
-                  extracted_amount = 200000
-        else:
-             extracted_amount = 200000  # Default to 200k if unspecified
+    extracted_amount = 0
+    if not pending_plan_id:
+        extracted_amount = pop_user_pending_charge(tg_id)
+        if not extracted_amount:
+            import re
+            digits = re.findall(r'\d+', caption.replace(",", "").replace("，", ""))
+            if digits:
+                extracted_amount = int("".join(digits))
+                if extracted_amount < 1000 or extracted_amount > 100000000:
+                    extracted_amount = 200000
+            else:
+                extracted_amount = 200000  # Default to 200k if unspecified
+    else:
+        # Get plan price
+        db = read_db_json()
+        db_plans = db.get("vpn_plans", [])
+        db_plan = next((dp for dp in db_plans if dp["id"] == pending_plan_id), None)
+        extracted_amount = int(db_plan["price"]) if db_plan else 0
 
     try:
         file_id = None
@@ -3648,6 +3659,11 @@ def handle_receipt_upload(message):
                 db["transactions"] = []
                 
             tx_id = f"TX-{int(time.time())}"
+            
+            tx_description = f"شارژ انتخابی تلگرام. کپشن فیش: '{caption}'" if caption else f"شارژ انتخابی {extracted_amount:,} تومان بدون کپشن."
+            if pending_plan_id:
+                tx_description = f"خرید پلان: {pending_plan_id}, نام کاربری: {pending_username}"
+
             new_tx = {
                 "id": tx_id,
                 "userId": int(tg_id),
@@ -3656,10 +3672,20 @@ def handle_receipt_upload(message):
                 "receiptImage": receipt_data_uri,
                 "status": "pending",
                 "date": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
-                "description": f"شارژ انتخابی تلگرام. کپشن فیش: '{caption}'" if caption else f"شارژ انتخابی {extracted_amount:,} تومان بدون کپشن."
+                "description": tx_description
             }
+            if pending_plan_id:
+                new_tx["planId"] = pending_plan_id
+                new_tx["clientName"] = pending_username
+                new_tx["type"] = "PLAN_PURCHASE"
+            
             db["transactions"].insert(0, new_tx)
             write_db_json(db)
+            
+            # Clear pending purchase if it exists
+            if pending_plan_id:
+                clear_user_pending_purchase(tg_id)
+
             try:
                 log_action(int(tg_id), username or f"user_{tg_id}", "ارسال رسید تراکنش", f"کاربر فیش واریزی به مبلغ {extracted_amount:,} تومان را ارسال کرد ( شناسه: {tx_id} ).")
             except Exception as e:
@@ -3669,7 +3695,7 @@ def handle_receipt_upload(message):
                 f"✅ <b>فیش پرداختی شما با موفقیت دریافت شد!</b>\n\n"
                 f"📌 شناسه تراکنش: <code>{tx_id}</code>\n"
                 f"💰 مبلغ اعلامی: <b>{extracted_amount:,} تومان</b>\n\n"
-                f"⌛ در حال انتقال صف بررسی رسید توسط ادمین هستیم. نتیجه به شما اعلام خواهد شد."
+                f"⌛ در حال انتقال صف بررسی توسط ادمین برای " + ("تحویل کانفیگ" if pending_plan_id else "شارژ") + " هستیم."
             )
             bot.reply_to(message, reply_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
             
@@ -3686,8 +3712,9 @@ def handle_receipt_upload(message):
                 try:
                     nickname = cfg.get("BOT_NICKNAME", "دالتون")
                     admin_msg = (
-                        f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
+                        f"🔔 <b>{"خرید اشتراک جدید" if pending_plan_id else "رسید شارژ کیف پول"} برای تایید واریز شد!</b>\n\n"
                         f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
+                        + (f"📦 پلان: {pending_plan_id}\n👤 نام کانفیگ: {pending_username}\n" if pending_plan_id else "") +
                         f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
                         f"🆔 شناسه: <code>{tx_id}</code>\n\n"
                         f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت {nickname} سرور مراجعه کنید."

@@ -1758,19 +1758,55 @@ app.post("/api/transactions/approve", async (req, res) => {
       }
       
       const user = db.users.find(u => u.userId === Number(tx.userId));
-      if (user) {
-        user.walletBalance = Number(user.walletBalance) + Number(tx.amount);
+      
+      let messageTextForNotif = "";
+      
+      if (tx.type === "PLAN_PURCHASE") {
+        const db_plans = db.vpn_plans || [];
+        const plan = db_plans.find(p => p.id === tx.planId);
+        
+        if (plan) {
+          const clientName = tx.clientName || `user_${tx.userId}`;
+          const settings = db.settings ? JSON.parse(db.settings.panel_config || "{}") : {};
+          
+          try {
+            const vpnResult = await addVpnClientApi(clientName, plan.trafficGb, plan.durationDays, settings);
+            const subLink = vpnResult.sub_link;
+            messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🔗 لینک اشتراک:\n<code>${subLink}</code>\n\n⚠️ لینک خود را در کلاینت خود وارد کنید.`;
+            
+             if (!db.logs) db.logs = [];
+             db.logs.push({
+               id: Math.random().toString(36).substring(2, 9),
+               date: new Date().toISOString(),
+               userId: Number(tx.userId),
+               username: tx.username || `user_${tx.userId}`,
+               action: "تحویل کانفیگ",
+               details: `اشتراک برای پلان ${plan.name} با نام ${clientName} تحویل داده شد.`
+             });
+          } catch (e) {
+             messageTextForNotif = `❌ خطا در ساخت کانفیگ: ${e.message}`;
+          }
+        } else {
+             messageTextForNotif = `❌ خطا: پلان مورد نظر یافت نشد. با پشتیبانی هماهنگ کنید.`;
+        }
+      } else {
+        if (user) {
+            user.walletBalance = Number(user.walletBalance) + Number(tx.amount);
+        }
+        messageTextForNotif = `✅ <b>تراکنش شما تایید شد!</b>\n\n💰 مبلغ <b>${tx.amount.toLocaleString()} تومان</b> به کیف پول شما در ربات افزوده شد.\n\n💰 موجودی جدید: <b>${user ? user.walletBalance.toLocaleString() : "0"} تومان</b>`;
       }
       
-      if (!db.logs) db.logs = [];
-      db.logs.push({
-        id: Math.random().toString(36).substring(2, 9),
-        date: new Date().toISOString(),
-        userId: Number(tx.userId),
-        username: tx.username || `user_${tx.userId}`,
-        action: "تایید شارژ",
-        details: `رسید تراکنش به شناسه ${tx.id} و مبلغ ${Number(tx.amount).toLocaleString()} تومان توسط مدیر تایید شد و به کیف پول کاربر افزایش یافت.`
-      });
+      if (tx.type !== "PLAN_PURCHASE") {
+          db.logs.push({
+            id: Math.random().toString(36).substring(2, 9),
+            date: new Date().toISOString(),
+            userId: Number(tx.userId),
+            username: tx.username || `user_${tx.userId}`,
+            action: "تایید شارژ",
+            details: `رسید تراکنش به شناسه ${tx.id} و مبلغ ${Number(tx.amount).toLocaleString()} تومان توسط مدیر تایید شد و به کیف پول کاربر افزایش یافت.`
+          });
+      }
+      
       if (db.logs.length > 1000) {
         db.logs = db.logs.slice(-1000);
       }
@@ -1785,7 +1821,7 @@ app.post("/api/transactions/approve", async (req, res) => {
           const botToken = cfg.botToken;
           if (botToken) {
             const nickname = cfg.botNickname || "دالتون";
-            const messageText = `✅ <b>تراکنش شما تایید شد!</b>\n\n💰 مبلغ <b>${tx.amount.toLocaleString()} تومان</b> به کیف پول شما در ربات ${nickname} استور افزوده شد.\n\n💰 موجودی جدید: <b>${user ? user.walletBalance.toLocaleString() : "0"} تومان</b>\n\n🛍️ هم اکنون می‌توانید از منوی ربات اقدام به خرید اشتراک فرمایید!`;
+            const messageText = messageTextForNotif;
             const https = require("https");
             const postData = JSON.stringify({
               chat_id: tx.userId,
