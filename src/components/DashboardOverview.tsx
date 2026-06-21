@@ -193,41 +193,6 @@ export default function DashboardOverview({
           </div>
       </div>
 
-      {/* 30-day Revenue Line Chart */}
-      <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl">
-        <h3 className="text-lg font-bold mb-4 font-display text-gray-200">
-          {lang === "fa" ? "درآمد ۳۰ روز اخیر (تومان)" : "Last 30 Days Revenue (Toman)"}
-        </h3>
-        <div className="h-64 w-full" dir="ltr">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={last30DaysData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-              <XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis 
-                stroke="#6b7280" 
-                fontSize={12} 
-                tickLine={false} 
-                axisLine={false} 
-                tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toLocaleString()}k` : val} 
-              />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', color: '#f3f4f6' }}
-                itemStyle={{ color: '#8b5cf6' }}
-                formatter={(value: number) => [value.toLocaleString(), lang === "fa" ? "درآمد" : "Revenue"]}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="revenue" 
-                stroke="#8b5cf6" 
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#111827", strokeWidth: 2 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
       {/* Compact System Resource Monitoring Bar */}
       <div className="pt-4 border-t border-[#1f2937]">
         <SystemResourceMonitor lang={lang} />
