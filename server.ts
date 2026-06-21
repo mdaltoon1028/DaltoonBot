@@ -24,7 +24,58 @@ try {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
-const dbJsonPath = path.resolve(_dirname, "Daltoon_Bot.json");
+const dbJsonPath = (() => {
+  const possibleFiles = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"];
+  
+  // Helper inspect file for actual registered data
+  const fileHasData = (filePath: string): boolean => {
+    try {
+      if (!fs.existsSync(filePath)) return false;
+      const content = fs.readFileSync(filePath, "utf8").trim();
+      if (!content) return false;
+      const parsed = JSON.parse(content);
+      // If it contains users, transactions, or has a valid botToken in settings
+      if (Array.isArray(parsed.users) && parsed.users.length > 0) return true;
+      if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) return true;
+      if (parsed.settings && parsed.settings.panel_config) {
+        try {
+          const config = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+          if (config.botToken && config.botToken !== "DUMMY_TOKEN" && config.botToken.trim() !== "") {
+            return true;
+          }
+        } catch (err) {}
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // 1. Search for a file that actually contains data
+  for (const f of possibleFiles) {
+    const rootPath = path.resolve(process.cwd(), f);
+    const scriptPath = path.resolve(_dirname, f);
+    const parentPath = path.resolve(_dirname, "..", f);
+    
+    if (fileHasData(rootPath)) return rootPath;
+    if (fileHasData(scriptPath)) return scriptPath;
+    if (fileHasData(parentPath)) return parentPath;
+  }
+  
+  // 2. If no data found, fall back to the first one that exists at all
+  for (const f of possibleFiles) {
+    const rootPath = path.resolve(process.cwd(), f);
+    const scriptPath = path.resolve(_dirname, f);
+    const parentPath = path.resolve(_dirname, "..", f);
+    
+    if (fs.existsSync(rootPath)) return rootPath;
+    if (fs.existsSync(scriptPath)) return scriptPath;
+    if (fs.existsSync(parentPath)) return parentPath;
+  }
+
+  // 3. Absolute final fallback (Prefer Daltoon_Bot.json as the standard from now on)
+  return path.resolve(process.cwd(), "Daltoon_Bot.json");
+})();
 
 
 // Helper to load port dynamically from DB config

@@ -17,7 +17,42 @@ import logging
 
 # Shared Database file path (script-relative for reliable CWD-independent execution)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+def get_db_path():
+    """ 
+    Sync DB path logic with server.ts:
+    Search for Daltoon_Bot.json, db.json, database.json, bot_database.json that contains data.
+    """
+    possible_files = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"]
+    
+    def file_has_data(path):
+        try:
+            if not os.path.exists(path): return False
+            if os.path.getsize(path) < 10: return False
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data.get("users") or data.get("vpn_plans") or data.get("transactions"):
+                    return True
+                settings = data.get("settings", {})
+                if settings.get("BOT_TOKEN") or settings.get("panel_config"):
+                    return True
+            return False
+        except: return False
+
+    for f in possible_files:
+        root_path = os.path.join(SCRIPT_DIR, f)
+        parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
+        if file_has_data(root_path): return root_path
+        if file_has_data(parent_path): return parent_path
+    
+    for f in possible_files:
+        root_path = os.path.join(SCRIPT_DIR, f)
+        parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
+        if os.path.exists(root_path): return root_path
+        if os.path.exists(parent_path): return parent_path
+
+    return os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+
+DB_FILE = get_db_path()
 
 def read_db_json():
     """ Read core database structure always from shared json file """
