@@ -24,7 +24,52 @@ try {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
-const dbJsonPath = path.join(process.cwd(), "db.json");
+const dbJsonPath = (() => {
+  const customFile = "database.json";
+  const defaultFile = "Daltoon_Bot.json";
+  
+  const legacyPath = _dirname.endsWith("dist")
+    ? path.resolve(_dirname, "..", customFile)
+    : path.resolve(_dirname, customFile);
+
+  const defaultPath = _dirname.endsWith("dist")
+    ? path.resolve(_dirname, "..", defaultFile)
+    : path.resolve(_dirname, defaultFile);
+
+  // Helper inspect file for actual registered data
+  const fileHasData = (filePath: string): boolean => {
+    try {
+      if (!fs.existsSync(filePath)) return false;
+      const content = fs.readFileSync(filePath, "utf8").trim();
+      if (!content) return false;
+      const parsed = JSON.parse(content);
+      // If it's the setup we see in screenshot, it might have settings but no real config
+      if (Array.isArray(parsed.users) && parsed.users.length > 0) return true;
+      if (parsed.settings && parsed.settings.panel_config) {
+        try {
+          const config = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+          if (config.botToken && config.botToken !== "DUMMY_TOKEN" && config.botToken.trim() !== "") {
+            return true;
+          }
+        } catch (err) {}
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Prioritize existing data
+  if (fileHasData(defaultPath)) return defaultPath;
+  if (fileHasData(legacyPath)) return legacyPath;
+  
+  // Return default if exists even if empty
+  if (fs.existsSync(defaultPath)) return defaultPath;
+  if (fs.existsSync(legacyPath)) return legacyPath;
+
+  // Final fallback
+  return defaultPath;
+})();
 
 
 // Helper to load port dynamically from DB config

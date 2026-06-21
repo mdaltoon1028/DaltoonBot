@@ -16,11 +16,45 @@ from dotenv import load_dotenv
 # Load Environment Variables
 load_dotenv()
 
-# Shared Database file path
-DB_FILE = os.path.join(SCRIPT_DIR, "db.json")
+# Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE_LEGACY = os.path.join(SCRIPT_DIR, "database.json")
+DB_FILE_DEFAULT = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+
+def file_has_data(file_path):
+    try:
+        if not os.path.exists(file_path):
+            return False
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        if not content:
+            return False
+        parsed = json.loads(content)
+        if isinstance(parsed.get("users"), list) and len(parsed["users"]) > 0:
+            return True
+        settings = parsed.get("settings", {})
+        if settings and settings.get("panel_config"):
+            config = settings["panel_config"]
+            if isinstance(config, str):
+                config = json.loads(config)
+            token = config.get("botToken")
+            if token and token != "DUMMY_TOKEN" and token.strip() != "":
+                return True
+        return False
+    except Exception:
+        return False
+
+if file_has_data(DB_FILE_DEFAULT):
+    DB_FILE = DB_FILE_DEFAULT
+elif file_has_data(DB_FILE_LEGACY):
+    DB_FILE = DB_FILE_LEGACY
+elif os.path.exists(DB_FILE_DEFAULT):
+    DB_FILE = DB_FILE_DEFAULT
+else:
+    DB_FILE = DB_FILE_DEFAULT
 
 def read_db_json():
-    """ Read core database structure always from db.json shared with dashboard """
+    """ Read core database structure always from shared json file """
     if not os.path.exists(DB_FILE):
         return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
     try:
