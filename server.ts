@@ -959,6 +959,10 @@ app.post("/api/ai/chat", async (req, res) => {
     }
 
     const ai = getAiClient();
+    if (!ai || !(ai as any).apiKey) {
+      return res.status(400).json({ error: "Gemini API Key is not configured. Please set it in Settings -> Bot Configuration -> Gemini API Key to enable AI features." });
+    }
+
     const dbData = readJsonDb();
     
     // Clean settings to remove sensitive information before sharing context

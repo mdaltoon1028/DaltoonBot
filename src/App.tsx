@@ -280,20 +280,29 @@ export default function App() {
   }, [isAuthenticated, lastInteraction]);
 
   useEffect(() => {
+    let timeout: any;
     const handleActivity = () => {
-      const now = Date.now();
-      setLastInteraction(now);
-      localStorage.setItem("daltoon_last_interaction", String(now));
+      if (timeout) return;
+      timeout = setTimeout(() => {
+        const now = Date.now();
+        setLastInteraction(now);
+        localStorage.setItem("daltoon_last_interaction", String(now));
+        timeout = null;
+      }, 5000); // Only update once every 5 seconds
     };
     window.addEventListener("mousemove", handleActivity);
     window.addEventListener("keydown", handleActivity);
     window.addEventListener("click", handleActivity);
+    window.addEventListener("scroll", handleActivity);
+    
     // Initial save
     localStorage.setItem("daltoon_last_interaction", String(Date.now()));
     return () => {
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("keydown", handleActivity);
       window.removeEventListener("click", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+      if (timeout) clearTimeout(timeout);
     };
   }, []);
 
@@ -375,19 +384,29 @@ export default function App() {
       const response = await fetch("/api/data");
       const json = await response.json();
       if (json.success) {
-        if (json.users) setUsers(json.users);
-        if (json.transactions) setTransactions(json.transactions);
-        if (json.keys) setKeys(json.keys);
-        if (json.vpnPlans) setVpnPlans(json.vpnPlans);
-        if (json.inbounds) setInbounds(json.inbounds);
-        if (json.customButtons) setCustomButtons(json.customButtons);
-        if (json.giftCodes) setGiftCodes(json.giftCodes);
-        if (json.promoCodes) setPromoCodes(json.promoCodes);
-        if (json.tickets) setTickets(json.tickets);
-        if (json.colleaguePackages) setColleaguePackages(json.colleaguePackages);
-        if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
-        if (json.logs) setLogs(json.logs);
-        if (json.settings && 'botToken' in json.settings) setSettings(json.settings);
+        // Deep comparison optimization to prevent unnecessary re-renders and localStorage writes
+        const updateIfChanged = (setter: any, current: any, next: any) => {
+          if (JSON.stringify(current) !== JSON.stringify(next)) {
+            setter(next);
+          }
+        };
+
+        if (json.users) updateIfChanged(setUsers, users, json.users);
+        if (json.transactions) updateIfChanged(setTransactions, transactions, json.transactions);
+        if (json.keys) updateIfChanged(setKeys, keys, json.keys);
+        if (json.vpnPlans) updateIfChanged(setVpnPlans, vpnPlans, json.vpnPlans);
+        if (json.inbounds) updateIfChanged(setInbounds, inbounds, json.inbounds);
+        if (json.customButtons) updateIfChanged(setCustomButtons, customButtons, json.customButtons);
+        if (json.giftCodes) updateIfChanged(setGiftCodes, giftCodes, json.giftCodes);
+        if (json.promoCodes) updateIfChanged(setPromoCodes, promoCodes, json.promoCodes);
+        if (json.tickets) updateIfChanged(setTickets, tickets, json.tickets);
+        if (json.colleaguePackages) updateIfChanged(setColleaguePackages, colleaguePackages, json.colleaguePackages);
+        if (json.colleagueAccounts) updateIfChanged(setColleagueAccounts, colleagueAccounts, json.colleagueAccounts);
+        if (json.logs) updateIfChanged(setLogs, logs, json.logs);
+        
+        if (json.settings && 'botToken' in json.settings) {
+          updateIfChanged(setSettings, settings, json.settings);
+        }
         
         if (!isAuto) {
           console.log("[Full-Stack Sync] JSON database refreshed successfully.");

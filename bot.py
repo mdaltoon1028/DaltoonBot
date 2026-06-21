@@ -204,7 +204,10 @@ def get_config():
             if "hideBtnFeedback" in panel_cfg: config["HIDE_FEEDBACK"] = bool(panel_cfg["hideBtnFeedback"])
             if "hideBtnReferral" in panel_cfg: config["HIDE_REFERRAL"] = bool(panel_cfg["hideBtnReferral"])
             if "hideBtnColleagues" in panel_cfg: config["HIDE_COLLEAGUES"] = bool(panel_cfg["hideBtnColleagues"])
-            if "hideBtnAiChat" in panel_cfg: config["HIDE_AI_CHAT"] = bool(panel_cfg["hideBtnAiChat"])
+            if "hideBtnAiChat" in panel_cfg: 
+                config["HIDE_AI_CHAT"] = bool(panel_cfg["hideBtnAiChat"])
+            else:
+                config["HIDE_AI_CHAT"] = False # Visible by default for new installs
             if "hideBtnTicketSupport" in panel_cfg: config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg["hideBtnTicketSupport"])
             config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
             if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
@@ -1225,12 +1228,30 @@ def buy_cmd(message):
         "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
     )
 
+    db = read_db_json()
+    db_plans = db.get("vpn_plans", [])
+    
+    # Extract unique categories dynamically
+    categories = []
+    seen_cats = set()
+    for p in db_plans:
+        cat = p.get("category", "Standard")
+        if cat not in seen_cats:
+            categories.append(cat)
+            seen_cats.add(cat)
+            
+    # Fallback to defaults if no plans exist yet
+    if not categories:
+        categories = ["Standard", "VIP", "Unlimited VoIP"]
+
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("⚡️ Standard", callback_data="plcat_Standard"),
-        types.InlineKeyboardButton("⭐️ Vip", callback_data="plcat_VIP"),
-        types.InlineKeyboardButton("🚀 Unlimited VoIp", callback_data="plcat_Unlimited VoIP")
-    )
+    for cat in categories:
+        emoji = "⚡️"
+        if "vip" in cat.lower(): emoji = "⭐️"
+        elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
+        elif "premium" in cat.lower(): emoji = "💎"
+        
+        markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{cat}"))
     
     markup.row(
         types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
@@ -1353,12 +1374,26 @@ def handle_main_menu_callback(call):
             "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
         )
 
+        # Extract unique categories dynamically
+        categories = []
+        seen_cats = set()
+        for p in db.get("vpn_plans", []):
+            cat = p.get("category", "Standard")
+            if cat not in seen_cats:
+                categories.append(cat)
+                seen_cats.add(cat)
+                
+        if not categories:
+            categories = ["Standard", "VIP", "Unlimited VoIP"]
+
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            types.InlineKeyboardButton("⚡️ Standard", callback_data="plcat_Standard"),
-            types.InlineKeyboardButton("⭐️ Vip", callback_data="plcat_VIP"),
-            types.InlineKeyboardButton("🚀 Unlimited VoIp", callback_data="plcat_Unlimited VoIP")
-        )
+        for cat in categories:
+            emoji = "⚡️"
+            if "vip" in cat.lower(): emoji = "⭐️"
+            elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
+            elif "premium" in cat.lower(): emoji = "💎"
+            
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{cat}"))
         
         markup.row(
             types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
@@ -2725,12 +2760,10 @@ def callback_handler(call):
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
         display_cat = category_name
-        if category_name.lower() == "standard":
-            display_cat = "Standard"
-        elif category_name.lower() == "vip":
-            display_cat = "Vip"
-        elif category_name.lower() == "unlimited voip" or category_name.lower() == "unlimitedvoip":
-            display_cat = "Unlimited VoIp"
+        # Add basic mapping for common ones if desired, otherwise use as provided
+        if category_name.lower() == "standard": display_cat = "Standard"
+        elif category_name.lower() == "vip": display_cat = "Vip"
+        elif "voip" in category_name.lower(): display_cat = "Unlimited VoIp"
             
         message_body = (
             f"⚡️ <b>پلن‌های بخش {display_cat} - {nickname}</b>\n\n"
