@@ -55,7 +55,7 @@ export default function ServerManagement({
   const [planDays, setPlanDays] = useState("30");
   const [planTraffic, setPlanTraffic] = useState("50");
   const [planPrice, setPlanPrice] = useState("135000"); // in Toman
-  const [planCategory, setPlanCategory] = useState<"Standard" | "VIP" | "Unlimited VoIP">("Standard");
+  const [planCategory, setPlanCategory] = useState<string>("Standard");
   
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState(false);
@@ -704,16 +704,31 @@ export default function ServerManagement({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "دسته‌بندی پنل" : "Access Category Tier"}</label>
-                  <select
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "دسته‌بندی پنل (نام گروه)" : "Category / Group Name"}</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
                     value={planCategory}
-                    onChange={(e) => setPlanCategory(e.target.value as any)}
-                  >
-                    <option value="Standard">Standard</option>
-                    <option value="VIP">VIP</option>
-                    <option value="Unlimited VoIP">Unlimited VoIP</option>
-                  </select>
+                    placeholder={lang === "fa" ? "مثال: VIP یا معمولی" : "e.g. Premium VIP"}
+                    onChange={(e) => setPlanCategory(e.target.value)}
+                  />
+                  <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {["Standard", "VIP", "Unlimited VoIP"].map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setPlanCategory(cat)}
+                        className={`text-[9px] px-2 py-0.5 rounded border transition-colors shrink-0 whitespace-nowrap ${
+                          planCategory === cat 
+                            ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-400" 
+                            : "bg-gray-800/50 border-gray-700 text-gray-500 hover:text-gray-300"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

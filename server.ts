@@ -219,15 +219,6 @@ function readJsonDb(): DbSchema {
       }
     }
 
-    if (db.vpn_plans.length === 0) {
-      db.vpn_plans = [
-        {id: "std_30g", name: "Standard 30GB - 30 Days", price: 45000, trafficGb: 30, durationDays: 30, category: "Standard", configStock: []},
-        {id: "vip_70g", name: "VIP Premium 70GB - 60 Days", price: 95000, trafficGb: 70, durationDays: 60, category: "VIP", configStock: []},
-        {id: "ult_150g", name: "Unlimited VoIP 150GB - 90 Days", price: 185000, trafficGb: 150, durationDays: 90, category: "Unlimited VoIP", configStock: []}
-      ];
-      modified = true;
-    }
-
     if (modified) {
       fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
     }

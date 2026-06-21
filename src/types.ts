@@ -137,7 +137,7 @@ export interface VpnPlan {
   durationDays: number;
   trafficGb: number;
   price: number; // in Toman
-  category: "Standard" | "VIP" | "Unlimited VoIP";
+  category: string;
   configStock?: string[];
 }
 

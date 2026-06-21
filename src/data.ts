@@ -30,13 +30,7 @@ export const initialUsers: User[] = [
   { userId: 492038104, username: "spammer_user", walletBalance: 0, activePlansCount: 0, joinDate: "2026-06-12", status: "banned" }
 ];
 
-export const initialPlans: VpnPlan[] = [
-  { id: "std_1m_30g", name: "Standard 1 Month - 30GB", durationDays: 30, trafficGb: 30, price: 95000, category: "Standard" },
-  { id: "std_1m_50g", name: "Standard 1 Month - 50GB", durationDays: 30, trafficGb: 50, price: 135000, category: "Standard" },
-  { id: "vip_1m_100g", name: "VIP HyperSpeed 1 Month - 100GB", durationDays: 30, trafficGb: 100, price: 210000, category: "VIP" },
-  { id: "vip_3m_200g", name: "VIP Family Pack 3 Months - 200GB", durationDays: 90, trafficGb: 200, price: 420000, category: "VIP" },
-  { id: "voip_1m_20g", name: "VoIP & Gaming Low Ping - 20GB", durationDays: 30, trafficGb: 20, price: 110000, category: "Unlimited VoIP" }
-];
+export const initialPlans: VpnPlan[] = [];
 
 export const initialTransactions: Transaction[] = [
   {
