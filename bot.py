@@ -1480,7 +1480,7 @@ def handle_main_menu_callback(call):
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             free_username = f"test_{random_suffix}"
             
-        client_uuid, sub_link = add_vpn_client_api(free_username, 0.2, 0.2) # 0.2 GB, 0.2 day
+        client_uuid, sub_link = add_vpn_client_api(free_username, 1, 1) # 1 GB, 1 day
         
         if not sub_link:
             cfg = get_config()
