@@ -1453,6 +1453,81 @@ async function addVpnClientApi(
   }
 }
 
+// 2.3 Delete a VPN client from XUI Panel globally
+async function deleteVpnClientApi(clientEmail: string) {
+  try {
+    const db = readJsonDb();
+    const settings = getSystemSettings(db);
+    if (!settings.panelConnectionActive || !settings.baseUrl) return { success: false, error: "XUI disconnected" };
+
+    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+    if (!loginResult.success || !loginResult.cookie) return { success: false, error: "Login failed" };
+
+    const delUrl = `${cleanedUrl}/panel/api/clients/del/${clientEmail}`;
+    const headers: Record<string, string> = {
+      "Cookie": loginResult.cookie,
+      "Accept": "application/json"
+    };
+    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+    const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000).catch(() => null);
+    if (res && res.ok) {
+      return { success: true };
+    }
+    return { success: false, error: "Panel deletion failed" };
+  } catch (e) {
+    return { success: false, error: "Exception during deletion" };
+  }
+}
+
+// 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel
+async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
+  try {
+    const db = readJsonDb();
+    const settings = getSystemSettings(db);
+    if (!settings.panelConnectionActive || !settings.baseUrl) return { success: false, error: "XUI disconnected" };
+
+    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+    if (!loginResult.success || !loginResult.cookie) return { success: false, error: "Login failed" };
+
+    const headers: Record<string, string> = {
+      "Cookie": loginResult.cookie,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
+    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+    // First fetch current client to follow "replace" rule
+    const getUrl = `${cleanedUrl}/panel/api/clients/get/${clientEmail}`;
+    const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
+    
+    if (getRes && getRes.ok) {
+      const getJson = await getRes.json();
+      if (getJson.success && getJson.obj) {
+        const client = getJson.obj;
+        client.enable = enabled;
+        
+        const updateUrl = `${cleanedUrl}/panel/api/clients/update/${clientEmail}`;
+        const updateRes = await xuiFetch(updateUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(client)
+        }, 5000);
+        
+        if (updateRes.ok) {
+          const updateJson = await updateRes.json();
+          if (updateJson.success) return { success: true };
+        }
+      }
+    }
+    return { success: false, error: "Toggle failed" };
+  } catch (e) {
+    return { success: false, error: "Exception during toggle" };
+  }
+}
+
 // 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
@@ -2119,47 +2194,9 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
     const db = readJsonDb();
     
     const keyToDelete = db.subscription_keys.find((k: any) => k.id === id);
-    if (keyToDelete) {
-      // Attempt to delete from X-UI Panel
-      const settings = getSystemSettings(db);
-      if (settings.panelConnectionActive && settings.baseUrl) {
-        const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-        const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
-        
-        if (loginResult.success && loginResult.cookie) {
-           const headers: Record<string, string> = {
-             "Cookie": loginResult.cookie,
-             "Accept": "application/json"
-           };
-           if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
-           
-           let uuid = "";
-           if (keyToDelete.clientUuid) {
-              uuid = keyToDelete.clientUuid;
-           } else if (keyToDelete.subLink) {
-              const match = keyToDelete.subLink.match(/(vless|vmess|trojan):\/\/([^@]+)@/);
-              if (match && match[2]) uuid = match[2];
-           }
-
-           if (uuid) {
-              // Global delete client
-              await xuiFetch(`${cleanedUrl}/panel/api/client/${uuid}/del`, { method: "POST", headers }, 4000).catch(()=>{});
-              
-              // Fallback per inbound
-              try {
-                const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 4000);
-                if (inbRes.ok) {
-                  const inbJson = await inbRes.json();
-                  if (inbJson.success && Array.isArray(inbJson.obj)) {
-                    for (let inb of inbJson.obj) {
-                      await xuiFetch(`${cleanedUrl}/panel/api/inbounds/${inb.id}/delClient/${uuid}`, { method: "POST", headers }, 3000).catch(()=>{});
-                    }
-                  }
-                }
-              } catch(err) {}
-           }
-        }
-      }
+    if (keyToDelete && keyToDelete.clientName) {
+      // Attempt to delete from X-UI Panel using our helper
+      await deleteVpnClientApi(keyToDelete.clientName);
     }
     
     db.subscription_keys = db.subscription_keys.filter(k => k.id !== id);
@@ -2171,6 +2208,38 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
 
     writeJsonDb(db);
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/subscription-keys/toggle", async (req, res) => {
+  try {
+    const { id, status } = req.body;
+    const db = readJsonDb();
+    
+    const keyToToggle = db.subscription_keys.find((k: any) => k.id === id);
+    if (!keyToToggle) return res.status(404).json({ success: false, error: "Key not found" });
+
+    const newStatus = status === "active" ? "active" : "suspended";
+    
+    if (keyToToggle.clientName) {
+      const vpnResult = await toggleVpnClientApi(keyToToggle.clientName, newStatus === "active");
+      if (!vpnResult.success) {
+        console.warn("[XUI Toggle] Failed to sync status with panel:", vpnResult.error);
+      }
+    }
+
+    keyToToggle.status = newStatus;
+    
+    // Update user active plans count
+    const user = db.users.find(u => u.userId === keyToToggle.userId);
+    if (user) {
+      user.activePlansCount = db.subscription_keys.filter(k => k.userId === user.userId && k.status === "active").length;
+    }
+
+    writeJsonDb(db);
+    res.json({ success: true, status: newStatus });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

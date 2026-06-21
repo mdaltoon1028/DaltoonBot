@@ -33,6 +33,7 @@ interface UserManagementProps {
   addNewUser: (user: User) => void;
   deleteUser: (userId: number) => void;
   deleteSubscriptionKey: (keyId: string) => void;
+  toggleSubscriptionKey: (keyId: string) => void;
   addNewSubscriptionKey: (key: SubscriptionKey) => void;
   openSimulatedChat: (userId: number) => void;
   lang: Language;
@@ -47,6 +48,7 @@ export default function UserManagement({
   addNewUser,
   deleteUser,
   deleteSubscriptionKey,
+  toggleSubscriptionKey,
   addNewSubscriptionKey,
   openSimulatedChat,
   lang,
@@ -640,6 +642,19 @@ export default function UserManagement({
                     >
                       <QrCode className="w-3 h-3 text-violet-400" />
                       <span>{lang === "fa" ? "بارکد" : "QR"}</span>
+                    </button>
+
+                    <button
+                      onClick={() => toggleSubscriptionKey(key.id)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                        key.status === "active"
+                          ? "bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20"
+                          : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+                      }`}
+                      title={key.status === "active" ? (lang === "fa" ? "غیرفعال کردن" : "Disable") : (lang === "fa" ? "فعال کردن" : "Enable")}
+                    >
+                      <Ban className="w-3 h-3" />
+                      <span>{key.status === "active" ? (lang === "fa" ? "تعلیق" : "Suspend") : (lang === "fa" ? "فعال" : "Active")}</span>
                     </button>
 
                     <button

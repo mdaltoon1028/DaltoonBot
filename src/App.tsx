@@ -587,6 +587,33 @@ export default function App() {
     }
   };
 
+  const toggleSubscriptionKey = (keyId: string) => {
+    const key = keys.find(k => k.id === keyId);
+    if (!key) return;
+    const nextStatus = key.status === "active" ? "suspended" : "active";
+    
+    setKeys(prev => prev.map(k => {
+      if (k.id === keyId) return { ...k, status: nextStatus };
+      return k;
+    }));
+
+    // If user's active count changes
+    setUsers(prev => prev.map(u => {
+      if (u.userId === key.userId) {
+        let count = keys.filter(sk => sk.userId === u.userId && sk.status === "active").length;
+        if (nextStatus === "active") count++; else count--;
+        return { ...u, activePlansCount: Math.max(0, count) };
+      }
+      return u;
+    }));
+
+    fetch("/api/subscription-keys/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: keyId, status: nextStatus })
+    }).catch(err => console.warn("Failed syncing toggled sub config:", err));
+  };
+
   const approveTransaction = (txId: string, correctedAmount?: number) => {
     const tx = transactions.find(t => t.id === txId);
     if (!tx || tx.status !== "pending") return;
@@ -1034,6 +1061,7 @@ export default function App() {
               addNewUser={addNewUser}
               deleteUser={deleteUser}
               deleteSubscriptionKey={deleteSubscriptionKey}
+              toggleSubscriptionKey={toggleSubscriptionKey}
               addNewSubscriptionKey={addNewSubscriptionKey}
               openSimulatedChat={handleOpenSimulatedChat}
               lang={lang}

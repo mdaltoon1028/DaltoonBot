@@ -151,6 +151,7 @@ export interface SubscriptionKey {
   expireDate: string;
   trafficLimitGb: number;
   trafficUsedGb: number;
+  clientUuid?: string;
   colleagueAccountId?: string;
   status: "active" | "expired" | "suspended";
 }
