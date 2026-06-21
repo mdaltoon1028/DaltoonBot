@@ -420,9 +420,16 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     # Expiry timestamp in milliseconds
     expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
+    safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
+    import re
+    safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
+    
+    if not safe_email:
+        safe_email = "col_client_fallback"
+        
     client_config = {
         "id": client_uuid,
-        "email": client_email,
+        "email": safe_email,
         "limitIp": 0,
         "totalGB": total_bytes,
         "expiryTime": expiry_time_ms,
@@ -1654,7 +1661,7 @@ def handle_main_menu_callback(call):
             return
             
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
-        bot.send_message(message.chat.id, f"⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱ گیگابایت) از پنل سرور {nickname}... لطفاً چند لحظه صبر کنید.")
+        bot.send_message(message.chat.id, f"⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱۰۰ مگابایت) از پنل سرور {nickname}... لطفاً چند لحظه صبر کنید.")
         
         import string
         import random
@@ -1666,7 +1673,7 @@ def handle_main_menu_callback(call):
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             free_username = f"test_{random_suffix}"
             
-        client_uuid, sub_link = add_vpn_client_api(free_username, 0.2, 0.2) # 0.2 GB, 0.2 day
+        client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0) # 0.1 GB (100MB), 1 day
         
         if not sub_link:
             cfg = get_config()
@@ -3311,6 +3318,12 @@ def process_col_create_name(message, acc):
         show_colleague_panel_msg(message, acc)
         return
         
+    import re
+    if not re.match("^[A-Za-z0-9_]{4,30}$", text):
+        msg = bot.send_message(message.chat.id, "❌ نام کاربری فقط باید شامل حروف انگلیسی، اعداد و خط تیره (_)، و حداقل ۴ حرف باشد.\n\nلطفاً دوباره وارد کنید:", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_col_create_name, acc)
+        return
+        
     msg = bot.send_message(message.chat.id, "حجم مورد نظر (به گیگابایت) را وارد کنید:")
     bot.register_next_step_handler(msg, process_col_create_gb, acc, text)
 
@@ -3542,6 +3555,12 @@ def process_colleague_prefix(message, package):
     if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
         bot.send_message(message.chat.id, "❌ خرید لغو شد.", reply_markup=get_custom_keyboard())
         start_cmd(message)
+        return
+        
+    import re
+    if not re.match("^[A-Za-z0-9_]{2,10}$", text):
+        msg = bot.send_message(message.chat.id, "❌ پیشوند (Prefix) فقط باید شامل حروف و اعداد انگلیسی باشد (بین ۲ تا ۱۰ کاراکتر).\n\nمجدداً وارد کنید:")
+        bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
         
     global active_purchases

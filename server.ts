@@ -1396,6 +1396,10 @@ async function addVpnClientApi(
     }
 
     clientUuid = clientUuid || crypto.randomUUID();
+    let safeEmail = clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "");
+    safeEmail = safeEmail.replace(/[^A-Za-z0-9_-]/g, "");
+    if (!safeEmail) { safeEmail = "col_client_fallback"; }
+    
     // Generate a random 16-character subscription ID
     const xuiSubId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
     
@@ -1403,7 +1407,7 @@ async function addVpnClientApi(
     const payload = {
       client: {
         id: clientUuid,
-        email: clientEmail,
+        email: safeEmail,
         limitIp: 0,
         totalGB: totalBytes,
         expiryTime: expiryTimeMs,

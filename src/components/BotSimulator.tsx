@@ -536,7 +536,7 @@ export default function BotSimulator({
         if (settings?.isFreeTestActive === false) {
            addBotReply(settings?.freeTestDisabledMessage || (lang === "fa" ? "اکانت تست رایگان فعلا موجود نیست." : "Free test is not available right now."), 500);
         } else {
-           addBotReply(lang === "fa" ? "⏳ در حال ساخت اکانت تست رایگان یک روزه (۱ گیگابایت)..." : "⏳ Generating 1-Day (1GB) test account...", 500, []);
+           addBotReply(lang === "fa" ? "⏳ در حال ساخت اکانت تست رایگان یک روزه (۱۰۰ مگابایت)..." : "⏳ Generating 1-Day (100MB) test account...", 500, []);
            
            setTimeout(() => {
              const randomSubId = "TEST-" + Math.floor(Math.random() * 9000 + 1000);
@@ -545,11 +545,11 @@ export default function BotSimulator({
              const mockSub = {
                id: randomSubId,
                userId: currentUser.userId,
-               planId: "free_test_1d_1g",
-               planName: "Free Test 1 Day - 1GB",
+               planId: "free_test",
+               planName: "تست رایگان ۱ روزه",
                subLink: `vless://mock_test_uuid_${randomSubId}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Test_${randomSubId}`,
                expireDate,
-               trafficLimitGb: 1, // 1 GB
+               trafficLimitGb: 0.1, // 100 MB
                trafficUsedGb: 0,
                status: "active" as const
              };
@@ -561,13 +561,13 @@ export default function BotSimulator({
                ? `🎉 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n` +
                  `👤 نام کاربری سرویس: <code>test_${currentUser.username || currentUser.userId}</code>\n` +
                  `⏳ اعتبار: یک روز\n` +
-                 `حجم: ۱ گیگابایت\n\n` +
+                 `حجم: ۱۰۰ مگابایت\n\n` +
                  `🔑 <b>کانفیگ VLESS اختصاصی (آزمایشی) صادر شد:</b>\n` +
                  `<code>${mockSub.subLink}</code>\n\n` +
                  `⚠️ <i>توجه: کل سیستم شبیه‌ساز کاملاً آموزشی است.</i>`
                : `🎉 <b>Simulated Free Test generated!</b>\n\n` +
                  `👤 Username: <code>test_${currentUser.username || currentUser.userId}</code>\n` +
-                 `⏳ Duration: 1 Day - 1GB\n\n` +
+                 `⏳ Duration: 1 Day - 100MB\n\n` +
                  `🔑 <b>Simulated configuration generated:</b>\n` +
                  `<code>${mockSub.subLink}</code>\n\n` +
                  `⚠️ <i>Notice: This is an educational sandbox.</i>`;
