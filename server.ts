@@ -1771,20 +1771,54 @@ app.post("/api/transactions/approve", async (req, res) => {
           
           try {
             const vpnResult = await addVpnClientApi(clientName, plan.trafficGb, plan.durationDays, settings);
-            const subLink = vpnResult.sub_link;
-            messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🔗 لینک اشتراک:\n<code>${subLink}</code>\n\n⚠️ لینک خود را در کلاینت خود وارد کنید.`;
-            
-             if (!db.logs) db.logs = [];
-             db.logs.push({
-               id: Math.random().toString(36).substring(2, 9),
-               date: new Date().toISOString(),
-               userId: Number(tx.userId),
-               username: tx.username || `user_${tx.userId}`,
-               action: "تحویل کانفیگ",
-               details: `اشتراک برای پلان ${plan.name} با نام ${clientName} تحویل داده شد.`
-             });
-          } catch (e) {
-             messageTextForNotif = `❌ خطا در ساخت کانفیگ: ${e.message}`;
+            if (vpnResult.success && vpnResult.subLink) {
+              const subLink = vpnResult.subLink;
+              messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🔗 لینک اشتراک:\n<code>${subLink}</code>\n\n⚠️ لینک خود را در کلاینت خود وارد کنید.`;
+              
+              // NEW: Actually save the subscription key to database
+              if (!db.subscription_keys) db.subscription_keys = [];
+              const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+              const expireDate = new Date(Date.now() + plan.durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              
+              db.subscription_keys.push({
+                id: randomId,
+                userId: Number(tx.userId),
+                planId: plan.id,
+                planName: plan.name,
+                clientName: clientName,
+                clientUuid: vpnResult.clientUuid || "",
+                subLink: subLink,
+                expireDate: expireDate,
+                trafficLimitGb: plan.trafficGb,
+                trafficUsedGb: 0,
+                createdAtMs: Date.now(),
+                status: "active"
+              });
+
+              if (!db.logs) db.logs = [];
+              db.logs.push({
+                id: Math.random().toString(36).substring(2, 9),
+                date: new Date().toISOString(),
+                userId: Number(tx.userId),
+                username: tx.username || `user_${tx.userId}`,
+                action: "تحویل کانفیگ",
+                details: `اشتراک برای پلان ${plan.name} با نام ${clientName} تحویل داده شد.`
+              });
+            } else {
+              messageTextForNotif = `❌ <b>خطا در ساخت کانفیگ!</b>\n\nمتاسفانه مشکلی در اتصال به پنل و ساخت کانفیگ پیش آمد:\n<code>${vpnResult.error || "خطای نامشخص"}</code>\n\nمدیریت موضوع را بررسی خواهد کرد. شما می‌توانید با پشتیبانی در تماس باشید.`;
+              
+              if (!db.logs) db.logs = [];
+              db.logs.push({
+                id: Math.random().toString(36).substring(2, 9),
+                date: new Date().toISOString(),
+                userId: Number(tx.userId),
+                username: tx.username || `user_${tx.userId}`,
+                action: "خطا در تحویل",
+                details: `خطا در ساخت کانفیگ برای ${clientName}: ${vpnResult.error || "Unknown"}`
+              });
+            }
+          } catch (e: any) {
+            messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ: ${e.message}`;
           }
         } else {
              messageTextForNotif = `❌ خطا: پلان مورد نظر یافت نشد. با پشتیبانی هماهنگ کنید.`;
@@ -1974,6 +2008,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
         planId: "manual_" + Math.random().toString(36).substring(2, 8),
         planName: planName || `Manual Plan (${trafficLimitGb}GB)`,
         clientName: cleanClientName,
+        clientUuid: vpnResult.clientUuid || "",
         subLink: vpnResult.subLink,
         expireDate: expireDate,
         trafficLimitGb: Number(trafficLimitGb),
@@ -2007,7 +2042,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
 // 5. Subscription Keys operations
 app.post("/api/subscription-keys", async (req, res) => {
   try {
-    const { id, userId, planId, planName, subLink, expireDate, trafficLimitGb, trafficUsedGb, status } = req.body;
+    const { id, userId, planId, planName, clientUuid, subLink, expireDate, trafficLimitGb, trafficUsedGb, status } = req.body;
     const db = readJsonDb();
     
     const nextSub = {
@@ -2015,6 +2050,7 @@ app.post("/api/subscription-keys", async (req, res) => {
       userId: Number(userId),
       planId,
       planName,
+      clientUuid: clientUuid || "",
       subLink,
       expireDate,
       trafficLimitGb: Number(trafficLimitGb),
@@ -2046,6 +2082,50 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
   try {
     const { id, userId } = req.body;
     const db = readJsonDb();
+    
+    const keyToDelete = db.subscription_keys.find((k: any) => k.id === id);
+    if (keyToDelete) {
+      // Attempt to delete from X-UI Panel
+      const settings = getSystemSettings(db);
+      if (settings.panelConnectionActive && settings.baseUrl) {
+        const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+        
+        if (loginResult.success && loginResult.cookie) {
+           const headers: Record<string, string> = {
+             "Cookie": loginResult.cookie,
+             "Accept": "application/json"
+           };
+           if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+           
+           let uuid = "";
+           if (keyToDelete.clientUuid) {
+              uuid = keyToDelete.clientUuid;
+           } else if (keyToDelete.subLink) {
+              const match = keyToDelete.subLink.match(/(vless|vmess|trojan):\/\/([^@]+)@/);
+              if (match && match[2]) uuid = match[2];
+           }
+
+           if (uuid) {
+              // Global delete client
+              await xuiFetch(`${cleanedUrl}/panel/api/client/${uuid}/del`, { method: "POST", headers }, 4000).catch(()=>{});
+              
+              // Fallback per inbound
+              try {
+                const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 4000);
+                if (inbRes.ok) {
+                  const inbJson = await inbRes.json();
+                  if (inbJson.success && Array.isArray(inbJson.obj)) {
+                    for (let inb of inbJson.obj) {
+                      await xuiFetch(`${cleanedUrl}/panel/api/inbounds/${inb.id}/delClient/${uuid}`, { method: "POST", headers }, 3000).catch(()=>{});
+                    }
+                  }
+                }
+              } catch(err) {}
+           }
+        }
+      }
+    }
     
     db.subscription_keys = db.subscription_keys.filter(k => k.id !== id);
     
@@ -2200,6 +2280,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
 
     const isMockSimulator = req.body.isSimulator === true || req.body.isSimulator === "true";
     let subLink = "";
+    let clientUuid = "";
     if (isMockSimulator) {
       subLink = `vless://${cleanClientName}_test_id@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_${cleanClientName}_Test`;
     } else if (settings.panelConnectionActive) {
@@ -2207,6 +2288,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       const apiResult = await addVpnClientApi(cleanClientName, plan.trafficGb, plan.durationDays, settings);
       if (apiResult.success && apiResult.subLink) {
         subLink = apiResult.subLink;
+        clientUuid = apiResult.clientUuid || "";
       } else {
         return res.status(400).json({ success: false, error: "ساخت کلاینت در پنل ۳x-ui با خطا مواجه شد: " + (apiResult.error || "خطای نامشخص") });
       }
@@ -2226,6 +2308,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       userId: Number(userId),
       planId: plan.id,
       planName: plan.name,
+      clientUuid: clientUuid,
       subLink: subLink,
       expireDate: expireDate,
       trafficLimitGb: plan.trafficGb,

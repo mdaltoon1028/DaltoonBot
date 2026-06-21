@@ -908,7 +908,7 @@ export default function App() {
               }`}
             >
               <Clock className="w-4 h-4" />
-              {lang === "fa" ? "وضعیت (لاگ‌ها)" : "Status (Logs)"}
+              {lang === "fa" ? "وضعیت سیستم" : "System Status"}
             </button>
 
             <button
@@ -1020,6 +1020,7 @@ export default function App() {
               totalIncome={totalVolume}
               pendingTransactionsCount={pendingTx.length}
               transactions={transactions}
+              logs={logs}
               lang={lang}
             />
           )}

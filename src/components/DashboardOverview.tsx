@@ -6,6 +6,7 @@ import SystemResourceMonitor from "./SystemResourceMonitor";
 import { 
   Activity, 
   Cpu, 
+  Terminal,
   Database, 
   Server, 
   CheckCircle, 
@@ -28,6 +29,7 @@ interface DashboardOverviewProps {
   totalIncome: number;
   pendingTransactionsCount: number;
   transactions: Transaction[];
+  logs: any[];
   lang: Language;
 }
 
@@ -39,11 +41,17 @@ export default function DashboardOverview({
   totalIncome,
   pendingTransactionsCount,
   transactions,
+  logs,
   lang
 }: DashboardOverviewProps) {
   const t = translations[lang];
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  // Recent logs (last 5)
+  const recentLogs = [...logs]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
 
   // Aggregate approved transactions
   const approvedTx = transactions.filter(tx => tx.status === "approved");
@@ -231,9 +239,67 @@ export default function DashboardOverview({
         </div>
       </div>
 
-      <div>
+      <div className="space-y-5">
         {/* Linux VPS System Resource Monitor circular dials */}
         <SystemResourceMonitor lang={lang} />
+
+        {/* Recent System Activity Logs */}
+        <div className="bg-[#111827] border border-[#1f2937] rounded-2xl overflow-hidden shadow-xl">
+          <div className="px-6 py-4 border-b border-[#1f2937] flex items-center justify-between bg-[#0f172a]">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-indigo-400" />
+              <h3 className="font-bold text-gray-200">
+                {lang === "fa" ? "آخرین وضعیت و فعالیت‌های سیستم" : "Recent System Status & Activity"}
+              </h3>
+            </div>
+            <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border border-indigo-500/20">
+              LOGS LIVE
+            </span>
+          </div>
+          
+          <div className="p-4 space-y-2">
+            {recentLogs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 text-sm italic">
+                {lang === "fa" ? "هیچ فعالیتی ثبت نشده است." : "No recent activity recorded."}
+              </div>
+            ) : (
+              recentLogs.map((log) => (
+                <div key={log.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-[#0d1222] border border-[#1f2937] hover:border-indigo-500/30 transition group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-110 transition-transform">
+                      <Terminal className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-indigo-300 font-mono">[{log.action}]</span>
+                        <span className="text-xs font-semibold text-gray-200">@{log.username}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{log.details}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 sm:mt-0 text-[10px] text-gray-500 font-mono bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                    {new Date(log.date).toLocaleString(lang === "fa" ? "fa-IR" : "en-US", { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
+                </div>
+              ))
+            )}
+            
+            {logs.length > 5 && (
+              <div className="pt-2 text-center">
+                 <button 
+                   onClick={() => {
+                     const logsTab = document.querySelector('[onClick*="logs"]');
+                     if (logsTab instanceof HTMLElement) logsTab.click();
+                   }}
+                   className="text-xs text-indigo-400 hover:text-indigo-300 font-bold transition flex items-center gap-1 mx-auto cursor-pointer"
+                 >
+                   {lang === "fa" ? "مشاهده تمام لاگ‌ها در بخش وضعیت" : "View all logs in Status section"}
+                   <ArrowUpRight className="w-3 h-3" />
+                 </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

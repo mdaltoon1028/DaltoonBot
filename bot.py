@@ -453,7 +453,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     return None, None
 
-def update_vpn_client_enabled_api(client_email, enable):
+def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
     """ Call Sanaei 3x-ui API to update client enabled status """
     cfg = get_config()
     base_url = cfg.get('XUI_URL', '')
@@ -463,37 +463,70 @@ def update_vpn_client_enabled_api(client_email, enable):
     if not login_xui():
         return False
 
-    try:
-        # 1. Fetch current client data
-        get_url = f"{base_url}/panel/api/clients/get/{client_email}"
-        get_res = session.get(get_url, timeout=8, verify=False)
-        res_json = get_res.json()
-        
-        if not res_json.get("success"):
-            print(f"[Sanaei Update API Error] Client '{client_email}' not found: {res_json.get('msg')}")
-            return False
+    # Try several common endpoints for maximum reliability
+    targets = []
+    if client_uuid:
+        targets.append(str(client_uuid))
+    
+    # Also search by email if uuid not provided or as fallback
+    if not targets or client_email:
+        try:
+            list_url = f"{base_url}/panel/api/inbounds/list"
+            list_res = session.get(list_url, timeout=8, verify=False)
+            res_json = list_res.json()
+            if res_json.get("success") and isinstance(res_json.get("obj"), list):
+                for inbound in res_json["obj"]:
+                    clients_str = inbound.get("settings", "{}")
+                    try:
+                        import json
+                        c_data = json.loads(clients_str)
+                        for c in c_data.get("clients", []):
+                            if c.get("email") == client_email:
+                                if c.get("id") and str(c.get("id")) not in targets:
+                                    targets.append(str(c.get("id")))
+                    except: pass
+        except: pass
+
+    success = False
+    for uid in targets:
+        # Sanaei Global Update API (modern)
+        try:
+            # First fetch client to get current data (required by some versions for update)
+            # Actually toggle is easier if we use direct toggle endpoint if available
+            # But most reliable is to fetch and update
+            # Some panels have /panel/api/inbounds/updateClient/{uuid}
             
-        client_data = res_json.get("obj", {}).get("client", {})
-        if not client_data:
-            return False
-            
-        # 2. Update status
-        client_data["enable"] = enable
+            # Fetching current client state helps avoid overwriting other fields
+            update_payload = {
+                "id": uid,
+                "email": client_email,
+                "enable": enable
+            }
+            # We try to update on all inbounds for robustness
+            try:
+                list_url = f"{base_url}/panel/api/inbounds/list"
+                list_res = session.get(list_url, timeout=8, verify=False)
+                res_json = list_res.json()
+                if res_json.get("success") and isinstance(res_json.get("obj"), list):
+                    for inb in res_json["obj"]:
+                        upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
+                        # Payload needs to match panel expectations
+                        # Typically just the changed parts + ID
+                        try:
+                            # Try to find existing client info in this inbound for full payload
+                            c_str = inb.get("settings", "{}")
+                            c_json = json.loads(c_str)
+                            for existing_c in c_json.get("clients", []):
+                                if str(existing_c.get("id")) == uid:
+                                    merged_c = existing_c.copy()
+                                    merged_c["enable"] = enable
+                                    session.post(upd_url, json=merged_c, timeout=5, verify=False)
+                                    success = True
+                        except: pass
+            except: pass
+        except: pass
         
-        # 3. Post full client data
-        update_url = f"{base_url}/panel/api/clients/update/{client_email}"
-        response = session.post(update_url, json=client_data, timeout=8, verify=False)
-        res_json = response.json()
-        
-        if res_json.get("success"):
-            print(f"[Sanaei Update API] Client '{client_email}' updated to enable={enable}")
-            return True
-        else:
-            print(f"[Sanaei Update API Error] Client update response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"[Sanaei Update API Error] Exception: {e}")
-        return False
+    return success
 
 def delete_vpn_client_api(client_email, client_uuid=None):
     """ Call Sanaei 3x-ui API to delete client """
@@ -885,7 +918,7 @@ def log_action(tg_id, username, action, details):
     db["logs"].append(log)
     write_db_json(db)
 
-def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name=""):
+def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name="", client_uuid=""):
     db = read_db_json()
     new_sub = {
         "id": key_id,
@@ -893,6 +926,7 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
         "planId": plan_id,
         "planName": plan_name,
         "clientName": client_name,
+        "clientUuid": client_uuid,
         "subLink": sub_link,
         "expireDate": expire_date,
         "trafficLimitGb": float(limit_gb),
@@ -1510,7 +1544,8 @@ def handle_main_menu_callback(call):
             sub_link=sub_link, 
             expire_date=expire_date, 
             limit_gb=0.1,
-            client_name=free_username
+            client_name=free_username,
+            client_uuid=client_uuid
         )
         
         success_text = (
@@ -1749,7 +1784,8 @@ def process_purchase_username(message, plan_id, spec):
             sub_link=sub_link, 
             expire_date=expire_date, 
             limit_gb=spec['traffic'],
-            client_name=username_input
+            client_name=username_input,
+            client_uuid=client_uuid
         )
 
         success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
@@ -1874,7 +1910,7 @@ def callback_handler(call):
             
             # Perform X-UI API Update
             client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
-            update_vpn_client_enabled_api(client_name, is_enabled)
+            update_vpn_client_enabled_api(client_name, is_enabled, k.get("clientUuid"))
             
             # Update DB
             k["status"] = new_status
@@ -2000,7 +2036,7 @@ def callback_handler(call):
 
         elif sub_action == "delconfirm":
             try:
-                delete_vpn_client_api(client_name, k.get("id"))
+                delete_vpn_client_api(client_name, k.get("clientUuid"))
             except Exception as e:
                 print(f"[Delete API Error]: {e}")
             
