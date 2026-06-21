@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 // Types & Data
-import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton, GiftCode, PromoCode, Ticket } from "./types";
+import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton, GiftCode, PromoCode, Ticket, PlanCategory } from "./types";
 import { Language, translations } from "./locales";
 import { 
   initialSettings, 
@@ -151,6 +151,7 @@ export default function App() {
     const cached = localStorage.getItem("daltoon_vpn_plans");
     return cached ? JSON.parse(cached) : initialPlans;
   });
+  const [planCategories, setPlanCategories] = useState<PlanCategory[]>([]);
 
   const [colleaguePackages, setColleaguePackages] = useState<any[]>(() => {
     const cached = localStorage.getItem("daltoon_colleague_packages");
@@ -396,6 +397,7 @@ export default function App() {
         if (json.transactions) updateIfChanged(setTransactions, transactions, json.transactions);
         if (json.keys) updateIfChanged(setKeys, keys, json.keys);
         if (json.vpnPlans) updateIfChanged(setVpnPlans, vpnPlans, json.vpnPlans);
+        if (json.plan_categories) updateIfChanged(setPlanCategories, planCategories, json.plan_categories);
         if (json.inbounds) updateIfChanged(setInbounds, inbounds, json.inbounds);
         if (json.customButtons) updateIfChanged(setCustomButtons, customButtons, json.customButtons);
         if (json.giftCodes) updateIfChanged(setGiftCodes, giftCodes, json.giftCodes);
@@ -1126,6 +1128,8 @@ export default function App() {
             <ServerManagement 
               vpnPlans={vpnPlans}
               setVpnPlans={setVpnPlans}
+              planCategories={planCategories}
+              setPlanCategories={setPlanCategories}
               lang={lang}
               settings={settings}
               onSaveSettings={saveSettings}

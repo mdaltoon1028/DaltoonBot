@@ -121,6 +121,7 @@ interface DbSchema {
   colleague_packages?: any[];
   colleague_accounts?: any[];
   logs?: any[];
+  plan_categories?: any[];
   settings: Record<string, string>;
 }
 
@@ -141,6 +142,11 @@ function readJsonDb(): DbSchema {
         gift_codes: [],
         promo_codes: [],
         tickets: [],
+        plan_categories: [
+          { id: "1", name: "Standard", emoji: "⚡️" },
+          { id: "2", name: "Vip", emoji: "⭐️" },
+          { id: "3", name: "Unlimited", emoji: "🚀" }
+        ],
         settings: {
           panel_config: JSON.stringify({
             botToken: process.env.BOT_TOKEN || "",
@@ -447,6 +453,7 @@ app.get("/api/data", async (req, res) => {
       tickets: db.tickets || [],
       colleaguePackages: db.colleague_packages || [],
       colleagueAccounts: db.colleague_accounts || [],
+      plan_categories: db.plan_categories || [],
       logs: db.logs || [],
       settings
     });
@@ -2285,6 +2292,53 @@ app.get("/api/vpn-plans", (req, res) => {
   try {
     const db = readJsonDb();
     res.json({ success: true, vpnPlans: db.vpn_plans || [] });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- Plan Categories API ---
+app.get("/api/plan-categories", (req, res) => {
+  try {
+    const db = readJsonDb();
+    res.json({ success: true, categories: db.plan_categories || [] });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/plan-categories", (req, res) => {
+  try {
+    const category = req.body;
+    const db = readJsonDb();
+    if (!db.plan_categories) db.plan_categories = [];
+
+    if (category.id) {
+      const idx = db.plan_categories.findIndex((c: any) => c.id === category.id);
+      if (idx !== -1) {
+        db.plan_categories[idx] = { ...db.plan_categories[idx], ...category };
+      }
+    } else {
+      category.id = Math.random().toString(36).substring(2, 9);
+      db.plan_categories.push(category);
+    }
+
+    writeJsonDb(db);
+    res.json({ success: true, category });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/plan-categories/delete", (req, res) => {
+  try {
+    const { id } = req.body;
+    const db = readJsonDb();
+    if (db.plan_categories) {
+      db.plan_categories = db.plan_categories.filter((c: any) => c.id !== id);
+      writeJsonDb(db);
+    }
+    res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

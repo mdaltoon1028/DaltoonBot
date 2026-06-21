@@ -1195,26 +1195,40 @@ def buy_cmd(message):
 
     db = read_db_json()
     db_plans = db.get("vpn_plans", [])
+    db_categories = db.get("plan_categories", [])
     
-    # Extract unique categories dynamically
+    # Extract categories and their emojis
     categories = []
-    seen_cats = set()
-    for p in db_plans:
-        cat = p.get("category", "Standard")
-        if cat not in seen_cats:
-            categories.append(cat)
-            seen_cats.add(cat)
-            
-    # Fallback to empty if no plans exist yet
-    if not categories:
-        categories = [] 
+    category_map = {}
+    
+    if db_categories:
+        for c in db_categories:
+            cat_name = c.get("name")
+            if cat_name:
+                categories.append(cat_name)
+                category_map[cat_name] = c.get("emoji", "⚡️")
+    else:
+        # Legacy fallback: derive from plans
+        seen_cats = set()
+        for p in db_plans:
+            cat = p.get("category", "Standard")
+            if cat not in seen_cats:
+                categories.append(cat)
+                seen_cats.add(cat)
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     for cat in categories:
-        emoji = "⚡️"
-        if "vip" in cat.lower(): emoji = "⭐️"
-        elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
-        elif "premium" in cat.lower(): emoji = "💎"
+        # Optional: only show categories that have at least one plan
+        has_plans = any(p.get("category") == cat for p in db_plans)
+        if not has_plans:
+            continue
+            
+        emoji = category_map.get(cat)
+        if not emoji:
+            emoji = "⚡️"
+            if "vip" in cat.lower(): emoji = "⭐️"
+            elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
+            elif "premium" in cat.lower(): emoji = "💎"
         
         markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{cat}"))
     

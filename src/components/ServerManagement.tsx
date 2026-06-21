@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { VpnPlan, PanelSettings, InboundInfo } from "../types";
+import { VpnPlan, PanelSettings, InboundInfo, PlanCategory } from "../types";
 import { Language } from "../locales";
 import { 
   Server, 
@@ -22,6 +22,8 @@ import {
 interface ServerManagementProps {
   vpnPlans: VpnPlan[];
   setVpnPlans: React.Dispatch<React.SetStateAction<VpnPlan[]>>;
+  planCategories: PlanCategory[];
+  setPlanCategories: React.Dispatch<React.SetStateAction<PlanCategory[]>>;
   lang: Language;
   settings: PanelSettings;
   onSaveSettings: (settings: PanelSettings) => void;
@@ -32,6 +34,8 @@ interface ServerManagementProps {
 export default function ServerManagement({
   vpnPlans,
   setVpnPlans,
+  planCategories,
+  setPlanCategories,
   lang,
   settings,
   onSaveSettings,
@@ -59,6 +63,13 @@ export default function ServerManagement({
   
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState(false);
+
+  // Category management states
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [catName, setCatName] = useState("");
+  const [catEmoji, setCatEmoji] = useState("⚡️");
+  const [catError, setCatError] = useState("");
+  const [isAddingCat, setIsAddingCat] = useState(false);
 
   // Safe Inline Deletion confirmation
   const [confirmDeletingId, setConfirmDeletingId] = useState<string | null>(null);
@@ -312,6 +323,57 @@ export default function ServerManagement({
     }
   };
 
+  const handleSaveCategory = async () => {
+    if (!catName.trim()) {
+      setCatError(lang === "fa" ? "نام دسته‌بندی اجباری است" : "Category name is required");
+      return;
+    }
+    setCatError("");
+    const categoryData: Partial<PlanCategory> = {
+      name: catName.trim(),
+      emoji: catEmoji.trim()
+    };
+    if (editingCategoryId) categoryData.id = editingCategoryId;
+
+    try {
+      const response = await fetch("/api/plan-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(categoryData)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setEditingCategoryId(null);
+        setCatName("");
+        setIsAddingCat(false);
+        // Trigger a refresh from parent or update local state
+        const refreshResponse = await fetch("/api/plan-categories");
+        const refreshData = await refreshResponse.json();
+        if (refreshData.success) {
+          setPlanCategories(refreshData.categories);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    try {
+      const response = await fetch("/api/plan-categories/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPlanCategories(prev => prev.filter(c => c.id !== id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Get count of currently checked inbounds
   const checkedInboundCount = checkedInboundIds.length;
 
@@ -356,18 +418,35 @@ export default function ServerManagement({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
           <div className="space-y-1">
             <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-              {lang === "fa" ? "همگام‌سازی مستقیم با پنل سنایی" : "3x-ui Panel Sync Status"}
+              {lang === "fa" ? "تعداد دسته‌بندی‌ها" : "Plan Categories"}
+            </span>
+            <h3 className="text-2xl font-bold font-mono text-purple-400 mt-1">
+              {planCategories.length}
+            </h3>
+            <p className="text-[11px] text-purple-400/80 font-sans">
+              {lang === "fa" ? "گروه‌های VIP، معمولی و ..." : "Groups like VIP, Standard, etc."}
+            </p>
+          </div>
+          <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl">
+            <Sparkles className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
+          <div className="space-y-1">
+            <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
+              {lang === "fa" ? "وضعیت: " : "Status: "}
+              {settings.panelConnectionActive ? (lang === "fa" ? "روشن" : "ON") : (lang === "fa" ? "خاموش" : "OFF")}
             </span>
             <div className="flex items-center gap-1.5 mt-1">
               <span className={`w-2.5 h-2.5 rounded-full ${settings.panelConnectionActive ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`}></span>
               <span className="text-sm font-bold text-white font-mono uppercase">
-                {lang === "fa" ? "وضعیت: " : "Status: "}
-                {settings.panelConnectionActive ? (lang === "fa" ? "روشن" : "ON") : (lang === "fa" ? "خاموش" : "OFF")}
+                {lang === "fa" ? "اتصال پنل" : "Panel Link"}
               </span>
             </div>
           </div>
           <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
-            <Sparkles className="w-6 h-6" />
+            <Activity className="w-6 h-6" />
           </div>
         </div>
       </div>
@@ -641,6 +720,104 @@ export default function ServerManagement({
         )}
       </div>
 
+      {/* Plan Categories Management Section */}
+      <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-purple-500/10 text-purple-400 rounded-lg">
+              <Layers className="w-4 h-4" />
+            </div>
+            <h4 className="font-semibold text-white text-sm">
+              {lang === "fa" ? "مدیریت دسته‌بندی پلن‌ها" : "Plan Categories Management"}
+            </h4>
+          </div>
+          <button
+            onClick={() => {
+              setIsAddingCat(true);
+              setEditingCategoryId(null);
+              setCatName("");
+              setCatEmoji("⚡️");
+            }}
+            className="p-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all active:scale-90"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {(isAddingCat || editingCategoryId) && (
+          <div className="bg-[#1a2234] p-4 rounded-xl space-y-3 border border-purple-500/20 animate-in fade-in slide-in-from-top-1">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] text-gray-400 uppercase mb-1">{lang === "fa" ? "نام دسته" : "Category Name"}</label>
+                <input
+                  type="text"
+                  value={catName}
+                  onChange={e => setCatName(e.target.value)}
+                  className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-purple-500 outline-none"
+                  placeholder={lang === "fa" ? "مثلا: VIP" : "e.g. VIP"}
+                />
+              </div>
+              <div className="sm:col-span-1">
+                <label className="block text-[10px] text-gray-400 uppercase mb-1">{lang === "fa" ? "ایموجی" : "Emoji"}</label>
+                <input
+                  type="text"
+                  value={catEmoji}
+                  onChange={e => setCatEmoji(e.target.value)}
+                  className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-purple-500 outline-none text-center"
+                />
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={handleSaveCategory}
+                  className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-500 transition active:scale-95 flex items-center justify-center"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAddingCat(false);
+                    setEditingCategoryId(null);
+                  }}
+                  className="p-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {catError && <p className="text-[10px] text-rose-400">{catError}</p>}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {planCategories.map(cat => (
+            <div key={cat.id} className="group relative bg-[#1c253b] border border-gray-800 p-3 rounded-xl hover:border-purple-500/50 transition-all">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{cat.emoji}</span>
+                <span className="text-xs font-bold text-gray-200">{cat.name}</span>
+              </div>
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                <button
+                  onClick={() => {
+                    setEditingCategoryId(cat.id);
+                    setCatName(cat.name);
+                    setCatEmoji(cat.emoji || "⚡️");
+                  }}
+                  className="p-1 bg-indigo-500/20 text-indigo-400 rounded hover:bg-indigo-500/30"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCategory(cat.id)}
+                  className="p-1 bg-rose-500/20 text-rose-400 rounded hover:bg-rose-500/30"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Main Single Column Layout representing customized VPN lists and replenishment tools */}
       <div className="space-y-6">
         
@@ -705,27 +882,31 @@ export default function ServerManagement({
 
                 <div>
                   <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "دسته‌بندی پنل (نام گروه)" : "Category / Group Name"}</label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none"
                     value={planCategory}
-                    placeholder={lang === "fa" ? "مثال: VIP یا معمولی" : "e.g. Premium VIP"}
                     onChange={(e) => setPlanCategory(e.target.value)}
-                  />
+                  >
+                    <option value="">{lang === "fa" ? "انتخاب دسته‌بندی..." : "Select Category..."}</option>
+                    {planCategories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
+                    ))}
+                  </select>
                   <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 no-scrollbar">
-                    {["Standard", "VIP", "Unlimited VoIP"].map(cat => (
+                    {planCategories.map(cat => (
                       <button
-                        key={cat}
+                        key={cat.id}
                         type="button"
-                        onClick={() => setPlanCategory(cat)}
-                        className={`text-[9px] px-2 py-0.5 rounded border transition-colors shrink-0 whitespace-nowrap ${
-                          planCategory === cat 
+                        onClick={() => setPlanCategory(cat.name)}
+                        className={`text-[9px] px-2 py-0.5 rounded border transition-colors shrink-0 whitespace-nowrap flex items-center gap-1 ${
+                          planCategory === cat.name 
                             ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-400" 
                             : "bg-gray-800/50 border-gray-700 text-gray-500 hover:text-gray-300"
                         }`}
                       >
-                        {cat}
+                        <span>{cat.emoji}</span>
+                        <span>{cat.name}</span>
                       </button>
                     ))}
                   </div>

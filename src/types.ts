@@ -141,6 +141,13 @@ export interface VpnPlan {
   configStock?: string[];
 }
 
+export interface PlanCategory {
+  id: string;
+  name: string;
+  description?: string;
+  emoji?: string;
+}
+
 export interface SubscriptionKey {
   id: string;
   userId: number;
