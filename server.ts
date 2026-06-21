@@ -884,32 +884,41 @@ let aiClient: GoogleGenAI | null = null;
 
 function getAiClient(): GoogleGenAI {
   if (!aiClient) {
-    let key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      // Try to load from database settings first, which persists across deployments and doesn't rely on .env files
-      try {
-        const db = readJsonDb();
-        if (db && db.settings && db.settings.panel_config) {
+    let key: string | undefined = undefined;
+
+    // 1. Try to load from database settings first (User Preferred)
+    try {
+      const db = readJsonDb();
+      // Ensure we check both stringified panel_config and direct settings for robustness
+      let settingsObj = db.settings || {};
+      if (db.settings && db.settings.panel_config) {
+        try {
           const cfg = JSON.parse(db.settings.panel_config);
-          if (cfg && cfg.geminiApiKey && cfg.geminiApiKey.trim() !== "") {
-            key = cfg.geminiApiKey.trim();
-            process.env.GEMINI_API_KEY = key;
-            console.log("[AI Studio DB Load] Successfully loaded GEMINI_API_KEY from database settings.");
-          }
-        }
-      } catch (e: any) {
-        console.warn("[AI Studio DB Load Warning] Could not parse geminiApiKey from Daltoon_Bot.json settings:", e.message);
+          settingsObj = { ...settingsObj, ...cfg };
+        } catch (e) {}
       }
+
+      if (settingsObj.geminiApiKey && settingsObj.geminiApiKey.trim() !== "") {
+        key = settingsObj.geminiApiKey.trim();
+        console.log("[AI Studio] Successfully loaded GEMINI_API_KEY from database settings.");
+      }
+    } catch (e: any) {
+      console.warn("[AI Studio] Could not load API key from database:", e.message);
     }
 
+    // 2. Fallback to process.env if not found in DB
     if (!key) {
-      // Direct file-based parser fallback for absolute correctness across nested environments
+      key = process.env.GEMINI_API_KEY;
+      if (key) console.log("[AI Studio] Using GEMINI_API_KEY from environment variables.");
+    }
+
+    // 3. Last fallback: Direct .env file parsing (for local dev environments)
+    if (!key) {
       try {
         const envPaths = [
           path.resolve(process.cwd(), ".env"),
           path.resolve(_dirname, ".env"),
           path.resolve(_dirname, "..", ".env"),
-          path.resolve(_dirname, "../..", ".env"),
           "/.env"
         ];
         for (const envPath of envPaths) {
@@ -918,28 +927,35 @@ function getAiClient(): GoogleGenAI {
             const match = content.match(/GEMINI_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/);
             if (match && match[1]) {
               key = match[1].trim();
-              process.env.GEMINI_API_KEY = key; // Backguard env
-              console.log(`[AI Studio Direct Load] Loaded GEMINI_API_KEY directly from file: ${envPath}`);
+              console.log(`[AI Studio] Loaded GEMINI_API_KEY from .env file: ${envPath}`);
               break;
             }
           }
         }
-      } catch (e: any) {
-        console.error("[AI Studio Direct Load Error]", e.message);
-      }
+      } catch (e: any) {}
     }
     
     if (key) {
       key = key.trim();
+      // Remove accidental quotes if they exist in file/env
       if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
         key = key.substring(1, key.length - 1);
       }
       key = key.trim();
     }
-    if (!key) {
-      throw new Error("لطفا کلید دسترسی (GEMINI_API_KEY) را در تنظیمات داشبورد و یا فایل .env تنظیم کنید.");
+
+    if (!key || key === "") {
+      throw new Error("دستیار هوشمند فعال نیست. لطفا کلید (GEMINI_API_KEY) را در تنظیمات داشبورد ست کنید.");
     }
-    aiClient = new GoogleGenAI({ apiKey: key });
+
+    aiClient = new GoogleGenAI({ 
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
   }
   return aiClient;
 }
@@ -979,18 +995,15 @@ app.post("/api/ai/chat", async (req, res) => {
 
     const activeUsersCount = (dbData.users || []).filter((u: any) => u.status === 'active').length;
 
-    const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به سرور V2ray / X-UI به نام "${safePanelConfig.botNickname || "دالتون"} Servers" (${safePanelConfig.botNickname || "دالتون"} سرور) هستید. 
-شما باید به سوالات مرتبط با برنامه‌ها، خدمات، و وضعیت سرور پاسخ‌های مفید، محترمانه و دقیق بدهید.
+    const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام V2ray به نام "${safePanelConfig.botNickname || "دالتون"} Servers" هستید. 
+شما باید به سوالات مرتبط با خدمات و خرید از ربات پاسخ دهید.
 
-مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، مدیریت، رفع مشکل واریز فیش، قطعی یا خرید دارد، به هیچ عنوان آیدی تلگرام پشتیبانی معرفی نکنید. به جای آن، کاربر را راهنمایی کنید که با لمس دکمه «🎫 ثبت تیکت پشتیبانی» از منوی اصلی ربات، تیکت پشتیبانی جدید ارسال کند تا کارشناسان ما بررسی کنند.
+مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، شارژ ولت، رفع مشکل درگاه، قطعی یا خرید دارد، او را راهنمایی کنید که از منوی اصلی ربات از دکمه «🎫 ثبت تیکت پشتیبانی» استفاده کند.
 
-زمینه و اطلاعات حال حاضر سیستم:
-- بسته‌های خرید کاربر (VIP/Standard): ${JSON.stringify(dbData.vpn_plans || [])}
-- بسته‌های ویژه همکاران (عمده): ${JSON.stringify(dbData.colleague_packages || [])}
-- تعداد کل کاربران سیستم: ${activeUsersCount}
-- راهنما و متن قوانین پیش‌فرض: ${safeSettings.supportText || safePanelConfig.supportText || ""}
-
-لطفاً کوتاه، زیبا و با ادبیات مناسب پاسخ دهید. از ارائه اطلاعات محرمانه خودداری کنید. سوال کاربر: ${message}`;
+اطلاعات فعلی سیستم:
+- تعرفه ها: ${JSON.stringify(dbData.vpn_plans || [])}
+- تعداد کاربران: ${activeUsersCount}
+- راهنما: ${safeSettings.supportText || safePanelConfig.supportText || ""}`;
 
     let responseText = "";
     let lastError = null;
@@ -998,20 +1011,20 @@ app.post("/api/ai/chat", async (req, res) => {
 
     for (const modelName of modelsToTry) {
       try {
-        console.log(`[AI Chat] Attempting generation with model: ${modelName}`);
         const response = await ai.models.generateContent({
           model: modelName,
           contents: message,
           config: {
-             systemInstruction: systemPrompt
+             systemInstruction: systemPrompt,
+             temperature: 0.7,
           }
         });
         if (response && response.text) {
           responseText = response.text;
-          break; // success!
+          break;
         }
       } catch (err: any) {
-        console.warn(`[AI Chat Warning] Model ${modelName} failed or unavailable:`, err?.message || err);
+        console.warn(`[AI Chat] Iteration fail (${modelName}):`, err?.message || err);
         lastError = err;
       }
     }

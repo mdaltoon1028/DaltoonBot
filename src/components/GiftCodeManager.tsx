@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save, Tag, Calendar, Percent, Clock } from 'lucide-react';
+import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save, Tag, Calendar, Percent, Clock, RefreshCw } from 'lucide-react';
 import { GiftCode, PromoCode, PanelSettings } from '../types';
 import { Language } from '../locales';
 import ConfirmationModal from "./ConfirmationModal";
@@ -393,54 +393,52 @@ export default function GiftCodeManager({
               </div>
 
               {promoType !== "extend_days" && (
-                <div className="pt-2">
+                <div className="pt-2 border-t border-gray-800/30">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                      {isFa ? "🧮 محاسبه ارزش نهایی تخفیف" : "🧮 Discount Value Calculator"}
+                    <label className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin-slow" />
+                      {isFa ? "🧮 محاسبه‌گر هوشمند ارزش نهایی" : "🧮 Smart Value Calculator"}
                     </label>
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder={isFa ? "مبلغ پایه (تومان)" : "Base Price"}
-                      value={Number(calcBasePrice || 0).toLocaleString()}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/,/g, "");
-                        if (!isNaN(Number(val))) setCalcBasePrice(val);
-                      }}
-                      className="w-full bg-[#161c2a] border border-gray-700/50 rounded-lg p-2 text-xs text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-center"
-                    />
-                  </div>
-
-                  {calcBasePrice && promoValue && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex justify-between items-center px-1">
-                        <span className="text-[10px] text-gray-500">{isFa ? "میزان سود مشتری:" : "Customer Profit:"}</span>
-                        <span className="text-amber-400 font-bold text-xs font-mono">
-                          {promoType === "percent" 
-                            ? Math.round((Number(calcBasePrice) * Number(promoValue)) / 100).toLocaleString()
-                            : Number(promoValue).toLocaleString()
-                          } {isFa ? "تومان" : "TOM"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center px-1">
-                        <span className="text-[10px] text-gray-500">{isFa ? "مبلغ نهایی پرداختی:" : "Final Payment:"}</span>
-                        <span className="text-emerald-400 font-bold text-xs font-mono">
-                          {promoType === "percent"
-                            ? (Number(calcBasePrice) - Math.round((Number(calcBasePrice) * Number(promoValue)) / 100)).toLocaleString()
-                            : (Number(calcBasePrice) - Number(promoValue)).toLocaleString()
-                          } {isFa ? "تومان" : "TOM"}
-                        </span>
-                      </div>
-                      <p className="text-[9px] text-indigo-500/60 text-center mt-1 pt-1 border-t border-gray-800/30 font-sans">
-                        {isFa 
-                          ? `* این کد ${promoValue}${promoType === "percent" ? "٪" : " تومان"} از مبلغ کل خرید کسر خواهد کرد.`
-                          : `* This code deducts ${promoValue}${promoType === "percent" ? "%" : " Toman"} from total purchase.`
-                        }
-                      </p>
+                  <div className="bg-[#090d16] border border-gray-800/80 rounded-xl p-3 space-y-3 shadow-inner">
+                    <div>
+                      <span className="block text-[9px] text-gray-500 mb-1">{isFa ? "مبلغ پایه جهت تست محاسبات (تومان):" : "Test Base Amount (TOM):"}</span>
+                      <input
+                        type="text"
+                        placeholder="100,000"
+                        value={Number(calcBasePrice || 0).toLocaleString()}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/,/g, "");
+                          if (!isNaN(Number(val))) setCalcBasePrice(val);
+                        }}
+                        className="w-full bg-[#111827] border border-gray-700/50 rounded-lg p-2 text-sm text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-center font-bold"
+                      />
                     </div>
-                  )}
+
+                    {calcBasePrice && promoValue && (
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex flex-col items-center">
+                          <span className="text-[9px] text-amber-500 font-medium uppercase tracking-tighter">{isFa ? "سود مشتری" : "Client Profit"}</span>
+                          <span className="text-amber-400 font-extrabold text-sm font-mono mt-0.5">
+                            {promoType === "percent" 
+                              ? Math.round((Number(calcBasePrice) * Number(promoValue)) / 100).toLocaleString()
+                              : Number(promoValue).toLocaleString()
+                            }
+                          </span>
+                        </div>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 flex flex-col items-center">
+                          <span className="text-[9px] text-emerald-500 font-medium uppercase tracking-tighter">{isFa ? "پرداختی نهایی" : "Final Price"}</span>
+                          <span className="text-emerald-400 font-extrabold text-sm font-mono mt-0.5">
+                            {promoType === "percent"
+                              ? (Number(calcBasePrice) - Math.round((Number(calcBasePrice) * Number(promoValue)) / 100)).toLocaleString()
+                              : (Number(calcBasePrice) - Number(promoValue)).toLocaleString()
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

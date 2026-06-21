@@ -52,6 +52,8 @@ export default function SettingsPanel({
   const [botNickname, setBotNickname] = useState(settings.botNickname || "");
   const [ownerId, setOwnerId] = useState(settings.ownerId ? settings.ownerId.toString() : "");
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || "");
+  const [hideBtnAiChat, setHideBtnAiChat] = useState(settings.hideBtnAiChat !== undefined ? settings.hideBtnAiChat : true);
+  const [btnTextAiChat, setBtnTextAiChat] = useState(settings.btnTextAiChat || "🤖 چت با ربات");
   
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(settings.purchaseSuccessNote || "");
   
@@ -175,29 +177,31 @@ export default function SettingsPanel({
     }
   };
 
-  const applyMonoFormat = () => {
+  const applyFormat = (tag: string) => {
     if (!broadcastAreaRef.current) return;
     const area = broadcastAreaRef.current;
     const start = area.selectionStart;
     const end = area.selectionEnd;
     const text = broadcastText;
-    
-    // If no selection, just wrap the whole thing or do nothing? 
-    // User said "select it and make it mono", so we should wrap the selection.
     const selectedText = text.substring(start, end);
     const before = text.substring(0, start);
     const after = text.substring(end);
     
-    const newText = `${before}<code>${selectedText}</code>${after}`;
+    if (!selectedText) return;
+
+    let newText = "";
+    if (tag === "code") newText = `${before}<code>${selectedText}</code>${after}`;
+    else if (tag === "bold") newText = `${before}<b>${selectedText}</b>${after}`;
+    else if (tag === "italic") newText = `${before}<i>${selectedText}</i>${after}`;
+    else if (tag === "clear") {
+      const clean = selectedText.replace(/<[^>]*>/g, "");
+      newText = `${before}${clean}${after}`;
+    }
+
     setBroadcastText(newText);
-    
-    // Set focus back and selection
     setTimeout(() => {
       if (broadcastAreaRef.current) {
         broadcastAreaRef.current.focus();
-        const newStart = start + 6; // length of <code>
-        const newEnd = end + 6;
-        broadcastAreaRef.current.setSelectionRange(newStart, newEnd);
       }
     }, 10);
   };
@@ -301,6 +305,8 @@ export default function SettingsPanel({
       hideBuy,
       hideProfile,
       hideWallet,
+      hideBtnAiChat,
+      btnTextAiChat,
       dashboardUsername,
       dashboardPassword,
       serverPort: Number(serverPort) || 3000,
@@ -351,14 +357,40 @@ export default function SettingsPanel({
               value={broadcastText}
               onChange={(e) => setBroadcastText(e.target.value)}
             />
-            <button
-              type="button"
-              onClick={applyMonoFormat}
-              title={lang === "fa" ? "مونو کردن متن (کپی با یک کلیک)" : "Apply Mono Format (One-click copy)"}
-              className="absolute right-2 bottom-2 p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-indigo-400 border border-gray-700 transition"
-            >
-              <Code className="w-3.5 h-3.5" />
-            </button>
+            <div className="absolute right-2 bottom-2 flex gap-1">
+              <button
+                type="button"
+                onClick={() => applyFormat("bold")}
+                title={lang === "fa" ? "ضخیم کردن (Bold)" : "Bold Text"}
+                className="p-1 px-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border border-gray-700 transition text-[10px] font-bold"
+              >
+                B
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormat("italic")}
+                title={lang === "fa" ? "مورب کردن (Italic)" : "Italic Text"}
+                className="p-1 px-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border border-gray-700 transition text-[10px] italic font-serif"
+              >
+                I
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormat("code")}
+                title={lang === "fa" ? "مونو کردن (کپی با یک کلیک)" : "Apply Mono Format (One-click copy)"}
+                className="p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-indigo-400 hover:text-indigo-300 border border-gray-700 transition"
+              >
+                <Code className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => applyFormat("clear")}
+                title={lang === "fa" ? "پاکسازی استایل" : "Clear Format"}
+                className="p-1.5 rounded-md bg-gray-800 hover:bg-rose-500/20 text-gray-500 hover:text-rose-400 border border-gray-700 transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Media Attachment Actions */}
@@ -512,7 +544,69 @@ export default function SettingsPanel({
         </div>
       </div>
 
-      {/* 📢 Mandatory Channel Join Section */}
+        {/* AI Support and Smart Assistant Section */}
+        <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-lg overflow-hidden relative group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-600/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:bg-indigo-600/10 transition-colors"></div>
+          
+          <h3 className="font-display font-medium text-lg text-white flex items-center justify-between gap-2 relative">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              <span>{lang === "fa" ? "🤖 دستیار هوشمند و پشتیبانی هوش مصنوعی" : "🤖 Smart AI Support Assistant"}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setHideBtnAiChat(!hideBtnAiChat)}
+              className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-300 focus:outline-none ${
+                !hideBtnAiChat ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.35)]' : 'bg-slate-800'
+              }`}
+              style={{ direction: 'ltr' }}
+            >
+              <div
+                className="absolute flex items-center justify-center h-4 w-4 rounded-full bg-white transition-all duration-300 ease-in-out"
+                style={{
+                  left: !hideBtnAiChat ? "22px" : "2px",
+                  top: "2px",
+                  color: !hideBtnAiChat ? "#059669" : "#94a3b8"
+                }}
+              >
+                <Power className="w-2.5 h-2.5 stroke-[3.5]" />
+              </div>
+            </button>
+          </h3>
+
+          <p className="text-xs text-gray-400 leading-relaxed max-w-2xl relative">
+            {lang === "fa" 
+              ? "فعال‌سازی هوش مصنوعی (Gemini) به عنوان پشتیبان ۲۴ ساعته. کاربران می‌توانند سوالات خود را بپرسند و ربات بر اساس تعرفه‌ها و راهنما پاسخ می‌دهد." 
+              : "Enable Gemini AI as a 24/7 support assistant. Users can chat with the bot, and it answers based on your prices and connection guides."}
+          </p>
+
+          {!hideBtnAiChat && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fadeIn relative">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                  {lang === "fa" ? "عنوان دکمه در منوی ربات:" : "Button label in Telegram menu:"}
+                </label>
+                <input
+                  type="text"
+                  className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                  value={btnTextAiChat}
+                  onChange={(e) => setBtnTextAiChat(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5 flex flex-col justify-end">
+                <div className={`p-2.5 rounded-lg border text-[10px] font-medium flex items-center gap-2 ${geminiApiKey ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}>
+                  <div className={`w-2 h-2 rounded-full ${geminiApiKey ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`}></div>
+                  {geminiApiKey 
+                    ? (lang === "fa" ? "کلید API معتبر شناسایی شد." : "API Key is configured.") 
+                    : (lang === "fa" ? "خطا: کلید API ربات (Gemini) ست نشده است." : "Missing Gemini API Secret Key.")
+                  }
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-sm">
         <h3 className="font-display font-medium text-lg text-white flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
