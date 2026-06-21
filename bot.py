@@ -5,64 +5,19 @@ Designed specifically for: Sanaei X-UI v3.2 Panel (https://tr.sub-daltoon.ir:209
 Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
 """
 
-import os
-import sys
-sys.path.append("/root/.local/lib/python3.10/site-packages")
+import json
+import requests
 import telebot
 from telebot import types
 import time
 import uuid
-import json
-try:
-    import requests
-except ImportError:
-    pass
+import os
+import sys
+import logging
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
-# Shared Database file path (script-relative to support reliable CWD-independent execution like PM2)
+# Shared Database file path (script-relative for reliable CWD-independent execution)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE_PRIMARY = os.path.join(SCRIPT_DIR, "db.json")
-DB_FILE_DEFAULT = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
-DB_FILE_LEGACY = os.path.join(SCRIPT_DIR, "database.json")
-
-def file_has_data(file_path):
-    try:
-        if not os.path.exists(file_path):
-            return False
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        if not content:
-            return False
-        parsed = json.loads(content)
-        if isinstance(parsed.get("users"), list) and len(parsed["users"]) > 0:
-            return True
-        settings = parsed.get("settings", {})
-        if settings and settings.get("panel_config"):
-            config = settings["panel_config"]
-            if isinstance(config, str):
-                config = json.loads(config)
-            token = config.get("botToken")
-            if token and token != "DUMMY_TOKEN" and token.strip() != "":
-                return True
-        return False
-    except Exception:
-        return False
-
-if file_has_data(DB_FILE_PRIMARY):
-    DB_FILE = DB_FILE_PRIMARY
-elif file_has_data(DB_FILE_DEFAULT):
-    DB_FILE = DB_FILE_DEFAULT
-elif file_has_data(DB_FILE_LEGACY):
-    DB_FILE = DB_FILE_LEGACY
-elif os.path.exists(DB_FILE_PRIMARY):
-    DB_FILE = DB_FILE_PRIMARY
-else:
-    DB_FILE = DB_FILE_PRIMARY
+DB_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
 
 def read_db_json():
     """ Read core database structure always from shared json file """
@@ -70,13 +25,18 @@ def read_db_json():
         return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            content = f.read().strip()
+            if not content: return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
+            return json.loads(content)
     except Exception as e:
         print(f"[JSON Database Error] {e}")
-        return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
+        return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}, "error": True}
 
 def write_db_json(data):
     """ Atomic persistence for the shared JSON structure """
+    if not data or (not data.get("users") and not data.get("settings") and data.get("error")):
+        print("[JSON Database Write Warning] Refusing to write empty or error-state database to avoid data loss.")
+        return False
     try:
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
@@ -1039,7 +999,8 @@ def get_custom_keyboard():
         # Default stepped / horizontal mixed
         idx = 0
         while idx < len(buttons):
-            if layout == "stepped" and idx == 0:
+            # First 2 buttons are prioritized and shown full-width in stepped layout
+            if layout == "stepped" and idx < 2:
                 markup.add(buttons[idx])
                 idx += 1
             elif idx + 1 < len(buttons):
@@ -1392,7 +1353,14 @@ def handle_main_menu_callback(call):
                 seen_cats.add(cat)
                 
         if not categories:
-            categories = []
+            bot.edit_message_text(
+                "❌ <b>در حال حاضر هیچ اشتراکی در سیستم تعریف نشده است.</b>\n\nلطفا بعدا مراجعه کنید یا به پشتیبانی پیام دهید.",
+                chat_id=message.chat.id,
+                message_id=message.message_id,
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
+            )
+            return
 
         markup = types.InlineKeyboardMarkup(row_width=1)
         for cat in categories:
@@ -3985,7 +3953,7 @@ if __name__ == "__main__":
                 print("[Daltoon Bot] Ready. Waiting for the active bot token to be configured on the web admin panel. Retrying in 10 seconds...")
                 time.sleep(10)
                 continue
-            
+                
             # Update the telebot token if configured on-the-fly
             if bot.token != token:
                 print(f"[Daltoon Bot] Loaded new Bot Token from Web Dashboard: {token[:8]}...****")
@@ -4006,16 +3974,10 @@ if __name__ == "__main__":
                     # Ensure webhook is clean
                     bot.delete_webhook(drop_pending_updates=True)
                     
-                    # Notify owner of successful connection
-                    owner_id = cfg.get("OWNER_ID")
-                    if owner_id:
-                        bot.send_message(owner_id, "🚀 <b>ربات دالتون استور با موفقیت متصل شد و آنلاین است!</b>", parse_mode="HTML")
-                    
                     print(f"[Daltoon Bot] Real-time connection established for @{bot.get_me().username}")
                     startup_sync_complete = True
                 except Exception as setup_err:
                     print(f"[Daltoon Bot Setup Error] {setup_err}")
-                    # If it's a token error, it will be caught by the outer block
             
             # Start real-time polling (interval=0 for maximum responsiveness)
             bot.polling(none_stop=True, interval=0, timeout=30)
@@ -4026,7 +3988,7 @@ if __name__ == "__main__":
                 print("[Daltoon Bot] Setup pending. The current token in settings is not active. Please update it with a valid token from BotFather via the Web Dashboard.")
                 time.sleep(15)
             elif "409" in err_str or "conflict" in err_str.lower():
-                print("[Daltoon Bot] Conflict detected (multiple instances). Cleaning up and retrying in 5 seconds...")
+                # Conflict detected (multiple instances). Cleaning up silently.
                 time.sleep(5)
             else:
                 print(f"[Daltoon Bot] Polling session ended/error: {e}")
