@@ -741,10 +741,11 @@ app.post("/api/tickets/close", (req, res) => {
       // Notify the user on Telegram of ticket closure
       const settings = getSystemSettings(db);
       if (settings.botToken && ticket.userId) {
+        const nickname = settings.botNickname || "دالتون";
         const notifyMsg = 
           `🔒 <b>تیکت شما بسته شد!</b>\n\n` +
           `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n\n` +
-          `💬 تیکت شما توسط پشتیبانی فنی دالتون استور بررسی و بسته شد.\n` +
+          `💬 تیکت شما توسط پشتیبانی فنی ${nickname} استور بررسی و بسته شد.\n` +
           `اگر همچنان نیاز به راهنمایی بیشتری دارید، می‌توانید تیکت جدیدی در ربات ثبت فرمایید.`;
         sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(err => {
           console.error("[Telegram Ticket Close Auto-Notify Error]", err);
@@ -967,7 +968,7 @@ app.post("/api/ai/chat", async (req, res) => {
 
     const activeUsersCount = (dbData.users || []).filter((u: any) => u.status === 'active').length;
 
-    const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به سرور V2ray / X-UI به نام "Daltoon Servers" (دالتون سرور) هستید. 
+    const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به سرور V2ray / X-UI به نام "${safePanelConfig.botNickname || "دالتون"} Servers" (${safePanelConfig.botNickname || "دالتون"} سرور) هستید. 
 شما باید به سوالات مرتبط با برنامه‌ها، خدمات، و وضعیت سرور پاسخ‌های مفید، محترمانه و دقیق بدهید.
 
 مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، مدیریت، رفع مشکل واریز فیش، قطعی یا خرید دارد، به هیچ عنوان آیدی تلگرام پشتیبانی معرفی نکنید. به جای آن، کاربر را راهنمایی کنید که با لمس دکمه «🎫 ثبت تیکت پشتیبانی» از منوی اصلی ربات، تیکت پشتیبانی جدید ارسال کند تا کارشناسان ما بررسی کنند.
@@ -1107,6 +1108,7 @@ app.post("/api/settings", async (req, res) => {
 
     // Notify newly appointed admins via Telegram Bot
     const botToken = payload.botToken || prevSettings.botToken;
+    const botNickname = payload.botNickname || prevSettings.botNickname || "دالتون";
     if (botToken && addedAdmins.length > 0) {
       for (const adm of addedAdmins) {
         try {
@@ -1114,14 +1116,14 @@ app.post("/api/settings", async (req, res) => {
           const htmlMsg = `👑 <b>انتصاب شایسته شما به عنوان مدیریت سیستم</b>\n\n` +
             `کاربر گرامی <b>@${adm.username || "کاربر"}</b> (شناسه: <code>${adm.userId}</code>)؛\n` +
             `با سلام و احترام،\n\n` +
-            `بدین‌وسیله به اطلاع می‌رساند دسترسی مدیریتی شما به عنوان <b>${roleText}</b> در ربات دالتون استور با موفقیت فعال گردید.\n\n` +
+            `بدین‌وسیله به اطلاع می‌رساند دسترسی مدیریتی شما به عنوان <b>${roleText}</b> در ربات ${botNickname} استور با موفقیت فعال گردید.\n\n` +
             `🛡️ <b>برخی از مزایا و وظایف سطح دسترسی ادمین:</b>\n` +
             `🔹 <b>بررسی و تایید واریزی‌ها:</b> دسترسی به لیست فیش‌های ارسالی کاربران در بخش «تایید تراکنش‌ها» جهت شارژ خودکار کیف پول.\n` +
             `🔹 <b>مدیریت اعضا:</b> امکان ویرایش، افزایش و یا کاهش موجودی کاربران، مسدودسازی و رفع مسدودیت اعضا.\n` +
             `🔹 <b>پلان‌های ادمین:</b> استفاده رایگان از پلان‌ها بدون کسر موجودی جهت بررسی و کنترل کیفی سرورها.\n` +
             `🔹 <b>اعلان‌های هوشمند:</b> رصد و دریافت فوری اطلاعات فیش‌های ارسالی اعضا به محض بارگذاری در ربات.\n\n` +
-            `<i>مفتخریم که در تیم توسعه و مدیریت دالتون حضور دارید. با آرزوی موفقیت و همکاری مستمر.</i>\n\n` +
-            `✨ <b>تیم پشتیبانی و فنی دالتون استور</b>`;
+            `<i>مفتخریم که در تیم توسعه و مدیریت ${botNickname} حضور دارید. با آرزوی موفقیت و همکاری مستمر.</i>\n\n` +
+            `✨ <b>تیم پشتیبانی و فنی ${botNickname} استور</b>`;
 
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: "POST",
@@ -1782,7 +1784,8 @@ app.post("/api/transactions/approve", async (req, res) => {
           const cfg = JSON.parse(configStr);
           const botToken = cfg.botToken;
           if (botToken) {
-            const messageText = `✅ <b>تراکنش شما تایید شد!</b>\n\n💰 مبلغ <b>${tx.amount.toLocaleString()} تومان</b> به کیف پول شما در ربات دالتون استور افزوده شد.\n\n💰 موجودی جدید: <b>${user ? user.walletBalance.toLocaleString() : "0"} تومان</b>\n\n🛍️ هم اکنون می‌توانید از منوی ربات اقدام به خرید اشتراک فرمایید!`;
+            const nickname = cfg.botNickname || "دالتون";
+            const messageText = `✅ <b>تراکنش شما تایید شد!</b>\n\n💰 مبلغ <b>${tx.amount.toLocaleString()} تومان</b> به کیف پول شما در ربات ${nickname} استور افزوده شد.\n\n💰 موجودی جدید: <b>${user ? user.walletBalance.toLocaleString() : "0"} تومان</b>\n\n🛍️ هم اکنون می‌توانید از منوی ربات اقدام به خرید اشتراک فرمایید!`;
             const https = require("https");
             const postData = JSON.stringify({
               chat_id: tx.userId,

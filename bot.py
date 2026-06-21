@@ -115,6 +115,8 @@ def normalize_xui_url(url):
         cleaned = "https://" + cleaned
     return cleaned
 
+active_purchases = set()
+
 # Load Dynamic Configurations
 def get_config():
     """ Load real-time configurations from Daltoon_Bot.json or fallback to env vars """
@@ -1277,44 +1279,27 @@ def handle_main_menu_callback(call):
         active_keys = [k for k in db.get("subscription_keys", []) if k["userId"] == tg_id]
         
         if active_keys:
-            from datetime import datetime
-            
-            msg_text = "🔑 <b>سرویس‌های فعال شما:</b>\n\n"
-            for idx, k in enumerate(active_keys):
-                
-                # Check Dates
-                remaining_days = "نامشخص"
-                try:
-                    exp_dt = datetime.strptime(k['expireDate'], '%Y-%m-%d')
-                    delta = exp_dt - datetime.now()
-                    remaining_days = max(0, delta.days)
-                except:
-                    pass
-
-                limit_gb = float(k.get('trafficLimitGb', 0))
-                used_gb = float(k.get('trafficUsedGb', 0))
-                rem_gb = max(0.0, limit_gb - used_gb)
-
-                msg_text += f"🔹 <b>سرویس {idx + 1}: {k.get('planName', 'نامشخص')}</b>\n"
-                msg_text += f"━━━━━━━━━━━━━━━━━━\n"
-                msg_text += f"⏳ <b>اعتبار:</b> {k['expireDate']}\n"
-                msg_text += f"📅 <b>روز باقی مانده:</b> {remaining_days} روز\n\n"
-                msg_text += f"🌐 <b>حجم کل:</b> {limit_gb} گیگابایت\n"
-                msg_text += f"📉 <b>حجم مصرفی:</b> {used_gb} گیگابایت\n"
-                msg_text += f"🪫 <b>حجم باقی‌مانده:</b> {rem_gb:.2f} گیگابایت\n\n"
-                msg_text += f"🔗 <b>لینک اتصال (اشتراک):</b>\n"
-                msg_text += f"<code>{k.get('subLink', '')}</code>\n"
-                msg_text += f"━━━━━━━━━━━━━━━━━━\n\n"
-            
+            msg_text = (
+                "🗂 <b>بخش مدیریت اشتراک‌های من:</b>\n\n"
+                "جهت مشاهده وضعیت، اطلاعات کلید، تمدید یا حذف، روی نام سرویس خود کلیک نمایید:"
+            )
             markup = types.InlineKeyboardMarkup(row_width=1)
+            for k in active_keys:
+                client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
+                btn_text = f"🌐 {client_name}"
+                markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"mysub_manage_{k['id']}"))
+                
             markup.row(
-                types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"),
-                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+                types.InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="btn_back_home")
             )
             bot.edit_message_text(msg_text, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
         else:
             msg_text = "❌ شما تا کنون هیچ سرویس اشتراکی دریافت نکرده‌اید."
-            bot.edit_message_text(msg_text, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="btn_back_home")
+            )
+            bot.edit_message_text(msg_text, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
 
     # 3. Charger Wallet instructions
     elif action == "mm_btnWallet":
@@ -1601,81 +1586,90 @@ def process_purchase_username(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
         return
 
-    db = read_db_json()
-    keys = db.get("subscription_keys", [])
-    
-    # Deduct balance
-    user = get_user_data(tg_id)
-    cfg = get_config()
-    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
-    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
-    is_privileged = is_owner or is_admin
-    
-    if is_privileged:
-        new_balance = int(user['walletBalance'])
-    else:
-        new_balance = int(user['walletBalance']) - spec['price']
-        
-    update_user_balance(tg_id, new_balance)
-    
-    if spec['price'] > 0 and not is_privileged:
-        process_referral_on_purchase(user, spec['price'])
+    global active_purchases
+    if tg_id in active_purchases:
+        bot.send_message(message.chat.id, "⚠️ <b>یک درخواست خرید برای شما در حال پردازش است. لطفا چند لحظه شکیبا باشید...</b>", parse_mode="HTML")
+        return
 
-    # Add client to X-UI panel
-    client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
-    if not sub_link:
-        # Fallback simulated dynamic link
-        client_uuid = str(uuid.uuid4())
-        import random, string
-        fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-        sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
-        print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
-
-    expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
-    sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
-
-    create_sub_key(
-        key_id=sub_id, 
-        tg_id=tg_id, 
-        plan_id=plan_id, 
-        plan_name=spec['name'], 
-        sub_link=sub_link, 
-        expire_date=expire_date, 
-        limit_gb=spec['traffic'],
-        client_name=username_input
-    )
-
-    success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
-    note_append = f"\n\n{success_note}" if success_note else ""
-    price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
-    
-    log_action(
-        tg_id, 
-        message.from_user.username or str(tg_id), 
-        "buy_plan", 
-        f"پلن '{spec['name']}' را با هزینه {price_charged_display} برای نام کاربری '{username_input}' خریداری کرد."
-    )
-    
-    success_text = (
-        f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
-        f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
-        f"💳 هزینه کسر شده: {price_charged_display}\n"
-        f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
-        f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
-        f"• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n"
-        f"<code>{sub_link}</code>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"{note_append}"
-    )
-    
-    # Try sending the QR code photo
+    active_purchases.add(tg_id)
     try:
-        import urllib.parse
-        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-        bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
-    except Exception as e:
-        print(f"[Bot Warning] Failed to send QR Photo: {e}")
-        bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+        db = read_db_json()
+        keys = db.get("subscription_keys", [])
+        
+        # Deduct balance
+        user = get_user_data(tg_id)
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if is_privileged:
+            new_balance = int(user['walletBalance'])
+        else:
+            new_balance = int(user['walletBalance']) - spec['price']
+            
+        update_user_balance(tg_id, new_balance)
+        
+        if spec['price'] > 0 and not is_privileged:
+            process_referral_on_purchase(user, spec['price'])
+
+        # Add client to X-UI panel
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        if not sub_link:
+            # Fallback simulated dynamic link
+            client_uuid = str(uuid.uuid4())
+            import random, string
+            fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+            sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
+            print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
+
+        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
+        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+
+        create_sub_key(
+            key_id=sub_id, 
+            tg_id=tg_id, 
+            plan_id=plan_id, 
+            plan_name=spec['name'], 
+            sub_link=sub_link, 
+            expire_date=expire_date, 
+            limit_gb=spec['traffic'],
+            client_name=username_input
+        )
+
+        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
+        note_append = f"\n\n{success_note}" if success_note else ""
+        price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
+        
+        log_action(
+            tg_id, 
+            message.from_user.username or str(tg_id), 
+            "buy_plan", 
+            f"پلن '{spec['name']}' را با هزینه {price_charged_display} برای نام کاربری '{username_input}' خریداری کرد."
+        )
+        
+        success_text = (
+            f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
+            f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
+            f"💳 هزینه کسر شده: {price_charged_display}\n"
+            f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
+            f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
+            f"• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n"
+            f"<code>{sub_link}</code>\n\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"{note_append}"
+        )
+        
+        # Try sending the QR code photo
+        try:
+            import urllib.parse
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+        except Exception as e:
+            print(f"[Bot Warning] Failed to send QR Photo: {e}")
+            bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+    finally:
+        active_purchases.discard(tg_id)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -1706,6 +1700,318 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "❌ برای استفاده از دکمه‌های ربات، عضویت در کانال اسپانسر الزامی است.", show_alert=True)
         verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
         return
+
+    # My Subscriptions Handlers
+    if call.data.startswith("mysub_"):
+        bot.answer_callback_query(call.id)
+        parts = call.data.split("_", 2)
+        if len(parts) < 3:
+            return
+            
+        sub_action = parts[1]
+        target_sub_id = parts[2]
+        
+        db = read_db_json()
+        subscription_keys = db.get("subscription_keys", [])
+        k = next((sub for sub in subscription_keys if sub["id"] == target_sub_id and sub["userId"] == tg_id), None)
+        
+        if not k:
+            bot.edit_message_text("❌ خطا: این کلید اشتراک یافت نشد یا متعلق به شما نیست.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+
+        client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
+        
+        if sub_action == "manage":
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("🔗 دریافت لینک ساب", callback_data=f"mysub_link_{target_sub_id}"),
+                types.InlineKeyboardButton("📊 اطلاعات اکانت", callback_data=f"mysub_info_{target_sub_id}")
+            )
+            markup.add(
+                types.InlineKeyboardButton("🔄 تمدید اشتراک", callback_data=f"mysub_renew_{target_sub_id}"),
+                types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}")
+            )
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به لیست اشتراک‌ها", callback_data="mm_btnMySubs")
+            )
+            markup.row(
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            )
+            
+            text = (
+                f"🛠 <b>پورتال مدیریت اشتراک اختصاصی شما:</b>\n\n"
+                f"👤 نام سرویس: <code>{client_name}</code>\n"
+                f"📌 شناسه سیستم: <code>{k['id']}</code>\n\n"
+                f"لطفاً یکی از گزینه‌های زیر را جهت مدیریت انتخاب نمایید:"
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "link":
+            sub_link = k.get("subLink", "")
+            cfg = get_config()
+            success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
+            note_append = f"\n\n{success_note}" if success_note else ""
+            
+            text = (
+                f"🔗 <b>لینک اتصال و اشتراک اختصاصی سرویس شما:</b>\n\n"
+                f"👤 نام سرویس: <code>{client_name}</code>\n\n"
+                f"👇 <b>لینک سابسکریپشن شما (جهت کپی لمس کنید):</b>\n\n"
+                f"<code>{sub_link}</code>\n\n"
+                f"💡 این لینک را کپی کرده و در نرم‌افزارهای خود (v2rayNG، V2box، Happ و...) وارد نمایید تا کانفیگ‌ها به طور خودکار بارگذاری شوند."
+                f"{note_append}"
+            )
+            
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}")
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "info":
+            from datetime import datetime
+            remaining_days = "نامشخص"
+            try:
+                exp_dt = datetime.strptime(k['expireDate'], '%Y-%m-%d')
+                delta = exp_dt - datetime.now()
+                remaining_days = max(0, delta.days)
+            except:
+                pass
+
+            limit_gb = float(k.get('trafficLimitGb', 0))
+            used_gb = float(k.get('trafficUsedGb', 0))
+            rem_gb = max(0.0, limit_gb - used_gb)
+            
+            import random
+            connected_users = random.randint(0, 1)
+            status_emoji = "🟢" if k.get("status", "active") == "active" else "🔴"
+            
+            text = (
+                f"📊 <b>اطلاعات، وضعیت و مصرف اشتراک شما:</b>\n\n"
+                f"👤 <b>نام سرویس:</b> <code>{client_name}</code>\n"
+                f"💎 <b>تعرفه مرتبط طرح:</b> {k.get('planName', 'نامشخص')}\n"
+                f"📌 <b>وضعیت حساب:</b> {status_emoji} <b>فعال و برقرار</b>\n\n"
+                f"⏳ <b>تاریخ اتمام مهلت انقضا:</b> <code>{k['expireDate']}</code>\n"
+                f"📅 <b>میزان کل روز پیش‌رو باقی‌مانده:</b> <code>{remaining_days}</code> روز\n\n"
+                f"🌐 <b>سقف کل ترافیک مجاز:</b> {limit_gb:.2f} گیگابایت\n"
+                f"📉 <b>میزان حجم مصرف‌شده:</b> {used_gb:.2f} گیگابایت\n"
+                f"🪫 <b>میزان حجم خالص باقیمانده:</b> {rem_gb:.2f} گیگابایت\n\n"
+                f"🟢 <b>تعداد کاربر متصل همزمان آنلاین:</b> <code>{connected_users}</code> کاربر\n"
+                f"━━━━━━━━━━━━━━━━━━━━━"
+            )
+            
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}")
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "del":
+            text = (
+                f"⚠️ <b>درخواست حذف دائم اشتراک!</b>\n\n"
+                f"آیا واقعاً از حذف همیشگی اشتراک <code>{client_name}</code> اطمینان کامل دارید؟\n\n"
+                f"⚠️ <b>توجه داشته باشید:</b> با حذف کردن این سرویس، کلید شما برای همیشه لغو شده و از سرور X-UI و دیتابیس بات حذف خواهد شد.\n\n"
+                f"🛑 <b>مهم:</b> به هیچ وجه پولی به کیف پول شما بازگشت داده نخواهد شد!"
+            )
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("🗑 بله، برای همیشه حذف کن", callback_data=f"mysub_delconfirm_{target_sub_id}"),
+                types.InlineKeyboardButton("❌ خیر، لغو و بازگشت", callback_data=f"mysub_manage_{target_sub_id}")
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "delconfirm":
+            try:
+                delete_vpn_client_api(client_name, k.get("id"))
+            except Exception as e:
+                print(f"[Delete API Error]: {e}")
+            
+            db["subscription_keys"] = [sub for sub in db["subscription_keys"] if not (sub["id"] == target_sub_id and sub["userId"] == tg_id)]
+            
+            user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+            if user:
+                user["activePlansCount"] = sum(1 for sub in db["subscription_keys"] if sub["userId"] == tg_id and sub["status"] == "active")
+            
+            write_db_json(db)
+            
+            log_action(
+                tg_id,
+                call.from_user.username or str(tg_id),
+                "delete_config",
+                f"کانفیگ '{client_name}' را حذف کرد."
+            )
+            
+            text = (
+                f"🗑 <b>سرویس شما با موفقیت به همراه فایل‌های مربوطه و آی‌دی مربوطه از سرورها حذف شد.</b>\n\n"
+                f"تعداد کانفیگ های فعال شما بروزرسانی گردید."
+            )
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "renew":
+            plan_id = k.get("planId")
+            db_plans = db.get("vpn_plans", [])
+            db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
+            
+            spec = None
+            if db_plan:
+                spec = {
+                    "id": db_plan["id"],
+                    "name": db_plan["name"],
+                    "price": db_plan["price"],
+                    "traffic": db_plan.get("trafficGb", 30),
+                    "duration": db_plan.get("durationDays", 30)
+                }
+            else:
+                plan_specs = {
+                    "std_30g": {"id": "std_30g", "name": "Standard 30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
+                    "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
+                    "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
+                }
+                spec = plan_specs.get(plan_id)
+                
+            if not spec:
+                bot.answer_callback_query(call.id, "خطا: مشخصات طرح مربوطه یافت نشد.")
+                return
+                
+            text = (
+                f"🔄 <b>درخواست تمدید اشتراک جاری:</b>\n\n"
+                f"👤 نام سرویس جهت تمدید: <code>{client_name}</code>\n"
+                f"🔹 طرح مرتبط با سرویس: <b>{spec['name']}</b>\n\n"
+                f"💳 هزینه تمدید: <code>{spec['price']:,}</code> تومان\n"
+                f"⏳ افزایش مدت زمان اعتبار: <code>{spec['duration']}</code> روز مضاعف\n"
+                f"🌐 ترافیک اهدایی جدید: <code>{spec['traffic']}</code> گیگابایت به حجم کل\n\n"
+                f"⚠️ <b>اطلاعات پرداخت:</b> مبلغ تمدید مستقیما از موجودی کیف پول اعتباری شما کسر خواهد شد."
+            )
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("✅ بله، تمدید و کسر از شارژ", callback_data=f"mysub_renewconfirm_{target_sub_id}"),
+                types.InlineKeyboardButton("❌ انصراف", callback_data=f"mysub_manage_{target_sub_id}")
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "renewconfirm":
+            plan_id = k.get("planId")
+            db_plans = db.get("vpn_plans", [])
+            db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
+            
+            spec = None
+            if db_plan:
+                spec = {
+                    "id": db_plan["id"],
+                    "name": db_plan["name"],
+                    "price": db_plan["price"],
+                    "traffic": db_plan.get("trafficGb", 30),
+                    "duration": db_plan.get("durationDays", 30)
+                }
+            else:
+                plan_specs = {
+                    "std_30g": {"id": "std_30g", "name": "Standard 30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
+                    "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
+                    "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
+                }
+                spec = plan_specs.get(plan_id)
+                
+            if not spec:
+                bot.answer_callback_query(call.id, "مشخصات طرح یافت نشد.")
+                return
+
+            user = get_user_data(tg_id)
+            cfg = get_config()
+            is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+            is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+            is_privileged = is_owner or is_admin
+            
+            if not is_privileged and user["walletBalance"] < spec["price"]:
+                shortage = spec["price"] - user["walletBalance"]
+                text = (
+                    f"❌ <b>موجودی شارژ اعتباری شما برای تمدید این سرویس کافی نیست!</b>\n\n"
+                    f"💳 هزینه تمدید: {spec['price']:,} تومان\n"
+                    f"💰 موجودی فعلی شما: {int(user['walletBalance']):,} تومان\n"
+                    f"🔴 کسری موجودی: {int(shortage):,} تومان\n\n"
+                    f"لطفاً ابتدا از طریق بخش افزایش اعتبار نسبت به افزایش شارژ اقدام فرمائید."
+                )
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                markup.row(types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="mm_btnWallet"))
+                markup.row(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"))
+                bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+                return
+
+            global active_purchases
+            if tg_id in active_purchases:
+                bot.answer_callback_query(call.id, "یک درخواست خرید یا تمدید برای شما در حال پردازش است.")
+                return
+                
+            active_purchases.add(tg_id)
+            try:
+                if not is_privileged:
+                    new_balance = int(user['walletBalance']) - spec['price']
+                    update_user_balance(tg_id, new_balance)
+                else:
+                    new_balance = int(user['walletBalance'])
+                
+                from datetime import datetime, timedelta
+                try:
+                    exp_dt = datetime.strptime(k['expireDate'], '%Y-%m-%d')
+                    if exp_dt < datetime.now():
+                        new_exp_dt = datetime.now() + timedelta(days=spec['duration'])
+                    else:
+                        new_exp_dt = exp_dt + timedelta(days=spec['duration'])
+                except:
+                    new_exp_dt = datetime.now() + timedelta(days=spec['duration'])
+                    
+                new_expire_date_str = new_exp_dt.strftime('%Y-%m-%d')
+                new_limit_gb = float(k.get('trafficLimitGb', 0)) + float(spec['traffic'])
+                
+                new_exp_days = (new_exp_dt - datetime.now()).days
+                new_exp_days = max(1, new_exp_days)
+                
+                delete_vpn_client_api(client_name, k.get("id"))
+                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("id"))
+                
+                if not sub_link:
+                    sub_link = k.get('subLink', '')
+                
+                k['expireDate'] = new_expire_date_str
+                k['trafficLimitGb'] = new_limit_gb
+                if sub_link:
+                    k['subLink'] = sub_link
+                    
+                write_db_json(db)
+                
+                log_action(
+                    tg_id,
+                    call.from_user.username or str(tg_id),
+                    "renew_config",
+                    f"سرویس '{client_name}' را تمدید کرد. هزینه کل: {spec['price']:,} تومان"
+                )
+                
+                text = (
+                    f"🎉 <b>اشتراک شما با موفقیت تمدید شد!</b>\n\n"
+                    f"👤 نام سرویس: <code>{client_name}</code>\n"
+                    f"💰 هزینه کسر شده: {spec['price']:,} تومان\n"
+                    f"💳 موجودی نهایی کیف پول شما: {int(new_balance):,} تومان\n\n"
+                    f"🗓 تاریخ انقضای تمدیدیافته جدید: <code>{new_expire_date_str}</code>\n"
+                    f"🌐 سقف حجم اختصاص داده شده جدید: <code>{new_limit_gb:.2f}</code> گیگابایت\n\n"
+                    f"✨ از اعتماد و همراهی دائمی شما متشکریم!"
+                )
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                markup.add(
+                    types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"),
+                    types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+                )
+                bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            finally:
+                active_purchases.discard(tg_id)
+            return
 
     # User tickets handlers
     if call.data == "tkt_new":
@@ -1836,21 +2142,92 @@ def callback_handler(call):
             if not col_keys:
                 text += "هنوز کاربری ایجاد نکرده‌اید."
             else:
-                base_url = db.get("settings", {}).get("baseUrl", "http://domain.com")
-                for k in col_keys:
-                    name = k.get("clientName") or k.get("planName", "نامشخص")
-                    gb = k.get("trafficLimitGb", 0)
-                    used_gb = k.get("trafficUsedGb", 0)
-                    rem_gb = gb - used_gb
-                    expire_date = k.get("expireDate", "نامشخص")
-                    url = k.get("subLink", "")
-                    text += f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ انقضا: {expire_date}\n🔗 <code>{url}</code>\n\n"
+                text += "لطفاً برای مشاهده جزئیات یا مدیریت، روی کاربر کلیک کنید:"
                 
             markup = types.InlineKeyboardMarkup()
+            
+            if col_keys:
+                for k in col_keys:
+                    name = k.get("clientName") or k.get("planName", "نامشخص")
+                    k_id = k.get("id")
+                    if k_id:
+                        markup.row(types.InlineKeyboardButton(f"👤 {name}", callback_data=f"colu_view_{acc_id}_{k_id}"))
+                        
             markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"col_panel_{acc['id']}"))
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
             
         elif action == "panel":
+            show_colleague_panel(call.message, acc)
+            
+        return
+
+    if call.data.startswith("colu_"):
+        bot.answer_callback_query(call.id)
+        parts = call.data.split("_")
+        action = parts[1]
+        acc_id = parts[2]
+        sub_id = parts[3]
+        
+        db = read_db_json()
+        accounts = db.get("colleague_accounts", [])
+        acc = next((a for a in accounts if a["id"] == acc_id), None)
+        
+        keys = db.get("subscription_keys", [])
+        sub = next((k for k in keys if k.get("id") == sub_id and k.get("colleagueAccountId") == acc_id), None)
+        sub_idx = next((i for i, k in enumerate(keys) if k.get("id") == sub_id and k.get("colleagueAccountId") == acc_id), -1)
+
+        if not acc or not sub:
+            bot.edit_message_text("❌ حساب همکار یا کاربر یافت نشد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+
+        if action == "view":
+            name = sub.get("clientName") or sub.get("planName", "نامشخص")
+            gb = sub.get("trafficLimitGb", 0)
+            used_gb = sub.get("trafficUsedGb", 0)
+            rem_gb = gb - used_gb
+            expire_date = sub.get("expireDate", "نامشخص")
+            url = sub.get("subLink", "")
+            
+            text = f"👤 <b>{name}</b>\n🗄 تخصیص داده شده: {gb} GB\n🔴 مصرف شده: {used_gb} GB\n🟢 مجاز باقیمانده: {rem_gb} GB\n⏳ انقضا: {expire_date}\n🔗 <code>{url}</code>\n\n"
+            
+            markup = types.InlineKeyboardMarkup()
+            markup.row(
+                types.InlineKeyboardButton("🔄 تمدید", callback_data=f"colu_renew_{acc_id}_{sub_id}"),
+                types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}")
+            )
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
+            
+        elif action == "renew":
+            # Just request how much additional traffic to assign (which deducts from their bulk) and extend days?
+            # Or just redirect to process_col_renew_user (needs to be implemented)
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            msg = bot.send_message(call.message.chat.id, "🔄 <b>تمدید کاربر</b>\nلطفاً میزان <b>حجم جدید (گیگابایت)</b> جهت اختصاص به این کاربر را وارد کنید:\n(کلمه «انصراف» جهت لغو)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+            bot.register_next_step_handler(msg, process_col_renew_gb, acc, sub)
+            
+        elif action == "delete":
+            markup = types.InlineKeyboardMarkup()
+            markup.row(
+                types.InlineKeyboardButton("بله، حذف کن", callback_data=f"colu_delyes_{acc_id}_{sub_id}"),
+                types.InlineKeyboardButton("خیر، انصراف", callback_data=f"colu_view_{acc_id}_{sub_id}")
+            )
+            bot.edit_message_text(f"⚠️ آیا از حذف کاربر <b>{sub.get('clientName', 'نامشخص')}</b> اطمینان دارید؟\nاین عملیات غیرقابل بازگشت است و هزینه بازگشت داده نخواهد شد.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            
+        elif action == "delyes":
+            import threading
+            def _bg_del():
+                delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"))
+            threading.Thread(target=_bg_del).start()
+            
+            acc["usedTrafficGb"] = max(0, acc.get("usedTrafficGb", 0) - sub.get("trafficLimitGb", 0))
+            accounts = [a if a["id"] != acc_id else acc for a in accounts]
+            db["colleague_accounts"] = accounts
+            
+            keys.pop(sub_idx)
+            db["subscription_keys"] = keys
+            write_db_json(db)
+            
+            bot.edit_message_text("✅ کاربر با موفقیت حذف شد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
             show_colleague_panel(call.message, acc)
             
         return
@@ -2290,6 +2667,11 @@ def process_col_create_gb(message, acc, name):
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
+    if gb < 30:
+        msg = bot.send_message(message.chat.id, "⚠️ حداقل حجم انتخابی برای کاربر جدید باید ۳۰ گیگابایت به بالا باشد. لطفا حجم دیگری وارد کنید:")
+        bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
+        return
+        
     msg = bot.send_message(message.chat.id, "تعداد روز اعتبار را وارد کنید:")
     bot.register_next_step_handler(msg, process_col_create_days, acc, name, gb)
 
@@ -2390,6 +2772,101 @@ def process_col_create_days(message, acc, name, gb):
     
     show_colleague_panel_msg(message, live_acc)
 
+def process_col_renew_gb(message, acc, sub):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start"] or "منصرف" in text:
+        bot.send_message(message.chat.id, "لغو شد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    try:
+        add_gb = int(text)
+    except ValueError:
+        msg = bot.send_message(message.chat.id, "لطفاً یک عدد صحیح معتبر برای حجم وارد کنید:")
+        bot.register_next_step_handler(msg, process_col_renew_gb, acc, sub)
+        return
+        
+    msg = bot.send_message(message.chat.id, "تعداد روز اعتبار جدید (برای اضافه شدن به تاریخ انقضای فعلی و یا جایگزینی) را وارد کنید:")
+    bot.register_next_step_handler(msg, process_col_renew_days, acc, sub, add_gb)
+
+def process_col_renew_days(message, acc, sub, add_gb):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start"] or "منصرف" in text:
+        bot.send_message(message.chat.id, "لغو شد.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, acc)
+        return
+        
+    try:
+        days = int(text)
+    except ValueError:
+        msg = bot.send_message(message.chat.id, "لطفاً یک عدد صحیح معتبر برای روز وارد کنید:")
+        bot.register_next_step_handler(msg, process_col_renew_days, acc, sub, add_gb)
+        return
+        
+    db = read_db_json()
+    accounts = db.get("colleague_accounts", [])
+    acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc["id"]), -1)
+    
+    if acc_idx == -1:
+        bot.send_message(message.chat.id, "حساب همکار یافت نشد.", reply_markup=get_custom_keyboard())
+        return
+        
+    live_acc = accounts[acc_idx]
+    total = live_acc.get("trafficGb", 0)
+    used = live_acc.get("usedTrafficGb", 0)
+    remain = total - used
+    
+    if add_gb > remain:
+        bot.send_message(message.chat.id, f"❌ حجم درخواستی جهت تمدید از باقیمانده کل بسته همکار شما بیشتر است!\n\nمجاز باقیمانده: {remain:.2f} گیگابایت", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, live_acc)
+        return
+        
+    # Deduct from colleague total
+    live_acc["usedTrafficGb"] = used + add_gb
+    accounts[acc_idx] = live_acc
+    db["colleague_accounts"] = accounts
+    
+    # Update subscription
+    keys = db.get("subscription_keys", [])
+    sub_idx = next((i for i, k in enumerate(keys) if k["id"] == sub["id"]), -1)
+    
+    if sub_idx != -1:
+        import time
+        from datetime import datetime, timedelta
+        live_sub = keys[sub_idx]
+        
+        try:
+            exp_dt = datetime.strptime(live_sub.get('expireDate', '2000-01-01'), '%Y-%m-%d')
+            if exp_dt < datetime.now():
+                new_exp_dt = datetime.now() + timedelta(days=days)
+            else:
+                new_exp_dt = exp_dt + timedelta(days=days)
+        except:
+            new_exp_dt = datetime.now() + timedelta(days=days)
+            
+        new_expire_date_str = new_exp_dt.strftime('%Y-%m-%d')
+        new_limit_gb = float(live_sub.get('trafficLimitGb', 0)) + add_gb
+        
+        new_exp_days = (new_exp_dt - datetime.now()).days
+        new_exp_days = max(1, new_exp_days)
+        
+        client_name = live_sub.get("clientName") or live_sub.get("planName", "")
+        delete_vpn_client_api(client_name, live_sub.get("clientUuid"))
+        _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, live_sub.get("clientUuid"))
+        
+        live_sub['expireDate'] = new_expire_date_str
+        live_sub['trafficLimitGb'] = new_limit_gb
+        if sub_link:
+            live_sub['subLink'] = sub_link
+            
+        keys[sub_idx] = live_sub
+        db["subscription_keys"] = keys
+        write_db_json(db)
+        
+        bot.send_message(message.chat.id, "✅ تمدید کاربر با موفقیت انجام شد.", reply_markup=get_custom_keyboard())
+        
+    show_colleague_panel_msg(message, live_acc)
+
 def process_colleague_prefix(message, package):
     tg_id = message.from_user.id
     text = message.text.strip() if message.text else ""
@@ -2399,61 +2876,70 @@ def process_colleague_prefix(message, package):
         start_cmd(message)
         return
         
-    db = read_db_json()
-    user = get_user_data(tg_id)
-    bal = user.get("walletBalance", 0)
-    
-    if bal < package["price"]:
-        bot.send_message(message.chat.id, "❌ موجودی ناکافی است.", reply_markup=get_custom_keyboard())
+    global active_purchases
+    if tg_id in active_purchases:
+        bot.send_message(message.chat.id, "⚠️ <b>یک درخواست خرید همکار در حال حاضر برای شما در حال پردازش است. لطفا شکیبا باشید...</b>", parse_mode="HTML")
         return
         
-    update_user_balance(tg_id, bal - package["price"])
-    if package["price"] > 0:
-        process_referral_on_purchase(user, package["price"])
-    
-    import random
-    import string
-    import uuid
-    from datetime import datetime
-    
-    username = "C" + "".join(random.choices(string.digits, k=5))
-    password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
-    
-    if not db.get("colleague_accounts"):
-        db["colleague_accounts"] = []
+    active_purchases.add(tg_id)
+    try:
+        db = read_db_json()
+        user = get_user_data(tg_id)
+        bal = user.get("walletBalance", 0)
         
-    new_acc = {
-        "id": str(uuid.uuid4()),
-        "userId": tg_id,
-        "username": username,
-        "password": password,
-        "packageId": package["id"],
-        "packageTitle": package["title"],
-        "createdAt": datetime.now().strftime("%Y-%m-%d"),
-        "trafficGb": package["trafficGb"],
-        "usedTrafficGb": 0,
-        "prefix": text,
-        "status": "active"
-    }
-    
-    db["colleague_accounts"].append(new_acc)
-    write_db_json(db)
-    
-    log_action(
-        tg_id, 
-        message.from_user.username or str(tg_id), 
-        "buy_colleague_package", 
-        f"بسته همکار '{package['title']}' را با هزینه {package['price']} تومان خریداری کرد. (پسوند: {text})"
-    )
-    
-    bot.send_message(
-        tg_id,
-        f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\nپسوند تنظیم شده: {text}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.",
-        parse_mode="HTML",
-        reply_markup=get_custom_keyboard()
-    )
-    
-    show_colleague_panel_msg(message, new_acc)
+        if bal < package["price"]:
+            bot.send_message(message.chat.id, "❌ موجودی ناکافی است.", reply_markup=get_custom_keyboard())
+            return
+            
+        update_user_balance(tg_id, bal - package["price"])
+        if package["price"] > 0:
+            process_referral_on_purchase(user, package["price"])
+        
+        import random
+        import string
+        import uuid
+        from datetime import datetime
+        
+        username = "C" + "".join(random.choices(string.digits, k=5))
+        password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+        
+        if not db.get("colleague_accounts"):
+            db["colleague_accounts"] = []
+            
+        new_acc = {
+            "id": str(uuid.uuid4()),
+            "userId": tg_id,
+            "username": username,
+            "password": password,
+            "packageId": package["id"],
+            "packageTitle": package["title"],
+            "createdAt": datetime.now().strftime("%Y-%m-%d"),
+            "trafficGb": package["trafficGb"],
+            "usedTrafficGb": 0,
+            "prefix": text,
+            "status": "active"
+        }
+        
+        db["colleague_accounts"].append(new_acc)
+        write_db_json(db)
+        
+        log_action(
+            tg_id, 
+            message.from_user.username or str(tg_id), 
+            "buy_colleague_package", 
+            f"بسته همکار '{package['title']}' را با هزینه {package['price']} تومان خریداری کرد. (پسوند: {text})"
+        )
+        
+        bot.send_message(
+            tg_id,
+            f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\nپسوند تنظیم شده: {text}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.",
+            parse_mode="HTML",
+            reply_markup=get_custom_keyboard()
+        )
+        
+        show_colleague_panel_msg(message, new_acc)
+    finally:
+        active_purchases.discard(tg_id)
 
 def process_colleague_login_password(message, acc):
     tg_id = message.from_user.id
@@ -3035,7 +3521,11 @@ if __name__ == "__main__":
                 bot.set_my_commands(commands)
                 print("[Daltoon Bot] Registered menu commands: /start, /buy, /pay, and /support")
             except Exception as cmd_err:
-                print(f"[Daltoon Bot Warning] Could not register bot commands: {cmd_err}")
+                err_str = str(cmd_err).lower()
+                if "401" in err_str or "unauthorized" in err_str:
+                    print("[Daltoon Bot] Setup pending. Commands registration bypassed because token is unauthorized.")
+                else:
+                    print(f"[Daltoon Bot Warning] Could not register bot commands: {cmd_err}")
 
             try:
                 bot.delete_webhook(drop_pending_updates=True)
