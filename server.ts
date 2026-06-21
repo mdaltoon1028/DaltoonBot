@@ -193,6 +193,8 @@ function readJsonDb(): DbSchema {
             dashboardUsername: process.env.DASHBOARD_USERNAME || "admin",
             dashboardPassword: process.env.DASHBOARD_PASSWORD || "admin",
             serverPort: process.env.DASHBOARD_PORT ? parseInt(process.env.DASHBOARD_PORT, 10) : 3000,
+            panelConnectionActive: true,
+            autoRefreshInterval: 0,
             admins: []
           })
         }
@@ -215,6 +217,15 @@ function readJsonDb(): DbSchema {
         db[key] = [];
         modified = true;
       }
+    }
+
+    if (db.vpn_plans.length === 0) {
+      db.vpn_plans = [
+        {id: "std_30g", name: "Standard 30GB - 30 Days", price: 45000, trafficGb: 30, durationDays: 30, category: "Standard", configStock: []},
+        {id: "vip_70g", name: "VIP Premium 70GB - 60 Days", price: 95000, trafficGb: 70, durationDays: 60, category: "VIP", configStock: []},
+        {id: "ult_150g", name: "Unlimited VoIP 150GB - 90 Days", price: 185000, trafficGb: 150, durationDays: 90, category: "Unlimited VoIP", configStock: []}
+      ];
+      modified = true;
     }
 
     if (modified) {
@@ -1762,23 +1773,38 @@ app.post("/api/transactions/approve", async (req, res) => {
       let messageTextForNotif = "";
       
       if (tx.type === "PLAN_PURCHASE") {
-        const db_plans = db.vpn_plans || [];
-        const plan = db_plans.find(p => p.id === tx.planId);
+        const db_plans: any[] = db.vpn_plans || [];
+        // Hardcoded Fallback Plans (Must match bot.py)
+        const fallback_plans = [
+          {id: "std_30g", name: "Standard 30GB - 30 Days", price: 45000, trafficGb: 30, durationDays: 30, category: "Standard"},
+          {id: "vip_70g", name: "VIP Premium 70GB - 60 Days", price: 95000, trafficGb: 70, durationDays: 60, category: "VIP"},
+          {id: "ult_150g", name: "Unlimited VoIP 150GB - 90 Days", price: 185000, trafficGb: 150, durationDays: 90, category: "Unlimited VoIP"}
+        ];
+        
+        let plan = db_plans.find(p => p.id === tx.planId);
+        if (!plan) {
+           plan = fallback_plans.find(p => p.id === tx.planId);
+        }
         
         if (plan) {
           const clientName = tx.clientName || `user_${tx.userId}`;
           const settings = db.settings ? JSON.parse(db.settings.panel_config || "{}") : {};
           
           try {
-            const vpnResult = await addVpnClientApi(clientName, plan.trafficGb, plan.durationDays, settings);
+            const planTraffic = Number(plan.trafficGb) || 30;
+            const planDuration = Number(plan.durationDays) || 30;
+
+            const vpnResult = await addVpnClientApi(clientName, planTraffic, planDuration, settings);
             if (vpnResult.success && vpnResult.subLink) {
               const subLink = vpnResult.subLink;
               messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🔗 لینک اشتراک:\n<code>${subLink}</code>\n\n⚠️ لینک خود را در کلاینت خود وارد کنید.`;
               
-              // NEW: Actually save the subscription key to database
               if (!db.subscription_keys) db.subscription_keys = [];
               const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
-              const expireDate = new Date(Date.now() + plan.durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              const expireTimestamp = Date.now() + planDuration * 24 * 60 * 60 * 1000;
+              const expireDate = isNaN(expireTimestamp) 
+                ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+                : new Date(expireTimestamp).toISOString().split("T")[0];
               
               db.subscription_keys.push({
                 id: randomId,
@@ -1789,7 +1815,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                 clientUuid: vpnResult.clientUuid || "",
                 subLink: subLink,
                 expireDate: expireDate,
-                trafficLimitGb: plan.trafficGb,
+                trafficLimitGb: planTraffic,
                 trafficUsedGb: 0,
                 createdAtMs: Date.now(),
                 status: "active"
@@ -2301,7 +2327,11 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
     
     // Create subscription key
     const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
-    const expireDate = new Date(Date.now() + plan.durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const planDays = Number(plan.durationDays) || 30;
+    const expireTimestamp = Date.now() + planDays * 24 * 60 * 60 * 1000;
+    const expireDate = isNaN(expireTimestamp) 
+      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      : new Date(expireTimestamp).toISOString().split("T")[0];
     
     const newSub = {
       id: randomId,
@@ -2852,11 +2882,16 @@ async function autoSyncTrafficUsage() {
         }
 
         if (trafficMap[matchName].expiryTime && trafficMap[matchName].expiryTime! > 0) {
-            const newExpiryISO = new Date(trafficMap[matchName].expiryTime!).toISOString();
-            if (k.expireDate !== newExpiryISO) {
-                k.expireDate = newExpiryISO;
-                updatedCount++;
-            }
+            try {
+                const expiryTs = trafficMap[matchName].expiryTime!;
+                if (expiryTs > 0 && expiryTs < 10000000000000) { // Practical limit (year 2286 approx)
+                    const newExpiryISO = new Date(expiryTs).toISOString().split("T")[0];
+                    if (k.expireDate !== newExpiryISO) {
+                        k.expireDate = newExpiryISO;
+                        updatedCount++;
+                    }
+                }
+            } catch (e) {}
         }
       }
 

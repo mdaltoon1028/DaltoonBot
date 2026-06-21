@@ -323,9 +323,25 @@ def login_xui():
         if csrf_token:
             headers["X-Csrf-Token"] = csrf_token
             session.headers.update({"X-Csrf-Token": csrf_token})
+            print(f"[Sanaei X-UI API] CSRF token applied to session headers.")
 
         print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
         response = session.post(login_url, data=login_data, headers=headers, timeout=8, verify=False)
+        
+        # After login, the panel might issue a NEW CSRF token or update cookies
+        if response.status_code == 200:
+             # Try to find a new token in the response headers or body
+             new_token = response.headers.get("X-Csrf-Token")
+             if new_token:
+                 session.headers.update({"X-Csrf-Token": new_token})
+                 print(f"[Sanaei X-UI API] New POST-login CSRF token detected in headers: {new_token}")
+             else:
+                 # Check body too just in case
+                 match = re.search(r'<meta\s+name="csrf-token"\s+content="([^"]+)"', response.text)
+                 if match:
+                     new_token = match.group(1)
+                     session.headers.update({"X-Csrf-Token": new_token})
+                     print(f"[Sanaei X-UI API] New POST-login CSRF token detected in body: {new_token}")
         try:
             res_json = response.json()
         except Exception:
@@ -491,45 +507,56 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
     for uid in targets:
         # Sanaei Global Update API (modern)
         try:
-            # First fetch client to get current data (required by some versions for update)
-            # Actually toggle is easier if we use direct toggle endpoint if available
-            # But most reliable is to fetch and update
-            # Some panels have /panel/api/inbounds/updateClient/{uuid}
-            
-            # Fetching current client state helps avoid overwriting other fields
-            update_payload = {
-                "id": uid,
-                "email": client_email,
-                "enable": enable
-            }
             # We try to update on all inbounds for robustness
-            try:
-                list_url = f"{base_url}/panel/api/inbounds/list"
-                list_res = session.get(list_url, timeout=8, verify=False)
-                res_json = list_res.json()
-                if res_json.get("success") and isinstance(res_json.get("obj"), list):
-                    for inb in res_json["obj"]:
-                        upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
-                        # Payload needs to match panel expectations
-                        # Typically just the changed parts + ID
+            list_url = f"{base_url}/panel/api/inbounds/list"
+            list_res = session.get(list_url, timeout=8, verify=False)
+            res_json = list_res.json()
+            if res_json.get("success") and isinstance(res_json.get("obj"), list):
+                for inb in res_json["obj"]:
+                    inbound_id = inb.get("id")
+                    upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
+                    
+                    try:
+                        # Try to find existing client info in this inbound for full payload
+                        c_str = inb.get("settings", "{}")
                         try:
-                            # Try to find existing client info in this inbound for full payload
-                            c_str = inb.get("settings", "{}")
-                            c_json = json.loads(c_str)
-                            for existing_c in c_json.get("clients", []):
-                                if str(existing_c.get("id")) == uid:
-                                    merged_c = existing_c.copy()
-                                    merged_c["enable"] = enable
-                                    if "tgId" in merged_c and not isinstance(merged_c["tgId"], int):
-                                        try:
-                                            merged_c["tgId"] = int(merged_c["tgId"]) if str(merged_c["tgId"]).isdigit() else 0
-                                        except:
-                                            merged_c["tgId"] = 0
-                                    session.post(upd_url, json=merged_c, timeout=5, verify=False)
+                             import json
+                             c_json = json.loads(c_str)
+                        except: continue
+
+                        for existing_c in c_json.get("clients", []):
+                            if str(existing_c.get("id")) == uid:
+                                merged_c = existing_c.copy()
+                                merged_c["enable"] = enable
+                                
+                                # Compatibility: Sanaei often expects inboundId in payload for updateClient
+                                # even if it's in the URL for some versions
+                                payload = {
+                                    "id": inbound_id, 
+                                    "settings": json.dumps({"clients": [merged_c]})
+                                }
+                                
+                                # Try standard updateClient endpoint first
+                                upd_res = session.post(upd_url, json=merged_c, timeout=5, verify=False)
+                                if upd_res.ok and upd_res.json().get("success"):
+                                    print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via /updateClient/{{uuid}}")
                                     success = True
-                        except: pass
-            except: pass
-        except: pass
+                                else:
+                                    # Fallback: Many Sanaei panels use a general update endpoint
+                                    # POST /panel/api/inbounds/updateClient
+                                    # Body: {id: inbound_id, settings: '{"clients": [...]}'}
+                                    fallback_url = f"{base_url}/panel/api/inbounds/updateClient"
+                                    # We need to preserve the full settings if possible, but 3x-ui usually allows partial client list update
+                                    fallback_res = session.post(fallback_url, json=payload, timeout=5, verify=False)
+                                    if fallback_res.ok and fallback_res.json().get("success"):
+                                        print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via fallback /updateClient")
+                                        success = True
+                                    else:
+                                        print(f"[Sanaei API] Failed to update client {uid} on inbound {inbound_id}: {upd_res.text} / {fallback_res.text}")
+                    except Exception as e:
+                        print(f"[Sanaei API] Error processing inbound {inbound_id} for client {uid}: {e}")
+        except Exception as e:
+            print(f"[Sanaei API] Error in update_vpn_client_enabled_api loop: {e}")
         
     return success
 
@@ -648,10 +675,17 @@ def delete_vpn_client_api(client_email, client_uuid=None):
             for inbound_id in valid_ids:
                 try:
                     del_url = f"{base_url}/panel/api/inbounds/{inbound_id}/delClient/{uid}"
+                    # Ensure X-Csrf-Token is present in current session headers from login_xui
                     resp = session.post(del_url, timeout=5, verify=False)
-                    if resp.status_code == 200 and resp.json().get("success"):
-                        success = True
-                        print(f"[Sanaei Delete API] Deleted client {uid} from inbound {inbound_id}")
+                    if resp.status_code == 200:
+                         resp_data = resp.json()
+                         if resp_data.get("success"):
+                            success = True
+                            print(f"[Sanaei Delete API] Successfully deleted client {uid} from inbound {inbound_id}")
+                         else:
+                            print(f"[Sanaei Delete API] Panel returned failure for {uid} on {inbound_id}: {resp.text}")
+                    else:
+                         print(f"[Sanaei Delete API] HTTP {resp.status_code} for {uid} on {inbound_id}: {resp.text}")
                 except Exception as e:
                     print(f"[Sanaei Delete API] Inbound delete exception on {inbound_id} for {uid}: {e}")
                     
@@ -659,9 +693,15 @@ def delete_vpn_client_api(client_email, client_uuid=None):
         try:
             del_url2 = f"{base_url}/panel/api/clients/{uid}/del"
             resp2 = session.post(del_url2, timeout=5, verify=False)
-            if resp2.status_code == 200 and resp2.json().get("success"):
-                success = True
-                print(f"[Sanaei Delete API] Globally deleted client {uid} via global client del")
+            if resp2.status_code == 200:
+                resp2_data = resp2.json()
+                if resp2_data.get("success"):
+                    success = True
+                    print(f"[Sanaei Delete API] Globally deleted client {uid} via global client del")
+                else:
+                    print(f"[Sanaei Delete API] Global delete failed for {uid}: {resp2.text}")
+            else:
+                print(f"[Sanaei Delete API] Global delete HTTP {resp2.status_code} for {uid}: {resp2.text}")
         except Exception as e:
             print(f"[Sanaei Delete API] Global client del exception for {uid}: {e}")
 
