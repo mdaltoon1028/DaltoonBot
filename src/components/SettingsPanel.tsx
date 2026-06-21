@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { PanelSettings, CustomButton, VpnPlan, InboundInfo } from "../types";
 import { Language, translations } from "../locales";
 import ConfirmationModal from "./ConfirmationModal";
@@ -27,7 +27,8 @@ import {
   Image as ImageIcon,
   Film,
   FileUp,
-  X
+  X,
+  Code
 } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -66,7 +67,8 @@ export default function SettingsPanel({
     fileType: "image" | "video" | "voice" | "file";
   } | null>(null);
   const [activeUploadType, setActiveUploadType] = useState<"image" | "video" | "voice" | "file">("file");
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const broadcastAreaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dashboard credentials, Port, and Admins management
   const [dashboardUsername, setDashboardUsername] = useState(settings.dashboardUsername || "Daltoon");
@@ -171,6 +173,33 @@ export default function SettingsPanel({
       setActiveUploadType(type);
       fileInputRef.current.click();
     }
+  };
+
+  const applyMonoFormat = () => {
+    if (!broadcastAreaRef.current) return;
+    const area = broadcastAreaRef.current;
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const text = broadcastText;
+    
+    // If no selection, just wrap the whole thing or do nothing? 
+    // User said "select it and make it mono", so we should wrap the selection.
+    const selectedText = text.substring(start, end);
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    
+    const newText = `${before}<code>${selectedText}</code>${after}`;
+    setBroadcastText(newText);
+    
+    // Set focus back and selection
+    setTimeout(() => {
+      if (broadcastAreaRef.current) {
+        broadcastAreaRef.current.focus();
+        const newStart = start + 6; // length of <code>
+        const newEnd = end + 6;
+        broadcastAreaRef.current.setSelectionRange(newStart, newEnd);
+      }
+    }, 10);
   };
 
   const handleSendBroadcast = async (e: React.MouseEvent) => {
@@ -313,13 +342,24 @@ export default function SettingsPanel({
         </p>
 
         <div className="space-y-3">
-          <textarea
-            rows={3}
-            placeholder={lang === "fa" ? "مثلا: 🚨 به روزرسانی سرورها انجام شد؛ برای دریافت اکانت جدید به پشتیبانی مراجعه فرمایید." : "e.g., Server maintenance completed successfully!"}
-            className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
-            value={broadcastText}
-            onChange={(e) => setBroadcastText(e.target.value)}
-          />
+          <div className="relative group">
+            <textarea
+              ref={broadcastAreaRef}
+              rows={3}
+              placeholder={lang === "fa" ? "مثلا: 🚨 به روزرسانی سرورها انجام شد؛ برای دریافت اکانت جدید به پشتیبانی مراجعه فرمایید." : "e.g., Server maintenance completed successfully!"}
+              className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
+              value={broadcastText}
+              onChange={(e) => setBroadcastText(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={applyMonoFormat}
+              title={lang === "fa" ? "مونو کردن متن (کپی با یک کلیک)" : "Apply Mono Format (One-click copy)"}
+              className="absolute right-2 bottom-2 p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-indigo-400 border border-gray-700 transition"
+            >
+              <Code className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           {/* Media Attachment Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-indigo-950/40">

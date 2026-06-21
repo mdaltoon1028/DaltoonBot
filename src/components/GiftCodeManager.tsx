@@ -393,63 +393,52 @@ export default function GiftCodeManager({
               </div>
 
               {promoType !== "extend_days" && (
-                <div className="bg-[#0b101d]/50 border border-indigo-500/10 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                      {isFa ? "🧮 محاسبه‌گر هوشمند ارزش تخفیف" : "🧮 Smart Discount Calculator"}
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      {isFa ? "🧮 محاسبه ارزش نهایی تخفیف" : "🧮 Discount Value Calculator"}
                     </label>
-                    <div className="p-1 px-2 rounded-md bg-indigo-500/10 text-[9px] text-indigo-400 font-bold">
-                      {isFa ? "نمونه تست" : "Test Sample"}
-                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        value={Number(calcBasePrice || 0).toLocaleString()}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/,/g, "");
-                          if (!isNaN(Number(val))) setCalcBasePrice(val);
-                        }}
-                        className="w-full bg-[#161c2a] border border-gray-700/50 rounded-lg p-2.5 text-xs text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-center"
-                      />
-                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-600 font-bold">
-                        {isFa ? "مبلغ" : "PRICE"}
-                      </div>
-                    </div>
-                    <div className="text-gray-600">
-                      <Plus className="w-3 h-3 rotate-45" />
-                    </div>
-                    <div className="relative w-24">
-                      <div className="w-full bg-[#161c2a]/50 border border-gray-800 rounded-lg p-2.5 text-xs text-amber-400 font-mono text-center">
-                        {promoValue || 0}{promoType === "percent" ? "%" : ""}
-                      </div>
-                    </div>
+                    <input
+                      type="text"
+                      placeholder={isFa ? "مبلغ پایه (تومان)" : "Base Price"}
+                      value={Number(calcBasePrice || 0).toLocaleString()}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/,/g, "");
+                        if (!isNaN(Number(val))) setCalcBasePrice(val);
+                      }}
+                      className="w-full bg-[#161c2a] border border-gray-700/50 rounded-lg p-2 text-xs text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-center"
+                    />
                   </div>
 
                   {calcBasePrice && promoValue && (
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-800/30">
-                      <div className="bg-[#161c2a]/30 p-2 rounded-lg border border-gray-800/40">
-                        <span className="block text-[9px] text-gray-500 mb-0.5">{isFa ? "سود مشتری" : "Customer Profit"}</span>
-                        <span className="text-[11px] text-amber-400 font-bold font-mono">
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between items-center px-1">
+                        <span className="text-[10px] text-gray-500">{isFa ? "میزان سود مشتری:" : "Customer Profit:"}</span>
+                        <span className="text-amber-400 font-bold text-xs font-mono">
                           {promoType === "percent" 
                             ? Math.round((Number(calcBasePrice) * Number(promoValue)) / 100).toLocaleString()
                             : Number(promoValue).toLocaleString()
-                          }
-                          <span className="text-[8px] font-normal mr-1 opacity-60">{isFa ? "تومان" : "TOM"}</span>
+                          } {isFa ? "تومان" : "TOM"}
                         </span>
                       </div>
-                      <div className="bg-[#161c2a]/30 p-2 rounded-lg border border-gray-800/40">
-                        <span className="block text-[9px] text-gray-500 mb-0.5">{isFa ? "دریافتی شما" : "Final Revenue"}</span>
-                        <span className="text-[11px] text-emerald-400 font-bold font-mono">
+                      <div className="flex justify-between items-center px-1">
+                        <span className="text-[10px] text-gray-500">{isFa ? "مبلغ نهایی پرداختی:" : "Final Payment:"}</span>
+                        <span className="text-emerald-400 font-bold text-xs font-mono">
                           {promoType === "percent"
                             ? (Number(calcBasePrice) - Math.round((Number(calcBasePrice) * Number(promoValue)) / 100)).toLocaleString()
                             : (Number(calcBasePrice) - Number(promoValue)).toLocaleString()
-                          }
-                          <span className="text-[8px] font-normal mr-1 opacity-60">{isFa ? "تومان" : "TOM"}</span>
+                          } {isFa ? "تومان" : "TOM"}
                         </span>
                       </div>
+                      <p className="text-[9px] text-indigo-500/60 text-center mt-1 pt-1 border-t border-gray-800/30 font-sans">
+                        {isFa 
+                          ? `* این کد ${promoValue}${promoType === "percent" ? "٪" : " تومان"} از مبلغ کل خرید کسر خواهد کرد.`
+                          : `* This code deducts ${promoValue}${promoType === "percent" ? "%" : " Toman"} from total purchase.`
+                        }
+                      </p>
                     </div>
                   )}
                 </div>
