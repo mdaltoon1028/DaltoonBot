@@ -1423,7 +1423,13 @@ async function addVpnClientApi(
         const addJson = JSON.parse(addText);
         if (addJson && addJson.success) {
           console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
-          const subLink = `${cleanedUrl}/sub/${clientEmail}`;
+          
+          // Use subUrl if provided in settings, otherwise fallback to cleanedUrl
+          const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
+            ? normalizeXuiUrl(settings.subUrl) 
+            : cleanedUrl;
+            
+          const subLink = `${subBase}/sub/${clientEmail}`;
           return { success: true, clientUuid, subLink }; // Ensure we use clientUuid
         } else {
           console.warn(`[Sanaei API Response] Creation error: ${addText}`);

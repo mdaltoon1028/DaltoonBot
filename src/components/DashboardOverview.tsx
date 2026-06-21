@@ -2,20 +2,15 @@ import React, { useState, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { InboundInfo, Transaction } from "../types";
 import { Language, translations } from "../locales";
+import SystemResourceMonitor from "./SystemResourceMonitor";
 import { 
   Activity, 
   Cpu, 
-  Terminal,
   Database, 
   Server, 
   CheckCircle, 
-  XCircle, 
   ArrowUpRight, 
   ShieldAlert,
-  TrendingUp,
-  BarChart2,
-  Calendar,
-  DollarSign,
   DownloadCloud,
   UploadCloud
 } from "lucide-react";
@@ -46,11 +41,6 @@ export default function DashboardOverview({
   const t = translations[lang];
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-
-  // Recent logs (last 5)
-  const recentLogs = [...logs]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
 
   // Aggregate approved transactions
   const approvedTx = transactions.filter(tx => tx.status === "approved");
@@ -84,6 +74,11 @@ export default function DashboardOverview({
 
   return (
     <div id="dashboard-tab" className="space-y-6">
+      {/* System Resources */}
+      <div className="mb-8">
+        <SystemResourceMonitor lang={lang} />
+      </div>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div id="stat-card-users" className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex items-center justify-between">

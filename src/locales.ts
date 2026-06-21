@@ -163,7 +163,10 @@ export const translations = {
     btnTopUp: "💳 Top-up Wallet",
     btnSupport: "📞 Support",
     buyCancel: "❌ Cancel",
-    buyCancelConfirmation: "Purchase cancelled. Returned to main menu. 🌻"
+    buyCancelConfirmation: "Purchase cancelled. Returned to main menu. 🌻",
+    cpuUsage: "CPU Usage",
+    memoryUsage: "Memory Usage",
+    diskUsage: "Disk Usage"
   },
   fa: {
     // Layout
@@ -327,6 +330,9 @@ export const translations = {
     btnTopUp: "💳 شارژ کیف پول (Top-up Wallet)",
     btnSupport: "📞 پشتیبانی دالتون (Support)",
     buyCancel: "❌ انصراف",
-    buyCancelConfirmation: "انصراف با موفقیت اعمال شد. به منوی اصلی بازگشتیم. 🌻"
+    buyCancelConfirmation: "انصراف با موفقیت اعمال شد. به منوی اصلی بازگشتیم. 🌻",
+    cpuUsage: "مصرف پردازنده (CPU)",
+    memoryUsage: "مصرف رم (Memory)",
+    diskUsage: "مصرف هارد (Disk)"
   }
 };

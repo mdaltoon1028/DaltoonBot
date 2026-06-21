@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Daltoon Systems - Real-Time Python Telegram Bot & Sanaei 3x-ui API Sync
-Designed specifically for: Sanaei X-UI v3.2 Panel (https://m.daltoon-server.ir:8443/Daltoon)
+Designed specifically for: Sanaei X-UI v3.2 Panel (https://tr.sub-daltoon.ir:2096/Daltoon)
 Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
 """
 
@@ -124,8 +124,8 @@ def get_config():
         "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
         "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
         "BOT_NICKNAME": "دالتون",
-        "XUI_URL": os.getenv("XUI_URL", "https://m.daltoon-server.ir:8443/Daltoon").rstrip("/"),
-        "SUB_URL": "https://m.daltoon-server.ir:8443",
+        "XUI_URL": os.getenv("XUI_URL", "https://tr.sub-daltoon.ir:2096/Daltoon").rstrip("/"),
+        "SUB_URL": "https://tr.sub-daltoon.ir:2096",
         "XUI_USER": os.getenv("XUI_USER", "Daltoon"),
         "XUI_PASS": os.getenv("XUI_PASS", "Daltoon10"),
         "CARD_NUMBER": os.getenv("CARD_NUMBER", "6037701194079627"),
@@ -1566,7 +1566,7 @@ def handle_main_menu_callback(call):
             import uuid
             client_uuid = str(uuid.uuid4())
             fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-            sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
+            sub_link = f"{cfg.get('SUB_URL', 'https://tr.sub-daltoon.ir:2096')}/sub/{fallback_sub_id}"
             print("[Bot Warning] Real API request failed or timed out. Simulated free test link established.")
             
         # Update user record
@@ -1815,7 +1815,7 @@ def process_purchase_username(message, plan_id, spec):
             client_uuid = str(uuid.uuid4())
             import random, string
             fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-            sub_link = f"{cfg.get('SUB_URL', 'https://m.daltoon-server.ir:8443')}/sub/{fallback_sub_id}"
+            sub_link = f"{cfg.get('SUB_URL', 'https://tr.sub-daltoon.ir:2096')}/sub/{fallback_sub_id}"
             print("[Bot Warning] Real API request failed or timed out. Simulated database recovery link established.")
 
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
