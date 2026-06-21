@@ -124,36 +124,46 @@ export default function BotSimulator({
     if (!order.includes("btnReferral")) order.push("btnReferral");
     if (!order.includes("btnTicketSupport")) order.push("btnTicketSupport");
 
-    const buttons: string[] = [];
+    const buttons: { key: string, text: string }[] = [];
     
     order.forEach(key => {
-      if (key === "btnBuyNew" && !settings?.hideBtnBuyNew) buttons.push(settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید");
-      else if (key === "btnMySubs" && !settings?.hideBtnMySubs) buttons.push(settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید");
-      else if (key === "btnGuides" && !settings?.hideBtnGuides) buttons.push(settings?.btnTextGuides || "💡 آموزش ها");
-      else if (key === "btnProfile" && !settings?.hideBtnProfile) buttons.push(settings?.btnTextProfile || "👤 حساب کاربری");
-      else if (key === "btnWallet" && !settings?.hideBtnWallet) buttons.push(settings?.btnTextWallet || "💵 کیف پول + شارژ");
-      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push(settings?.btnTextSupport || "🎧 پشتیبانی");
-      else if (key === "btnTicketSupport" && !settings?.hideBtnTicketSupport) buttons.push(settings?.btnTextTicketSupport || "🎫 تیکت به پشتیبانی");
-      else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push(settings?.btnTextFreeTest || "🎁 موجودی رایگان");
-      else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push(settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی");
-      else if (key === "btnFeedback" && !settings?.hideBtnFeedback) buttons.push(settings?.btnTextFeedback || "💌 بازخورد کاربر ها");
-      else if (key === "btnReferral" && !settings?.hideBtnReferral) buttons.push(settings?.btnTextReferral || "👥 زیرمجموعه گیری");
+      if (key === "btnBuyNew" && !settings?.hideBtnBuyNew) buttons.push({ key, text: settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید" });
+      else if (key === "btnMySubs" && !settings?.hideBtnMySubs) buttons.push({ key, text: settings?.btnTextMySubs || "🗂 اشتراک های من / تمدید" });
+      else if (key === "btnGuides" && !settings?.hideBtnGuides) buttons.push({ key, text: settings?.btnTextGuides || "💡 آموزش ها" });
+      else if (key === "btnColleagues" && !settings?.hideBtnColleagues) buttons.push({ key, text: settings?.btnTextColleagues || "بسته ویژه همکاران" });
+      else if (key === "btnAiChat" && !settings?.hideBtnAiChat) buttons.push({ key, text: settings?.btnTextAiChat || "🤖 چت با ربات" });
+      else if (key === "btnProfile" && !settings?.hideBtnProfile) buttons.push({ key, text: settings?.btnTextProfile || "👤 حساب کاربری" });
+      else if (key === "btnWallet" && !settings?.hideBtnWallet) buttons.push({ key, text: settings?.btnTextWallet || "💵 کیف پول + شارژ" });
+      else if (key === "btnSupport" && !settings?.hideBtnSupport) buttons.push({ key, text: settings?.btnTextSupport || "🎧 پشتیبانی" });
+      else if (key === "btnTicketSupport" && !settings?.hideBtnTicketSupport) buttons.push({ key, text: settings?.btnTextTicketSupport || "🎫 تیکت به پشتیبانی" });
+      else if (key === "btnFreeTest" && !settings?.hideBtnFreeTest) buttons.push({ key, text: settings?.btnTextFreeTest || "🎁 موجودی رایگان" });
+      else if (key === "btnInstantSupport" && !settings?.hideBtnInstantSupport) buttons.push({ key, text: settings?.btnTextInstantSupport || "🤖 پشتیبانی آنی" });
+      else if (key === "btnFeedback" && !settings?.hideBtnFeedback) buttons.push({ key, text: settings?.btnTextFeedback || "💌 بازخورد کاربر ها" });
+      else if (key === "btnReferral" && !settings?.hideBtnReferral) buttons.push({ key, text: settings?.btnTextReferral || "👥 زیرمجموعه گیری" });
     });
 
     const dynamicKeyboard: string[][] = [];
     if (layout === "vertical") {
-      buttons.forEach(b => dynamicKeyboard.push([b]));
+      buttons.forEach(b => dynamicKeyboard.push([b.text]));
     } else {
       let idx = 0;
       while (idx < buttons.length) {
-        if (layout === "stepped" && idx === 0) {
-          dynamicKeyboard.push([buttons[idx]]);
+        if (layout === "stepped" && (buttons[idx].key === "btnBuyNew" || buttons[idx].key === "btnColleagues")) {
+          dynamicKeyboard.push([buttons[idx].text]);
           idx += 1;
-        } else if (idx + 1 < buttons.length) {
-          dynamicKeyboard.push([buttons[idx], buttons[idx + 1]]);
-          idx += 2;
+          continue;
+        }
+        
+        if (idx + 1 < buttons.length) {
+          if (layout === "stepped" && (buttons[idx + 1].key === "btnBuyNew" || buttons[idx + 1].key === "btnColleagues")) {
+            dynamicKeyboard.push([buttons[idx].text]);
+            idx += 1;
+          } else {
+            dynamicKeyboard.push([buttons[idx].text, buttons[idx + 1].text]);
+            idx += 2;
+          }
         } else {
-          dynamicKeyboard.push([buttons[idx]]);
+          dynamicKeyboard.push([buttons[idx].text]);
           idx += 1;
         }
       }

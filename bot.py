@@ -1034,13 +1034,20 @@ def get_custom_keyboard():
         # Default stepped / horizontal mixed
         idx = 0
         while idx < len(buttons):
-            # First 2 buttons are prioritized and shown full-width in stepped layout
-            if layout == "stepped" and idx < 2:
+            cb = buttons[idx].callback_data
+            if layout == "stepped" and cb in ["mm_btnBuyNew", "mm_btnColleagues"]:
                 markup.add(buttons[idx])
                 idx += 1
-            elif idx + 1 < len(buttons):
-                markup.add(buttons[idx], buttons[idx+1])
-                idx += 2
+                continue
+                
+            if idx + 1 < len(buttons):
+                next_cb = buttons[idx+1].callback_data
+                if layout == "stepped" and next_cb in ["mm_btnBuyNew", "mm_btnColleagues"]:
+                    markup.add(buttons[idx])
+                    idx += 1
+                else:
+                    markup.add(buttons[idx], buttons[idx+1])
+                    idx += 2
             else:
                 markup.add(buttons[idx])
                 idx += 1
