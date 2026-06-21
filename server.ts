@@ -702,7 +702,16 @@ app.post("/api/tickets/reply", (req, res) => {
           `💬 <b>متن پاسخ:</b>\n` +
           `<blockquote>${reply}</blockquote>\n\n` +
           `🍀 <i>از اعتماد و شکیبایی شما سپاسگزاریم.</i>`;
-        sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(err => {
+        
+        const replyMarkup = {
+          inline_keyboard: [
+            [
+              { text: "✍️ پاسخ به این تیکت", callback_data: `tkt_reply_${ticket.id}` }
+            ]
+          ]
+        };
+
+        sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg, replyMarkup).catch(err => {
           console.error("[Telegram Ticket Reply Auto-Notify Error]", err);
         });
       }

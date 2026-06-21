@@ -917,13 +917,28 @@ def is_user_member_of_channel(user_id):
     if not channel:
         return True
         
-    clean_channel = channel
-    if "t.me/" in clean_channel:
-        clean_channel = "@" + clean_channel.split("t.me/")[-1].strip("/")
-    elif "/" in clean_channel and not clean_channel.startswith("-"):
-        clean_channel = "@" + clean_channel.split("/")[-1].strip()
+    clean_channel = channel.strip()
     
-    if not clean_channel.startswith("@") and not clean_channel.startswith("-"):
+    # Handle numeric telegram IDs (e.g. -100123456789)
+    if clean_channel.startswith("-") and clean_channel[1:].replace("-", "").isdigit():
+        pass
+    # Bypass verification for private invite links where API checks are impossible
+    elif "+" in clean_channel or "joinchat" in clean_channel:
+        print(f"[Mandatory Join Check] Configured channel is a private invite link ({clean_channel}). API check unsupported. Auto-approving membership to prevent lockouts.")
+        return True
+    else:
+        # Clean URLs and usernames
+        if "t.me/" in clean_channel:
+            clean_channel = clean_channel.split("t.me/")[-1].strip("/")
+        if "/" in clean_channel:
+            clean_channel = clean_channel.split("/")[-1].strip()
+        
+        # Strip leading @ symbols or spaces
+        clean_channel = clean_channel.replace("@", "").strip()
+        
+        if not clean_channel:
+            return True
+            
         clean_channel = "@" + clean_channel
 
     try:
@@ -933,7 +948,9 @@ def is_user_member_of_channel(user_id):
         return False
     except Exception as e:
         print(f"[Mandatory Join Check Error] Failed to verify membership for {user_id} in {clean_channel}: {e}")
-        return False
+        # Always fallback to True for any exception (API errors, bot is not admin, chat not found, network timeouts etc)
+        # This guarantees that a misconfiguration or API error will not brick the bot / lock all users out.
+        return True
 
 def get_channel_join_link():
     cfg = get_config()
@@ -1017,6 +1034,101 @@ def start_cmd(message):
             f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
         )
     bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+
+@bot.message_handler(commands=['buy'])
+def buy_cmd(message):
+    tg_id = message.from_user.id
+    username = message.from_user.username
+    register_tg_user(tg_id, username)
+    user = get_user_data(tg_id)
+    if user and user.get('status') == 'banned':
+        bot.reply_to(message, "❌ حساب کاربری شما مسدود شده است.")
+        return
+    if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
+        return
+        
+    cfg = get_config()
+    nickname = cfg.get("BOT_NICKNAME", "دالتون")
+    
+    message_body = (
+        f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
+        "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
+        "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
+    )
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("⚡️ Standard", callback_data="plcat_Standard"),
+        types.InlineKeyboardButton("⭐️ Vip", callback_data="plcat_VIP"),
+        types.InlineKeyboardButton("🚀 Unlimited VoIp", callback_data="plcat_Unlimited VoIP")
+    )
+    
+    markup.row(
+        types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+    )
+    
+    bot.send_message(message.chat.id, message_body, parse_mode="HTML", reply_markup=markup)
+
+@bot.message_handler(commands=['pay'])
+def pay_cmd(message):
+    tg_id = message.from_user.id
+    username = message.from_user.username
+    register_tg_user(tg_id, username)
+    user = get_user_data(tg_id)
+    if user and user.get('status') == 'banned':
+        bot.reply_to(message, "❌ حساب کاربری شما مسدود شده است.")
+        return
+    if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
+        return
+        
+    cfg = get_config()
+    nickname = cfg.get("BOT_NICKNAME", "دالتون")
+    instructions = (
+        f"💳 <b>بخش شارژ و افزایش موجودی کیف پول {nickname}:</b>\n\n"
+        f"لطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\n"
+        f"پس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود."
+    )
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    charge_amounts = cfg.get("WALLET_CHARGE_AMOUNTS", [200000, 300000, 400000, 500000, 1000000])
+    
+    row_buttons = []
+    for amt in charge_amounts:
+        try:
+            amt_val = int(amt)
+        except Exception:
+            amt_val = 200000
+            
+        btn_label = f"💵 {amt_val:,} تومان"
+        if amt_val >= 1000000:
+            btn_label = f"🔥 {amt_val:,} تومان"
+        row_buttons.append(types.InlineKeyboardButton(btn_label, callback_data=f"charge_amount_{amt_val}"))
+        
+    for i in range(0, len(row_buttons), 2):
+        if i + 1 < len(row_buttons):
+            markup.add(row_buttons[i], row_buttons[i+1])
+        else:
+            markup.add(row_buttons[i])
+            
+    markup.add(
+        types.InlineKeyboardButton("🔗 افزایش موجودی دلخواه (وارد کردن مبلغ)", callback_data="charge_custom_amount")
+    )
+    markup.row(
+        types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+    )
+    bot.send_message(message.chat.id, instructions, parse_mode="HTML", reply_markup=markup)
+
+@bot.message_handler(commands=['support'])
+def support_cmd(message):
+    tg_id = message.from_user.id
+    username = message.from_user.username
+    register_tg_user(tg_id, username)
+    user = get_user_data(tg_id)
+    if user and user.get('status') == 'banned':
+        bot.reply_to(message, "❌ حساب کاربری شما مسدود شده است.")
+        return
+    if not verify_mandatory_join_and_warn(message.chat.id, tg_id):
+        return
+    show_ticket_main_menu(message.chat.id)
 
 @bot.message_handler(func=lambda msg: True)
 def text_messages_handler(message):
@@ -1206,8 +1318,9 @@ def handle_main_menu_callback(call):
 
     # 3. Charger Wallet instructions
     elif action == "mm_btnWallet":
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
         instructions = (
-            f"💳 <b>بخش شارژ و افزایش موجودی کیف پول دالتون:</b>\n\n"
+            f"💳 <b>بخش شارژ و افزایش موجودی کیف پول {nickname}:</b>\n\n"
             f"لطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\n"
             f"پس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود."
         )
@@ -1269,8 +1382,9 @@ def handle_main_menu_callback(call):
         else:
             support_handle = cfg.get("SUPPORT_HANDLE", "@daltoon_owner")
             tg_channel = cfg.get("TG_CHANNEL", "@daltoon_channel")
+            nickname = cfg.get("BOT_NICKNAME", "دالتون")
             support_txt = (
-                "📞 <b>پشتیبانی فنی دالتون سرور:</b>\n\n"
+                f"📞 <b>پشتیبانی فنی {nickname} سرور:</b>\n\n"
                 "مشتری گرامی! در صورت بروز هرگونه قطعی، کندی سرعت، ارورهای اتصال یا سوالات قبل از خرید با ما تماس بگیرید.\n\n"
                 f"👤 اکانت ناظر فنی: {support_handle}\n"
                 f"📢 کانال اطلاع‌رسانی پایداری شبکه: {tg_channel}\n\n"
@@ -1280,13 +1394,7 @@ def handle_main_menu_callback(call):
         
     elif action == "mm_btnTicketSupport":
         bot.answer_callback_query(call.id)
-        msg = bot.send_message(
-            message.chat.id, 
-            "🎫 <b>لطفاً متن تیکت یا مشکل خود را به صورت کامل بنویسید و ارسال کنید:</b>\n\n(جهت انصراف کلمه «انصراف» را ارسال کنید)", 
-            parse_mode="HTML", 
-            reply_markup=get_cancel_keyboard()
-        )
-        bot.register_next_step_handler(msg, process_ticket_message)
+        show_ticket_main_menu(message.chat.id)
         
     # 5. Free Test
     elif action == "mm_btnFreeTest":
@@ -1302,7 +1410,8 @@ def handle_main_menu_callback(call):
             bot.edit_message_text("❌ <b>شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!</b>\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.", chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
             return
             
-        bot.send_message(message.chat.id, "⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱ گیگابایت) از پنل سرور دالتون... لطفاً چند لحظه صبر کنید.")
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        bot.send_message(message.chat.id, f"⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱ گیگابایت) از پنل سرور {nickname}... لطفاً چند لحظه صبر کنید.")
         
         import string
         import random
@@ -1596,6 +1705,35 @@ def callback_handler(call):
     if cfg.get("MANDATORY_JOIN_ACTIVE") and not is_user_member_of_channel(tg_id):
         bot.answer_callback_query(call.id, "❌ برای استفاده از دکمه‌های ربات، عضویت در کانال اسپانسر الزامی است.", show_alert=True)
         verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
+        return
+
+    # User tickets handlers
+    if call.data == "tkt_new":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(
+            call.message.chat.id, 
+            "🎫 <b>لطفاً متن تیکت یا مشکل خود را به صورت کامل بنویسید و ارسال کنید:</b>\n\n(جهت انصراف کلمه «انصراف» را ارسال کنید)", 
+            parse_mode="HTML", 
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_ticket_message)
+        return
+
+    if call.data == "tkt_track":
+        bot.answer_callback_query(call.id)
+        show_user_tickets_list(call.message.chat.id, tg_id, message_id=call.message.message_id)
+        return
+
+    if call.data.startswith("tkt_view_"):
+        bot.answer_callback_query(call.id)
+        ticket_id = call.data.split("_")[2]
+        show_ticket_detail(call.message.chat.id, ticket_id, message_id=call.message.message_id)
+        return
+
+    if call.data.startswith("tkt_reply_"):
+        bot.answer_callback_query(call.id)
+        ticket_id = call.data.split("_")[2]
+        initiate_user_ticket_reply(call.message.chat.id, ticket_id)
         return
 
     if call.data.startswith("cdel_"):
@@ -2435,6 +2573,215 @@ def process_ticket_message(message):
     )
     bot.reply_to(message, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
 
+def show_ticket_main_menu(chat_id):
+    cfg = get_config()
+    nickname = cfg.get("BOT_NICKNAME", "دالتون")
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("✍️ ثبت تیکت جدید", callback_data="tkt_new"),
+        types.InlineKeyboardButton("🔍 پیگیری پرونده / تیکت‌ها", callback_data="tkt_track")
+    )
+    markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+    
+    msg_text = (
+        f"🎫 <b>بخش پشتیبانی و تیکتینگ {nickname}</b>\n\n"
+        f"مشتری گرامی! خوش آمدید. لطفاً یکی از گزینه‌های زیر را انتخاب کنید:\n\n"
+        f"🔹 <b>ثبت تیکت جدید:</b> جهت ثبت پیام، مشکل یا سوال جدید برای مدیریت.\n"
+        f"🔸 <b>پیگیری پرونده / تیکت‌ها:</b> مشاهده پاسخ ادمین‌ها و تیکت‌های قبلی شما."
+    )
+    bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
+
+def show_user_tickets_list(chat_id, user_id, message_id=None):
+    db = read_db_json()
+    tickets = db.get("tickets", [])
+    
+    # Filter tickets for this user
+    user_tickets = [t for t in tickets if str(t.get("userId")) == str(user_id)]
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    
+    if not user_tickets:
+        msg_text = (
+            "❌ <b>شما هیچ تیکتی در سیستم ثبت نکرده‌اید!</b>\n\n"
+            "می‌توانید با استفاده از دکمه زیر اقدام به ثبت اولین تیکت خود کنید."
+        )
+        markup.add(types.InlineKeyboardButton("✍️ ثبت تیکت جدید", callback_data="tkt_new"))
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به منوی پشتیبانی", callback_data="mm_btnTicketSupport"))
+    else:
+        # Sort by last updated datetime or creation
+        user_tickets = sorted(user_tickets, key=lambda x: x.get("updatedAt", x.get("createdAt", "")), reverse=True)
+        
+        msg_text = "🔍 <b>لیست پرونده‌ها و تیکت‌های شما:</b>\n\nلطفاً برای دیدن جزئیات، پاسخ ادمین و یا ادامه مکالمه روی یکی از پرونده‌های زیر کلیک کنید:\n"
+        
+        for t in user_tickets:
+            t_id = t.get("id")
+            status = t.get("status", "open")
+            
+            # Map status to pleasant Persian and emoji
+            if status == "open":
+                status_txt = "⏳ در انتظار پاسخ"
+            elif status == "answered":
+                status_txt = "✅ پاسخ داده شده"
+            elif status == "closed":
+                status_txt = "🔒 بسته شده"
+            else:
+                status_txt = f"⚙️ {status}"
+                
+            markup.add(types.InlineKeyboardButton(f"🎫 {t_id} ({status_txt})", callback_data=f"tkt_view_{t_id}"))
+            
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به منوی پشتیبانی", callback_data="mm_btnTicketSupport"))
+
+    if message_id:
+        try:
+            bot.edit_message_text(msg_text, chat_id=chat_id, message_id=message_id, parse_mode="HTML", reply_markup=markup)
+        except Exception:
+            bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
+    else:
+        bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
+
+def show_ticket_detail(chat_id, ticket_id, message_id=None):
+    db = read_db_json()
+    tickets = db.get("tickets", [])
+    ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
+    
+    if not ticket:
+        msg_text = "❌ <b>پرونده مورد نظر یافت نشد.</b>"
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به لیست پرونده‌ها", callback_data="tkt_track"))
+        if message_id:
+            bot.edit_message_text(msg_text, chat_id=chat_id, message_id=message_id, parse_mode="HTML", reply_markup=markup)
+        else:
+            bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
+        return
+
+    status = ticket.get("status", "open")
+    if status == "open":
+        status_txt = "⏳ در انتظار پاسخ کارشناس"
+    elif status == "answered":
+        status_txt = "✅ پاسخ داده شده"
+    elif status == "closed":
+        status_txt = "🔒 بسته شده و خاتمه یافته"
+    else:
+        status_txt = status
+
+    msg_text = (
+        f"🎫 <b>جزئیات پرونده پشتیبانی</b>\n\n"
+        f"🆔 <b>شناسه تیکت:</b> <code>{ticket_id}</code>\n"
+        f"📊 <b>وضعیت:</b> {status_txt}\n"
+        f"🕒 <b>آخرین بروزرسانی:</b> {ticket.get('updatedAt', ticket.get('createdAt', ''))[:10]}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💬 <b>تاریخچه پیام‌ها:</b>\n\n"
+    )
+
+    for msg in ticket.get("messages", []):
+        sender = msg.get("sender", "user")
+        text = msg.get("message", "")
+        sender_lbl = "👤 شما" if sender == "user" else "🧠 کارشناس پشتیبانی"
+        
+        msg_text += (
+            f"🔸 <b>{sender_lbl}:</b>\n"
+            f"<blockquote>{text}</blockquote>\n\n"
+        )
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    # Give option to reply if ticket is not closed
+    if status != "closed":
+        markup.add(types.InlineKeyboardButton("✍️ ارسال پاسخ جدید", callback_data=f"tkt_reply_{ticket_id}"))
+        
+    markup.add(
+        types.InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"tkt_view_{ticket_id}"),
+        types.InlineKeyboardButton("🔙 لیست پرونده‌ها", callback_data="tkt_track")
+    )
+
+    if message_id:
+        try:
+            bot.edit_message_text(msg_text, chat_id=chat_id, message_id=message_id, parse_mode="HTML", reply_markup=markup)
+        except Exception:
+            bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
+    else:
+        bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
+
+def initiate_user_ticket_reply(chat_id, ticket_id):
+    msg = bot.send_message(
+        chat_id,
+        f"✍️ <b>لطفاً پیام پاسخ خود را برای تیکت <code>{ticket_id}</code> بنویسید و ارسال کنید:</b>\n\n"
+        f"<i>این پیام به ادامه همین پرونده پیوست و برای کارشناسان فرستاده خواهد شد.</i>\n\n"
+        f"(برای انصراف کلمه «انصراف» را ارسال کنید)",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    bot.register_next_step_handler(msg, process_user_reply_message, ticket_id)
+
+def process_user_reply_message(message, ticket_id):
+    from datetime import datetime
+    tg_id = message.from_user.id
+    username = message.from_user.username or f"user_{tg_id}"
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ ارسال پاسخ لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+
+    if not text:
+        msg = bot.send_message(message.chat.id, "⚠️ <b>لطفاً متن پاسخ خود را بفرستید:</b>\n\n(امکان ارسال پیام غیرمتنی وجود ندارد. برای انصراف «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_user_reply_message, ticket_id)
+        return
+
+    db = read_db_json()
+    tickets = db.get("tickets", [])
+    ticket_idx = next((i for i, t in enumerate(tickets) if t.get("id") == ticket_id), -1)
+
+    if ticket_idx == -1:
+        bot.send_message(message.chat.id, "❌ خطایی رخ داد: تیکت مورد نظر پیدا نشد.", reply_markup=get_custom_keyboard())
+        return
+
+    # Add message
+    tickets[ticket_idx]["messages"].append({
+        "sender": "user",
+        "message": text,
+        "date": datetime.now().isoformat()
+    })
+    tickets[ticket_idx]["status"] = "open" # Set status back to open when user replies
+    tickets[ticket_idx]["updatedAt"] = datetime.now().isoformat()
+    
+    db["tickets"] = tickets
+    write_db_json(db)
+
+    # Notify admins about user reply
+    cfg = get_config()
+    targets = set()
+    owner_id = cfg.get("OWNER_ID")
+    if owner_id and owner_id > 0:
+        targets.add(owner_id)
+    for adm_id in cfg.get("ADMINS", []):
+        if adm_id and adm_id > 0:
+            targets.add(adm_id)
+
+    # Log action
+    try:
+        log_action(tg_id, username, "ارسال پاسخ تیکت", f"پاسخ به {ticket_id}: {text}")
+    except Exception as e:
+        print("Error logging reply action:", e)
+
+    for target_id in targets:
+        try:
+            admin_msg = (
+                f"💬 <b>پاسخ جدید کاربر به تیکت!</b>\n\n"
+                f"🆔 <b>شناسه تیکت:</b> <code>{ticket_id}</code>\n"
+                f"👤 <b>کاربر:</b> @{username} (<code>{tg_id}</code>)\n"
+                f"📝 <b>متن پیام پاسخ:</b>\n"
+                f"<blockquote>{text}</blockquote>\n"
+                f"👉 <i>می‌توانید به این تیکت در داشبورد پاسخ دهید.</i>"
+            )
+            bot.send_message(target_id, admin_msg, parse_mode="HTML")
+        except Exception as ex:
+            print(f"[Admin Notify Ticket Reply Warning for user ID {target_id}] {ex}")
+
+    bot.send_message(message.chat.id, "✅ <b>پاسخ شما با موفقیت به تیکت پیوست شد!</b>", parse_mode="HTML", reply_markup=get_custom_keyboard())
+    show_ticket_detail(message.chat.id, ticket_id)
+
 def process_gift_code(message):
     tg_id = message.from_user.id
     text = message.text.strip() if message.text else ""
@@ -2641,12 +2988,13 @@ def handle_receipt_upload(message):
             
             for target_id in targets:
                 try:
+                    nickname = cfg.get("BOT_NICKNAME", "دالتون")
                     admin_msg = (
                         f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
                         f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
                         f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
                         f"🆔 شناسه: <code>{tx_id}</code>\n\n"
-                        f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت دالتون سرور مراجعه کنید."
+                        f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت {nickname} سرور مراجعه کنید."
                     )
                     bot.send_message(target_id, admin_msg, parse_mode="HTML")
                 except Exception as ex:
@@ -2676,6 +3024,19 @@ if __name__ == "__main__":
                 bot.token = token
                 
             print(f"[Daltoon Bot] Starting polling with active bot: {token[:8]}...")
+            try:
+                # Dynamically set Telegram menu commands to enable the "Menu" shortcut button for all users
+                commands = [
+                    types.BotCommand("start", "💥 شروع مجدد ربات و منوی اصلی"),
+                    types.BotCommand("buy", "🛒 خرید اشتراک جدید"),
+                    types.BotCommand("pay", "💳 شارژ کیف پول و پرداخت"),
+                    types.BotCommand("support", "🎫 تیکت به پشتیبانی")
+                ]
+                bot.set_my_commands(commands)
+                print("[Daltoon Bot] Registered menu commands: /start, /buy, /pay, and /support")
+            except Exception as cmd_err:
+                print(f"[Daltoon Bot Warning] Could not register bot commands: {cmd_err}")
+
             try:
                 bot.delete_webhook(drop_pending_updates=True)
             except Exception as w_err:
