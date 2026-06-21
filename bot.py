@@ -2623,8 +2623,6 @@ def callback_handler(call):
         )
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         bot.answer_callback_query(call.id)
-[ReplacementContent for lines 2564-2584 skipped for brevity in thought Process]
-
 
     elif call.data.startswith("charge_amount_"):
         try:
@@ -3712,9 +3710,8 @@ def handle_receipt_upload(message):
                 try:
                     nickname = cfg.get("BOT_NICKNAME", "دالتون")
                     admin_msg = (
-                        f"🔔 <b>{"خرید اشتراک جدید" if pending_plan_id else "رسید شارژ کیف پول"} برای تایید واریز شد!</b>\n\n"
+                        f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
                         f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
-                        + (f"📦 پلان: {pending_plan_id}\n👤 نام کانفیگ: {pending_username}\n" if pending_plan_id else "") +
                         f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
                         f"🆔 شناسه: <code>{tx_id}</code>\n\n"
                         f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت {nickname} سرور مراجعه کنید."
