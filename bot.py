@@ -2858,7 +2858,14 @@ def callback_handler(call):
             
         elif action == "toggle":
             # Toggle logic
-            sub["status"] = "inactive" if sub.get("status", "active") == "active" else "active"
+            new_status = "inactive" if sub.get("status", "active") == "active" else "active"
+            is_enabled = (new_status == "active")
+            
+            # Action on X-UI API
+            client_name = sub.get("clientName", "")
+            update_vpn_client_enabled_api(client_name, is_enabled, sub.get("clientUuid"))
+            
+            sub["status"] = new_status
             keys[sub_idx] = sub
             db["subscription_keys"] = keys
             write_db_json(db)
