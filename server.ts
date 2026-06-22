@@ -115,6 +115,7 @@ console.log(`[Database] Connecting to JSON file database at: ${dbJsonPath}`);
 
 // Define types for pure JSON database to align perfectly with schema
 interface DbSchema {
+  isNewInstall?: boolean;
   users: any[];
   transactions: any[];
   subscription_keys: any[];
