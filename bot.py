@@ -592,10 +592,22 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
             if rj.get("success") and rj.get("obj"):
                 client_obj = rj.get("obj")
                 client_obj["enable"] = enable
+                
+                # In newer 3x-ui versions, the update endpoint format expects payload matching the standard API form
+                import json
+                inbound_id = client_obj.get("inboundId", 0)
+                payload_data = {"id": inbound_id, "settings": json.dumps({"clients": [client_obj]})}
+                
                 upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
-                upd_res = session.post(upd_url, json=client_obj, timeout=5, verify=False)
+                upd_res = session.post(upd_url, data=payload_data, timeout=5, verify=False)
                 if upd_res.json().get("success"):
-                    print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint.")
+                    print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint (form).")
+                    return True
+                
+                # Fallback to json matching if form fails
+                upd_res_json = session.post(upd_url, json=client_obj, timeout=5, verify=False)
+                if upd_res_json.json().get("success"):
+                    print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint (json).")
                     return True
         except: pass
     
@@ -654,9 +666,29 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                 # 0. Direct REPLACE row payload using email endpoint (as per new 3x-ui docs)
                                 email_upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
                                 try:
+                                    res_email_form = session.post(email_upd_url, data=payload, timeout=5, verify=False)
+                                    if res_email_form.ok and res_email_form.json().get("success"):
+                                         print(f"[Sanaei API] Successfully updated {safe_email} via /panel/api/clients/update/{{email}} (form)")
+                                         success = True
+                                         continue
                                     res_email = session.post(email_upd_url, json=merged_c, timeout=5, verify=False)
                                     if res_email.ok and res_email.json().get("success"):
-                                         print(f"[Sanaei API] Successfully updated {safe_email} via /panel/api/clients/update/{{email}}")
+                                         print(f"[Sanaei API] Successfully updated {safe_email} via /panel/api/clients/update/{{email}} (json)")
+                                         success = True
+                                         continue
+                                except: pass
+                                
+                                # 1. Replace row using UUID endpoint as fallback
+                                uuid_upd_url = f"{base_url}/panel/api/clients/update/{uid}"
+                                try:
+                                    res_uuid_form = session.post(uuid_upd_url, data=payload, timeout=5, verify=False)
+                                    if res_uuid_form.ok and res_uuid_form.json().get("success"):
+                                         print(f"[Sanaei API] Successfully updated {uid} via /panel/api/clients/update/{{uuid}} (form)")
+                                         success = True
+                                         continue
+                                    res_uuid_json = session.post(uuid_upd_url, json=merged_c, timeout=5, verify=False)
+                                    if res_uuid_json.ok and res_uuid_json.json().get("success"):
+                                         print(f"[Sanaei API] Successfully updated {uid} via /panel/api/clients/update/{{uuid}} (json)")
                                          success = True
                                          continue
                                 except: pass
@@ -839,7 +871,7 @@ def delete_vpn_client_api(client_email, client_uuid=None):
                     
         # 2. Global client delete endpoint (some newer 3x-ui panels use this)
         try:
-            del_url2 = f"{base_url}/panel/api/clients/{uid}/del"
+            del_url2 = f"{base_url}/panel/api/clients/del/{uid}"
             resp2 = session.post(del_url2, timeout=5, verify=False)
             if resp2.status_code == 200:
                 resp2_data = resp2.json()
@@ -2732,8 +2764,8 @@ def callback_handler(call):
                 new_exp_days = (new_exp_dt - datetime.now()).days
                 new_exp_days = max(1, new_exp_days)
                 
-                delete_vpn_client_api(client_name, k.get("client_uuid"))
-                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("client_uuid"))
+                delete_vpn_client_api(client_name, k.get("clientUuid"))
+                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"))
                 
                 if not sub_link:
                     sub_link = k.get('subLink', '')
