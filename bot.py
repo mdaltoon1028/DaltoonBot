@@ -14,6 +14,7 @@ import uuid
 import os
 import sys
 import logging
+import urllib.parse
 
 # Shared Database file path (script-relative for reliable CWD-independent execution)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -3835,10 +3836,10 @@ def callback_handler(call):
         
         for p_name in sorted_names:
             encoded_name = urllib.parse.quote(p_name)
-            cb_data = f"igpln_{group_id}_{encoded_name}"
+            cb_data = f"igpln:{group_id}:{encoded_name}"
             if len(cb_data) > 64:
                 first_plan_id = plans_by_name[p_name][0]["id"]
-                cb_data = f"igplnz_{group_id}_{first_plan_id}"
+                cb_data = f"igplnz:{group_id}:{first_plan_id}"
             
             markup.add(types.InlineKeyboardButton(f"⚡️ {p_name}", callback_data=cb_data))
             
@@ -3856,16 +3857,16 @@ def callback_handler(call):
         )
         return
 
-    if call.data.startswith("igpln_") or call.data.startswith("igplnz_"):
+    if call.data.startswith("igpln:") or call.data.startswith("igplnz:"):
         bot.answer_callback_query(call.id)
         db = read_db_json()
         
-        if call.data.startswith("igpln_"):
-            parts = call.data.split("_", 2)
+        if call.data.startswith("igpln:"):
+            parts = call.data.split(":", 2)
             group_id = parts[1]
             plan_name = urllib.parse.unquote(parts[2])
         else:
-            parts = call.data.split("_", 2)
+            parts = call.data.split(":", 2)
             group_id = parts[1]
             ref_plan_id = parts[2]
             ref_plan = next((p for p in db.get("vpn_plans", []) if p["id"] == ref_plan_id), None)
