@@ -3652,9 +3652,12 @@ def callback_handler(call):
         return
         
     if call.data.startswith("buy_"):
+        bot.answer_callback_query(call.id)
         plan_id = call.data[4:]
+        tg_id = call.from_user.id
         
         db = read_db_json()
+        db_plans = db.get("vpn_plans", [])
         db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
         
         spec = None
@@ -3676,22 +3679,17 @@ def callback_handler(call):
             spec = plan_specs.get(plan_id)
             
         if not spec:
-            bot.answer_callback_query(call.id, "خطا در پیدا کردن مشخصات پلان.")
-            return
-
-        if not db_plan:
-            bot.send_message(
-                call.message.chat.id,
-                f"❌ <b>بسته پیدا نشد! مشخصات این بسته در دیتابیس ثبت نشده یا حذف شده است.</b>",
-                parse_mode="HTML"
-            )
-            bot.answer_callback_query(call.id)
+            bot.send_message(call.message.chat.id, "❌ متاسفانه مشخصات این طرح یافت نشد.")
             return
 
         user = get_user_data(tg_id)
         if not user:
-            bot.answer_callback_query(call.id, "خطای نامشخص بانک اطلاعاتی.")
-            return
+            # Attempt to register if missing for some reason
+            register_tg_user(tg_id, call.from_user.username)
+            user = get_user_data(tg_id)
+            if not user:
+                bot.send_message(call.message.chat.id, "❌ خطای نامشخص دیتابیس: کاربر یافت نشد.")
+                return
             
         cfg = get_config()
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))

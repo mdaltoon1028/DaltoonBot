@@ -522,21 +522,33 @@ export default function BotSimulator({
     }
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
-        const inlinePlans: any[] = plans.map(p => ({
-          text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
-          action: `buy_${p.id}`
-        }));
-        inlinePlans.push([
+        const cats = new Set<string>();
+        plans.forEach(p => cats.add(p.category || "Standard"));
+        const definedCats = planCategories || [];
+        
+        const inlineCats: any[] = [];
+        definedCats.forEach(c => {
+          if (plans.some(p => p.category?.toLowerCase() === c.name.toLowerCase())) {
+            inlineCats.push({ text: `${c.emoji || "⚡"} ${c.name}`, action: `plcat_${c.name}` });
+            cats.delete(c.name);
+          }
+        });
+        cats.forEach(c => {
+          inlineCats.push({ text: `⚡ ${c}`, action: `plcat_${c}` });
+        });
+
+        inlineCats.push([
           { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
           { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
         ]);
+
         addBotReply(
           lang === "fa" 
-            ? "لطفا یکی از پلان‌های زیر را برای خرید انتخاب کنید:\n\n⚠️ هزینه از کیف پول شما کسر خواهد شد." 
-            : "Please select one of our premium configs to purchase:\n\n⚠️ The total amount will be deducted from your Toman wallet balance.",
+            ? "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:" 
+            : "Please select one of the following categories to view plans:",
           800,
           undefined,
-          inlinePlans
+          inlineCats
         );
     } 
     else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
@@ -787,6 +799,36 @@ export default function BotSimulator({
 
   const handleInlineClick = (action: string) => {
     // Mimic clicking standard inline telegram button
+    if (action === "btn_back_home") {
+      addBotReply(lang === "fa" ? "✔️ شما به منوی اصلی بازگشتید." : "Returned to main menu.", 500, getKeyboard());
+      return;
+    }
+
+    if (action.startsWith("plcat_")) {
+      const catName = action.replace("plcat_", "");
+      const filteredPlans = plans.filter(p => (p.category || "Standard").toLowerCase() === catName.toLowerCase());
+      
+      const inlinePlans: any[] = filteredPlans.map(p => ({
+        text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
+        action: `buy_${p.id}`
+      }));
+      
+      inlinePlans.push([
+        { text: lang === "fa" ? "🔙 بازگشت به دسته‌بندی‌ها" : "🔙 Back to Categories", action: (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") },
+        { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+      ]);
+      
+      addBotReply(
+        lang === "fa"
+          ? `⚡️ <b>پلن‌های بخش ${catName}</b>\n\nلطفاً یکی از تعرفه‌های معتبر زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:`
+          : `⚡️ <b>${catName} Plans</b>\n\nPlease select one of the following premium plans:`,
+        800,
+        undefined,
+        inlinePlans
+      );
+      return;
+    }
+
     if (action.startsWith("btn_sub_link_")) {
       const subId = action.substring(13);
       const k = keys.find(item => item.id === subId);
@@ -877,11 +919,6 @@ export default function BotSimulator({
 
     if (action === "btn_gift_code") {
       addBotReply(lang === "fa" ? "🎁 قابلیت اعمال کد هدیه در شبیه‌ساز غیرفعال است." : "Gift codes not available in demo.", 500);
-      return;
-    }
-
-    if (action === "btn_back_home") {
-      addBotReply(lang === "fa" ? "✔️ شما به منوی اصلی بازگشتید." : "Returned to main menu.", 500, getKeyboard());
       return;
     }
 
