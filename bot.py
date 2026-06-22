@@ -653,7 +653,7 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
 
     return links
 
-def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
+def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None, group_id=None):
     """
     Creates a new client in the X-UI panel.
     Adds the user to all active inbounds specified in the settings.
@@ -695,14 +695,33 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     # Dynamic inbound IDs selection from dashboard settings
     db = read_db_json()
     inbound_ids = []
-    settings_str = db.get("settings", {}).get("panel_config")
-    if settings_str:
+    
+    if group_id:
         try:
-            panel_cfg = json.loads(settings_str)
-            active_ids = panel_cfg.get("activeInboundIds", [])
-            if active_ids and isinstance(active_ids, list):
-                inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
-        except: pass
+            if str(group_id).startswith("ib_"):
+                inbound_ids = [int(str(group_id).replace("ib_", ""))]
+                print(f"[Group Inbounds API] Resolved virtual group '{group_id}' to inbound: {inbound_ids}")
+            else:
+                settings_str = db.get("settings", {}).get("panel_config")
+                if settings_str:
+                    panel_cfg = json.loads(settings_str)
+                    groups = panel_cfg.get("inboundGroups", [])
+                    matched_group = next((g for g in groups if g.get("id") == group_id), None)
+                    if matched_group and matched_group.get("inboundIds"):
+                        inbound_ids = [int(i) for i in matched_group["inboundIds"]]
+                        print(f"[Group Inbounds API] Resolved group '{group_id}' to inbounds: {inbound_ids}")
+        except Exception as e:
+            print(f"[Group Inbounds Error Resolve]: {e}")
+
+    if not inbound_ids:
+        settings_str = db.get("settings", {}).get("panel_config")
+        if settings_str:
+            try:
+                panel_cfg = json.loads(settings_str)
+                active_ids = panel_cfg.get("activeInboundIds", [])
+                if active_ids and isinstance(active_ids, list):
+                    inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+            except: pass
     
     # 1. Fetch available IDs to ensure validity (Avoid hanging on dead IDs)
     valid_ids = []
@@ -725,25 +744,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if len(inbound_ids) > 10:
         inbound_ids = inbound_ids[:10]
 
-    add_url = f"{base_url}/panel/api/clients/add"
-    # Sanaei Bulk Add Payload
-    payload = {
-        "id": inbound_ids[0] if inbound_ids else 1,
-        "settings": json.dumps({"clients": [client_config]}),
-        "inboundIds": inbound_ids
-    }
-    
     headers = {"Accept": "application/json"}
-    try:
-        response = session.post(add_url, json=payload, headers=headers, timeout=12, verify=False)
-        if response.ok and response.json().get("success"):
-            print(f"[Sanaei API Bulk] Created user '{safe_email}' on {len(inbound_ids)} inbounds.")
-            return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
-    except: pass
 
-    # Fallback to per-inbound addition (optimized for speed, top 3)
-    fallback_success = False
-    for inb_id in inbound_ids[:3]:
+    # Loop to add client strictly to EACH matched inbound individually (Bypass Global Bulk Bag)
+    success_count = 0
+    for inb_id in inbound_ids:
         classic_url = f"{base_url}/panel/api/inbounds/addClient"
         classic_payload = {
             "id": inb_id,
@@ -752,10 +757,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         try:
             c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=5, verify=False)
             if c_res.ok and c_res.json().get("success"):
-                fallback_success = True
+                success_count += 1
+                print(f"[Classic API] Added user '{safe_email}' to inbound {inb_id}")
         except: pass
     
-    if fallback_success:
+    if success_count > 0:
         return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
 
     return None, None
@@ -1103,21 +1109,24 @@ def pop_user_pending_charge(tg_id):
         return amount
     return None
 
-def set_user_pending_purchase(tg_id, plan_id, client_name):
+def set_user_pending_purchase(tg_id, plan_id, client_name, group_id=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["pendingPurchasePlanId"] = plan_id
         user["pendingPurchaseClientName"] = client_name
-        user.pop("pendingPurchaseGroupId", None)
+        if group_id:
+            user["pendingPurchaseGroupId"] = group_id
+        else:
+            user.pop("pendingPurchaseGroupId", None)
         write_db_json(db)
 
 def get_user_pending_purchase(tg_id):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
-        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName")
-    return None, None
+        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName"), user.get("pendingPurchaseGroupId")
+    return None, None, None
 
 def clear_user_pending_purchase(tg_id):
     db = read_db_json()
@@ -1668,6 +1677,32 @@ def buy_cmd(message):
     nickname = cfg.get("BOT_NICKNAME", "دالتون")
     db = read_db_json()
     
+    settings_str = db.get("settings", {}).get("panel_config", "{}")
+    panel_cfg = json.loads(settings_str) if settings_str else {}
+    
+    is_group_enabled = panel_cfg.get("isGroupInboundsEnabled", False)
+    groups = panel_cfg.get("inboundGroups", [])
+
+    if is_group_enabled and groups:
+        message_body = (
+            f"🌍 <b>مکان سرورهای {nickname}:</b>\n\n"
+            "لطفاً ابتدا لوکیشن دلخواه خود را برای سرویس انتخاب کنید:\n\n"
+            "💡 با انتخاب لوکیشن، پلن‌های فعال آن مکان نمایش داده خواهد شد."
+        )
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for g in groups:
+            emoji = g.get("flag", "🏳️")
+            markup.add(types.InlineKeyboardButton(f"{emoji} {g.get('name', 'بدون نام')}", callback_data=f"igcat:{g.get('id')}"))
+        
+        # Virtual group support for old configurations
+        for g in groups:
+            pass 
+        markup.row(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+        try:
+            bot.send_message(message.chat.id, message_body, parse_mode="HTML", reply_markup=markup)
+        except: pass
+        return
+        
     message_body = (
         f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
         "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
@@ -2262,7 +2297,8 @@ def process_purchase_username_manual(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         return
 
-    set_user_pending_purchase(tg_id, plan_id, username_input)
+    group_id = spec.get("group_id") if isinstance(spec, dict) else None
+    set_user_pending_purchase(tg_id, plan_id, username_input, group_id)
     
     # User request: Ask for discount code after entering name
     markup = types.InlineKeyboardMarkup()
@@ -2296,7 +2332,7 @@ def handle_buy_pay(call):
         return
 
     # User pending data
-    pending_plan, pending_client = get_user_pending_purchase(tg_id)
+    pending_plan, pending_client, pending_group = get_user_pending_purchase(tg_id)
 
     spec = {
         "id": db_plan["id"],
@@ -2304,7 +2340,8 @@ def handle_buy_pay(call):
         "price": db_plan["price"],
         "traffic": db_plan.get("trafficGb", 30),
         "duration": db_plan.get("durationDays", 30),
-        "price_original": db_plan["price"]
+        "price_original": db_plan["price"],
+        "group_id": pending_group
     }
     
     if promo_code != "none":
@@ -2384,7 +2421,7 @@ def handle_buy_pay(call):
         grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
         
         cfg = get_config()
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
         
         if not sub_link:
             if not cfg.get("SIMULATOR_MODE"):
@@ -2701,7 +2738,7 @@ def process_purchase_username(message, plan_id, spec):
         u_temp = next((u for u in db_temp.get("users", []) if u["userId"] == tg_id), None)
         grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
 
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
         if not sub_link:
             # Fallback simulated dynamic link
             client_uuid = str(uuid.uuid4())
@@ -3600,9 +3637,68 @@ def callback_handler(call):
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
         
+    if call.data.startswith("igcat:"):
+        bot.answer_callback_query(call.id)
+        group_id = call.data.split(":", 1)[1]
+        
+        db = read_db_json()
+        db_plans = db.get("vpn_plans", [])
+        db_categories = db.get("plan_categories", [])
+        
+        categories = []
+        category_map = {}
+        if db_categories:
+            for c in db_categories:
+                if c.get("name"):
+                    categories.append(c["name"])
+                    category_map[c["name"]] = c.get("emoji", "⚡️")
+        else:
+            seen_cats = set()
+            for p in db_plans:
+                cat = p.get("category", "Standard")
+                if cat not in seen_cats:
+                    categories.append(cat)
+                    seen_cats.add(cat)
+                    
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for cat in categories:
+            has_plans = any(p.get("category") == cat for p in db_plans)
+            if not has_plans: continue
+            
+            emoji = category_map.get(cat)
+            if not emoji:
+                emoji = "⚡️"
+                if "vip" in cat.lower(): emoji = "⭐️"
+                elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
+            
+            # Pass group_id forward to category selection
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{cat}_{group_id}"))
+            
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت به مکان‌ها", callback_data="mm_btnBuyNew"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+        )
+        
+        cfg = get_config()
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        message_body = (
+            f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
+            "لطفاً سطح کیفیت و دسته بندی را انتخاب کنید:\n"
+        )
+        bot.edit_message_text(
+            message_body,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        return
+
     if call.data.startswith("plcat_"):
         bot.answer_callback_query(call.id)
-        category_name = call.data.split("_", 1)[1]
+        parts = call.data.split("_")
+        category_name = parts[1]
+        group_id = parts[2] if len(parts) > 2 else None
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
@@ -3643,12 +3739,22 @@ def callback_handler(call):
                 clean_name = clean_name[5:]
                 
             btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
-            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
+            # Pass group_id forward to buy_
+            if group_id:
+                markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}:{group_id}"))
+            else:
+                markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
             
-        markup.row(
-            types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data="mm_btnBuyNew"),
-            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
-        )
+        if group_id:
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data=f"igcat:{group_id}"),
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            )
+        else:
+            markup.row(
+                types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data="mm_btnBuyNew"),
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            )
         
         bot.edit_message_text(
             message_body,
@@ -3660,7 +3766,9 @@ def callback_handler(call):
         return
         
     if call.data.startswith("buy_"):
-        plan_id = call.data[4:].split(":")[0]
+        parts = call.data[4:].split(":")
+        plan_id = parts[0]
+        group_id = parts[1] if len(parts) > 1 else None
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
@@ -3673,7 +3781,8 @@ def callback_handler(call):
                 "name": db_plan["name"],
                 "price": db_plan["price"],
                 "traffic": db_plan.get("trafficGb", 30),
-                "duration": db_plan.get("durationDays", 30)
+                "duration": db_plan.get("durationDays", 30),
+                "group_id": group_id
             }
         else:
             # Details of the fallback plans
@@ -3683,6 +3792,8 @@ def callback_handler(call):
                 "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
             }
             spec = plan_specs.get(plan_id)
+            if spec:
+                spec["group_id"] = group_id
             
         if not spec:
             bot.answer_callback_query(call.id, "خطا در پیدا کردن مشخصات پلان.")
