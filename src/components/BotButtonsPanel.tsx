@@ -406,7 +406,7 @@ export default function BotButtonsPanel({
                         <input
                           type="text"
                           disabled={btn.disabled}
-                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnGuides" || key === "btnWallet" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnWallet" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
                           value={btn.value}
                           onChange={(e) => btn.setter(e.target.value)}
                         />
@@ -444,19 +444,6 @@ export default function BotButtonsPanel({
                           >
                             <Activity className="w-3.5 h-3.5" />
                             {isFreeTestActive ? (lang === "fa" ? "سرویس فعال" : "ON") : (lang === "fa" ? "سرویس غیرفعال" : "OFF")}
-                          </button>
-                        )}
-                        {key === "btnGuides" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTempGuidesText(guidesText || "🌐 راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)\n\n...");
-                              setShowGuidesModal(true);
-                            }}
-                            title={lang === "fa" ? "ویرایش متن راهنما" : "Edit Guide Description"}
-                            className="absolute left-[44px] top-1/2 -translate-y-1/2 p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-white transition-all cursor-pointer border border-amber-500/20 z-10"
-                          >
-                            <Pencil className="w-4 h-4" />
                           </button>
                         )}
                         {key === "btnWallet" && (

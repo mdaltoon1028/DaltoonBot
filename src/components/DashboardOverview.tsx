@@ -43,7 +43,7 @@ export default function DashboardOverview({
   return (
     <div id="dashboard-tab" className="space-y-6">
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div id="stat-card-users" className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-400 uppercase tracking-wider">{t.metricTotalUsers}</span>
@@ -67,6 +67,24 @@ export default function DashboardOverview({
           </div>
           <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-400">
             <Server className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div id="stat-card-revenue" className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex items-center justify-between">
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wider">{t.metricRevenue}</span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <h3 className="text-2xl font-bold font-display text-indigo-400">
+                {totalIncome.toLocaleString()}
+              </h3>
+              <span className="text-xs text-gray-400">{lang === "fa" ? "تومان" : "Toman"}</span>
+            </div>
+            <span className="text-xs text-gray-500 flex items-center mt-1">
+              {t.fromApproved}
+            </span>
+          </div>
+          <div className="p-3 rounded-lg bg-[#6366f1]/10 text-indigo-400">
+            <Activity className="w-6 h-6" />
           </div>
         </div>
 
