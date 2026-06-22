@@ -1095,7 +1095,6 @@ def set_user_pending_purchase(tg_id, plan_id, client_name):
     if user:
         user["pendingPurchasePlanId"] = plan_id
         user["pendingPurchaseClientName"] = client_name
-        user.pop("pendingPurchaseGroupId", None)
         write_db_json(db)
 
 def get_user_pending_purchase(tg_id):
@@ -1111,7 +1110,6 @@ def clear_user_pending_purchase(tg_id):
     if user:
         user.pop("pendingPurchasePlanId", None)
         user.pop("pendingPurchaseClientName", None)
-        user.pop("pendingPurchaseGroupId", None)
         write_db_json(db)
 
 def to_persian_digits(s):

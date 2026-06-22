@@ -523,27 +523,7 @@ export default function BotSimulator({
     }
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
-      const isGroupEnabled = settings?.isGroupInboundsEnabled;
-      const groups = settings?.inboundGroups || [];
-      if (isGroupEnabled && groups.length > 0) {
-        const inlineGroups: any[] = groups.map((g: any) => ({
-          text: `📍 ${g.name}`,
-          action: `igsel_${g.id}`
-        }));
-        inlineGroups.push([
-          { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
-          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
-        ]);
-        addBotReply(
-          lang === "fa"
-            ? "لطفا یکی از لوکیشن‌ها/اینباندهای زیر را برای خرید اشتراک انتخاب نمایید:"
-            : "Please select one of the location-based inbounds for your subscription:",
-          800,
-          undefined,
-          inlineGroups
-        );
-      } else {
-        const inlinePlans: any[] = plans.map(p => ({
+        const inlinePlans: any[] = (plans || []).map(p => ({
           text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
           action: `buy_${p.id}`
         }));
@@ -559,7 +539,6 @@ export default function BotSimulator({
           undefined,
           inlinePlans
         );
-      }
     } 
     else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
       const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
@@ -1194,97 +1173,6 @@ export default function BotSimulator({
           ]);
         }, 800);
       }, 700);
-      return;
-    }
-
-    if (action.startsWith("igsel_")) {
-      const igId = action.substring(6);
-      const group = (settings?.inboundGroups || []).find((g: any) => g.id === igId);
-      if (group) {
-        setSelectedInboundGroupId(igId);
-        
-        // group.planIds is the array of connected plan category names (e.g. ["Standard", "VIP"])
-        const activeCatNames = group.planIds || [];
-        
-        // Show categories
-        const inlineCats: any[] = [];
-        const definedCats = planCategories || [];
-        const seenCats = new Set<string>();
-        
-        for (const cat of definedCats) {
-          if (activeCatNames.length === 0 || activeCatNames.includes(cat.name)) {
-            if (!seenCats.has(cat.name)) {
-              const hasPlans = plans.some(p => p.category?.toLowerCase() === cat.name.toLowerCase());
-              if (hasPlans) {
-                inlineCats.push({
-                  text: `${cat.emoji || "⚡"} ${cat.name}`,
-                  action: `igcat_${igId}_${cat.name}`
-                });
-                seenCats.add(cat.name);
-              }
-            }
-          }
-        }
-        
-        // Fallback for categories checked on plans directly
-        for (const p of plans) {
-          const catName = p.category || "Standard";
-          if (activeCatNames.length === 0 || activeCatNames.includes(catName)) {
-            if (!seenCats.has(catName)) {
-              inlineCats.push({
-                text: `⚡ ${catName}`,
-                action: `igcat_${igId}_${catName}`
-              });
-              seenCats.add(catName);
-            }
-          }
-        }
-        
-        inlineCats.push([
-          { text: lang === "fa" ? "🔙 بازگشت به لوکیشن‌ها" : "🔙 Back to Locations", action: "mm_btnBuyNew" },
-          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
-        ]);
-        
-        addBotReply(
-          lang === "fa" 
-            ? `⚡️ <b>دسته‌بندی طرح‌های لوکیشن ${group.name}:</b>\n\nلطفاً یکی از دسته‌بندی‌های فعال زیر را انتخاب کنید تا طرح‌های موجود را مشاهده و خرید نمایید:` 
-            : `⚡️ <b>Plan categories for location ${group.name}:</b>\n\nPlease select one of the following active categories:`,
-          800,
-          undefined,
-          inlineCats
-        );
-      }
-      return;
-    }
-
-    if (action.startsWith("igcat_")) {
-      const parts = action.split("_");
-      const igId = parts[1];
-      const catName = parts.slice(2).join("_");
-      
-      const group = (settings?.inboundGroups || []).find((g: any) => g.id === igId);
-      if (group) {
-        // Filter plans under this category
-        const filteredPlans = plans.filter(p => p.category?.toLowerCase() === catName.toLowerCase());
-        const inlinePlans: any[] = filteredPlans.map(p => ({
-          text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
-          action: `buy_${p.id}`
-        }));
-        
-        inlinePlans.push([
-          { text: lang === "fa" ? "🔙 بازگشت به دسته‌بندی‌ها" : "🔙 Back to Categories", action: `igsel_${igId}` },
-          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
-        ]);
-        
-        addBotReply(
-          lang === "fa"
-            ? `لطفا یکی از پلان‌های زیر را برای گروه <b>${group.name}</b> (بخش ${catName}) انتخاب کنید:\n\n⚠️ هزینه از کیف پول شما کسر خواهد شد.`
-            : `Please select one of our premium plans for <b>${group.name}</b> (${catName}):\n\n⚠️ The total Toman amount will be deducted from your wallet balance.`,
-          800,
-          undefined,
-          inlinePlans
-        );
-      }
       return;
     }
 
