@@ -1020,8 +1020,8 @@ export default function App() {
             </button>
             <div className="flex items-center gap-2">
               <div className="cursor-pointer flex items-center gap-2" onClick={() => setIsSidebarOpen(true)}>
-                <LionAndSunFlag />
                 <h1 className="font-display font-bold text-xl tracking-wide text-white block">{t.appTitle}</h1>
+                <LionAndSunFlag />
               </div>
             </div>
           </div>
