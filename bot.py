@@ -592,7 +592,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
             if rj.get("success") and rj.get("obj"):
                 client_obj = rj.get("obj")
                 client_obj["enable"] = enable
-                upd_url = f"{base_url}/panel/api/clients/update/{client_uuid}"
+                upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
                 upd_res = session.post(upd_url, json=client_obj, timeout=5, verify=False)
                 if upd_res.json().get("success"):
                     print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint.")
@@ -650,6 +650,16 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                     "id": inbound_id, 
                                     "settings": json.dumps({"clients": [merged_c]})
                                 }
+                                
+                                # 0. Direct REPLACE row payload using email endpoint (as per new 3x-ui docs)
+                                email_upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
+                                try:
+                                    res_email = session.post(email_upd_url, json=merged_c, timeout=5, verify=False)
+                                    if res_email.ok and res_email.json().get("success"):
+                                         print(f"[Sanaei API] Successfully updated {safe_email} via /panel/api/clients/update/{{email}}")
+                                         success = True
+                                         continue
+                                except: pass
                                 
                                 # Try standard updateClient endpoint first
                                 upd_res = session.post(upd_url, data=payload, timeout=5, verify=False)
@@ -3288,11 +3298,14 @@ def callback_handler(call):
             )
             
         try:
-            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+            # Instead of completely removing the message (which deletes configs/QR), we just try to remove the inline keyboard
+            # so the user keeps their config history. We will only delete if it's explicitly a purely navigational text message.
+            if call.message.content_type == 'text':
+                 bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+            else:
+                 bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)
         except Exception:
-            try:
-                bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)
-            except: pass
+            pass
             
         bot.send_message(
             chat_id=call.message.chat.id,
