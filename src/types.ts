@@ -189,6 +189,7 @@ export interface GiftCode {
   maxUsage: number;
   usedBy: number[];
   createdAt: string;
+  durationDays?: number;
 }
 
 export interface ColleaguePackage {
@@ -232,6 +233,7 @@ export interface PromoCode {
   totalUsage: number;
   usedBy: number[];
   createdAt: string;
+  durationDays?: number;
 }
 
 export interface TicketMessage {

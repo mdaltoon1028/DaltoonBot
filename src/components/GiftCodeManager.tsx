@@ -6,11 +6,11 @@ import ConfirmationModal from "./ConfirmationModal";
 
 interface GiftCodeManagerProps {
   giftCodes: GiftCode[];
-  onAddCode: (code: string, amount: number, maxUsage: number) => void;
+  onAddCode: (code: string, amount: number, maxUsage: number, durationDays?: number) => void;
   onDeleteCode: (id: string) => void;
-  onEditCode?: (id: string, code: string, amount: number, maxUsage: number) => void;
+  onEditCode?: (id: string, code: string, amount: number, maxUsage: number, durationDays?: number) => void;
   promoCodes?: PromoCode[];
-  onAddPromoCode?: (code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number) => void;
+  onAddPromoCode?: (code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number, durationDays?: number) => void;
   onDeletePromoCode?: (id: string) => void;
   settings?: PanelSettings;
   onSaveSettings?: (settings: PanelSettings) => void;
@@ -36,6 +36,7 @@ export default function GiftCodeManager({
   const [code, setCode] = useState('');
   const [amount, setAmount] = useState('');
   const [maxUsage, setMaxUsage] = useState('1');
+  const [durationDays, setDurationDays] = useState('30');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{isOpen: boolean, action: (() => void) | null, message: string}>({ isOpen: false, action: null, message: "" });
@@ -66,6 +67,7 @@ export default function GiftCodeManager({
   const [promoType, setPromoType] = useState<"percent" | "extend_days" | "fixed_amount">("percent");
   const [promoValue, setPromoValue] = useState("");
   const [promoMaxUsage, setPromoMaxUsage] = useState("50");
+  const [promoDurationDays, setPromoDurationDays] = useState("30");
   const [promoSuccess, setPromoSuccess] = useState(false);
   const [calcBasePrice, setCalcBasePrice] = useState<string>("100,000".replace(/,/g, ""));
 
@@ -75,14 +77,15 @@ export default function GiftCodeManager({
     e.preventDefault();
     if (code && amount && maxUsage) {
       if (editingId && onEditCode) {
-        onEditCode(editingId, code, parseInt(amount, 10), parseInt(maxUsage, 10));
+        onEditCode(editingId, code, parseInt(amount, 10), parseInt(maxUsage, 10), durationDays ? parseInt(durationDays, 10) : undefined);
         setEditingId(null);
       } else {
-        onAddCode(code, parseInt(amount, 10), parseInt(maxUsage, 10));
+        onAddCode(code, parseInt(amount, 10), parseInt(maxUsage, 10), durationDays ? parseInt(durationDays, 10) : undefined);
       }
       setCode('');
       setAmount('');
       setMaxUsage('1');
+      setDurationDays('30');
     }
   };
 
@@ -91,6 +94,7 @@ export default function GiftCodeManager({
     setCode(gc.code);
     setAmount(gc.amount.toString());
     setMaxUsage(gc.maxUsage.toString());
+    setDurationDays(gc.durationDays ? gc.durationDays.toString() : '30');
   };
 
   const cancelEdit = () => {
@@ -98,6 +102,7 @@ export default function GiftCodeManager({
     setCode('');
     setAmount('');
     setMaxUsage('1');
+    setDurationDays('30');
   };
 
   const handleSaveReferralSettings = () => {
@@ -129,13 +134,15 @@ export default function GiftCodeManager({
         promoCode.toUpperCase().trim(),
         promoType,
         parseFloat(promoValue),
-        parseInt(promoMaxUsage, 10)
+        parseInt(promoMaxUsage, 10),
+        promoDurationDays ? parseInt(promoDurationDays, 10) : undefined
       );
     }
 
     setPromoCode("");
     setPromoValue("");
     setPromoMaxUsage("50");
+    setPromoDurationDays("30");
 
     setPromoSuccess(true);
     setTimeout(() => setPromoSuccess(false), 3000);
@@ -236,6 +243,23 @@ export default function GiftCodeManager({
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">
+                  {isFa ? 'مدت اعتبار کد (تعداد روز)' : 'Code Validity (Days)'}
+                </label>
+                <input
+                  type="number"
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-purple-500 transition-all text-left dir-ltr"
+                  placeholder="30"
+                  min="1"
+                  required
+                />
+                <p className="text-[10px] text-gray-400">
+                  {isFa ? "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد هدیه منقضی و غیرقابل استفاده می‌شود." : "e.g. 1 day. Expire after 1 day from creation."}
+                </p>
+              </div>
               <div className="flex gap-2 pt-2">
                 {editingId && (
                   <button
@@ -271,6 +295,7 @@ export default function GiftCodeManager({
                     <th className="px-6 py-4 font-medium">کد هدیه</th>
                     <th className="px-6 py-4 font-medium">مبلغ شارژ</th>
                     <th className="px-6 py-4 font-medium">وضعیت استفاده</th>
+                    <th className="px-6 py-4 font-medium">مدت اعتبار</th>
                     <th className="px-6 py-4 font-medium">تاریخ ایجاد</th>
                     <th className="px-6 py-4 font-medium text-center">عملیات</th>
                   </tr>
@@ -293,6 +318,9 @@ export default function GiftCodeManager({
                             {gc.totalUsage} / {gc.maxUsage}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-amber-400">
+                        {gc.durationDays ? `${gc.durationDays} روز` : 'بدون انقضا'}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-400">
                         {new Date(gc.createdAt).toLocaleDateString('fa-IR')}
@@ -457,6 +485,24 @@ export default function GiftCodeManager({
                 />
               </div>
 
+              <div>
+                <label className="block text-xs text-gray-400 font-semibold mb-1.5">
+                  {isFa ? "⏳ مدت اعتبار کد (تعداد روز)" : "⏳ Code Validity (Days)"}
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={promoDurationDays}
+                  onChange={(e) => setPromoDurationDays(e.target.value)}
+                  placeholder="30"
+                  className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center font-semibold"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {isFa ? "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد تخفیف منقضی و غیرقابل استفاده می‌شود." : "e.g. 1 day. Expire after 1 day from creation."}
+                </p>
+              </div>
+
               <div className="pt-2">
                 <button
                   type="submit"
@@ -540,6 +586,9 @@ export default function GiftCodeManager({
                           {pc.totalUsage}
                         </span>{" "}
                         / <span className="text-gray-400">{pc.maxUsage}</span>
+                        <div className="text-[10px] text-amber-500 mt-1">
+                          {isFa ? "اعتبار منقضی:" : "Validity:"} {pc.durationDays ? `${pc.durationDays} روز` : 'بدون انقضا'}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-gray-500" />

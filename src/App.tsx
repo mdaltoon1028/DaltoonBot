@@ -587,7 +587,7 @@ export default function App() {
     }).catch(err => console.warn("Failed syncing adjusted wallet:", err));
   };
 
-  const handleAddPromoCode = (code: string, type: "percent" | "extend_days", value: number, maxUsage: number) => {
+  const handleAddPromoCode = (code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number, durationDays?: number) => {
     const nextCode = {
       id: Math.random().toString(36).substring(2, 9),
       code,
@@ -596,7 +596,8 @@ export default function App() {
       maxUsage,
       totalUsage: 0,
       usedBy: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      durationDays
     };
     setPromoCodes(prev => [nextCode, ...prev]);
 
@@ -1273,22 +1274,22 @@ export default function App() {
           {activeTab === "giftcodes" && (
             <GiftCodeManager 
               giftCodes={giftCodes}
-              onAddCode={async (code, amount, maxUsage) => {
+              onAddCode={async (code, amount, maxUsage, durationDays) => {
                 const response = await fetch("/api/gift-codes", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ code, amount, maxUsage })
+                  body: JSON.stringify({ code, amount, maxUsage, durationDays })
                 });
                 const data = await response.json();
                 if (data.success) {
                   setGiftCodes(prev => [...prev, data.item]);
                 }
               }}
-              onEditCode={async (id, code, amount, maxUsage) => {
+              onEditCode={async (id, code, amount, maxUsage, durationDays) => {
                 const response = await fetch("/api/gift-codes/edit", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ id, code, amount, maxUsage })
+                  body: JSON.stringify({ id, code, amount, maxUsage, durationDays })
                 });
                 const data = await response.json();
                 if (data.success) {

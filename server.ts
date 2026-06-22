@@ -700,7 +700,7 @@ app.get("/api/gift-codes", (req, res) => {
 app.post("/api/gift-codes", (req, res) => {
   const db = readJsonDb();
   if (!db.gift_codes) db.gift_codes = [];
-  const { code, amount, maxUsage } = req.body;
+  const { code, amount, maxUsage, durationDays } = req.body;
   if (!code || !amount || maxUsage === undefined) return res.status(400).json({ error: "Missing fields" });
 
   const newCode = {
@@ -710,7 +710,8 @@ app.post("/api/gift-codes", (req, res) => {
     maxUsage: parseInt(maxUsage, 10),
     totalUsage: 0,
     usedBy: [],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    durationDays: durationDays ? parseInt(durationDays, 10) : undefined
   };
   db.gift_codes.push(newCode);
   writeJsonDb(db);
@@ -1250,7 +1251,7 @@ app.post("/api/ai/chat", async (req, res) => {
 app.post("/api/gift-codes/edit", (req, res) => {
   const db = readJsonDb();
   if (!db.gift_codes) db.gift_codes = [];
-  const { id, code, amount, maxUsage } = req.body;
+  const { id, code, amount, maxUsage, durationDays } = req.body;
   if (!id || !code || amount === undefined || maxUsage === undefined) {
     return res.status(400).json({ error: "Missing fields" });
   }
@@ -1258,7 +1259,13 @@ app.post("/api/gift-codes/edit", (req, res) => {
   let updatedCode = null;
   db.gift_codes = db.gift_codes.map(c => {
     if (c.id === id) {
-      updatedCode = { ...c, code, amount: parseInt(amount, 10), maxUsage: parseInt(maxUsage, 10) };
+      updatedCode = { 
+        ...c, 
+        code, 
+        amount: parseInt(amount, 10), 
+        maxUsage: parseInt(maxUsage, 10),
+        durationDays: durationDays ? parseInt(durationDays, 10) : undefined
+      };
       return updatedCode;
     }
     return c;

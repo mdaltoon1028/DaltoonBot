@@ -2186,7 +2186,23 @@ def handle_buy_pay(call):
     if promo_code != "none":
         promo_codes = db.get("promo_codes", [])
         promo = next((p for p in promo_codes if p["code"].upper() == promo_code), None)
+        promo_valid = True
         if promo:
+            dur = promo.get("durationDays")
+            cat = promo.get("createdAt")
+            if dur and cat:
+                from datetime import datetime
+                try:
+                    c_str = cat.replace("Z", "")
+                    if "." in c_str:
+                        c_str = c_str.split(".")[0]
+                    c_dt = datetime.strptime(c_str, "%Y-%m-%dT%H:%M:%S")
+                    n_dt = datetime.utcnow()
+                    if (n_dt - c_dt).days >= dur:
+                        promo_valid = False
+                except Exception:
+                    pass
+        if promo and promo_valid:
             if promo["type"] == "percent":
                 discount_amount = int(spec["price"] * (promo["value"] / 100))
             elif promo["type"] == "fixed_amount":
@@ -2372,6 +2388,31 @@ def process_promo_code_input(message, plan_id, username_input, spec):
         )
         bot.register_next_step_handler(msg, process_promo_code_input, plan_id, username_input, spec)
         return
+
+    # Check if promo code is expired based on durationDays
+    duration_days = promo.get("durationDays")
+    created_at_str = promo.get("createdAt")
+    if duration_days and created_at_str:
+        from datetime import datetime
+        try:
+            clean_str = created_at_str.replace("Z", "")
+            if "." in clean_str:
+                clean_str = clean_str.split(".")[0]
+            created_dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
+            now_dt = datetime.utcnow()
+            delta = now_dt - created_dt
+            if delta.days >= duration_days:
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hasdisc:no:{plan_id}:{username_input}"))
+                bot.send_message(
+                    message.chat.id, 
+                    "❌ <b>مهلت زمانی و انقضای استفاده از این کد تخفیف به پایان رسیده است!</b>", 
+                    parse_mode="HTML",
+                    reply_markup=markup
+                )
+                return
+        except Exception as ex:
+            print(f"[Promo code parse date error]: {ex}")
 
     # Check usage limits
     if promo.get("totalUsage", 0) >= promo.get("maxUsage", 9999):
@@ -2626,7 +2667,12 @@ def callback_handler(call):
                     f"<code>{link}</code>\n\n"
                     f"💡 این لینک را کپی کرده و در برنامه مورد نظر خود (مانند v2rayNG ، V2box...) وارد نمایید."
                 )
-                bot.send_message(call.message.chat.id, msg_text, parse_mode="HTML")
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                markup.add(
+                    types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
+                    types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+                )
+                bot.send_message(call.message.chat.id, msg_text, parse_mode="HTML", reply_markup=markup)
             else:
                 bot.answer_callback_query(call.id, "⚠️ لینک مورد نظر یافت نشد یا منقضی شده است.", show_alert=True)
         except Exception as e:
@@ -2761,8 +2807,10 @@ def callback_handler(call):
             )
             
             markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.row(
-                types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}")
+            markup.add(
+                types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"),
+                types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
             )
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             return
@@ -2848,6 +2896,7 @@ def callback_handler(call):
             )
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
+                types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
             )
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
@@ -4661,6 +4710,24 @@ def process_gift_code(message):
         bot.send_message(message.chat.id, "❌ <b>ظرفیت استفاده از این کد هدیه تکمیل شده است!</b>", parse_mode="HTML", reply_markup=get_custom_keyboard())
         start_cmd(message)
         return
+        
+    duration_days = code_obj.get("durationDays")
+    created_at_str = code_obj.get("createdAt")
+    if duration_days and created_at_str:
+        from datetime import datetime
+        try:
+            clean_str = created_at_str.replace("Z", "")
+            if "." in clean_str:
+                clean_str = clean_str.split(".")[0]
+            created_dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
+            now_dt = datetime.utcnow()
+            delta = now_dt - created_dt
+            if delta.days >= duration_days:
+                bot.send_message(message.chat.id, "❌ <b>مهلت زمانی و انقضای استفاده از این کد هدیه به پایان رسیده است!</b>", parse_mode="HTML", reply_markup=get_custom_keyboard())
+                start_cmd(message)
+                return
+        except Exception as ex:
+            print(f"[Gift code parse date error]: {ex}")
         
     # Apply gift code
     code_obj["usedBy"].append(tg_id)
