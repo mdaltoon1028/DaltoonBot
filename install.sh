@@ -122,28 +122,77 @@ fi
 
 ALREADY_CONFIGURED=$(node -e "
 const fs = require('fs');
-const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-let db = {};
-try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch(e){}
-let hasConfig = false;
-if (db.settings && db.settings.panel_config) {
-  try {
-    const pc = JSON.parse(db.settings.panel_config);
-    if (pc.dashboardUsername && pc.dashboardPassword && pc.serverPort) hasConfig = true;
-  } catch(e){}
+let foundConfig = false;
+
+if (fs.existsSync('$INSTALL_DIR/.env')) {
+  const envContent = fs.readFileSync('$INSTALL_DIR/.env', 'utf8');
+  if (envContent.includes('PANEL_USER') || envContent.includes('DASHBOARD_USERNAME')) {
+    foundConfig = true;
+  }
 }
-console.log(hasConfig);
+
+const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
+for (const p of dbPaths) {
+  if (fs.existsSync(p)) {
+    try { 
+      const parsed = JSON.parse(fs.readFileSync(p, 'utf8')); 
+      if (parsed && parsed.settings) {
+        if (parsed.settings.dashboardUsername && parsed.settings.dashboardPassword) {
+          foundConfig = true;
+          break;
+        }
+        if (parsed.settings.panel_config) {
+          const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+          if (pc && pc.dashboardUsername && pc.dashboardPassword) {
+            foundConfig = true;
+            break;
+          }
+        }
+      }
+    } catch(e){}
+  }
+}
+console.log(foundConfig);
 ")
 
 if [ "$ALREADY_CONFIGURED" = "true" ]; then
     echo -e "${GREEN}Existing configuration found! Preserving previous Username, Password, and Port...${NC}"
     DASH_PORT=$(node -e "
       const fs = require('fs');
+      let port = 3000;
       try {
-        const db = JSON.parse(fs.readFileSync('$INSTALL_DIR/Daltoon_Bot.json', 'utf8'));
-        const pc = JSON.parse(db.settings.panel_config);
-        console.log(pc.serverPort || 3000);
-      } catch(e) { console.log(3000); }
+        if (fs.existsSync('$INSTALL_DIR/.env')) {
+          const envLines = fs.readFileSync('$INSTALL_DIR/.env', 'utf8').split('\\n');
+          for (const line of envLines) {
+            if (line.startsWith('PANEL_PORT=') || line.startsWith('DASHBOARD_PORT=')) {
+              const envPort = parseInt(line.split('=')[1].trim());
+              if (!isNaN(envPort)) {
+                port = envPort;
+              }
+            }
+          }
+        }
+        const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
+        for (const p of dbPaths) {
+          if (fs.existsSync(p)) {
+            const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (parsed && parsed.settings) {
+              if (parsed.settings.serverPort) {
+                port = parsed.settings.serverPort;
+                break;
+              }
+              if (parsed.settings.panel_config) {
+                const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+                if (pc && pc.serverPort) {
+                  port = pc.serverPort;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch(e) {}
+      console.log(port);
     ")
 else
     read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
@@ -199,6 +248,8 @@ else
       ];
     }
     
+    if (!db.settings) db.settings = {};
+    
     let panel_config = {};
     if (db.settings && db.settings.panel_config) {
       try { 
@@ -210,8 +261,11 @@ else
     panel_config.dashboardPassword = '$DASH_PASS';
     panel_config.serverPort = Number('$DASH_PORT');
     
-    if (!db.settings) db.settings = {};
     db.settings.panel_config = JSON.stringify(panel_config);
+    
+    db.settings.dashboardUsername = '$DASH_USER';
+    db.settings.dashboardPassword = '$DASH_PASS';
+    db.settings.serverPort = Number('$DASH_PORT');
     
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
     "

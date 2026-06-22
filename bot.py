@@ -134,148 +134,160 @@ def get_config():
     }
     try:
         db = read_db_json()
-        settings_str = db.get("settings", {}).get("panel_config")
+        settings = db.get("settings", {})
+        settings_str = settings.get("panel_config")
+        
+        panel_cfg = {}
         if settings_str:
-            panel_cfg = json.loads(settings_str)
-            if "admins" in panel_cfg and isinstance(panel_cfg["admins"], list):
-                config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
-            # Sync Panel URLs and Credentials from shared settings
-            if panel_cfg.get("baseUrl"):
-                config["XUI_URL"] = panel_cfg.get("baseUrl").rstrip("/")
-            if panel_cfg.get("subUrl"):
-                config["SUB_URL"] = panel_cfg.get("subUrl").rstrip("/")
-            if panel_cfg.get("panelUsername"):
-                config["XUI_USER"] = panel_cfg.get("panelUsername")
-            if panel_cfg.get("panelPassword"):
-                config["XUI_PASS"] = panel_cfg.get("panelPassword")
-            if panel_cfg.get("ownerId"):
-                config["OWNER_ID"] = int(panel_cfg["ownerId"])
-            if panel_cfg.get("cardNumber"):
-                config["CARD_NUMBER"] = panel_cfg["cardNumber"]
-            if panel_cfg.get("cardHolder"):
-                config["CARD_HOLDER"] = panel_cfg["cardHolder"]
-            if panel_cfg.get("botWebUrl"):
-                config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
+            try:
+                panel_cfg = json.loads(settings_str)
+            except:
+                pass
+        
+        # Fallback to direct keys on settings if not found in panel_config
+        if not panel_cfg:
+            panel_cfg = settings
 
-            if panel_cfg.get("btnTextBuy"):
-                config["BTN_BUY"] = panel_cfg["btnTextBuy"]
-            config["BTN_BUY_NEW"] = panel_cfg.get("btnTextBuyNew", "🛒 خرید اشتراک جدید")
-            config["BTN_MY_SUBS"] = panel_cfg.get("btnTextMySubs", "🗂 اشتراک های من / تمدید")
-            config["BTN_GUIDES"] = panel_cfg.get("btnTextGuides", "💡 آموزش ها")
-            config["BTN_PROFILE"] = panel_cfg.get("btnTextProfile", "👤 حساب کاربری")
-            config["BTN_SUPPORT"] = panel_cfg.get("btnTextSupport", "📞 پشتیبانی")
-            config["BTN_FREETEST"] = panel_cfg.get("btnTextFreeTest", "🎁 موجودی رایگان")
-            config["BTN_INSTANT_SUPPORT"] = panel_cfg.get("btnTextInstantSupport", "🤖 پشتیبانی آنی")
-            config["BTN_FEEDBACK"] = panel_cfg.get("btnTextFeedback", "💌 بازخورد کاربر ها")
-            config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
-            config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
-            config["BTN_AI_CHAT"] = panel_cfg.get("btnTextAiChat", "🤖 چت با ربات")
-            config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "شارژ کیف پول 💳")
-            config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
-            config["WALLET_CHARGE_AMOUNTS"] = panel_cfg.get("walletChargeAmounts", [200000, 300000, 400000, 500000, 1000000])
+        if "admins" in panel_cfg and isinstance(panel_cfg["admins"], list):
+            config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
+        
+        # Sync Panel URLs and Credentials from shared settings
+        if panel_cfg.get("baseUrl"):
+            config["XUI_URL"] = panel_cfg.get("baseUrl").rstrip("/")
+        if panel_cfg.get("subUrl"):
+            config["SUB_URL"] = panel_cfg.get("subUrl").rstrip("/")
+        if panel_cfg.get("panelUsername"):
+            config["XUI_USER"] = panel_cfg.get("panelUsername")
+        if panel_cfg.get("panelPassword"):
+            config["XUI_PASS"] = panel_cfg.get("panelPassword")
+        if panel_cfg.get("ownerId"):
+            config["OWNER_ID"] = int(panel_cfg["ownerId"])
+        if panel_cfg.get("cardNumber"):
+            config["CARD_NUMBER"] = panel_cfg["cardNumber"]
+        if panel_cfg.get("cardHolder"):
+            config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+        if panel_cfg.get("botWebUrl"):
+            config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
 
-            config["IS_FREETEST_ACTIVE"] = panel_cfg.get("isFreeTestActive", True)
-            config["FREETEST_DISABLED_MSG"] = panel_cfg.get("freeTestDisabledMessage", "اکانت تست رایگان فعلا موجود نیست.")
+        if panel_cfg.get("btnTextBuy"):
+            config["BTN_BUY"] = panel_cfg["btnTextBuy"]
+        config["BTN_BUY_NEW"] = panel_cfg.get("btnTextBuyNew", "🛒 خرید اشتراک جدید")
+        config["BTN_MY_SUBS"] = panel_cfg.get("btnTextMySubs", "🗂 اشتراک های من / تمدید")
+        config["BTN_GUIDES"] = panel_cfg.get("btnTextGuides", "💡 آموزش ها")
+        config["BTN_PROFILE"] = panel_cfg.get("btnTextProfile", "👤 حساب کاربری")
+        config["BTN_SUPPORT"] = panel_cfg.get("btnTextSupport", "📞 پشتیبانی")
+        config["BTN_FREETEST"] = panel_cfg.get("btnTextFreeTest", "🎁 موجودی رایگان")
+        config["BTN_INSTANT_SUPPORT"] = panel_cfg.get("btnTextInstantSupport", "🤖 پشتیبانی آنی")
+        config["BTN_FEEDBACK"] = panel_cfg.get("btnTextFeedback", "💌 بازخورد کاربر ها")
+        config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
+        config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
+        config["BTN_AI_CHAT"] = panel_cfg.get("btnTextAiChat", "🤖 چت با ربات")
+        config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "شارژ کیف پول 💳")
+        config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
+        config["WALLET_CHARGE_AMOUNTS"] = panel_cfg.get("walletChargeAmounts", [200000, 300000, 400000, 500000, 1000000])
 
-            config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
-            if "hideBtnMySubs" in panel_cfg: config["HIDE_MY_SUBS"] = bool(panel_cfg["hideBtnMySubs"])
-            if "hideBtnGuides" in panel_cfg: config["HIDE_GUIDES"] = bool(panel_cfg["hideBtnGuides"])
-            if "hideBtnProfile" in panel_cfg: config["HIDE_PROFILE"] = bool(panel_cfg["hideBtnProfile"])
-            if "hideBtnSupport" in panel_cfg: config["HIDE_SUPPORT"] = bool(panel_cfg["hideBtnSupport"])
-            if "hideBtnFreeTest" in panel_cfg: config["HIDE_FREETEST"] = bool(panel_cfg["hideBtnFreeTest"])
-            if "hideBtnInstantSupport" in panel_cfg: config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg["hideBtnInstantSupport"])
-            if "hideBtnFeedback" in panel_cfg: config["HIDE_FEEDBACK"] = bool(panel_cfg["hideBtnFeedback"])
-            if "hideBtnReferral" in panel_cfg: config["HIDE_REFERRAL"] = bool(panel_cfg["hideBtnReferral"])
-            if "hideBtnColleagues" in panel_cfg: config["HIDE_COLLEAGUES"] = bool(panel_cfg["hideBtnColleagues"])
-            if "hideBtnAiChat" in panel_cfg: 
-                config["HIDE_AI_CHAT"] = bool(panel_cfg["hideBtnAiChat"])
-            else:
-                config["HIDE_AI_CHAT"] = False # Visible by default for new installs
-            if "hideBtnTicketSupport" in panel_cfg: config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg["hideBtnTicketSupport"])
-            config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
-            if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
-                config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
+        config["IS_FREETEST_ACTIVE"] = panel_cfg.get("isFreeTestActive", True)
+        config["FREETEST_DISABLED_MSG"] = panel_cfg.get("freeTestDisabledMessage", "اکانت تست رایگان فعلا موجود نیست.")
 
-            config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
-                "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
-            ])
+        config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
+        if "hideBtnMySubs" in panel_cfg: config["HIDE_MY_SUBS"] = bool(panel_cfg["hideBtnMySubs"])
+        if "hideBtnGuides" in panel_cfg: config["HIDE_GUIDES"] = bool(panel_cfg["hideBtnGuides"])
+        if "hideBtnProfile" in panel_cfg: config["HIDE_PROFILE"] = bool(panel_cfg["hideBtnProfile"])
+        if "hideBtnSupport" in panel_cfg: config["HIDE_SUPPORT"] = bool(panel_cfg["hideBtnSupport"])
+        if "hideBtnFreeTest" in panel_cfg: config["HIDE_FREETEST"] = bool(panel_cfg["hideBtnFreeTest"])
+        if "hideBtnInstantSupport" in panel_cfg: config["HIDE_INSTANT_SUPPORT"] = bool(panel_cfg["hideBtnInstantSupport"])
+        if "hideBtnFeedback" in panel_cfg: config["HIDE_FEEDBACK"] = bool(panel_cfg["hideBtnFeedback"])
+        if "hideBtnReferral" in panel_cfg: config["HIDE_REFERRAL"] = bool(panel_cfg["hideBtnReferral"])
+        if "hideBtnColleagues" in panel_cfg: config["HIDE_COLLEAGUES"] = bool(panel_cfg["hideBtnColleagues"])
+        if "hideBtnAiChat" in panel_cfg: 
+            config["HIDE_AI_CHAT"] = bool(panel_cfg["hideBtnAiChat"])
+        else:
+            config["HIDE_AI_CHAT"] = False # Visible by default for new installs
+        if "hideBtnTicketSupport" in panel_cfg: config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg["hideBtnTicketSupport"])
+        config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
+        if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
+            config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
 
-            if panel_cfg.get("botToken"):
-                config["BOT_TOKEN"] = panel_cfg["botToken"]
-            if panel_cfg.get("botNickname"):
-                config["BOT_NICKNAME"] = panel_cfg["botNickname"]
-            if panel_cfg.get("baseUrl"):
-                config["XUI_URL"] = normalize_xui_url(panel_cfg["baseUrl"])
-            elif panel_cfg.get("panelUrl"):
-                config["XUI_URL"] = normalize_xui_url(panel_cfg["panelUrl"])
+        config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
+            "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
+        ])
+
+        if panel_cfg.get("botToken"):
+            config["BOT_TOKEN"] = panel_cfg["botToken"]
+        if panel_cfg.get("botNickname"):
+            config["BOT_NICKNAME"] = panel_cfg["botNickname"]
+        if panel_cfg.get("baseUrl"):
+            config["XUI_URL"] = normalize_xui_url(panel_cfg["baseUrl"])
+        elif panel_cfg.get("panelUrl"):
+            config["XUI_URL"] = normalize_xui_url(panel_cfg["panelUrl"])
+            
+        from urllib.parse import urlparse
+        p = urlparse(config["XUI_URL"])
+        
+        if panel_cfg.get("subUrl") and panel_cfg["subUrl"].strip():
+            config["SUB_URL"] = normalize_xui_url(panel_cfg["subUrl"])
+        else:
+            config["SUB_URL"] = f"{p.scheme}://{p.netloc}"
                 
-            from urllib.parse import urlparse
-            p = urlparse(config["XUI_URL"])
-            
-            if panel_cfg.get("subUrl") and panel_cfg["subUrl"].strip():
-                config["SUB_URL"] = normalize_xui_url(panel_cfg["subUrl"])
-            else:
-                config["SUB_URL"] = f"{p.scheme}://{p.netloc}"
-                
-            if panel_cfg.get("panelUsername"):
-                config["XUI_USER"] = panel_cfg["panelUsername"]
-            if panel_cfg.get("panelPassword"):
-                config["XUI_PASS"] = panel_cfg["panelPassword"]
-            if panel_cfg.get("ownerId"):
-                config["OWNER_ID"] = int(panel_cfg["ownerId"])
-            if panel_cfg.get("cardNumber"):
-                config["CARD_NUMBER"] = panel_cfg["cardNumber"]
-            if panel_cfg.get("cardHolder"):
-                config["CARD_HOLDER"] = panel_cfg["cardHolder"]
-            if panel_cfg.get("botWebUrl"):
-                config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
-            if "welcomeText" in panel_cfg:
-                config["WELCOME_TEXT"] = panel_cfg["welcomeText"]
-            if "supportText" in panel_cfg:
-                config["SUPPORT_TEXT"] = panel_cfg["supportText"]
-            if "hideSupport" in panel_cfg:
-                config["HIDE_SUPPORT"] = config["HIDE_SUPPORT"] or bool(panel_cfg["hideSupport"])
-            if "hideBuy" in panel_cfg:
-                config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
-            if "hideProfile" in panel_cfg:
-                config["HIDE_PROFILE"] = bool(panel_cfg["hideProfile"])
-            if "hideBtnWallet" in panel_cfg:
-                config["HIDE_WALLET"] = bool(panel_cfg["hideBtnWallet"])
-            elif "hideWallet" in panel_cfg:
-                config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
-            if "keyboardLayout" in panel_cfg:
-                config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
-            if "purchaseSuccessNote" in panel_cfg:
-                config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
-            if "purchaseSuccessAttachment" in panel_cfg:
-                config["PURCHASE_SUCCESS_ATTACHMENT"] = panel_cfg["purchaseSuccessAttachment"]
-            
-            # Load Gateway Configuration
-            for gw in ["gatewayPlisioWallet", "gatewayNowpaymentsKey", "gatewayCryptomusKey", "gatewayCryptomusMerchantId", "gatewayHeleketWallet"]:
-                if gw in panel_cfg:
-                    config[gw.replace("gateway", "GATEWAY_").upper()] = panel_cfg[gw]
-            if "gatewayStarsStatus" in panel_cfg:
-                config["GATEWAY_STARS_STATUS"] = bool(panel_cfg["gatewayStarsStatus"])
+        if panel_cfg.get("panelUsername"):
+            config["XUI_USER"] = panel_cfg["panelUsername"]
+        if panel_cfg.get("panelPassword"):
+            config["XUI_PASS"] = panel_cfg["panelPassword"]
+        if panel_cfg.get("ownerId"):
+            config["OWNER_ID"] = int(panel_cfg["ownerId"])
+        if panel_cfg.get("cardNumber"):
+            config["CARD_NUMBER"] = panel_cfg["cardNumber"]
+        if panel_cfg.get("cardHolder"):
+            config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+        if panel_cfg.get("botWebUrl"):
+            config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
+        if "welcomeText" in panel_cfg:
+            config["WELCOME_TEXT"] = panel_cfg["welcomeText"]
+        if "supportText" in panel_cfg:
+            config["SUPPORT_TEXT"] = panel_cfg["supportText"]
+        if "hideSupport" in panel_cfg:
+            config["HIDE_SUPPORT"] = config["HIDE_SUPPORT"] or bool(panel_cfg["hideSupport"])
+        if "hideBuy" in panel_cfg:
+            config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
+        if "hideProfile" in panel_cfg:
+            config["HIDE_PROFILE"] = bool(panel_cfg["hideProfile"])
+        if "hideBtnWallet" in panel_cfg:
+            config["HIDE_WALLET"] = bool(panel_cfg["hideBtnWallet"])
+        elif "hideWallet" in panel_cfg:
+            config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
+        if "keyboardLayout" in panel_cfg:
+            config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
+        if "purchaseSuccessNote" in panel_cfg:
+            config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
+        if "purchaseSuccessAttachment" in panel_cfg:
+            config["PURCHASE_SUCCESS_ATTACHMENT"] = panel_cfg["purchaseSuccessAttachment"]
+        
+        # Load Gateway Configuration
+        for gw in ["gatewayPlisioWallet", "gatewayNowpaymentsKey", "gatewayCryptomusKey", "gatewayCryptomusMerchantId", "gatewayHeleketWallet"]:
+            if gw in panel_cfg:
+                config[gw.replace("gateway", "GATEWAY_").upper()] = panel_cfg[gw]
+        if "gatewayStarsStatus" in panel_cfg:
+            config["GATEWAY_STARS_STATUS"] = bool(panel_cfg["gatewayStarsStatus"])
 
-            if "guidesText" in panel_cfg:
-                config["GUIDES_TEXT"] = panel_cfg["guidesText"]
-            if "tgChannel" in panel_cfg:
-                config["TG_CHANNEL"] = panel_cfg["tgChannel"]
-            if "supportHandle" in panel_cfg:
-                config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
-            
-            # Parse Mandatory Join configs
-            if "mandatoryJoinActive" in panel_cfg:
-                config["MANDATORY_JOIN_ACTIVE"] = bool(panel_cfg["mandatoryJoinActive"])
-            if "mandatoryJoinChannel" in panel_cfg:
-                config["MANDATORY_JOIN_CHANNEL"] = panel_cfg["mandatoryJoinChannel"]
-            if "mandatoryJoinText" in panel_cfg:
-                config["MANDATORY_JOIN_TEXT"] = panel_cfg["mandatoryJoinText"]
+        if "guidesText" in panel_cfg:
+            config["GUIDES_TEXT"] = panel_cfg["guidesText"]
+        if "tgChannel" in panel_cfg:
+            config["TG_CHANNEL"] = panel_cfg["tgChannel"]
+        if "supportHandle" in panel_cfg:
+            config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
+        
+        # Parse Mandatory Join configs
+        if "mandatoryJoinActive" in panel_cfg:
+            config["MANDATORY_JOIN_ACTIVE"] = bool(panel_cfg["mandatoryJoinActive"])
+        if "mandatoryJoinChannel" in panel_cfg:
+            config["MANDATORY_JOIN_CHANNEL"] = panel_cfg["mandatoryJoinChannel"]
+        if "mandatoryJoinText" in panel_cfg:
+            config["MANDATORY_JOIN_TEXT"] = panel_cfg["mandatoryJoinText"]
 
-            # Parse Guide Videos / File IDs
-            for key in ["guideVideoHapp", "guideVideoIos", "guideVideoAndroid", "guideVideoV2rayn", "guideVideoKaring", "guideVideoMac", "guideVideoLinux"]:
-                if key in panel_cfg:
-                    config[key] = panel_cfg[key]
+        # Parse Guide Videos / File IDs
+        for key in ["guideVideoHapp", "guideVideoIos", "guideVideoAndroid", "guideVideoV2rayn", "guideVideoKaring", "guideVideoMac", "guideVideoLinux"]:
+            if key in panel_cfg:
+                config[key] = panel_cfg[key]
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
