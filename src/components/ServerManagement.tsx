@@ -950,35 +950,35 @@ export default function ServerManagement({
                     )}
                   </div>
 
-                  {/* Checkbox of VPN Plans */}
+                  {/* Checkbox of Plan Categories (پلن‌ها) */}
                   <div>
                     <label className="block text-[10px] text-gray-300 uppercase mb-1.5 font-bold">
-                      {lang === "fa" ? "انتخاب بسته‌های فعال در این گروه (پلن‌ها):" : "Select Active VPN Plans for this Group:"}
+                      {lang === "fa" ? "انتخاب پلن‌های فعال در این گروه (دسته‌بندی‌ها):" : "Select Active Plan Categories for this Group:"}
                     </label>
-                    {vpnPlans.length === 0 ? (
+                    {planCategories.length === 0 ? (
                       <p className="text-[10px] text-yellow-400">
-                        {lang === "fa" ? "⚠️ هیچ بسته‌ای تعریف نشده است." : "⚠️ No VPN Plans set up yet."}
+                        {lang === "fa" ? "⚠️ هیچ دسته‌بندی تعریف نشده است." : "⚠️ No Plan Categories set up yet."}
                       </p>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[145px] overflow-y-auto bg-[#111827] p-2 rounded-lg border border-gray-800">
-                        {vpnPlans.map(plan => {
-                          const isChecked = groupPlanIds.includes(plan.id);
+                        {planCategories.map(cat => {
+                          const isChecked = groupPlanIds.includes(cat.name);
                           return (
-                            <label key={plan.id} className="flex items-center gap-2 cursor-pointer select-none">
+                            <label key={cat.id} className="flex items-center gap-2 cursor-pointer select-none">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setGroupPlanIds([...groupPlanIds, plan.id]);
+                                    setGroupPlanIds([...groupPlanIds, cat.name]);
                                   } else {
-                                    setGroupPlanIds(groupPlanIds.filter(id => id !== plan.id));
+                                    setGroupPlanIds(groupPlanIds.filter(name => name !== cat.name));
                                   }
                                 }}
                                 className="rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 shrink-0"
                               />
                               <span className="text-xs text-indigo-300 font-medium truncate">
-                                {plan.name} <span className="text-[10px] text-gray-500 font-mono">({plan.trafficGb}GB)</span>
+                                {cat.emoji} {cat.name}
                               </span>
                             </label>
                           );
@@ -1018,11 +1018,8 @@ export default function ServerManagement({
                   return ib ? ib.remark : `#${id}`;
                 }).join(", ") : "";
 
-                // Find linked plan names
-                const planNames = group.planIds ? group.planIds.map((id: string) => {
-                  const p = vpnPlans.find(pl => pl.id === id);
-                  return p ? p.name : id;
-                }).join(", ") : "";
+                // Find linked category names
+                const categoryNames = group.planIds ? group.planIds.join(", ") : "";
 
                 return (
                   <div key={group.id} className="relative bg-[#1c253b] border border-gray-800 p-4 rounded-xl flex flex-col justify-between hover:border-indigo-500/50 transition-all">
@@ -1042,9 +1039,9 @@ export default function ServerManagement({
                         </div>
                         <div>
                           <span className="font-bold text-gray-300">
-                            {lang === "fa" ? "📦 طرح‌های متصل:" : "📦 Linked Plans:"}
+                            {lang === "fa" ? "📦 پلن‌های متصل (دسته‌بندی‌ها):" : "📦 Linked Categories:"}
                           </span>{" "}
-                          <span className="text-indigo-300 leading-relaxed bg-slate-900/40 p-1 px-1.5 rounded inline-block truncate max-w-full">{planNames || (lang === "fa" ? "همه طرح‌ها" : "All Plans")}</span>
+                          <span className="text-indigo-300 leading-relaxed bg-slate-900/40 p-1 px-1.5 rounded inline-block truncate max-w-full">{categoryNames || (lang === "fa" ? "همه دسته‌بندی‌ها" : "All Categories")}</span>
                         </div>
                       </div>
                     </div>

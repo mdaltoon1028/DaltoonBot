@@ -1232,6 +1232,7 @@ export default function App() {
               lang={lang}
               customButtons={customButtons}
               settings={settings}
+              planCategories={planCategories}
             />
           )}
 

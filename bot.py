@@ -3715,20 +3715,40 @@ def callback_handler(call):
             bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
             return
 
-        db_plans = db.get("vpn_plans", [])
-        group_plan_ids = group.get("planIds", [])
-        filtered_plans = []
-        for p in db_plans:
-            if not group_plan_ids or p["id"] in group_plan_ids:
-                filtered_plans.append(p)
-
+        group_category_names = group.get("planIds", []) or []
+        db_categories_list = db.get("plan_categories", [])
+        
         categories = []
-        seen_cats = set()
-        for p in filtered_plans:
-            cat = p.get("category", "Standard")
-            if cat not in seen_cats:
-                categories.append(cat)
-                seen_cats.add(cat)
+        seen_names = set()
+        
+        # Add categories defined in admin panel first, keeping their emoji
+        for c in db_categories_list:
+            c_name = c.get("name", "")
+            if not group_category_names or c_name in group_category_names:
+                if c_name and c_name not in seen_names:
+                    # Check if there are actual packages of this category
+                    has_any_package = any(p.get("category", "").lower() == c_name.lower() for p in db.get("vpn_plans", []))
+                    if has_any_package:
+                        categories.append({
+                            "name": c_name,
+                            "emoji": c.get("emoji", "⚡️")
+                        })
+                        seen_names.add(c_name)
+                        
+        # Fallback for category names assigned but maybe not listed in custom categories database
+        for p in db.get("vpn_plans", []):
+            p_cat = p.get("category", "Standard")
+            if not group_category_names or p_cat in group_category_names:
+                if p_cat not in seen_names:
+                    emoji = "⚡️"
+                    if "vip" in p_cat.lower(): emoji = "⭐️"
+                    elif "voip" in p_cat.lower() or "unlimited" in p_cat.lower(): emoji = "🚀"
+                    elif "premium" in p_cat.lower(): emoji = "💎"
+                    categories.append({
+                        "name": p_cat,
+                        "emoji": emoji
+                    })
+                    seen_names.add(p_cat)
 
         cfg = get_config()
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
@@ -3739,12 +3759,10 @@ def callback_handler(call):
         )
 
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for cat in categories:
-            emoji = "⚡️"
-            if "vip" in cat.lower(): emoji = "⭐️"
-            elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
-            elif "premium" in cat.lower(): emoji = "💎"
-            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"igcat_{group_id}_{cat}"))
+        for cat_obj in categories:
+            cat_name = cat_obj["name"]
+            emoji = cat_obj["emoji"]
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat_name}", callback_data=f"igcat_{group_id}_{cat_name}"))
             
         markup.row(
             types.InlineKeyboardButton("🔙 بازگشت به لوکیشن‌ها", callback_data="mm_btnBuyNew"),
@@ -3782,19 +3800,17 @@ def callback_handler(call):
             return
 
         db_plans = db.get("vpn_plans", [])
-        group_plan_ids = group.get("planIds", [])
         plans_data = []
         for dp in db_plans:
             cat = dp.get("category", "Standard")
             if cat.lower() == category_name.lower():
-                if not group_plan_ids or dp["id"] in group_plan_ids:
-                    plans_data.append({
-                        "id": dp["id"],
-                        "name": dp["name"],
-                        "price": dp["price"],
-                        "traffic": dp.get("trafficGb", 30),
-                        "duration": dp.get("durationDays", 30)
-                    })
+                plans_data.append({
+                    "id": dp["id"],
+                    "name": dp["name"],
+                    "price": dp["price"],
+                    "traffic": dp.get("trafficGb", 30),
+                    "duration": dp.get("durationDays", 30)
+                })
                     
         cfg = get_config()
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
