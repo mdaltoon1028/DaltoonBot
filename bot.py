@@ -2115,14 +2115,15 @@ def handle_main_menu_callback(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         vless_links = get_client_vless_links(free_username, client_uuid, sub_link)
-        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
 
         success_text = (
             f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
             f"👤 نام کاربری تست: <code>{free_username}</code>\n"
             f"⏳ اعتبار: ۱ روز\n"
             f"💬 حجم: ۱۰۰ مگابایت\n\n"
-            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
+            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         )
         
         try:
@@ -2130,15 +2131,11 @@ def handle_main_menu_callback(call):
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
             markup = types.InlineKeyboardMarkup(row_width=1)
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
-            for i, lnk in enumerate(vless_links):
-                add_copy_button_to_markup(markup, f"🚀 کپی لینک توکن {i+1}", lnk)
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
         except:
             markup = types.InlineKeyboardMarkup(row_width=1)
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
-            for i, lnk in enumerate(vless_links):
-                add_copy_button_to_markup(markup, f"🚀 کپی لینک توکن {i+1}", lnk)
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
             
@@ -2425,7 +2422,7 @@ def handle_buy_pay(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
-        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
 
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -2433,13 +2430,12 @@ def handle_buy_pay(call):
             f"👤 شناسه: <code>{username_input}</code>\n"
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"💬 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n\n"
-            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
+            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
         markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
-        for i, lnk in enumerate(vless_links):
-            add_copy_button_to_markup(markup, f"🚀 کپی مستقیم سرور {i+1}", lnk)
         markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
         
         try:
@@ -2737,7 +2733,7 @@ def process_purchase_username(message, plan_id, spec):
         )
         
         vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
-        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
 
         success_text = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -2746,15 +2742,14 @@ def process_purchase_username(message, plan_id, spec):
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"💬 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n"
             f"💳 هزینه کسر شده: {price_charged_display}\n\n"
-            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
+            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         )
         
         # Build markup with copy button at the top, and append custom menu keys
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
         markup.row(types.InlineKeyboardButton("🔗 پنل مدیریت (لینک‌های کانفیگ)", callback_data=f"mysub_manage_{sub_id}"))
-        for i, lnk in enumerate(vless_links):
-            add_copy_button_to_markup(markup, f"🚀 کپی کانفیگ Vless {i+1}", lnk)
         
         from_kbd = get_custom_keyboard()
         if from_kbd and hasattr(from_kbd, 'keyboard'):
@@ -4360,22 +4355,20 @@ def process_col_create_days(message, acc, name, gb):
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
     vless_links = get_client_vless_links(full_name, client_uuid, sub_link)
-    links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+    links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
 
     text_msg = (
         f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
         f"👤 <b>نام:</b> {full_name}\n"
         f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
         f"⏳ <b>اعتبار:</b> {days} روز\n\n"
-        f"🔗 <b>لینک سابسکریپشن:</b>\n<code>{sub_link}</code>\n\n"
-        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}\n\n"
-        f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
+        f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
     )
     
     # Build markup with copy button at the top, and append custom menu keys
     markup = types.InlineKeyboardMarkup(row_width=2)
     add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
-    markup.row(types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_id}"))
     
     from_kbd = get_custom_keyboard()
     if from_kbd and hasattr(from_kbd, 'keyboard'):
