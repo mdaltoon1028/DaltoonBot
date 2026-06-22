@@ -66,6 +66,7 @@ export interface PanelSettings {
   keyboardLayout?: "horizontal" | "vertical" | "stepped";
   mainButtonsOrder?: string[];
   purchaseSuccessNote?: string;
+  purchaseSuccessAttachment?: {fileData: string, fileName: string, fileType: "image"|"video"|"voice"|"file"} | null;
   panelConnectionActive?: boolean;
 
   // New Payment Gateways

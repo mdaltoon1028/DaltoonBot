@@ -1245,6 +1245,11 @@ def get_cancel_keyboard():
     markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
     return markup
 
+def get_main_reply_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+    markup.add(types.KeyboardButton("🔙 بازگشت به منوی اصلی"))
+    return markup
+
 def is_user_member_of_channel(user_id):
     cfg = get_config()
     if not cfg.get("MANDATORY_JOIN_ACTIVE"):
@@ -1376,6 +1381,12 @@ def start_cmd(message):
             f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
             f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
         )
+    # Ensure client's cached reply keyboard is restricted to '🔙 بازگشت به منوی اصلی' only
+    try:
+        bot.send_message(message.chat.id, "🔄 منوی ربات دالتون استور به‌روزرسانی شد.", reply_markup=get_main_reply_keyboard())
+    except Exception as e:
+        print(f"Error resetting reply markup: {e}")
+        
     bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
 
 @bot.message_handler(commands=['buy'])
@@ -1522,7 +1533,6 @@ def text_messages_handler(message):
          return
 
     if "منصرف" in text or "بازگشت" in text:
-        bot.send_message(message.chat.id, "✔️ بازگشت به منوی اصلی.", reply_markup=get_custom_keyboard())
         start_cmd(message)
         return
 
@@ -1735,23 +1745,35 @@ def handle_main_menu_callback(call):
 
     # 3.5 Connection Guides
     elif action == "mm_btnGuides":
-        custom_guides = cfg.get("GUIDES_TEXT")
-        if custom_guides:
-            guides_txt = custom_guides
-        else:
-            guides_txt = (
-                "🌐 <b>راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)</b>\n\n"
-                "کاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n"
-                "۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n"
-                "• اندروید: <code>v2rayNG</code>\n"
-                "• آیفون (iOS): <code>V2box</code> یا <code>Streisand</code>\n"
-                "• ویندوز: <code>Nekoray</code> یا <code>v2rayN</code>\n\n"
-                "۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n"
-                "۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه <b>+</b> و انتخاب گزینه <b>Import from clipboard</b> یا <b>Add Subscription</b>).\n\n"
-                "۴. روی گزینه <b>Update Subscription</b> کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n"
-                "۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت وجود هرگونه مشکل با دکمه پشتیبانی در تماس باشید."
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("🔌 اتصال به سرویس ها", callback_data="guide_conn_menu"),
+            types.InlineKeyboardButton("🔄 آپدیت کردن سرویس ها", callback_data="guide_update_menu"),
+            types.InlineKeyboardButton("🪙 نحوه پرداخت با ارز دیجیتال", callback_data="guide_crypto_menu"),
+            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+        )
+        
+        guides_main_text = (
+            "<b>💡 بخش راهنما و آموزش‌های اتصال دالتون استور</b>\n\n"
+            "در این بخش می‌توانید کلاینت‌های مختلف را نصب، آپدیت یا نحوه اتصال را در هر سیستم‌عامل فرابگیرید.\n\n"
+            "👇 لطفا یک گزینه را از منوی زیر انتخاب نمایید:"
+        )
+        
+        try:
+            bot.edit_message_text(
+                guides_main_text,
+                chat_id=message.chat.id,
+                message_id=message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
             )
-        bot.send_message(message.chat.id, guides_txt, parse_mode="HTML")
+        except Exception:
+            bot.send_message(
+                message.chat.id,
+                guides_main_text,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
 
     # 4. Support chat
     elif action == "mm_btnSupport":
@@ -3305,6 +3327,174 @@ def callback_handler(call):
             reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(call.message, process_gift_code)
+
+    elif call.data == "guide_conn_menu":
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("📱 آموزش اتصال در موبایل (HAPP) ⭐", callback_data="guide_item_happ"),
+            types.InlineKeyboardButton("🍎 آموزش اتصال برای آی او اس ⭐", callback_data="guide_item_ios"),
+            types.InlineKeyboardButton("🤖 آموزش اتصال در اندروید", callback_data="guide_item_android"),
+            types.InlineKeyboardButton("💻 آموزش اتصال در ویندوز (V2rayN)", callback_data="guide_item_v2rayn"),
+            types.InlineKeyboardButton("💻 آموزش اتصال در ویندوز (Karing)", callback_data="guide_item_karing"),
+            types.InlineKeyboardButton("💻 آموزش اتصال در مک", callback_data="guide_item_mac"),
+            types.InlineKeyboardButton("🐧 آموزش اتصال در لینوکس", callback_data="guide_item_linux"),
+            types.InlineKeyboardButton("🔙 بازگشت به منوی آموزش‌ها", callback_data="mm_btnGuides")
+        )
+        sub_text = (
+            "<b>🔌 راهنمای فعال‌سازی و اتصال به سرویس‌ها</b>\n\n"
+            "لطفاً آموزش مورد نظر خود را بر اساس سیستم‌عامل دستگاه خود انتخاب کنید.\n\n"
+            "⚠️ گزینه‌های ستاره‌دار ⭐ پیشنهاد ما برای بهترین عملکرد هستند."
+        )
+        bot.edit_message_text(
+            sub_text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        bot.answer_callback_query(call.id)
+
+    elif call.data == "guide_update_menu":
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به منوی آموزش‌ها", callback_data="mm_btnGuides"))
+        update_text = (
+            "🔄 <b>آموزش آپدیت کردن سرویس‌ها و حل مشکل عدم اتصال</b>\n\n"
+            "گاهی به دلیل تغییر آی‌پی سرورها یا فیلتر شدن برخی پروتکل‌ها، لازم است لیست سرورهای خود را آپدیت کنید.\n\n"
+            "💡 <b>روش آپدیت دستی در موبایل و کامپیوتر:</b>\n"
+            "۱. وارد نرم‌افزار اتصال خود (مانند v2rayNG یا V2box) شوید.\n"
+            "۲. دکمه سه‌نقطه یا منوی تنظیمات مربوط به سابسکریپشن را پیدا کنید.\n"
+            "۳. روی گزینه <b>Update Subscription</b> (بروزرسانی لینک ساب) کلیک کنید.\n"
+            "۴. چند لحظه صبر کنید تا پیام موفقیت‌آمیز بودن نمایش داده شود و تمام سرورهای جدید بارگذاری گردند.\n"
+            "۵. در صورتیکه هنوز اتصال برقرار نشد، مطمئن شوید حجم ترافیک بسته شما در حساب کاربری تمام نشده باشد."
+        )
+        bot.edit_message_text(
+            update_text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        bot.answer_callback_query(call.id)
+
+    elif call.data == "guide_crypto_menu":
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به منوی آموزش‌ها", callback_data="mm_btnGuides"))
+        crypto_text = (
+            "🪙 <b>آموزش پرداخت با ارز دیجیتال (تتر / ترون / لایت‌کوین و...)</b>\n\n"
+            "ربات دالتون استور از درگاه‌های بین‌المللی کاملاً امن و اتوماتیک برای خرید مستقیم با رمزارز پشتیبانی می‌کند.\n\n"
+            "💡 <b>مراحل پرداخت:</b>\n"
+            "۱. هنگام خرید پلن جدید یا شارژ کیف پول، درگاه رمزارز (مانند کریپتوموس یا نوپیمنت) را انتخاب کنید.\n"
+            "۲. کوین مورد نظر خود را انتخاب نمایید (پیشنهاد ما برای کارمزد کم: <b>USDT-TRC20</b> یا <b>TRX</b>).\n"
+            "۳. آدرس کیف پول درگاه و مقدار دقیق نمایش داده شده را کپی کنید.\n"
+            "۴. از صرافی یا کیف پول خود (مانند تراست ولت) مبلغ دقیق خواسته شده را به همان آدرس ارسال کنید.\n"
+            "۵. پس از ارسال کوین، منتظر تایید تراکنش بمانید؛ سیستم به صورت ۱۰۰٪ هوشمند تراکنش را تایید کرده و فعال‌سازی اشتراک شما را شروع خواهد کرد!"
+        )
+        bot.edit_message_text(
+            crypto_text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        bot.answer_callback_query(call.id)
+
+    elif call.data.startswith("guide_item_"):
+        item = call.data.replace("guide_item_", "")
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به لیست کلاینت‌ها", callback_data="guide_conn_menu"))
+        
+        guide_text = ""
+        if item == "happ":
+            guide_text = (
+                "📱 <b>آموزش اتصال در موبایل (برنامه HAPP) ⭐</b>\n\n"
+                "بهترین و آسان‌ترین روش اتصال در موبایل با نرم‌افزار اختصاصی HAPP!\n\n"
+                "📥 <b>لینک‌های دانلود برنامه:</b>\n"
+                "• <a href='https://play.google.com/store/apps/details?id=com.happ.app'>دریافت اندروید از گوگل پلی (Google Play)</a>\n"
+                "• <a href='https://apps.apple.com/us/app/happ-vpn/id6448825852'>دریافت آی‌او‌اس از اپ استور (App Store)</a>\n\n"
+                "💡 <b>مراحل اتصال:</b>\n"
+                "۱. ابتدا نرم‌افزار HAPP را دانلود و نصب کنید.\n"
+                "۲. لینک اشتراک اختصاصی خود را که از ربات دریافت کرده‌اید کپی کنید.\n"
+                "۳. نرم‌افزار را باز کرده و در بخش افزودن (علامت ➕ در بالا سمت راست) گزینه <code>Import from clipboard</code> یا وارد کردن از کلیپ‌بورد را بزنید.\n"
+                "۴. سرور فعال اضافه شده را انتخاب کنید و روی دکمه دایره‌ای اتصال ضربه بزنید تا متصل شوید."
+            )
+        elif item == "ios":
+            guide_text = (
+                "🍎 <b>آموزش اتصال در آی او اس (iPhone / iPad) ⭐</b>\n\n"
+                "📥 <b>نرم‌افزارهای پیشنهادی:</b>\n"
+                "• <a href='https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690'>دانلود V2box از App Store</a> (پیشنهادی)\n"
+                "• <a href='https://apps.apple.com/us/app/streisand/id6443553228'>دانلود Streisand از App Store</a>\n\n"
+                "💡 <b>مراحل اتصال در V2box:</b>\n"
+                "۱. برنامه را نصب کرده و باز کنید.\n"
+                "۲. از منوی پایین وارد بخش <b>Configs</b> شوید.\n"
+                "۳. روی علامت ➕ در بالا سمت راست ضربه بزنید.\n"
+                "۴. گزینه <b>Import Vmess/Vless/Trojan from Clipboard</b> یا <b>Add Subscription</b> را انتخاب کنید و لینک اشتراک خود را قرار دهید.\n"
+                "۵. به منوی <b>Home</b> بازگشته و دکمه اتصال را ضربه بزنید."
+            )
+        elif item == "android":
+            guide_text = (
+                "🤖 <b>آموزش اتصال در اندروید (v2rayNG)</b>\n\n"
+                "📥 <b>دانلود نرم‌افزار:</b>\n"
+                "• <a href='https://play.google.com/store/apps/details?id=com.v2ray.ang'>دانلود از گوگل پلی (Google Play)</a>\n"
+                "• <a href='https://github.com/2dust/v2rayNG/releases'>دانلود مستقیم از گیت‌هاب (GitHub)</a>\n\n"
+                "💡 <b>مراحل اتصال:</b>\n"
+                "۱. نرم‌افزار <code>v2rayNG</code> را نصب و اجرا کنید.\n"
+                "۲. لینک سابسکریپشن خود را کپی کنید.\n"
+                "۳. در برنامه، روی سه خط در بالا سمت چپ ضربه زده و وارد <b>Subscription Group setting</b> شوید.\n"
+                "۴. روی دکمه ➕ در بالا ضربه بزنید. یک نام دلخواه بگذارید و لینک اشتراک خود را در بخش URL پیست کنید و ذخیره نمایید.\n"
+                "۵. به صفحه اصلی برنامه بازگردید، روی سه نقطه در بالا سمت راست کلیک کرده و گزینه <b>Update subscription</b> را انتخاب کنید تا لیست سرورها ظاهر شوند.\n"
+                "۶. یکی از سرورها را انتخاب کرده و روی آیکون دایره‌ای پایین سمت راست ضربه بزنید تا متصل شوید."
+            )
+        elif item == "v2rayn":
+            guide_text = (
+                "💻 <b>آموزش اتصال در ویندوز (v2rayN)</b>\n\n"
+                "📥 <b>دانلود نرم‌افزار:</b>\n"
+                "• <a href='https://github.com/2dust/v2rayN/releases'>دانلود مستقیم آخرین نسخه از گیت‌هاب</a>\n\n"
+                "💡 <b>مراحل اتصال:</b>\n"
+                "۱. فایل زیپ را دانلود و استخراج کرده و فایل <code>v2rayN.exe</code> را اجرا کنید.\n"
+                "۲. لینک اشتراک خود را کپی کنید.\n"
+                "۳. از منوی بالا روی <b>Subscription Group</b> کلیک کرده و گزینه اضافه کردن را بزنید.\n"
+                "۴. لینک کپی شده را پیست کنید و ذخیره نمایید.\n"
+                "۵. مجدداً روی <b>Subscription Group</b> کلیک کرده و گزینه <b>Update Subscription</b> را کلیک کنید.\n"
+                "۶. یکی از سرورهای لود شده را انتخاب کنید و اتصال (Set Active) را برقرار نمایید."
+            )
+        elif item == "karing":
+            guide_text = (
+                "💻 <b>آموزش اتصال در ویندوز (Karing)</b>\n\n"
+                "📥 <b>دانلود نرم‌افزار:</b>\n"
+                "• <a href='https://github.com/KaringX/karing/releases'>دانلود مستقیم Karing از گیت‌هاب</a>\n\n"
+                "💡 <b>مراحل اتصال:</b>\n"
+                "۱. پس از کپی کردن لینک ساب خود، برنامه Karing را باز کنید.\n"
+                "۲. به تب Profiles بروید و دکمه ➕ را بزنید تا لینک سابسکریپشن را وارد کنید.\n"
+                "۳. دکمه بروزرسانی (Update) را بزنید و سپس اتصال را برقرار کنید."
+            )
+        elif item == "mac":
+            guide_text = (
+                "💻 <b>آموزش اتصال در سیستم‌عامل مک (macOS)</b>\n\n"
+                "📥 <b>نرم‌افزارهای پیشنهادی:</b>\n"
+                "• <a href='https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690'>دانلود V2box از App Store مک</a>\n"
+                "• <a href='https://github.com/yichengchen/clashX/releases'>دانلود ClashX از گیت‌هاب</a>\n\n"
+                "💡 <b>مراحل اتصال:</b>\n"
+                "روش اتصال کاملاً مشابه برنامه موبایل V2box یا برنامه‌های مبتنی بر کلش می‌باشد. لینک ساب را کپی کرده، در نرم‌افزار در بخش افزودن (Add Config / Subscription) قرار دهید و پس از آپدیت, یکی از سرورها را فعال نموده و دکمه اتصال اصلی را بزنید."
+            )
+        elif item == "linux":
+            guide_text = (
+                "🐧 <b>آموزش اتصال در لینوکس (Linux)</b>\n\n"
+                "📥 <b>کلاینت‌های پیشنهادی:</b>\n"
+                "• <a href='https://github.com/MatsuriDayo/nekoray/releases'>دانلود Nekoray از گیت‌هاب</a>\n"
+                "• <a href='https://github.com/Fndroid/clash_for_windows_pkg/releases'>دانلود Clash Core/GUI برای لینوکس</a>\n\n"
+                "💡 <b>راهنما:</b>\n"
+                "پس از نصب Nekoray در توزیع خود، با زدن دکمه <code>Preferences > Groups</code> گروه جدید بسازید، نوع آن را روی Subscription ست نموده و لینک خود را اضافه کرده و دکمه آپدیت را بزنید تا سرورها لود شوند."
+            )
+            
+        bot.edit_message_text(
+            guide_text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=False
+        )
+        bot.answer_callback_query(call.id)
 
     elif call.data == "btn_back_home":
         bot.answer_callback_query(call.id)
