@@ -653,82 +653,58 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
 
     return links
 
-def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None, group_id=None):
-    """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
+def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
+    """
+    Creates a new client in the X-UI panel.
+    Adds the user to all active inbounds specified in the settings.
+    """
     cfg = get_config()
-    base_url = cfg['XUI_URL']
-    if base_url.endswith("/"):
-        base_url = base_url[:-1]
+    base_url = cfg.get("XUI_URL", "")
+    if not base_url: return None, None
+    if base_url.endswith("/"): base_url = base_url[:-1]
 
     if not login_xui():
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
 
-    import random
-    import string
-    
+    import uuid
     if not client_uuid:
          client_uuid = str(uuid.uuid4())
          
     xui_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-
     total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
-    # Expiry timestamp in milliseconds
     expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
-    import random, string
+    import random, string, re
     suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
     safe_email = f"{client_email[:10]}_{suffix}"
     safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
     
-    if not safe_email:
-        safe_email = "client_" + suffix
-        
     client_config = {
         "id": client_uuid,
         "email": safe_email,
         "limitIp": 0,
-        "totalGB": total_bytes, # Standard Sanaei field name (often holds bytes)
-        "total": total_bytes,   # Fallback for systems strictly using 'total'
+        "totalGB": total_bytes,
+        "total": total_bytes,   
         "expiryTime": expiry_time_ms,
         "enable": True,
         "tgId": "",
         "subId": xui_sub_id
     }
 
-    # Dynamic inbound IDs selection
+    # Dynamic inbound IDs selection from dashboard settings
     db = read_db_json()
     inbound_ids = []
-    
-    if group_id:
+    settings_str = db.get("settings", {}).get("panel_config")
+    if settings_str:
         try:
-            if str(group_id).startswith("ib_"):
-                inbound_ids = [int(str(group_id).replace("ib_", ""))]
-                print(f"[Group Inbounds API] Resolved virtual group '{group_id}' to inbound: {inbound_ids}")
-            else:
-                settings_str = db.get("settings", {}).get("panel_config")
-                if settings_str:
-                    panel_cfg = json.loads(settings_str)
-                    groups = panel_cfg.get("inboundGroups", [])
-                    matched_group = next((g for g in groups if g.get("id") == group_id), None)
-                    if matched_group and matched_group.get("inboundIds"):
-                        inbound_ids = [int(i) for i in matched_group["inboundIds"]]
-                        print(f"[Group Inbounds API] Resolved group '{group_id}' to inbounds: {inbound_ids}")
-        except Exception as e:
-            print(f"[Group Inbounds Error Resolve]: {e}")
-
-    if not inbound_ids:
-        settings_str = db.get("settings", {}).get("panel_config")
-        if settings_str:
-            try:
-                panel_cfg = json.loads(settings_str)
-                active_ids = panel_cfg.get("activeInboundIds", [])
-                if active_ids and isinstance(active_ids, list):
-                    inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
-            except Exception as e:
-                print(f"[Bot Inbound JSON Parse Error]: {e}")
-
-    # Always fetch all valid inbounds from panel
+            panel_cfg = json.loads(settings_str)
+            active_ids = panel_cfg.get("activeInboundIds", [])
+            if active_ids and isinstance(active_ids, list):
+                inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+        except: pass
+    
+    # 1. Fetch available IDs to ensure validity (Avoid hanging on dead IDs)
     valid_ids = []
     session = get_session()
     try:
@@ -741,7 +717,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     if inbound_ids and valid_ids:
         inbound_ids = [i for i in inbound_ids if i in valid_ids]
-
+    
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
         
@@ -750,24 +726,22 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         inbound_ids = inbound_ids[:10]
 
     add_url = f"{base_url}/panel/api/clients/add"
+    # Sanaei Bulk Add Payload
     payload = {
-        "client": client_config,
+        "id": inbound_ids[0] if inbound_ids else 1,
+        "settings": json.dumps({"clients": [client_config]}),
         "inboundIds": inbound_ids
     }
     
     headers = {"Accept": "application/json"}
     try:
         response = session.post(add_url, json=payload, headers=headers, timeout=12, verify=False)
-        res_json = {}
-        try: res_json = response.json()
-        except: pass
-            
-        if res_json.get("success"):
-            print(f"[Sanaei API Sync] Created user '{client_email}' globally successfully.")
+        if response.ok and response.json().get("success"):
+            print(f"[Sanaei API Bulk] Created user '{safe_email}' on {len(inbound_ids)} inbounds.")
             return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
     except: pass
 
-    # Fallback to per-inbound addition (optimized for speed)
+    # Fallback to per-inbound addition (optimized for speed, top 3)
     fallback_success = False
     for inb_id in inbound_ids[:3]:
         classic_url = f"{base_url}/panel/api/inbounds/addClient"
@@ -777,8 +751,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         }
         try:
             c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=5, verify=False)
-            if c_res.json().get("success"):
-                print(f"[Sanaei API Fallback] Added user to inbound {inb_id}")
+            if c_res.ok and c_res.json().get("success"):
                 fallback_success = True
         except: pass
     
@@ -2187,11 +2160,16 @@ def handle_main_menu_callback(call):
         if success_note and not has_media:
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
+        vless_links = get_client_vless_links(free_username, client_uuid, sub_link)
+        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+
         success_text = (
             f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
             f"👤 نام کاربری تست: <code>{free_username}</code>\n"
             f"⏳ اعتبار: ۱ روز\n"
             f"📊 حجم: ۱۰۰ مگابایت\n\n"
+            f"🔗 <b>لینک سابسکریپشن:</b>\n<code>{sub_link}</code>\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}\n\n"
             f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
         )
         
@@ -2456,7 +2434,7 @@ def handle_buy_pay(call):
         grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
         
         cfg = get_config()
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
         
         if not sub_link:
             if not cfg.get("SIMULATOR_MODE"):
@@ -2498,12 +2476,17 @@ def handle_buy_pay(call):
         if success_note and not has_media:
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
+        vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
+        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
             f"🛒 اشتراک: <b>{spec['name']}</b>\n"
             f"👤 شناسه: <code>{username_input}</code>\n"
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"🚥 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n\n"
+            f"🔗 <b>لینک سابسکریپشن:</b>\n<code>{sub_link}</code>\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}\n\n"
             f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
@@ -2768,7 +2751,7 @@ def process_purchase_username(message, plan_id, spec):
         u_temp = next((u for u in db_temp.get("users", []) if u["userId"] == tg_id), None)
         grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
 
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
         if not sub_link:
             # Fallback simulated dynamic link
             client_uuid = str(uuid.uuid4())
@@ -2809,11 +2792,16 @@ def process_purchase_username(message, plan_id, spec):
             f"پلن '{spec['name']}' را با هزینه {price_charged_display} برای نام کاربری '{username_input}' خریداری کرد."
         )
         
+        vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
+        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+
         success_text = (
             f"🎉 <b>خرید کانفیگ شما با موفقیت تکمیل شد!</b>\n\n"
             f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
             f"💳 هزینه کسر شده: {price_charged_display}\n"
             f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
+            f"🔗 <b>لینک سابسکریپشن:</b>\n<code>{sub_link}</code>\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}\n\n"
             f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
         )
         
@@ -4592,11 +4580,16 @@ def process_col_create_days(message, acc, name, gb):
     if success_note and not has_media:
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
+    vless_links = get_client_vless_links(full_name, client_uuid, sub_link)
+    links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+
     text_msg = (
         f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
         f"👤 <b>نام:</b> {full_name}\n"
         f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
         f"⏳ <b>اعتبار:</b> {days} روز\n\n"
+        f"🔗 <b>لینک سابسکریپشن:</b>\n<code>{sub_link}</code>\n\n"
+        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}\n\n"
         f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
     )
     

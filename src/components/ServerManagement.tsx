@@ -82,21 +82,12 @@ export default function ServerManagement({
   const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
   const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
   
-  // Collapse/Expand state for Inbounds display option
+  // Simplify Inbounds display option
   const [showInbounds, setShowInbounds] = useState(false);
   const [checkedInboundIds, setCheckedInboundIds] = useState<number[]>(() => {
     return settings.activeInboundIds || [];
   });
   const [inboundsSuccess, setInboundsSuccess] = useState(false);
-
-  // Group Inbounds States
-  const [isGroupInboundsEnabled, setIsGroupInboundsEnabled] = useState(settings.isGroupInboundsEnabled || false);
-  const [inboundGroups, setInboundGroups] = useState<any[]>(settings.inboundGroups || []);
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  const [groupName, setGroupName] = useState("");
-  const [groupInboundIds, setGroupInboundIds] = useState<number[]>([]);
-  const [groupPlanIds, setGroupPlanIds] = useState<string[]>([]);
-  const [groupError, setGroupError] = useState("");
 
   // Sync inputs with parent settings prop changes
   useEffect(() => {
@@ -105,8 +96,6 @@ export default function ServerManagement({
     setPanelUsername(settings.panelUsername || "");
     setPanelPassword(settings.panelPassword || "");
     setCheckedInboundIds(settings.activeInboundIds || []);
-    setIsGroupInboundsEnabled(settings.isGroupInboundsEnabled || false);
-    setInboundGroups(settings.inboundGroups || []);
   }, [settings]);
 
   const handleDisconnectConfiguration = () => {
@@ -149,9 +138,7 @@ export default function ServerManagement({
         panelUrl: baseUrl,
         panelUsername,
         panelPassword,
-        activeInboundIds: checkedInboundIds,
-        isGroupInboundsEnabled,
-        inboundGroups
+        activeInboundIds: checkedInboundIds
       });
       setSaveStatus({
         type: "success",
@@ -166,85 +153,6 @@ export default function ServerManagement({
         message: lang === "fa" ? "❌ خطا در ذخیره اطلاعات." : "❌ Failed to save configuration."
       });
     }
-  };
-
-  const handleAddOrEditInboundGroup = (group: any) => {
-    setEditingGroupId(group ? group.id : "new");
-    setGroupName(group ? group.name : "");
-    setGroupInboundIds(group ? group.inboundIds : []);
-    setGroupPlanIds(group ? group.planIds || [] : []);
-    setGroupError("");
-  };
-
-  const handleSaveInboundGroup = () => {
-    if (!groupName.trim()) {
-      setGroupError(lang === "fa" ? "لطفا نام معتبری وارد کنید." : "Group name is required.");
-      return;
-    }
-    if (groupInboundIds.length === 0) {
-      setGroupError(lang === "fa" ? "لطفا حداقل یک اینباند انتخاب کنید." : "At least one inbound must be checked.");
-      return;
-    }
-
-    let nextGroups = [...inboundGroups];
-    if (editingGroupId === "new") {
-      const newGroup = {
-        id: "ig_" + Math.random().toString(36).substring(2, 8),
-        name: groupName.trim(),
-        inboundIds: groupInboundIds,
-        planIds: groupPlanIds
-      };
-      nextGroups.push(newGroup);
-    } else {
-      nextGroups = nextGroups.map(g => {
-        if (g.id === editingGroupId) {
-          return {
-            ...g,
-            name: groupName.trim(),
-            inboundIds: groupInboundIds,
-            planIds: groupPlanIds
-          };
-        }
-        return g;
-      });
-    }
-
-    setInboundGroups(nextGroups);
-    setEditingGroupId(null);
-    setGroupName("");
-    setGroupInboundIds([]);
-    setGroupPlanIds([]);
-    setGroupError("");
-
-    // Auto save settings
-    onSaveSettings({
-      ...settings,
-      baseUrl,
-      subUrl,
-      panelUrl: baseUrl,
-      panelUsername,
-      panelPassword,
-      activeInboundIds: checkedInboundIds,
-      isGroupInboundsEnabled,
-      inboundGroups: nextGroups
-    });
-  };
-
-  const handleDeleteInboundGroup = (id: string) => {
-    const nextGroups = inboundGroups.filter(g => g.id !== id);
-    setInboundGroups(nextGroups);
-    // Auto save settings
-    onSaveSettings({
-      ...settings,
-      baseUrl,
-      subUrl,
-      panelUrl: baseUrl,
-      panelUsername,
-      panelPassword,
-      activeInboundIds: checkedInboundIds,
-      isGroupInboundsEnabled,
-      inboundGroups: nextGroups
-    });
   };
 
   const handleTestConnection = async () => {
@@ -808,274 +716,6 @@ export default function ServerManagement({
               : "bg-rose-500/15 text-rose-400 border border-rose-500/20"
           }`}>
             <span>{saveStatus.message}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Group Inbounds Section */}
-      <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
-        <div className="flex sm:flex-row flex-col sm:items-center justify-between border-b border-gray-800 pb-3 gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
-              <Server className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="font-semibold text-white text-sm">
-                {lang === "fa" ? "گروه‌بندی اینباندها (Group Inbounds)" : "Group Inbounds Configuration"}
-              </h4>
-              <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
-                {lang === "fa" 
-                  ? "با فعال کردن این بخش، ابتدا لیست لوکیشن‌ها/اینباندها به کاربر نشان داده می‌شود و سپس پلن‌ها."
-                  : "Allow users to select from location-based/grouped inbounds before viewing plans."}
-              </p>
-            </div>
-          </div>
-
-          <label className="inline-flex items-center gap-2.5 cursor-pointer self-start sm:self-auto select-none">
-            <span className="text-xs font-semibold text-gray-300">
-              {lang === "fa" ? "وضعیت قابلیت:" : "Feature Status:"}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                const nextVal = !isGroupInboundsEnabled;
-                setIsGroupInboundsEnabled(nextVal);
-                onSaveSettings({
-                  ...settings,
-                  isGroupInboundsEnabled: nextVal
-                });
-              }}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isGroupInboundsEnabled ? 'bg-indigo-600' : 'bg-gray-700'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  isGroupInboundsEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </label>
-        </div>
-
-        {isGroupInboundsEnabled && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Header / Add button */}
-            {!editingGroupId && (
-              <div className="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-gray-800/80">
-                <span className="text-xs text-gray-400">
-                  {lang === "fa" 
-                    ? `تعداد گروه‌های ساخته شده: ${inboundGroups.length}` 
-                    : `Total groups defined: ${inboundGroups.length}`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleAddOrEditInboundGroup(null)}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  {lang === "fa" ? "ایجاد گروه جدید" : "Create New Group"}
-                </button>
-              </div>
-            )}
-
-            {/* Create/Edit form */}
-            {editingGroupId && (
-              <div className="bg-[#1a2234] p-4 rounded-xl space-y-4 border border-indigo-500/20 animate-in fade-in slide-in-from-top-1">
-                <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                  <h5 className="text-xs font-bold text-white uppercase">
-                    {editingGroupId === "new" 
-                      ? (lang === "fa" ? "➕ ساخت گروه اینباند جدید" : "➕ Create Inbound Group")
-                      : (lang === "fa" ? "✏️ ویرایش گروه اینباند" : "✏️ Edit Inbound Group")}
-                  </h5>
-                  <button
-                    type="button"
-                    onClick={() => setEditingGroupId(null)}
-                    className="p-1 text-gray-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] text-gray-400 uppercase mb-1">
-                      {lang === "fa" ? "نام گروه (مثلا: لوکیشن ترکیه 🇹🇷)" : "Group Name"}
-                    </label>
-                    <input
-                      type="text"
-                      value={groupName}
-                      onChange={e => setGroupName(e.target.value)}
-                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-semibold"
-                      placeholder={lang === "fa" ? "مثلا: ترکیه 🇹🇷" : "e.g. Turkey 🇹🇷"}
-                    />
-                  </div>
-
-                  {/* Checkbox of inbounds */}
-                  <div>
-                    <label className="block text-[10px] text-gray-300 uppercase mb-1.5 font-bold">
-                      {lang === "fa" ? "انتخاب اینباندهای متصل به این گروه:" : "Select Panel Inbounds for this Group:"}
-                    </label>
-                    {inbounds.length === 0 ? (
-                      <p className="text-[10px] text-yellow-400">
-                        {lang === "fa" 
-                          ? "⚠️ هیچ اینباندی لود نشده است. ابتدا اتصال پنل بالا را بزنید تا لیست لود شود." 
-                          : "⚠️ No active inbounds. Please test and fetch your server inbounds above first."}
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto bg-[#111827] p-2 rounded-lg border border-gray-800">
-                        {inbounds.map(ib => {
-                          const isChecked = groupInboundIds.includes(ib.id);
-                          return (
-                            <label key={ib.id} className="flex items-center gap-2 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setGroupInboundIds([...groupInboundIds, ib.id]);
-                                  } else {
-                                    setGroupInboundIds(groupInboundIds.filter(id => id !== ib.id));
-                                  }
-                                }}
-                                className="rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 shrink-0"
-                              />
-                              <span className="text-xs text-gray-300 truncate">
-                                {ib.remark} <span className="text-[10px] text-gray-500 font-mono">({ib.protocol})</span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Checkbox of Plan Categories (پلن‌ها) */}
-                  <div>
-                    <label className="block text-[10px] text-gray-300 uppercase mb-1.5 font-bold">
-                      {lang === "fa" ? "انتخاب پلن‌های فعال در این گروه (دسته‌بندی‌ها):" : "Select Active Plan Categories for this Group:"}
-                    </label>
-                    {planCategories.length === 0 ? (
-                      <p className="text-[10px] text-yellow-400">
-                        {lang === "fa" ? "⚠️ هیچ دسته‌بندی تعریف نشده است." : "⚠️ No Plan Categories set up yet."}
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[145px] overflow-y-auto bg-[#111827] p-2 rounded-lg border border-gray-800">
-                        {planCategories.map(cat => {
-                          const isChecked = groupPlanIds.includes(cat.name);
-                          return (
-                            <label key={cat.id} className="flex items-center gap-2 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setGroupPlanIds([...groupPlanIds, cat.name]);
-                                  } else {
-                                    setGroupPlanIds(groupPlanIds.filter(name => name !== cat.name));
-                                  }
-                                }}
-                                className="rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 shrink-0"
-                              />
-                              <span className="text-xs text-indigo-300 font-medium truncate">
-                                {cat.emoji} {cat.name}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {groupError && <p className="text-[11px] text-rose-400 font-medium">{groupError}</p>}
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingGroupId(null)}
-                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-650 text-white rounded-lg text-xs"
-                  >
-                    {lang === "fa" ? "لغو" : "Cancel"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveInboundGroup}
-                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold"
-                  >
-                    {lang === "fa" ? "ذخیره گروه" : "Save Group"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* List of groups */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {inboundGroups.map(group => {
-                // Find inbounds remark
-                const ibNames = group.inboundIds ? group.inboundIds.map((id: number) => {
-                  const ib = inbounds.find(i => i.id === id);
-                  return ib ? ib.remark : `#${id}`;
-                }).join(", ") : "";
-
-                // Find linked category names
-                const categoryNames = group.planIds ? group.planIds.join(", ") : "";
-
-                return (
-                  <div key={group.id} className="relative bg-[#1c253b] border border-gray-800 p-4 rounded-xl flex flex-col justify-between hover:border-indigo-500/50 transition-all">
-                    <div>
-                      <div className="flex items-center justify-between gap-2 pr-16">
-                        <span className="text-xs font-bold text-white font-display border-l-2 border-indigo-500 pl-2">
-                          {group.name}
-                        </span>
-                      </div>
-
-                      <div className="mt-3.5 space-y-2 text-[10px] text-gray-400 font-sans">
-                        <div>
-                          <span className="font-bold text-gray-300">
-                            {lang === "fa" ? "🔗 اینباندها:" : "🔗 Inbounds:"}
-                          </span>{" "}
-                          <span className="text-emerald-400 font-mono leading-relaxed bg-slate-900/40 p-1 px-1.5 rounded inline-block truncate max-w-full">{ibNames || (lang === "fa" ? "هیچ کدام" : "None")}</span>
-                        </div>
-                        <div>
-                          <span className="font-bold text-gray-300">
-                            {lang === "fa" ? "📦 پلن‌های متصل (دسته‌بندی‌ها):" : "📦 Linked Categories:"}
-                          </span>{" "}
-                          <span className="text-indigo-300 leading-relaxed bg-slate-900/40 p-1 px-1.5 rounded inline-block truncate max-w-full">{categoryNames || (lang === "fa" ? "همه دسته‌بندی‌ها" : "All Categories")}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="absolute top-3.5 right-3.5 flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleAddOrEditInboundGroup(group)}
-                        className="p-1.5 bg-indigo-500/10 text-indigo-300 rounded-lg hover:bg-indigo-500/20 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteInboundGroup(group.id)}
-                        className="p-1.5 bg-rose-500/10 text-rose-300 rounded-lg hover:bg-rose-500/20 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {inboundGroups.length === 0 && !editingGroupId && (
-              <p className="text-xs text-center py-4 text-gray-500">
-                {lang === "fa" 
-                  ? "💡 هیچ گروه اینباندی تعریف نکرده‌اید. دکمه «ایجاد گروه جدید» را بزنید." 
-                  : "💡 No inbound groups created. Hit 'Create New Group' to start."}
-              </p>
-            )}
           </div>
         )}
       </div>
