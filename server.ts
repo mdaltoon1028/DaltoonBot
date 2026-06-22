@@ -2064,6 +2064,13 @@ app.post("/api/transactions/approve", async (req, res) => {
             reqNotify.on('error', (e: any) => console.warn("Telegram approve notify error:", e));
             reqNotify.write(postData);
             reqNotify.end();
+
+            // Also attach purchase success note if delivering exactly a newly built purchase config
+            if (tx.type === "PLAN_PURCHASE" && qrUrl) {
+                setTimeout(() => {
+                    sendPurchaseSuccessNoteIfAnyServer(botToken, tx.userId, cfg);
+                }, 1000);
+            }
           }
         }
       } catch (notifyErr) {
@@ -2988,6 +2995,55 @@ async function sendTelegramMessage(botToken: string, chatId: string | number, te
     console.error(`[Telegram Warning] Fail to send to ${chatId}:`, err);
   }
 }
+
+async function sendPurchaseSuccessNoteIfAnyServer(botToken: string, chatId: string | number, settings: any) {
+  if (!botToken || botToken === "DUMMY_TOKEN") return;
+  const fetchRef = globalThis.fetch || fetch;
+  const noteText = settings.purchaseSuccessNote || "";
+  const attachment = settings.purchaseSuccessAttachment || null;
+  
+  if (!noteText && !attachment) return;
+  
+  try {
+    if (attachment && attachment.fileData) {
+      const fileType = attachment.fileType || "image";
+      let b64Str = attachment.fileData;
+      if (b64Str.includes(",")) b64Str = b64Str.split(",")[1];
+      
+      const buffer = Buffer.from(b64Str, 'base64');
+      const blob = new Blob([buffer]);
+      const fd = new FormData();
+      fd.append("chat_id", String(chatId));
+      if (noteText) fd.append("caption", noteText);
+      fd.append("parse_mode", "HTML");
+      
+      let endpoint = "sendDocument";
+      if (fileType === "image") {
+        endpoint = "sendPhoto";
+        fd.append("photo", blob, "image.png");
+      } else if (fileType === "video") {
+        endpoint = "sendVideo";
+        fd.append("video", blob, "video.mp4");
+      } else if (fileType === "voice") {
+        endpoint = "sendVoice";
+        fd.append("voice", blob, "voice.ogg");
+      } else {
+        fd.append("document", blob, attachment.fileName || "attachment.dat");
+      }
+      
+      await fetchRef(`https://api.telegram.org/bot${botToken}/${endpoint}`, {
+        method: 'POST',
+        body: fd as any
+      });
+      
+    } else if (noteText) {
+      await sendTelegramMessage(botToken, chatId, noteText);
+    }
+  } catch (err) {
+    console.warn(`[Purchase Success Note Server] Error sending to ${chatId}:`, err);
+  }
+}
+
 
 async function autoSyncTrafficUsage() {
   try {

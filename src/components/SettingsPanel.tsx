@@ -126,6 +126,7 @@ export default function SettingsPanel({
       serverPort: Number(serverPort) || 3000,
       autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
+      purchaseSuccessAttachment: activePurchaseAttachment,
       admins: nextAdmins
     });
   };
@@ -157,6 +158,7 @@ export default function SettingsPanel({
       serverPort: Number(serverPort) || 3000,
       autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
+      purchaseSuccessAttachment: activePurchaseAttachment,
       admins: nextAdmins
     });
   };
@@ -284,6 +286,21 @@ export default function SettingsPanel({
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(settings.autoBackupEnabled !== undefined ? settings.autoBackupEnabled : false);
   const [autoBackupInterval, setAutoBackupInterval] = useState(settings.autoBackupInterval || "daily");
 
+  const [activePurchaseAttachment, setActivePurchaseAttachment] = useState<{fileData: string, fileName: string, fileType: "image"|"video"|"voice"|"file"} | null>(settings.purchaseSuccessAttachment || null);
+  const purchaseAttachmentInputRef = useRef<HTMLInputElement>(null);
+  const [activePurchaseUploadType, setActivePurchaseUploadType] = useState<"image"|"video"|"voice"|"file">("image");
+  
+  const triggerPurchaseUpload = (type: "image" | "video" | "voice" | "file") => {
+    if (purchaseAttachmentInputRef.current) {
+      if (type === "image") purchaseAttachmentInputRef.current.accept = "image/*";
+      else if (type === "video") purchaseAttachmentInputRef.current.accept = "video/*";
+      else if (type === "voice") purchaseAttachmentInputRef.current.accept = "audio/*";
+      else purchaseAttachmentInputRef.current.accept = "*/*";
+      setActivePurchaseUploadType(type);
+      purchaseAttachmentInputRef.current.click();
+    }
+  };
+
   const [saved, setSaved] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -312,6 +329,7 @@ export default function SettingsPanel({
       serverPort: Number(serverPort) || 3000,
       autoRefreshInterval: Number(autoRefreshInterval) || 0,
       purchaseSuccessNote,
+      purchaseSuccessAttachment: activePurchaseAttachment,
       admins: adminsList,
       gatewayPlisioWallet,
       gatewayNowpaymentsKey,
@@ -1334,7 +1352,39 @@ export default function SettingsPanel({
                 value={purchaseSuccessNote}
                 onChange={(e) => setPurchaseSuccessNote(e.target.value)}
               />
-              <span className="text-[10px] text-gray-500 mt-1 block">
+              
+              {/* Media Attachment Actions for Purchase Note */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <span className="text-[11px] text-gray-500">{lang === "fa" ? "افزودن رسانه:" : "Attach media:"}</span>
+                <button type="button" onClick={() => triggerPurchaseUpload("image")} className="px-2 py-1 rounded bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-[10px] transition flex items-center gap-1"><ImageIcon className="w-3 h-3 text-purple-400" />{lang === "fa" ? "تصویر" : "Image"}</button>
+                <button type="button" onClick={() => triggerPurchaseUpload("video")} className="px-2 py-1 rounded bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-[10px] transition flex items-center gap-1"><Film className="w-3 h-3 text-blue-400" />{lang === "fa" ? "ویدئو" : "Video"}</button>
+                <button type="button" onClick={() => triggerPurchaseUpload("voice")} className="px-2 py-1 rounded bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-[10px] transition flex items-center gap-1"><Mic className="w-3 h-3 text-emerald-400" />{lang === "fa" ? "صوت" : "Voice"}</button>
+                <button type="button" onClick={() => triggerPurchaseUpload("file")} className="px-2 py-1 rounded bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-[10px] transition flex items-center gap-1"><Paperclip className="w-3 h-3 text-amber-400" />{lang === "fa" ? "فایل" : "File"}</button>
+                {activePurchaseAttachment && (
+                  <button type="button" onClick={() => setActivePurchaseAttachment(null)} className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 text-[10px] transition flex items-center gap-1 ml-auto">
+                    <Trash2 className="w-3 h-3" />{lang === "fa" ? "حذف رسانه" : "Remove"}
+                  </button>
+                )}
+              </div>
+              <input type="file" ref={purchaseAttachmentInputRef} className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => { setActivePurchaseAttachment({ fileData: reader.result as string, fileName: file.name, fileType: activePurchaseUploadType }); };
+                reader.readAsDataURL(file);
+                e.target.value = "";
+              }} />
+              {activePurchaseAttachment && (
+                <div className="flex items-center gap-3 p-2 mt-2 rounded bg-gray-900 border border-indigo-500/20">
+                  {activePurchaseAttachment.fileType === "image" && <img src={activePurchaseAttachment.fileData} alt="Preview" className="w-8 h-8 rounded object-cover" />}
+                  {activePurchaseAttachment.fileType === "video" && <Film className="w-5 h-5 text-indigo-400" />}
+                  {activePurchaseAttachment.fileType === "voice" && <Mic className="w-5 h-5 text-emerald-400" />}
+                  {activePurchaseAttachment.fileType === "file" && <Paperclip className="w-5 h-5 text-amber-400" />}
+                  <div className="text-[10px] text-gray-300 truncate max-w-[200px]">{activePurchaseAttachment.fileName}</div>
+                </div>
+              )}
+              
+              <span className="text-[10px] text-gray-500 mt-2 block">
                 {lang === "fa" 
                   ? "نکته: این متن به عنوان راهنما، بلافاصله در زیر کانفیگ صادر شده به مشتری تحویل داده می‌شود."
                   : "Tip: This text will be appended automatically beneath the premium config link upon successful customer checkout."}

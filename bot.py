@@ -243,6 +243,8 @@ def get_config():
                 config["KEYBOARD_LAYOUT"] = panel_cfg["keyboardLayout"]
             if "purchaseSuccessNote" in panel_cfg:
                 config["PURCHASE_SUCCESS_NOTE"] = panel_cfg["purchaseSuccessNote"]
+            if "purchaseSuccessAttachment" in panel_cfg:
+                config["PURCHASE_SUCCESS_ATTACHMENT"] = panel_cfg["purchaseSuccessAttachment"]
             
             # Load Gateway Configuration
             for gw in ["gatewayPlisioWallet", "gatewayNowpaymentsKey", "gatewayCryptomusKey", "gatewayCryptomusMerchantId", "gatewayHeleketWallet"]:
@@ -397,6 +399,47 @@ def check_client_exists(client_email):
         print(f"[Panel Check Error] {e}")
     return False
 
+def send_purchase_success_note_if_any(chat_id):
+    cfg = get_config()
+    note_text = cfg.get("PURCHASE_SUCCESS_NOTE", "")
+    note_attach = cfg.get("PURCHASE_SUCCESS_ATTACHMENT", None)
+    
+    if not note_text and not note_attach:
+        return
+        
+    try:
+        if note_attach and "fileData" in note_attach:
+            file_data_b64 = note_attach["fileData"]
+            file_type = note_attach.get("fileType", "image")
+            
+            import base64
+            import io
+            
+            if "," in file_data_b64:
+                header, encoded = file_data_b64.split(",", 1)
+            else:
+                encoded = file_data_b64
+                
+            file_bytes = base64.b64decode(encoded)
+            file_io = io.BytesIO(file_bytes)
+            
+            if file_type == "image":
+                file_io.name = "image.png"
+                bot.send_photo(chat_id, file_io, caption=note_text, parse_mode="HTML")
+            elif file_type == "video":
+                file_io.name = "video.mp4"
+                bot.send_video(chat_id, file_io, caption=note_text, parse_mode="HTML")
+            elif file_type == "voice":
+                file_io.name = "voice.ogg"
+                bot.send_voice(chat_id, file_io, caption=note_text, parse_mode="HTML")
+            else:
+                file_io.name = note_attach.get("fileName", "file.dat")
+                bot.send_document(chat_id, file_io, caption=note_text, parse_mode="HTML")
+        elif note_text:
+            bot.send_message(chat_id, note_text, parse_mode="HTML")
+    except Exception as e:
+        print(f"[Purchase Success Note] Error sending attachment/text: {e}")
+
 def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
     """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
@@ -529,11 +572,32 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
 
     if not login_xui():
         return False
+        
+    import re
+    safe_email = ""
+    if client_email:
+        safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
+        safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
 
     # Try several common endpoints for maximum reliability
     targets = []
     if client_uuid:
         targets.append(str(client_uuid))
+        
+        # New Sanaei Global uuid update endpoint
+        try:
+            get_url = f"{base_url}/panel/api/clients/get/{safe_email}"
+            get_res = session.get(get_url, timeout=5, verify=False)
+            rj = get_res.json()
+            if rj.get("success") and rj.get("obj"):
+                client_obj = rj.get("obj")
+                client_obj["enable"] = enable
+                upd_url = f"{base_url}/panel/api/clients/update/{client_uuid}"
+                upd_res = session.post(upd_url, json=client_obj, timeout=5, verify=False)
+                if upd_res.json().get("success"):
+                    print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint.")
+                    return True
+        except: pass
     
     # Also search by email if uuid not provided or as fallback
     if not targets or client_email:
@@ -588,22 +652,25 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                 }
                                 
                                 # Try standard updateClient endpoint first
-                                upd_res = session.post(upd_url, json=merged_c, timeout=5, verify=False)
+                                upd_res = session.post(upd_url, data=payload, timeout=5, verify=False)
                                 if upd_res.ok and upd_res.json().get("success"):
                                     print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via /updateClient/{{uuid}}")
                                     success = True
                                 else:
-                                    # Fallback: Many Sanaei panels use a general update endpoint
-                                    # POST /panel/api/inbounds/updateClient
-                                    # Body: {id: inbound_id, settings: '{"clients": [...]}'}
-                                    fallback_url = f"{base_url}/panel/api/inbounds/updateClient"
-                                    # We need to preserve the full settings if possible, but 3x-ui usually allows partial client list update
-                                    fallback_res = session.post(fallback_url, json=payload, timeout=5, verify=False)
-                                    if fallback_res.ok and fallback_res.json().get("success"):
-                                        print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via fallback /updateClient")
+                                    # Fallback 1: json payload
+                                    upd_res_json = session.post(upd_url, json=payload, timeout=5, verify=False)
+                                    if upd_res_json.ok and upd_res_json.json().get("success"):
+                                        print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via /updateClient/{{uuid}} (JSON)")
                                         success = True
                                     else:
-                                        print(f"[Sanaei API] Failed to update client {uid} on inbound {inbound_id}: {upd_res.text} / {fallback_res.text}")
+                                        # Fallback 2: Many Sanaei panels use a general update endpoint
+                                        fallback_url = f"{base_url}/panel/api/inbounds/updateClient"
+                                        fallback_res = session.post(fallback_url, data=payload, timeout=5, verify=False)
+                                        if fallback_res.ok and fallback_res.json().get("success"):
+                                            print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via fallback /updateClient")
+                                            success = True
+                                        else:
+                                            print(f"[Sanaei API] Failed to update client {uid} on inbound {inbound_id}: {upd_res.text} / {fallback_res.text}")
                     except Exception as e:
                         print(f"[Sanaei API] Error processing inbound {inbound_id} for client {uid}: {e}")
         except Exception as e:
@@ -621,6 +688,26 @@ def delete_vpn_client_api(client_email, client_uuid=None):
     if not login_xui():
         print("[Sanaei API Error] Login failed in delete_vpn_client_api")
         return False
+        
+    import re
+    safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
+    safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
+    
+    # NEW SANAEI ENDPOINT (Safest and cleanest)
+    if safe_email:
+        try:
+            del_api_url = f"{base_url}/panel/api/clients/del/{safe_email}"
+            print(f"[Sanaei Delete API] Trying new global delete endpoint for email: {safe_email}...")
+            resp = session.post(del_api_url, timeout=5, verify=False)
+            try:
+                rj = resp.json()
+                if rj.get("success"):
+                    print(f"[Sanaei Delete API] Successfully deleted '{safe_email}' via global client/del endpoint.")
+                    return True
+            except:
+                pass
+        except Exception as e:
+            print(f"[Sanaei Delete API] Global delete attempt failed: {e}")
 
     valid_ids = []
     all_clients = []
@@ -1724,6 +1811,8 @@ def handle_main_menu_callback(call):
             bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
         except:
             bot.send_message(message.chat.id, success_text, parse_mode="HTML")
+            
+        send_purchase_success_note_if_any(message.chat.id)
 
     # 6. Referral
     elif action == "mm_btnReferral":
@@ -1986,6 +2075,8 @@ def handle_buy_pay(call):
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
             bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=markup)
+            
+        send_purchase_success_note_if_any(tg_id)
         
     elif method in ["cryptomus", "nowpayments", "plisio", "heleket", "stars"]:
         # Mock implementations
@@ -2247,9 +2338,7 @@ def process_purchase_username(message, plan_id, spec):
             f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
             f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
             f"• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n"
-            f"<code>{sub_link}</code>\n\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"{note_append}"
+            f"<code>{sub_link}</code>"
         )
         
         # Try sending the QR code photo
@@ -2260,6 +2349,8 @@ def process_purchase_username(message, plan_id, spec):
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
             bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+            
+        send_purchase_success_note_if_any(message.chat.id)
     finally:
         active_purchases.discard(tg_id)
 
@@ -3196,10 +3287,16 @@ def callback_handler(call):
                 f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
             )
             
-        bot.edit_message_text(
-            welcome_text,
+        try:
+            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+        except Exception:
+            try:
+                bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)
+            except: pass
+            
+        bot.send_message(
             chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
+            text=welcome_text,
             parse_mode="HTML",
             reply_markup=get_custom_keyboard()
         )
@@ -3478,6 +3575,8 @@ def process_col_create_days(message, acc, name, gb):
     except Exception as e:
         print(f"[Bot Warning] Failed to send QR Photo: {e}")
         bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+        
+    send_purchase_success_note_if_any(message.chat.id)
     
     show_colleague_panel_msg(message, live_acc)
 
