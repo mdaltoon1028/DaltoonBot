@@ -788,6 +788,70 @@ export default function BotSimulator({
       return;
     }
 
+    if (action.startsWith("get_sub_link_")) {
+      const subId = action.substring(13);
+      const k = simulatedKeys.find(item => item.id === subId);
+      const link = k ? k.subLink : `https://tr.sub-daltoon.ir:2096/sub/simulated_${subId}`;
+      addBotReply(
+        lang === "fa"
+          ? `🔗 <b>لینک اتصال و اشتراک اختصاصی سرویس شما:</b>\n\n` +
+            `👤 نام سرویس: <code>${k?.clientName || "DaltoonService"}</code>\n\n` +
+            `👇 <b>لینک سابسکریپشن شما (جهت کپی لمس کنید):</b>\n\n` +
+            `<code>${link}</code>\n\n` +
+            `💡 این لینک را کپی کرده و در نرم‌افزارهای خود (v2rayNG، V2box، Happ و...) وارد نمایید تا کانفیگ‌ها به طور خودکار بارگذاری شوند.`
+          : `🔗 <b>Your Exclusive Subscription Link:</b>\n\n` +
+            `👤 Service: <code>${k?.clientName || "DaltoonService"}</code>\n\n` +
+            `👇 <b>Your Subscription URL (tap to copy):</b>\n\n` +
+            `<code>${link}</code>\n\n` +
+            `💡 Copy this link and import it into v2rayNG, V2box, Happ, etc.`,
+        300,
+        undefined,
+        [
+          [
+            { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${subId}` },
+            { text: lang === "fa" ? "🔙 بازگشت به مدیریت" : "🔙 Back to Manage", action: `manage_sub_${subId}` }
+          ]
+        ]
+      );
+      return;
+    }
+
+    if (action.startsWith("get_vless_links_")) {
+      const subId = action.substring(16);
+      const k = simulatedKeys.find(item => item.id === subId);
+      const uuid = k?.clientUuid || "f39281a1-9b1d-4050-b498-3882aef1277a";
+      const name = k?.clientName || "DaltoonService";
+      
+      const vlinks = [
+        `vless://${uuid}@m.daltoon-server.ir:2053?security=tls&type=ws&path=%2F#Vless-Irancell-${name}-⚡`,
+        `vless://${uuid}@m.daltoon-server.ir:2083?security=tls&type=ws&path=%2F#Vless-HamrahAval-${name}-🚀`,
+        `vless://${uuid}@m.daltoon-server.ir:2053?security=reality&type=tcp&sni=google.com&fp=chrome#Vless-Germany-${name}-🇩🇪`
+      ];
+
+      addBotReply(
+        lang === "fa"
+          ? `⚡ <b>لیست کانفیگ‌های معمولی VLESS سرویس شما:</b>\n\n` +
+            `👤 نام سرویس: <code>${name}</code>\n\n` +
+            `👇 <b>جهت کپی کردن، روی هر لینک ضربه بزنید یا لمس کنید:</b>\n\n` +
+            vlinks.map(l => `<code>${l}</code>`).join("\n\n") +
+            `\n\n💡 این لینک‌ها را کپی کرده و مستقیماً در نرم‌افزارهای V2ray خود وارد نمایید.`
+          : `⚡ <b>Your Standard VLESS Configs:</b>\n\n` +
+            `👤 Service: <code>${name}</code>\n\n` +
+            `👇 <b>Tap any config to copy:</b>\n\n` +
+            vlinks.map(l => `<code>${l}</code>`).join("\n\n") +
+            `\n\n💡 Paste these links directly into your V2ray application.`,
+        300,
+        undefined,
+        [
+          [
+            { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${subId}` },
+            { text: lang === "fa" ? "🔙 بازگشت به مدیریت" : "🔙 Back to Manage", action: `manage_sub_${subId}` }
+          ]
+        ]
+      );
+      return;
+    }
+
     if (action === "upload_receipt") {
       setShowInvoiceUpload(true);
       return;
@@ -873,6 +937,10 @@ export default function BotSimulator({
           500,
           undefined,
           [
+            [
+              { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${k.id}` },
+              { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${k.id}` }
+            ],
             [
               { text: lang === "fa" ? "🔄 تغییر کلید (Reset UUID)" : "🔄 Reset UUID", action: `warn_regen_${k.id}` },
               { text: lang === "fa" ? "🎁 انتقال مالکیت به دوست" : "🎁 Transfer Owner", action: `warn_transfer_${k.id}` }

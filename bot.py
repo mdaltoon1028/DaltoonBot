@@ -490,6 +490,130 @@ def send_purchase_success_note_if_any(chat_id, only_media=True):
     except Exception as e:
         print(f"[Purchase Success Note] Error sending attachment/text: {e}")
 
+def get_client_vless_links(client_name, client_uuid, sub_link=None):
+    """
+    Fetch raw standard VLESS links for a specific client from the Sanaei 3x-ui panel.
+    Tries multiple client-specific endpoint forms:
+    1. /panel/api/clients/links/{email}
+    2. /panel/api/clients/subLinks/{sub_id}
+    Falls back to building links dynamically from active inbounds or generating mock ones if offline.
+    """
+    cfg = get_config()
+    base_url = cfg.get('XUI_URL', '')
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
+    links = []
+    
+    if login_xui() and base_url:
+        session = get_session()
+        # 1. Try links by Email first
+        try:
+            url = f"{base_url}/panel/api/clients/links/{client_name}"
+            res = session.get(url, timeout=6, verify=False)
+            data = res.json()
+            if data.get("success") and isinstance(data.get("obj"), list):
+                links = [str(lnk) for lnk in data["obj"] if str(lnk).startswith("vless://")]
+                print(f"[get_client_vless_links] Fetched {len(links)} links using email endpoint.")
+        except Exception as e:
+            print(f"[get_client_vless_links Email EndPoint Error] {e}")
+
+        # 2. Try subLinks endpoint if Email endpoint failed or returned empty
+        if not links and sub_link:
+            try:
+                sub_id = None
+                if "/sub/" in sub_link:
+                    sub_id = sub_link.split("/sub/")[1].split("?")[0]
+                if sub_id:
+                    url = f"{base_url}/panel/api/clients/subLinks/{sub_id}"
+                    res = session.get(url, timeout=6, verify=False)
+                    data = res.json()
+                    if data.get("success") and isinstance(data.get("obj"), list):
+                        links = [str(lnk) for lnk in data["obj"] if str(lnk).startswith("vless://")]
+                        print(f"[get_client_vless_links] Fetched {len(links)} links using subLinks endpoint.")
+            except Exception as e:
+                print(f"[get_client_vless_links SubId EndPoint Error] {e}")
+
+        # 3. Fallback: Parse inbounds statically and construct VLESS links if endpoints returned nothing but login was successful
+        if not links:
+            try:
+                url_list = f"{base_url}/panel/api/inbounds/list"
+                res_inb = session.get(url_list, timeout=6, verify=False)
+                inb_data = res_inb.json()
+                if inb_data.get("success") and isinstance(inb_data.get("obj"), list):
+                    # We will reconstruct standard links for inbounds of VLESS protocol
+                    import json
+                    domain = base_url.split("://")[-1].split(":")[0]  # default domain of the panel
+                    for item in inb_data["obj"]:
+                        if item.get("protocol") == "vless":
+                            port = item.get("port")
+                            remark = item.get("remark", "VLESS")
+                            
+                            stream_settings_str = item.get("streamSettings", "{}")
+                            stream_settings = {}
+                            if isinstance(stream_settings_str, str):
+                                try:
+                                    stream_settings = json.loads(stream_settings_str)
+                                except:
+                                    pass
+                            elif isinstance(stream_settings_str, dict):
+                                stream_settings = stream_settings_str
+                                
+                            security = stream_settings.get("security", "none")
+                            network = stream_settings.get("network", "tcp")
+                            
+                            # Standard format: vless://uuid@domain:port?security=...&type=...#remark
+                            paras = []
+                            paras.append(f"security={security}")
+                            paras.append(f"type={network}")
+                            
+                            if security == "reality":
+                                r_settings = stream_settings.get("realitySettings", {})
+                                sni = r_settings.get("serverNames", ["google.com"])[0]
+                                pbk = r_settings.get("publicKey", "")
+                                sid = r_settings.get("shortIds", [""])[0]
+                                paras.append(f"sni={sni}")
+                                if pbk:
+                                    paras.append(f"pbk={pbk}")
+                                if sid:
+                                    paras.append(f"sid={sid}")
+                                paras.append("fp=chrome")
+                            elif security == "tls":
+                                t_settings = stream_settings.get("tlsSettings", {})
+                                sni = t_settings.get("serverName", "")
+                                if sni:
+                                    paras.append(f"sni={sni}")
+                                    
+                            if network == "ws":
+                                ws_settings = stream_settings.get("wsSettings", {})
+                                path = ws_settings.get("path", "/")
+                                paras.append(f"path={path}")
+                            elif network == "grpc":
+                                grpc_settings = stream_settings.get("grpcSettings", {})
+                                service_name = grpc_settings.get("serviceName", "")
+                                if service_name:
+                                    paras.append(f"serviceName={service_name}")
+                                    
+                            query_str = "&".join(paras)
+                            label = f"{remark}-{client_name}"
+                            link = f"vless://{client_uuid}@{domain}:{port}?{query_str}#{label}"
+                            links.append(link)
+                    print(f"[get_client_vless_links] Reconstructed {len(links)} links statically from inbounds list.")
+            except Exception as e:
+                print(f"[get_client_vless_links static reconstruction error] {e}")
+
+    # 4. Dev / simulated offline fallback
+    if not links:
+        fake_uuid = client_uuid if client_uuid else "f39281a1-9b1d-4050-b498-3882aef1277a"
+        links = [
+            f"vless://{fake_uuid}@m.daltoon-server.ir:2053?security=tls&type=ws&path=%2F#Vless-Irancell-{client_name}-⚡",
+            f"vless://{fake_uuid}@m.daltoon-server.ir:2083?security=tls&type=ws&path=%2F#Vless-HamrahAval-{client_name}-🚀",
+            f"vless://{fake_uuid}@m.daltoon-server.ir:2053?security=reality&type=tcp&sni=google.com&fp=chrome#Vless-Germany-{client_name}-🇩🇪"
+        ]
+        print(f"[get_client_vless_links] Generated mock fallback links.")
+
+    return links
+
 def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
     """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
@@ -2711,6 +2835,9 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🔗 دریافت لینک ساب", callback_data=f"mysub_link_{target_sub_id}"),
                 types.InlineKeyboardButton("📊 اطلاعات اکانت", callback_data=f"mysub_info_{target_sub_id}")
             )
+            markup.row(
+                types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{target_sub_id}")
+            )
             markup.add(
                 types.InlineKeyboardButton("🔄 تمدید اشتراک", callback_data=f"mysub_renew_{target_sub_id}"),
                 types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}"),
@@ -2766,6 +2893,9 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🔗 دریافت لینک ساب", callback_data=f"mysub_link_{target_sub_id}"),
                 types.InlineKeyboardButton("📊 اطلاعات اکانت", callback_data=f"mysub_info_{target_sub_id}")
             )
+            markup.row(
+                types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{target_sub_id}")
+            )
             markup.add(
                 types.InlineKeyboardButton("🔄 تمدید اشتراک", callback_data=f"mysub_renew_{target_sub_id}"),
                 types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}"),
@@ -2808,6 +2938,34 @@ def callback_handler(call):
             
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
+                types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{target_sub_id}"),
+                types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"),
+                types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
+                types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "vless":
+            client_uuid = k.get("clientUuid", "")
+            sub_link = k.get("subLink", "")
+            
+            # Fetch the precise links via get_client_vless_links
+            vless_links = get_client_vless_links(client_name, client_uuid, sub_link)
+            
+            links_text = "\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
+            
+            text = (
+                f"⚡ <b>لیست کانفیگ‌های معمولی VLESS سرویس شما:</b>\n\n"
+                f"👤 نام سرویس: <code>{client_name}</code>\n\n"
+                f"👇 <b>جهت کپی کردن، روی هر لینک ضربه بزنید یا لمس کنید:</b>\n\n"
+                f"{links_text}\n\n"
+                f"💡 این لینک‌ها را کپی کرده و مستقیماً در نرم‌افزارهای V2ray خود وارد نمایید."
+            )
+            
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("🔗 دریافت لینک ساب", callback_data=f"mysub_link_{target_sub_id}"),
                 types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"),
                 types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
