@@ -1667,7 +1667,7 @@ async function addVpnClientApi(
         totalGB: totalBytes,
         expiryTime: expiryTimeMs,
         enable: true,
-        tgId: 0,
+        tgId: "",
         subId: xuiSubId
       },
       inboundIds: inboundIds
@@ -1684,8 +1684,41 @@ async function addVpnClientApi(
     }
 
     let lastError = "";
+    try {
+      const addRes = await xuiFetch(addUrl, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(payload)
+      }, 8000);
 
-    // Force older Sanaei per-inbound addition (ignoring global buggy endpoint)
+      if (addRes.ok) {
+        const addText = await addRes.text();
+        try {
+          const addJson = JSON.parse(addText);
+          if (addJson && addJson.success) {
+            console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
+            const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
+              ? normalizeXuiUrl(settings.subUrl) 
+              : cleanedUrl;
+            const subLink = `${subBase}/sub/${xuiSubId}`;
+            return { success: true, clientUuid, subLink };
+          } else {
+            console.warn(`[Sanaei API Response] Global creation error/unsupported: ${addText}`);
+            lastError = addJson?.msg || addText;
+          }
+        } catch (e) {
+          console.warn(`[Sanaei API Response] Global creation returned non-json: ${addText.substring(0, 50)}`);
+          lastError = "Non-JSON response";
+        }
+      } else {
+        lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
+      }
+    } catch (err: any) {
+      console.error(`[Sanaei API Error] Failed to create global client: ${err.message}`);
+      lastError = err.message;
+    }
+
+    // Force older Sanaei per-inbound addition if global failed
     console.log(`[Sanaei API Fallback] Attempting per-inbound addition for user '${clientEmail}'...`);
     let fallbackSuccess = false;
     for (const inbId of inboundIds) {

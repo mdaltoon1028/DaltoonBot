@@ -560,6 +560,22 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
                     domain = base_url.split("://")[-1].split(":")[0]  # default domain of the panel
                     for item in inb_data["obj"]:
                         if item.get("protocol") == "vless":
+                            
+                            # VERIFY THE CLIENT IS ACTUALLY IN THIS INBOUND
+                            client_in_this_inbound = False
+                            settings_str = item.get("settings", "{}")
+                            try:
+                                settings_obj = json.loads(settings_str)
+                                for c in settings_obj.get("clients", []):
+                                    if c.get("id") == client_uuid or c.get("email") == client_name:
+                                        client_in_this_inbound = True
+                                        break
+                            except:
+                                pass
+                                
+                            if not client_in_this_inbound:
+                                continue
+                                
                             port = item.get("port")
                             remark = item.get("remark", "VLESS")
                             
@@ -665,7 +681,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         "totalGB": total_bytes,
         "expiryTime": expiry_time_ms,
         "enable": True,
-        "tgId": 0,
+        "tgId": "",
         "subId": xui_sub_id
     }
 
@@ -720,6 +736,29 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
 
+    add_url = f"{base_url}/panel/api/clients/add"
+    payload = {
+        "client": client_config,
+        "inboundIds": inbound_ids
+    }
+    
+    try:
+        headers = {"Accept": "application/json"}
+        response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
+        res_json = {}
+        try: res_json = response.json()
+        except: pass
+            
+        if res_json.get("success"):
+            print(f"[Sanaei API Sync] Created user '{client_email}' globally on inbounds successfully.")
+            sub_link = f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+            return client_uuid, sub_link
+        else:
+            print(f"[Sanaei API Response] Creation error/unsupported via global add: {response.text}")
+    except Exception as e:
+        print(f"[Sanaei API Request Error] Global client add error: {e}")
+
+    # Fallback to per-inbound addition
     fallback_success = False
     import json
     headers = {"Accept": "application/json"}
