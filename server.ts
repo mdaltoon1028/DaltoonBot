@@ -146,10 +146,11 @@ function readJsonDb(): DbSchema {
         }
       };
       fs.writeFileSync(dbJsonPath, JSON.stringify(defaultDb, null, 2), "utf8");
-      return defaultDb;
+      return { ...defaultDb, isNewInstall: true };
     }
     const raw = fs.readFileSync(dbJsonPath, "utf8");
     const db = JSON.parse(raw);
+    db.isNewInstall = false;
     
     let modified = false;
     // Backport empty arrays on existing database structures to guarantee safety
@@ -682,7 +683,8 @@ app.get("/api/data", async (req, res) => {
       colleagueAccounts: db.colleague_accounts || [],
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
-      settings
+      settings,
+      isNewInstall: db.isNewInstall
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

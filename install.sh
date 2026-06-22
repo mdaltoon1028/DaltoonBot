@@ -152,7 +152,7 @@ for (const p of dbPaths) {
     } catch(e){}
   }
 }
-process.stdout.write(foundConfig ? "true" : "false");
+process.stdout.write(foundConfig ? 'true' : 'false');
 ")
 
 if [ "$ALREADY_CONFIGURED" = "true" ]; then
@@ -250,24 +250,28 @@ else
     
     if (!db.settings) db.settings = {};
     
-    let panel_config = {};
-    if (db.settings && db.settings.panel_config) {
-      try { 
-        panel_config = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config; 
-      } catch(e){}
+    // Merge existing config if present
+    let ps = {};
+    if (db.settings.panel_config) {
+      try {
+        ps = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
+      } catch(e) {}
     }
     
-    panel_config.dashboardUsername = '$DASH_USER';
-    panel_config.dashboardPassword = '$DASH_PASS';
-    panel_config.serverPort = Number('$DASH_PORT');
-    
-    db.settings.panel_config = JSON.stringify(panel_config);
+    // Preserve old credentials if they are missing from prompt but in DB
+    const newConfig = {
+      ...ps,
+      dashboardUsername: '$DASH_USER',
+      dashboardPassword: '$DASH_PASS',
+      serverPort: parseInt('$DASH_PORT')
+    };
     
     db.settings.dashboardUsername = '$DASH_USER';
     db.settings.dashboardPassword = '$DASH_PASS';
-    db.settings.serverPort = Number('$DASH_PORT');
+    db.settings.serverPort = parseInt('$DASH_PORT');
+    db.settings.panel_config = JSON.stringify(newConfig);
     
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
     "
 fi
 

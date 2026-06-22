@@ -330,11 +330,15 @@ export default function App() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [isNewInstall, setIsNewInstall] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Disabled SetupModal per user request
-    setShowSetupModal(false);
-  }, [isAuthenticated, settings?.botToken]);
+    if (isAuthenticated && settings && isNewInstall === true) {
+      if (!settings.botToken || settings.botToken.trim() === "" || settings.botToken === "DUMMY_TOKEN") {
+        setShowSetupModal(true);
+      }
+    }
+  }, [isAuthenticated, settings?.botToken, isNewInstall]);
 
   useEffect(() => {
     fetch("/api/system/check-update")
@@ -516,6 +520,10 @@ export default function App() {
         
         if (json.settings && 'botToken' in json.settings) {
           updateIfChanged(setSettings, settings, json.settings);
+        }
+
+        if (json.isNewInstall !== undefined) {
+          setIsNewInstall(json.isNewInstall);
         }
         
         if (!isAuto) {
