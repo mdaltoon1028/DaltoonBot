@@ -110,6 +110,7 @@ export default function BotSimulator({
   const [isTyping, setIsTyping] = useState(false);
   const [selectedPlanToBuy, setSelectedPlanToBuy] = useState<VpnPlan | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<"idle" | "confirm_plan" | "ask_client_name" | "sending">("idle");
+  const [selectedInboundGroupId, setSelectedInboundGroupId] = useState<string | null>(null);
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   
   // Local Simulator Sandboxes (Ensures the chatbot is strictly local and educational without writing to persistent DB)
@@ -520,22 +521,43 @@ export default function BotSimulator({
     }
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
-      const inlinePlans: any[] = plans.map(p => ({
-        text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
-        action: `buy_${p.id}`
-      }));
-      inlinePlans.push([
-        { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
-        { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
-      ]);
-      addBotReply(
-        lang === "fa" 
-          ? "لطفا یکی از پلان‌های زیر را برای خرید انتخاب کنید:\n\n⚠️ هزینه از کیف پول شما کسر خواهد شد." 
-          : "Please select one of our premium configs to purchase:\n\n⚠️ The total amount will be deducted from your Toman wallet balance.",
-        800,
-        undefined,
-        inlinePlans
-      );
+      const isGroupEnabled = settings?.isGroupInboundsEnabled;
+      const groups = settings?.inboundGroups || [];
+      if (isGroupEnabled && groups.length > 0) {
+        const inlineGroups = groups.map((g: any) => ({
+          text: `📍 ${g.name}`,
+          action: `igsel_${g.id}`
+        }));
+        inlineGroups.push([
+          { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+        ]);
+        addBotReply(
+          lang === "fa"
+            ? "لطفا یکی از لوکیشن‌ها/اینباندهای زیر را برای خرید اشتراک انتخاب نمایید:"
+            : "Please select one of the location-based inbounds for your subscription:",
+          800,
+          undefined,
+          inlineGroups
+        );
+      } else {
+        const inlinePlans: any[] = plans.map(p => ({
+          text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
+          action: `buy_${p.id}`
+        }));
+        inlinePlans.push([
+          { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+        ]);
+        addBotReply(
+          lang === "fa" 
+            ? "لطفا یکی از پلان‌های زیر را برای خرید انتخاب کنید:\n\n⚠️ هزینه از کیف پول شما کسر خواهد شد." 
+            : "Please select one of our premium configs to purchase:\n\n⚠️ The total amount will be deducted from your Toman wallet balance.",
+          800,
+          undefined,
+          inlinePlans
+        );
+      }
     } 
     else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
       const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
@@ -1170,6 +1192,33 @@ export default function BotSimulator({
           ]);
         }, 800);
       }, 700);
+      return;
+    }
+
+    if (action.startsWith("igsel_")) {
+      const igId = action.substring(6);
+      const group = (settings?.inboundGroups || []).find((g: any) => g.id === igId);
+      if (group) {
+        setSelectedInboundGroupId(igId);
+        // Filter plans linked to this group
+        const filteredPlans = plans.filter(p => !group.planIds || group.planIds.length === 0 || group.planIds.includes(p.id));
+        const inlinePlans = filteredPlans.map(p => ({
+          text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
+          action: `buy_${p.id}`
+        }));
+        inlinePlans.push([
+          { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+        ]);
+        addBotReply(
+          lang === "fa" 
+            ? `لطفا یکی از پلان‌های زیر را برای گروه <b>${group.name}</b> انتخاب کنید:\n\n⚠️ هزینه از کیف پول شما کسر خواهد شد.` 
+            : `Please select one of our premium plans for <b>${group.name}</b>:\n\n⚠️ The total Toman amount will be deducted from your wallet balance.`,
+          800,
+          undefined,
+          inlinePlans
+        );
+      }
       return;
     }
 

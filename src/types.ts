@@ -110,6 +110,17 @@ export interface PanelSettings {
   autoBackupEnabled?: boolean;
   autoBackupInterval?: string;
   walletChargeAmounts?: number[];
+
+  // Group Inbounds
+  isGroupInboundsEnabled?: boolean;
+  inboundGroups?: InboundGroup[];
+}
+
+export interface InboundGroup {
+  id: string;
+  name: string;
+  inboundIds: number[];
+  planIds?: string[];
 }
 
 export interface InboundInfo {

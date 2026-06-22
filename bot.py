@@ -614,7 +614,7 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
 
     return links
 
-def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
+def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None, group_id=None):
     """ Call Sanaei 3x-ui API to create client on ALL active inbounds so the sub/ link returns all of them! """
     cfg = get_config()
     base_url = cfg['XUI_URL']
@@ -657,16 +657,31 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     # Dynamic inbound IDs selection
     db = read_db_json()
-    settings_str = db.get("settings", {}).get("panel_config")
     inbound_ids = []
-    if settings_str:
+    
+    if group_id:
         try:
-            panel_cfg = json.loads(settings_str)
-            active_ids = panel_cfg.get("activeInboundIds", [])
-            if active_ids and isinstance(active_ids, list):
-                inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+            settings_str = db.get("settings", {}).get("panel_config")
+            if settings_str:
+                panel_cfg = json.loads(settings_str)
+                groups = panel_cfg.get("inboundGroups", [])
+                matched_group = next((g for g in groups if g.get("id") == group_id), None)
+                if matched_group and matched_group.get("inboundIds"):
+                    inbound_ids = [int(i) for i in matched_group["inboundIds"]]
+                    print(f"[Group Inbounds API] Resolved group '{group_id}' to inbounds: {inbound_ids}")
         except Exception as e:
-            print(f"[Bot Inbound JSON Parse Error]: {e}")
+            print(f"[Group Inbounds Error Resolve]: {e}")
+
+    if not inbound_ids:
+        settings_str = db.get("settings", {}).get("panel_config")
+        if settings_str:
+            try:
+                panel_cfg = json.loads(settings_str)
+                active_ids = panel_cfg.get("activeInboundIds", [])
+                if active_ids and isinstance(active_ids, list):
+                    inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+            except Exception as e:
+                print(f"[Bot Inbound JSON Parse Error]: {e}")
 
     # Always fetch all valid inbounds from panel
     valid_ids = []
@@ -1078,20 +1093,24 @@ def pop_user_pending_charge(tg_id):
         return amount
     return None
 
-def set_user_pending_purchase(tg_id, plan_id, client_name):
+def set_user_pending_purchase(tg_id, plan_id, client_name, group_id=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["pendingPurchasePlanId"] = plan_id
         user["pendingPurchaseClientName"] = client_name
+        if group_id:
+            user["pendingPurchaseGroupId"] = group_id
+        else:
+            user.pop("pendingPurchaseGroupId", None)
         write_db_json(db)
 
 def get_user_pending_purchase(tg_id):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
-        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName")
-    return None, None
+        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName"), user.get("pendingPurchaseGroupId")
+    return None, None, None
 
 def clear_user_pending_purchase(tg_id):
     db = read_db_json()
@@ -1099,6 +1118,7 @@ def clear_user_pending_purchase(tg_id):
     if user:
         user.pop("pendingPurchasePlanId", None)
         user.pop("pendingPurchaseClientName", None)
+        user.pop("pendingPurchaseGroupId", None)
         write_db_json(db)
 
 def to_persian_digits(s):
@@ -1799,6 +1819,41 @@ def handle_main_menu_callback(call):
         cfg = get_config()
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
+        # Check Group Inbounds feature status
+        is_group_enabled = False
+        inbound_groups = []
+        settings_str = db.get("settings", {}).get("panel_config")
+        if settings_str:
+            try:
+                panel_cfg = json.loads(settings_str)
+                is_group_enabled = panel_cfg.get("isGroupInboundsEnabled", False)
+                inbound_groups = panel_cfg.get("inboundGroups", [])
+            except Exception as e:
+                print(f"[Group Inbounds Parse Error inside buy trigger]: {e}")
+                
+        if is_group_enabled and inbound_groups:
+            message_body = (
+                f"📍 <b>لوکیشن‌های متصل و فعال برای خرید اشتراک {nickname}:</b>\n\n"
+                "لطفاً ابتدا یکی از مناطق یا لوکیشن‌های زیر را جهت انتخاب و خرید خدمت انتخاب نمایید:"
+            )
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for g in inbound_groups:
+                g_id = g.get("id")
+                g_name = g.get("name")
+                markup.add(types.InlineKeyboardButton(f"📍 {g_name}", callback_data=f"igsel_{g_id}"))
+                
+            markup.row(
+                types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+            )
+            bot.edit_message_text(
+                message_body,
+                chat_id=message.chat.id,
+                message_id=message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+            return
+
         message_body = (
             f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
             "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
@@ -2267,7 +2322,8 @@ def process_purchase_username_manual(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         return
 
-    set_user_pending_purchase(tg_id, plan_id, username_input)
+    group_id = spec.get("group_id") if isinstance(spec, dict) else None
+    set_user_pending_purchase(tg_id, plan_id, username_input, group_id)
     
     # User request: Ask for discount code after entering name
     markup = types.InlineKeyboardMarkup()
@@ -2381,7 +2437,11 @@ def handle_buy_pay(call):
             log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"بسته {spec['name']} بصورت رایگان ایجاد شد.")
         
         # API creation
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        db_temp = read_db_json()
+        u_temp = next((u for u in db_temp.get("users", []) if u["userId"] == tg_id), None)
+        grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
+        
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
         if not sub_link:
             client_uuid = str(uuid.uuid4())
             import random, string
@@ -2679,7 +2739,11 @@ def process_purchase_username(message, plan_id, spec):
             process_referral_on_purchase(user, spec['price'])
 
         # Add client to X-UI panel
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        db_temp = read_db_json()
+        u_temp = next((u for u in db_temp.get("users", []) if u["userId"] == tg_id), None)
+        grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
+
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
         if not sub_link:
             # Fallback simulated dynamic link
             client_uuid = str(uuid.uuid4())
@@ -3632,8 +3696,148 @@ def callback_handler(call):
         )
         return
         
+    if call.data.startswith("igsel_"):
+        bot.answer_callback_query(call.id)
+        group_id = call.data.replace("igsel_", "")
+        
+        db = read_db_json()
+        settings_str = db.get("settings", {}).get("panel_config")
+        inbound_groups = []
+        if settings_str:
+            try:
+                panel_cfg = json.loads(settings_str)
+                inbound_groups = panel_cfg.get("inboundGroups", [])
+            except:
+                pass
+                
+        group = next((g for g in inbound_groups if g.get("id") == group_id), None)
+        if not group:
+            bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
+            return
+
+        db_plans = db.get("vpn_plans", [])
+        group_plan_ids = group.get("planIds", [])
+        filtered_plans = []
+        for p in db_plans:
+            if not group_plan_ids or p["id"] in group_plan_ids:
+                filtered_plans.append(p)
+
+        categories = []
+        seen_cats = set()
+        for p in filtered_plans:
+            cat = p.get("category", "Standard")
+            if cat not in seen_cats:
+                categories.append(cat)
+                seen_cats.add(cat)
+
+        cfg = get_config()
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        
+        message_body = (
+            f"⚡️ <b>دسته‌بندی طرح‌های لوکیشن {group['name']}:</b>\n\n"
+            "لطفاً یکی از دسته‌بندی‌های فعال زیر را انتخاب کنید تا طرح‌های موجود را مشاهده و خرید نمایید:"
+        )
+
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for cat in categories:
+            emoji = "⚡️"
+            if "vip" in cat.lower(): emoji = "⭐️"
+            elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
+            elif "premium" in cat.lower(): emoji = "💎"
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"igcat_{group_id}_{cat}"))
+            
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت به لوکیشن‌ها", callback_data="mm_btnBuyNew"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+        )
+            
+        bot.edit_message_text(
+            message_body,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        return
+
+    if call.data.startswith("igcat_"):
+        bot.answer_callback_query(call.id)
+        data_parts = call.data.split("_", 2)
+        group_id = data_parts[1]
+        category_name = data_parts[2]
+        
+        db = read_db_json()
+        settings_str = db.get("settings", {}).get("panel_config")
+        inbound_groups = []
+        if settings_str:
+            try:
+                panel_cfg = json.loads(settings_str)
+                inbound_groups = panel_cfg.get("inboundGroups", [])
+            except:
+                pass
+                
+        group = next((g for g in inbound_groups if g.get("id") == group_id), None)
+        if not group:
+            bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
+            return
+
+        db_plans = db.get("vpn_plans", [])
+        group_plan_ids = group.get("planIds", [])
+        plans_data = []
+        for dp in db_plans:
+            cat = dp.get("category", "Standard")
+            if cat.lower() == category_name.lower():
+                if not group_plan_ids or dp["id"] in group_plan_ids:
+                    plans_data.append({
+                        "id": dp["id"],
+                        "name": dp["name"],
+                        "price": dp["price"],
+                        "traffic": dp.get("trafficGb", 30),
+                        "duration": dp.get("durationDays", 30)
+                    })
+                    
+        cfg = get_config()
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        
+        display_cat = category_name
+        if category_name.lower() == "standard": display_cat = "Standard"
+        elif category_name.lower() == "vip": display_cat = "Vip"
+        elif "voip" in category_name.lower(): display_cat = "Unlimited VoIp"
+            
+        message_body = (
+            f"⚡️ <b>پلن‌های لوکیشن {group['name']} (بخش {display_cat}) - {nickname}</b>\n\n"
+            "لطفاً یکی از تعرفه‌ها زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:"
+        )
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for p in plans_data:
+            clean_name = p['name']
+            if clean_name.startswith("پلن "):
+                clean_name = clean_name[4:]
+            elif clean_name.startswith("پلان "):
+                clean_name = clean_name[5:]
+                
+            btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}:{group_id}"))
+            
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data=f"igsel_{group_id}"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+        )
+            
+        bot.edit_message_text(
+            message_body,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        return
+
     if call.data.startswith("buy_"):
-        plan_id = call.data[4:]
+        buy_data = call.data[4:].split(":")
+        plan_id = buy_data[0]
+        group_id = buy_data[1] if len(buy_data) > 1 else None
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
@@ -3646,7 +3850,8 @@ def callback_handler(call):
                 "name": db_plan["name"],
                 "price": db_plan["price"],
                 "traffic": db_plan.get("trafficGb", 30),
-                "duration": db_plan.get("durationDays", 30)
+                "duration": db_plan.get("durationDays", 30),
+                "group_id": group_id
             }
         else:
             # Details of the fallback plans
@@ -3656,6 +3861,8 @@ def callback_handler(call):
                 "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
             }
             spec = plan_specs.get(plan_id)
+            if spec:
+                spec["group_id"] = group_id
             
         if not spec:
             bot.answer_callback_query(call.id, "خطا در پیدا کردن مشخصات پلان.")
@@ -5059,7 +5266,7 @@ def handle_receipt_upload(message):
          return
 
     # Check for pending purchase
-    pending_plan_id, pending_username = get_user_pending_purchase(tg_id)
+    pending_plan_id, pending_username, pending_group_id = get_user_pending_purchase(tg_id)
 
     # Look up selected amount or fallback to regex extraction or default
     extracted_amount = 0
