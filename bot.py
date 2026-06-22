@@ -1450,7 +1450,7 @@ def start_cmd(message):
         )
     # Ensure client's cached reply keyboard is restricted to '🔙 بازگشت به منوی اصلی' only
     try:
-        bot.send_message(message.chat.id, "🔄 منوی ربات دالتون استور به‌روزرسانی شد.", reply_markup=get_main_reply_keyboard())
+        bot.send_message(message.chat.id, f"🔄 منوی ربات {bot_nickname} به‌روزرسانی شد.", reply_markup=get_main_reply_keyboard())
     except Exception as e:
         print(f"Error resetting reply markup: {e}")
         
@@ -1832,8 +1832,11 @@ def handle_main_menu_callback(call):
             types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
         )
         
+        cfg = get_config()
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+        
         guides_main_text = (
-            "<b>💡 بخش راهنما و آموزش‌های اتصال دالتون استور</b>\n\n"
+            f"<b>💡 بخش راهنما و آموزش‌های اتصال {bot_nickname}</b>\n\n"
             "در این بخش می‌توانید کلاینت‌های مختلف را نصب، آپدیت یا نحوه اتصال را در هر سیستم‌عامل فرابگیرید.\n\n"
             "👇 لطفا یک گزینه را از منوی زیر انتخاب نمایید:"
         )
@@ -3486,9 +3489,13 @@ def callback_handler(call):
     elif call.data == "guide_crypto_menu":
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(types.InlineKeyboardButton("🔙 بازگشت به منوی آموزش‌ها", callback_data="mm_btnGuides"))
+        
+        cfg = get_config()
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+        
         crypto_text = (
             "🪙 <b>آموزش پرداخت با ارز دیجیتال (تتر / ترون / لایت‌کوین و...)</b>\n\n"
-            "ربات دالتون استور از درگاه‌های بین‌المللی کاملاً امن و اتوماتیک برای خرید مستقیم با رمزارز پشتیبانی می‌کند.\n\n"
+            f"ربات {bot_nickname} از درگاه‌های بین‌المللی کاملاً امن و اتوماتیک برای خرید مستقیم با رمزارز پشتیبانی می‌کند.\n\n"
             "💡 <b>مراحل پرداخت:</b>\n"
             "۱. هنگام خرید پلن جدید یا شارژ کیف پول، درگاه رمزارز (مانند کریپتوموس یا نوپیمنت) را انتخاب کنید.\n"
             "۲. کوین مورد نظر خود را انتخاب نمایید (پیشنهاد ما برای کارمزد کم: <b>USDT-TRC20</b> یا <b>TRX</b>).\n"
@@ -3520,7 +3527,7 @@ def callback_handler(call):
     elif call.data.startswith("guide_item_"):
         item = call.data.replace("guide_item_", "")
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton("🔙 بازگشت به لیست کلاینت‌ها", callback_data="guide_conn_menu"))
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به لیست آموزش‌ها", callback_data="guide_conn_menu"))
         
         guide_text = ""
         if item == "happ":
