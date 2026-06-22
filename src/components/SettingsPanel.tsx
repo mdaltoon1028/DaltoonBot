@@ -780,6 +780,48 @@ export default function SettingsPanel({
         </div>
       </div>
       
+      {/* Danger Zone */}
+      <div className="bg-red-500/5 border border-red-500/20 p-5 rounded-xl space-y-4 shadow-sm">
+        <h3 className="font-display font-medium text-lg text-red-400 flex items-center gap-2">
+          <Database className="w-5 h-5" />
+          {lang === "fa" ? "منطقه خطر (حذف اطلاعات)" : "Danger Zone (Data Wipe)"}
+        </h3>
+        <p className="text-xs text-gray-400">
+          {lang === "fa" 
+            ? "با کلیک روی دکمه زیر، تمامی اطلاعات کاربران، تراکنش‌ها، پلن‌ها و تنظیمات حذف شده و سیستم به حالت اولیه باز می‌گردد. این عمل غیرقابل بازگشت است." 
+            : "Wipe all users, transactions, plans, and settings. This action is irreversible and the system will re-initialize to defaults."}
+        </p>
+
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteConfirmConfig({
+                isOpen: true,
+                message: lang === "fa" 
+                  ? "آیا از حذف کامل دیتابیس و ریست کردن تمامی اطلاعات اطمینان دارید؟ تمامی تنظیمات، پلن‌ها و کاربران حذف خواهند شد." 
+                  : "Are you sure you want to completely wipe the database? This will delete all users, plans, and settings.",
+                action: async () => {
+                  try {
+                    const res = await fetch("/api/database/wipe-all", { method: "POST" });
+                    if (res.ok) {
+                      localStorage.clear();
+                      window.location.reload();
+                    }
+                  } catch (err) {
+                    alert("Failed to wipe database.");
+                  }
+                }
+              });
+            }}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 transition cursor-pointer flex items-center gap-2"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {lang === "fa" ? "حذف کامل دیتابیس و تنظیمات" : "Full Database & Settings Wipe"}
+          </button>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* Telegram Bot Details */}

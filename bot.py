@@ -632,15 +632,21 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
             except Exception as e:
                 print(f"[get_client_vless_links static reconstruction error] {e}")
 
-    # 4. Dev / simulated offline fallback
+    # 4. Semi-dynamic fallback based on XUI_URL
     if not links:
-        fake_uuid = client_uuid if client_uuid else "f39281a1-9b1d-4050-b498-3882aef1277a"
-        links = [
-            f"vless://{fake_uuid}@m.daltoon-server.ir:2053?security=tls&type=ws&path=%2F#Vless-Irancell-{client_name}-⚡",
-            f"vless://{fake_uuid}@m.daltoon-server.ir:2083?security=tls&type=ws&path=%2F#Vless-HamrahAval-{client_name}-🚀",
-            f"vless://{fake_uuid}@m.daltoon-server.ir:2053?security=reality&type=tcp&sni=google.com&fp=chrome#Vless-Germany-{client_name}-🇩🇪"
-        ]
-        print(f"[get_client_vless_links] Generated mock fallback links.")
+        try:
+            from urllib.parse import urlparse
+            cfg = get_config()
+            parsed = urlparse(cfg.get('XUI_URL', ''))
+            host = parsed.hostname or "panel.your-vpn.com"
+            fake_uuid = client_uuid if client_uuid else "00000000-0000-0000-0000-000000000000"
+            # Instead of completely fake links, we show one example with the user's host
+            links = [
+                f"vless://{fake_uuid}@{host}:2053?security=tls&type=ws&path=%2F#Vless-{client_name}-⚡"
+            ]
+            print(f"[get_client_vless_links] Generated semi-dynamic fallback link for {host}.")
+        except:
+            links = []
 
     return links
 
@@ -667,18 +673,19 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     # Expiry timestamp in milliseconds
     expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
-    safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
-    import re
+    import random, string
+    suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+    safe_email = f"{client_email[:10]}_{suffix}"
     safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
     
     if not safe_email:
-        safe_email = "col_client_fallback"
+        safe_email = "client_" + suffix
         
     client_config = {
         "id": client_uuid,
         "email": safe_email,
         "limitIp": 0,
-        "totalGB": total_bytes,
+        "totalGB": total_bytes, # Note: In most Sanaei panels this is total bytes
         "expiryTime": expiry_time_ms,
         "enable": True,
         "tgId": "",
@@ -2146,10 +2153,13 @@ def handle_main_menu_callback(call):
         if not sub_link:
             cfg = get_config()
             import uuid
+            from urllib.parse import urlparse
+            parsed = urlparse(cfg.get('XUI_URL', ''))
+            host = parsed.hostname or "panel.your-vpn.com"
             client_uuid = str(uuid.uuid4())
             fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-            sub_link = f"{cfg.get('SUB_URL', 'https://tr.sub-daltoon.ir:2096')}/sub/{fallback_sub_id}"
-            print("[Bot Warning] Real API request failed or timed out. Simulated free test link established.")
+            sub_link = f"{cfg.get('SUB_URL', f'https://{host}:2096')}/sub/{fallback_sub_id}"
+            print(f"[Bot Warning] API failed. Using semi-dynamic fallback sub_link for {host}")
             
         # Update user record
         if user_idx >= 0:
@@ -2454,10 +2464,15 @@ def handle_buy_pay(call):
         
         client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
         if not sub_link:
+            import uuid
+            from urllib.parse import urlparse
+            cfg = get_config()
+            parsed = urlparse(cfg.get('XUI_URL', ''))
+            host = parsed.hostname or "panel.your-vpn.com"
             client_uuid = str(uuid.uuid4())
-            import random, string
             fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-            sub_link = f"{cfg.get('SUB_URL', 'https://tr.sub-daltoon.ir:2096')}/sub/{fallback_sub_id}"
+            sub_link = f"{cfg.get('SUB_URL', f'https://{host}:2096')}/sub/{fallback_sub_id}"
+            print(f"[Bot Warning] API failed. Using semi-dynamic fallback sub_link for {host}")
 
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
         sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"

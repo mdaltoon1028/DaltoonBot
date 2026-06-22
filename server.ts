@@ -215,8 +215,8 @@ function readJsonDb(): DbSchema {
       }
     }
 
-    // Seed vpn_plans if empty
-    if (!db.vpn_plans || db.vpn_plans.length === 0) {
+    // Seed vpn_plans ONLY if the database was just created from scratch
+    if (db.isNewInstall && (!db.vpn_plans || db.vpn_plans.length === 0)) {
       db.vpn_plans = [
         { id: "std_1m_30g", name: "یک‌ماهه ۳۰ گیگابایت", durationDays: 30, trafficGb: 30, price: 60000, category: "Standard" },
         { id: "std_1m_50g", name: "یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 90000, category: "Standard" },
@@ -229,8 +229,8 @@ function readJsonDb(): DbSchema {
       modified = true;
     }
 
-    // Seed plan_categories if empty
-    if (!db.plan_categories || db.plan_categories.length === 0) {
+    // Seed plan_categories ONLY if the database was just created from scratch
+    if (db.isNewInstall && (!db.plan_categories || db.plan_categories.length === 0)) {
       db.plan_categories = [
         { id: "1", name: "Standard", emoji: "⚡️" },
         { id: "2", name: "Vip", emoji: "⭐️" },
