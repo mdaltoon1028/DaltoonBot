@@ -152,10 +152,7 @@ function readJsonDb(): DbSchema {
         colleague_packages: [],
         colleague_accounts: [],
         inbounds: [],
-        custom_buttons: [
-          { id: "cb_gift", text: "🎁 تست رایگان ۲ ساعته", replyText: "کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\n\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest" },
-          { id: "cb_channel", text: "📢 کانال تلگرام", replyText: "دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\n\n👉 @example_channel" }
-        ],
+        custom_buttons: [],
         gift_codes: [],
         promo_codes: [],
         tickets: [],
@@ -227,15 +224,6 @@ function readJsonDb(): DbSchema {
         { id: "vip_1m_100g", name: "وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 180000, category: "Vip" },
         { id: "vip_3m_200g", name: "وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت", durationDays: 90, trafficGb: 200, price: 320000, category: "Vip" },
         { id: "unl_1m_unlimit", name: "یک‌ماهه نامحدود", durationDays: 30, trafficGb: 0, price: 250000, category: "Unlimited" }
-      ];
-      modified = true;
-    }
-
-    // Seed custom_buttons if empty
-    if (!db.custom_buttons || db.custom_buttons.length === 0) {
-      db.custom_buttons = [
-        { id: "cb_gift", text: "🎁 تست رایگان ۲ ساعته", replyText: "کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\n\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest" },
-        { id: "cb_channel", text: "📢 کانال تلگرام", replyText: "دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\n\n👉 @example_channel" }
       ];
       modified = true;
     }

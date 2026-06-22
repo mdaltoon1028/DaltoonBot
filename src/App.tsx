@@ -292,10 +292,7 @@ export default function App() {
   const [customButtons, setCustomButtons] = useState<CustomButton[]>(() => {
     const cached = localStorage.getItem("daltoon_custom_buttons");
     if (cached) return JSON.parse(cached);
-    return [
-      { id: "cb_gift", text: "🎁 تست رایگان ۲ ساعته", replyText: "کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\n\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest" },
-      { id: "cb_channel", text: "📢 کانال تلگرام", replyText: "دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\n\n👉 @example_channel" }
-    ];
+    return [];
   });
 
   const [giftCodes, setGiftCodes] = useState<GiftCode[]>(() => {

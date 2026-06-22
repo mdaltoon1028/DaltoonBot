@@ -234,12 +234,7 @@ else
         { id: 'unl_1m_unlimit', name: 'یک‌ماهه نامحدود', durationDays: 30, trafficGb: 0, price: 250000, category: 'Unlimited' }
       ];
     }
-    if (!db.custom_buttons || db.custom_buttons.length === 0) {
-      db.custom_buttons = [
-        { id: 'cb_gift', text: '🎁 تست رایگان ۲ ساعته', replyText: 'کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\\n\\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest' },
-        { id: 'cb_channel', text: '📢 کانال تلگرام', replyText: 'دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\\n\\n👉 @example_channel' }
-      ];
-    }
+    if (!db.custom_buttons) db.custom_buttons = [];
     if (!db.plan_categories || db.plan_categories.length === 0) {
       db.plan_categories = [
         { id: '1', name: 'Standard', emoji: '⚡️' },
