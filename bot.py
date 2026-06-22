@@ -658,16 +658,17 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     Creates a new client in the X-UI panel.
     Adds the user to all active inbounds specified in the settings.
     """
+    import random, string, time, json, os, uuid, re
     cfg = get_config()
     base_url = cfg.get("XUI_URL", "")
     if not base_url: return None, None
     if base_url.endswith("/"): base_url = base_url[:-1]
 
-    if not login_xui():
+    session = login_xui()
+    if not session:
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
 
-    import uuid
     if not client_uuid:
          client_uuid = str(uuid.uuid4())
          
@@ -675,7 +676,6 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
     expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
-    import random, string, re
     suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
     safe_email = f"{client_email[:10]}_{suffix}"
     safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
@@ -692,7 +692,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         "subId": xui_sub_id
     }
 
-    # Dynamic inbound IDs selection from dashboard settings
+    # Determine inbound IDs
     db = read_db_json()
     inbound_ids = []
     
@@ -703,18 +703,19 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             active_ids = panel_cfg.get("activeInboundIds", [])
             if active_ids and isinstance(active_ids, list):
                 inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
-        except: pass
+        except Exception as e:
+            print(f"[API] Error resolving inbound IDs: {e}")
 
-    # 1. Fetch available IDs to ensure validity (Avoid hanging on dead IDs)
+    # Fetch available IDs to ensure validity (Avoid hanging on dead IDs)
     valid_ids = []
-    session = get_session()
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
         list_res = session.get(list_url, timeout=5, verify=False)
         res_json = list_res.json()
         if res_json.get("success") and isinstance(res_json.get("obj"), list):
             valid_ids = [int(item["id"]) for item in res_json["obj"]]
-    except: pass
+    except Exception as e:
+        print(f"[API] Error fetching inbound list: {e}")
 
     if inbound_ids and valid_ids:
         inbound_ids = [i for i in inbound_ids if i in valid_ids]
@@ -722,13 +723,27 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
         
-    # Limit number of inbounds to prevent hanging
+    # Limit number of inbounds
     if len(inbound_ids) > 10:
         inbound_ids = inbound_ids[:10]
 
     headers = {"Accept": "application/json"}
 
-    # Loop to add client strictly to EACH matched inbound individually
+    # Attempt to use the NEW Unified API first
+    try:
+        unified_url = f"{base_url}/panel/api/clients/add"
+        unified_payload = {
+            "client": client_config,
+            "inboundIds": inbound_ids
+        }
+        u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=10, verify=False)
+        if u_res.ok and u_res.json().get("success"):
+            print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
+            return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+    except Exception as e:
+        print(f"[Unified API Error] Fallback to classic: {e}")
+
+    # Classic Loop Fallback
     success_count = 0
     for inb_id in inbound_ids:
         classic_url = f"{base_url}/panel/api/inbounds/addClient"
@@ -750,15 +765,16 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
 def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
     """ Call Sanaei 3x-ui API to update client enabled status """
+    import json, re
     cfg = get_config()
     base_url = cfg.get('XUI_URL', '')
     if base_url.endswith("/"):
         base_url = base_url[:-1]
 
-    if not login_xui():
+    session = login_xui()
+    if not session:
         return False
         
-    import re
     safe_email = ""
     if client_email:
         safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
@@ -779,7 +795,6 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                 client_obj["enable"] = enable
                 
                 # In newer 3x-ui versions, the update endpoint format expects payload matching the standard API form
-                import json
                 inbound_id = client_obj.get("inboundId", 0)
                 payload_data = {"id": inbound_id, "settings": json.dumps({"clients": [client_obj]})}
                 
@@ -1661,6 +1676,7 @@ def buy_cmd(message):
     db_plans = db.get("vpn_plans", [])
     db_categories = db.get("plan_categories", [])
     
+    settings = db.get("settings", {})
     # Extract categories and their emojis
     categories = []
     category_map = {}
@@ -3639,7 +3655,6 @@ def callback_handler(call):
         plan_id = call.data[4:]
         
         db = read_db_json()
-        db_plans = db.get("vpn_plans", [])
         db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
         
         spec = None

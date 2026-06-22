@@ -112,7 +112,6 @@ export default function BotSimulator({
   const [isTyping, setIsTyping] = useState(false);
   const [selectedPlanToBuy, setSelectedPlanToBuy] = useState<VpnPlan | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<"idle" | "confirm_plan" | "ask_client_name" | "sending">("idle");
-  const [selectedInboundGroupId, setSelectedInboundGroupId] = useState<string | null>(null);
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   
   // Local Simulator Sandboxes (Ensures the chatbot is strictly local and educational without writing to persistent DB)
@@ -523,7 +522,7 @@ export default function BotSimulator({
     }
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
-        const inlinePlans: any[] = (plans || []).map(p => ({
+        const inlinePlans: any[] = plans.map(p => ({
           text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
           action: `buy_${p.id}`
         }));
