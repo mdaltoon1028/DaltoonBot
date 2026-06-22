@@ -689,8 +689,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         "total": total_bytes,   
         "expiryTime": expiry_time_ms,
         "enable": True,
-        "tgId": "",
-        "subId": xui_sub_id
+                "subId": xui_sub_id
     }
 
     # Determine inbound IDs
