@@ -1659,6 +1659,36 @@ def buy_cmd(message):
         
     cfg = get_config()
     nickname = cfg.get("BOT_NICKNAME", "دالتون")
+    db = read_db_json()
+
+    # Check Group Inbounds feature status
+    is_group_enabled = False
+    inbound_groups = []
+    settings_str = db.get("settings", {}).get("panel_config")
+    if settings_str:
+        try:
+            panel_cfg = json.loads(settings_str)
+            is_group_enabled = panel_cfg.get("isGroupInboundsEnabled", False)
+            inbound_groups = panel_cfg.get("inboundGroups", [])
+        except:
+            pass
+
+    if is_group_enabled and inbound_groups:
+        message_body = (
+            f"📍 <b>لوکیشن‌های متصل و فعال برای خرید اشتراک {nickname}:</b>\n\n"
+            "لطفاً ابتدا یکی از مناطق یا لوکیشن‌های زیر را جهت انتخاب و خرید خدمت انتخاب نمایید:"
+        )
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for g in inbound_groups:
+            g_id = g.get("id")
+            g_name = g.get("name")
+            markup.add(types.InlineKeyboardButton(f"📍 {g_name}", callback_data=f"igsel_{g_id}"))
+            
+        markup.row(
+            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+        )
+        bot.send_message(message.chat.id, message_body, parse_mode="HTML", reply_markup=markup)
+        return
     
     message_body = (
         f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
@@ -1666,7 +1696,6 @@ def buy_cmd(message):
         "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
     )
 
-    db = read_db_json()
     db_plans = db.get("vpn_plans", [])
     db_categories = db.get("plan_categories", [])
     
