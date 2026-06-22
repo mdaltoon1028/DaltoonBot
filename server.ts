@@ -272,10 +272,15 @@ function writeJsonDb(data: DbSchema) {
 function getSystemSettings(db?: any) {
   const data = db || readJsonDb();
   let parsedSettings = {};
-  if (data.settings && data.settings.panel_config) {
-    try {
-      parsedSettings = JSON.parse(data.settings.panel_config);
-    } catch(e) {}
+  if (data.settings) {
+    parsedSettings = { ...data.settings };
+    delete (parsedSettings as any).panel_config; // Clean up string
+    if (data.settings.panel_config) {
+      try {
+        const pc = typeof data.settings.panel_config === 'string' ? JSON.parse(data.settings.panel_config) : data.settings.panel_config;
+        parsedSettings = { ...parsedSettings, ...pc };
+      } catch(e) {}
+    }
   }
   
   const settings: any = {
@@ -655,6 +660,8 @@ app.get("/api/data", async (req, res) => {
     if (!settings.admins || !Array.isArray(settings.admins)) {
       settings.admins = [];
     }
+
+    console.log("[DEBUG] /api/data returned settings.botToken:", settings.botToken);
 
     // REAL-TIME 3X-UI INBOUNDS MONITORING IMPLEMENTATION
     if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {

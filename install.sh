@@ -152,7 +152,7 @@ for (const p of dbPaths) {
     } catch(e){}
   }
 }
-console.log(foundConfig);
+process.stdout.write(foundConfig ? "true" : "false");
 ")
 
 if [ "$ALREADY_CONFIGURED" = "true" ]; then
@@ -192,7 +192,7 @@ if [ "$ALREADY_CONFIGURED" = "true" ]; then
           }
         }
       } catch(e) {}
-      console.log(port);
+      process.stdout.write(port.toString());
     ")
 else
     read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty

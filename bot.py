@@ -137,16 +137,17 @@ def get_config():
         settings = db.get("settings", {})
         settings_str = settings.get("panel_config")
         
-        panel_cfg = {}
+        panel_cfg = dict(settings)
+        if "panel_config" in panel_cfg:
+            del panel_cfg["panel_config"]
+
         if settings_str:
             try:
-                panel_cfg = json.loads(settings_str)
+                pc = json.loads(settings_str)
+                if isinstance(pc, dict):
+                    panel_cfg.update(pc)
             except:
                 pass
-        
-        # Fallback to direct keys on settings if not found in panel_config
-        if not panel_cfg:
-            panel_cfg = settings
 
         if "admins" in panel_cfg and isinstance(panel_cfg["admins"], list):
             config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
