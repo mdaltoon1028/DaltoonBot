@@ -720,53 +720,33 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
 
-    add_url = f"{base_url}/panel/api/clients/add"
-    payload = {
-        "client": client_config,
-        "inboundIds": inbound_ids
-    }
-    
-    try:
-        headers = {"Accept": "application/json"}
-        response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
-        # Catch HTML/404 responses from older panels gracefully
-        res_json = {}
+    fallback_success = False
+    import json
+    headers = {"Accept": "application/json"}
+    for inb_id in inbound_ids:
+        classic_url = f"{base_url}/panel/api/inbounds/addClient"
+        classic_payload = {
+            "id": inb_id,
+            "settings": json.dumps({"clients": [client_config]})
+        }
         try:
-            res_json = response.json()
-        except:
-            pass
-            
-        if res_json.get("success"):
-            print(f"[Sanaei API Sync] Created user '{client_email}' globally on inbounds successfully.")
-            sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
-            return client_uuid, sub_link
-        else:
-            print(f"[Sanaei API Response] Creation error/unsupported: {response.text}")
-            raise Exception("Force fallback")
-    except Exception as e:
-        print(f"[Sanaei API Request Error] Global client add error: {e}. Falling back to per-inbound addition...")
-        fallback_success = False
-        import json
-        for inb_id in inbound_ids:
-            classic_url = f"{base_url}/panel/api/inbounds/addClient"
-            classic_payload = {
-                "id": inb_id,
-                "settings": json.dumps({"clients": [client_config]})
-            }
+            c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=10, verify=False)
+            c_res_json = {}
             try:
-                c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=10, verify=False)
                 c_res_json = c_res.json()
-                if c_res_json.get("success"):
-                    print(f"[Sanaei API Fallback Sync] Added user '{client_email}' to inbound {inb_id}")
-                    fallback_success = True
-                else:
-                    print(f"[Sanaei API Fallback error inbound {inb_id}]: {c_res.text}")
-            except Exception as ce:
-                print(f"[Sanaei API Fallback Exception inbound {inb_id}]: {ce}")
-        
-        if fallback_success:
-            sub_link = f"{cfg['SUB_URL']}/sub/{xui_sub_id}"
-            return client_uuid, sub_link
+            except:
+                pass
+            if c_res_json.get("success"):
+                print(f"[Sanaei API Sync] Added user '{client_email}' to inbound {inb_id}")
+                fallback_success = True
+            else:
+                print(f"[Sanaei API error inbound {inb_id}]: {c_res.text}")
+        except Exception as ce:
+            print(f"[Sanaei API Exception inbound {inb_id}]: {ce}")
+    
+    if fallback_success:
+        sub_link = f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+        return client_uuid, sub_link
 
     return None, None
 
@@ -1879,105 +1859,14 @@ def handle_main_menu_callback(call):
         return
 
     elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
-        cfg = get_config()
-        nickname = cfg.get("BOT_NICKNAME", "دالتون")
-        
-        # Check Group Inbounds feature status
-        is_group_enabled = False
-        inbound_groups = []
-        settings_str = db.get("settings", {}).get("panel_config")
-        if settings_str:
-            try:
-                panel_cfg = json.loads(settings_str)
-                is_group_enabled = str(panel_cfg.get("isGroupInboundsEnabled", False)).lower() in ["true", "1", "yes"]
-                inbound_groups = panel_cfg.get("inboundGroups", [])
-                
-                # Robust fallback: If toggle is enabled but no custom group inbounds are created, 
-                # treat each checked active inbound as a separate direct group selector!
-                if is_group_enabled and not inbound_groups:
-                    active_ids = panel_cfg.get("activeInboundIds", [])
-                    cache_inbounds = db.get("inbounds", [])
-                    if cache_inbounds:
-                        for ib in cache_inbounds:
-                            ib_id = ib.get("id")
-                            if ib_id in active_ids or str(ib_id) in [str(x) for x in active_ids]:
-                                inbound_groups.append({
-                                    "id": f"ib_{ib_id}",
-                                    "name": ib.get("remark", f"Inbound #{ib_id}"),
-                                    "inboundIds": [ib_id],
-                                    "planIds": []
-                                })
-            except Exception as e:
-                print(f"[Group Inbounds Parse Error inside buy trigger]: {e}")
-                
-        if is_group_enabled and inbound_groups:
-            message_body = (
-                f"📍 <b>لوکیشن‌های متصل و فعال برای خرید اشتراک {nickname}:</b>\n\n"
-                "لطفاً ابتدا یکی از مناطق یا لوکیشن‌های زیر را جهت انتخاب و خرید خدمت انتخاب نمایید:"
-            )
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            for g in inbound_groups:
-                g_id = g.get("id")
-                g_name = g.get("name")
-                markup.add(types.InlineKeyboardButton(f"📍 {g_name}", callback_data=f"igsel_{g_id}"))
-                
-            markup.row(
-                types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
-            )
-            bot.edit_message_text(
-                message_body,
-                chat_id=message.chat.id,
-                message_id=message.message_id,
-                parse_mode="HTML",
-                reply_markup=markup
-            )
-            return
-
-        message_body = (
-            f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
-            "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
-            "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
-        )
-
-        # Extract unique categories dynamically
-        categories = []
-        seen_cats = set()
-        for p in db.get("vpn_plans", []):
-            cat = p.get("category", "Standard")
-            if cat not in seen_cats:
-                categories.append(cat)
-                seen_cats.add(cat)
-                
-        if not categories:
-            bot.edit_message_text(
-                "❌ <b>در حال حاضر هیچ اشتراکی در سیستم تعریف نشده است.</b>\n\nلطفا بعدا مراجعه کنید یا به پشتیبانی پیام دهید.",
-                chat_id=message.chat.id,
-                message_id=message.message_id,
-                parse_mode="HTML",
-                reply_markup=get_cancel_keyboard()
-            )
-            return
-
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for cat in categories:
-            emoji = "⚡️"
-            if "vip" in cat.lower(): emoji = "⭐️"
-            elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
-            elif "premium" in cat.lower(): emoji = "💎"
-            
-            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{cat}"))
-        
-        markup.row(
-            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
-        )
-            
-        bot.edit_message_text(
-            message_body,
-            chat_id=message.chat.id,
-            message_id=message.message_id,
-            parse_mode="HTML",
-            reply_markup=markup
-        )
+        try:
+            bot.delete_message(message.chat.id, message.message_id)
+        except Exception:
+            pass
+        message.from_user = call.from_user
+        message.text = "/buy"
+        buy_cmd(message)
+        return
 
     elif action == "mm_btnColleagues":
         packages = db.get("colleague_packages", [])
