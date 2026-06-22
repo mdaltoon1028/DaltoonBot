@@ -661,14 +661,18 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     
     if group_id:
         try:
-            settings_str = db.get("settings", {}).get("panel_config")
-            if settings_str:
-                panel_cfg = json.loads(settings_str)
-                groups = panel_cfg.get("inboundGroups", [])
-                matched_group = next((g for g in groups if g.get("id") == group_id), None)
-                if matched_group and matched_group.get("inboundIds"):
-                    inbound_ids = [int(i) for i in matched_group["inboundIds"]]
-                    print(f"[Group Inbounds API] Resolved group '{group_id}' to inbounds: {inbound_ids}")
+            if str(group_id).startswith("ib_"):
+                inbound_ids = [int(str(group_id).replace("ib_", ""))]
+                print(f"[Group Inbounds API] Resolved virtual group '{group_id}' to inbound: {inbound_ids}")
+            else:
+                settings_str = db.get("settings", {}).get("panel_config")
+                if settings_str:
+                    panel_cfg = json.loads(settings_str)
+                    groups = panel_cfg.get("inboundGroups", [])
+                    matched_group = next((g for g in groups if g.get("id") == group_id), None)
+                    if matched_group and matched_group.get("inboundIds"):
+                        inbound_ids = [int(i) for i in matched_group["inboundIds"]]
+                        print(f"[Group Inbounds API] Resolved group '{group_id}' to inbounds: {inbound_ids}")
         except Exception as e:
             print(f"[Group Inbounds Error Resolve]: {e}")
 
@@ -1668,10 +1672,26 @@ def buy_cmd(message):
     if settings_str:
         try:
             panel_cfg = json.loads(settings_str)
-            is_group_enabled = panel_cfg.get("isGroupInboundsEnabled", False)
+            is_group_enabled = str(panel_cfg.get("isGroupInboundsEnabled", False)).lower() in ["true", "1", "yes"]
             inbound_groups = panel_cfg.get("inboundGroups", [])
-        except:
-            pass
+            
+            # Robust fallback: If toggle is enabled but no custom group inbounds are created, 
+            # treat each checked active inbound as a separate direct group selector!
+            if is_group_enabled and not inbound_groups:
+                active_ids = panel_cfg.get("activeInboundIds", [])
+                cache_inbounds = db.get("inbounds", [])
+                if cache_inbounds:
+                    for ib in cache_inbounds:
+                        ib_id = ib.get("id")
+                        if ib_id in active_ids or str(ib_id) in [str(x) for x in active_ids]:
+                            inbound_groups.append({
+                                "id": f"ib_{ib_id}",
+                                "name": ib.get("remark", f"Inbound #{ib_id}"),
+                                "inboundIds": [ib_id],
+                                "planIds": []
+                            })
+        except Exception as e:
+            print(f"[Group Inbounds Parse Error inside buy command]: {e}")
 
     if is_group_enabled and inbound_groups:
         message_body = (
@@ -1855,8 +1875,24 @@ def handle_main_menu_callback(call):
         if settings_str:
             try:
                 panel_cfg = json.loads(settings_str)
-                is_group_enabled = panel_cfg.get("isGroupInboundsEnabled", False)
+                is_group_enabled = str(panel_cfg.get("isGroupInboundsEnabled", False)).lower() in ["true", "1", "yes"]
                 inbound_groups = panel_cfg.get("inboundGroups", [])
+                
+                # Robust fallback: If toggle is enabled but no custom group inbounds are created, 
+                # treat each checked active inbound as a separate direct group selector!
+                if is_group_enabled and not inbound_groups:
+                    active_ids = panel_cfg.get("activeInboundIds", [])
+                    cache_inbounds = db.get("inbounds", [])
+                    if cache_inbounds:
+                        for ib in cache_inbounds:
+                            ib_id = ib.get("id")
+                            if ib_id in active_ids or str(ib_id) in [str(x) for x in active_ids]:
+                                inbound_groups.append({
+                                    "id": f"ib_{ib_id}",
+                                    "name": ib.get("remark", f"Inbound #{ib_id}"),
+                                    "inboundIds": [ib_id],
+                                    "planIds": []
+                                })
             except Exception as e:
                 print(f"[Group Inbounds Parse Error inside buy trigger]: {e}")
                 
@@ -3730,16 +3766,29 @@ def callback_handler(call):
         group_id = call.data.replace("igsel_", "")
         
         db = read_db_json()
-        settings_str = db.get("settings", {}).get("panel_config")
-        inbound_groups = []
-        if settings_str:
-            try:
-                panel_cfg = json.loads(settings_str)
-                inbound_groups = panel_cfg.get("inboundGroups", [])
-            except:
-                pass
-                
-        group = next((g for g in inbound_groups if g.get("id") == group_id), None)
+        group = None
+        
+        if str(group_id).startswith("ib_"):
+            ib_id_str = str(group_id).replace("ib_", "")
+            cache_inbounds = db.get("inbounds", [])
+            matched_ib = next((ib for ib in cache_inbounds if str(ib.get("id")) == ib_id_str), None)
+            group = {
+                "id": group_id,
+                "name": matched_ib.get("remark", f"Inbound #{ib_id_str}") if matched_ib else f"Inbound #{ib_id_str}",
+                "inboundIds": [int(ib_id_str)],
+                "planIds": []
+            }
+        else:
+            settings_str = db.get("settings", {}).get("panel_config")
+            inbound_groups = []
+            if settings_str:
+                try:
+                    panel_cfg = json.loads(settings_str)
+                    inbound_groups = panel_cfg.get("inboundGroups", [])
+                except:
+                    pass
+            group = next((g for g in inbound_groups if g.get("id") == group_id), None)
+            
         if not group:
             bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
             return
@@ -3814,16 +3863,29 @@ def callback_handler(call):
         category_name = data_parts[2]
         
         db = read_db_json()
-        settings_str = db.get("settings", {}).get("panel_config")
-        inbound_groups = []
-        if settings_str:
-            try:
-                panel_cfg = json.loads(settings_str)
-                inbound_groups = panel_cfg.get("inboundGroups", [])
-            except:
-                pass
-                
-        group = next((g for g in inbound_groups if g.get("id") == group_id), None)
+        group = None
+        
+        if str(group_id).startswith("ib_"):
+            ib_id_str = str(group_id).replace("ib_", "")
+            cache_inbounds = db.get("inbounds", [])
+            matched_ib = next((ib for ib in cache_inbounds if str(ib.get("id")) == ib_id_str), None)
+            group = {
+                "id": group_id,
+                "name": matched_ib.get("remark", f"Inbound #{ib_id_str}") if matched_ib else f"Inbound #{ib_id_str}",
+                "inboundIds": [int(ib_id_str)],
+                "planIds": []
+            }
+        else:
+            settings_str = db.get("settings", {}).get("panel_config")
+            inbound_groups = []
+            if settings_str:
+                try:
+                    panel_cfg = json.loads(settings_str)
+                    inbound_groups = panel_cfg.get("inboundGroups", [])
+                except:
+                    pass
+            group = next((g for g in inbound_groups if g.get("id") == group_id), None)
+            
         if not group:
             bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
             return
