@@ -3276,7 +3276,10 @@ async function startServer() {
   setInterval(checkAutoBackup, 60 * 1000);
   setTimeout(checkAutoBackup, 5000); // Check once shortly after startup
 
-  if (process.env.NODE_ENV !== "production") {
+  const isCompiled = process.argv[1] && process.argv[1].endsWith('server.cjs');
+  const isProduction = process.env.NODE_ENV === "production" || isCompiled;
+
+  if (!isProduction) {
     console.log("[Server] Mount dev Vite middleware mode.");
     
     // Create Vite server in middleware mode
