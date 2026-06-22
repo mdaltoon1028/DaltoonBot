@@ -3806,54 +3806,41 @@ def callback_handler(call):
             bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
             return
 
-        group_category_names = group.get("planIds", []) or []
-        db_categories_list = db.get("plan_categories", [])
+        # NEW FLOW: Location -> Plan -> Category
+        group_allowed_categories = group.get("planIds", []) or []
+        db_plans = db.get("vpn_plans", [])
         
-        categories = []
-        seen_names = set()
-        
-        # Add categories defined in admin panel first, keeping their emoji
-        for c in db_categories_list:
-            c_name = c.get("name", "")
-            if not group_category_names or c_name in group_category_names:
-                if c_name and c_name not in seen_names:
-                    # Check if there are actual packages of this category
-                    has_any_package = any(p.get("category", "").lower() == c_name.lower() for p in db.get("vpn_plans", []))
-                    if has_any_package:
-                        categories.append({
-                            "name": c_name,
-                            "emoji": c.get("emoji", "⚡️")
-                        })
-                        seen_names.add(c_name)
-                        
-        # Fallback for category names assigned but maybe not listed in custom categories database
-        for p in db.get("vpn_plans", []):
-            p_cat = p.get("category", "Standard")
-            if not group_category_names or p_cat in group_category_names:
-                if p_cat not in seen_names:
-                    emoji = "⚡️"
-                    if "vip" in p_cat.lower(): emoji = "⭐️"
-                    elif "voip" in p_cat.lower() or "unlimited" in p_cat.lower(): emoji = "🚀"
-                    elif "premium" in p_cat.lower(): emoji = "💎"
-                    categories.append({
-                        "name": p_cat,
-                        "emoji": emoji
-                    })
-                    seen_names.add(p_cat)
+        plans_by_name = {}
+        for p in db_plans:
+            cat = p.get("category", "Standard")
+            if not group_allowed_categories or cat in group_allowed_categories:
+                p_name = p.get("name", "Unnamed Plan")
+                if p_name not in plans_by_name:
+                    plans_by_name[p_name] = []
+                plans_by_name[p_name].append(p)
+
+        if not plans_by_name:
+            bot.send_message(call.message.chat.id, "❌ هیچ پلنی برای این لوکیشن تعریف نشده است.")
+            return
 
         cfg = get_config()
-        nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
         message_body = (
-            f"⚡️ <b>دسته‌بندی طرح‌های لوکیشن {group['name']}:</b>\n\n"
-            "لطفاً یکی از دسته‌بندی‌های فعال زیر را انتخاب کنید تا طرح‌های موجود را مشاهده و خرید نمایید:"
+            f"📦 <b>انتخاب پلن برای لوکیشن {group['name']}:</b>\n\n"
+            "لطفاً یکی از پلن‌های زیر را انتخاب کنید تا دسته‌بندی‌های موجود نمایش داده شود:"
         )
 
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for cat_obj in categories:
-            cat_name = cat_obj["name"]
-            emoji = cat_obj["emoji"]
-            markup.add(types.InlineKeyboardButton(f"{emoji} {cat_name}", callback_data=f"igcat_{group_id}_{cat_name}"))
+        sorted_names = sorted(plans_by_name.keys(), key=lambda x: plans_by_name[x][0].get("price", 0))
+        
+        for p_name in sorted_names:
+            encoded_name = urllib.parse.quote(p_name)
+            cb_data = f"igpln_{group_id}_{encoded_name}"
+            if len(cb_data) > 64:
+                first_plan_id = plans_by_name[p_name][0]["id"]
+                cb_data = f"igplnz_{group_id}_{first_plan_id}"
+            
+            markup.add(types.InlineKeyboardButton(f"⚡️ {p_name}", callback_data=cb_data))
             
         markup.row(
             types.InlineKeyboardButton("🔙 بازگشت به لوکیشن‌ها", callback_data="mm_btnBuyNew"),
@@ -3869,82 +3856,72 @@ def callback_handler(call):
         )
         return
 
-    if call.data.startswith("igcat_"):
+    if call.data.startswith("igpln_") or call.data.startswith("igplnz_"):
         bot.answer_callback_query(call.id)
-        data_parts = call.data.split("_", 2)
-        group_id = data_parts[1]
-        category_name = data_parts[2]
-        
         db = read_db_json()
-        group = None
         
+        if call.data.startswith("igpln_"):
+            parts = call.data.split("_", 2)
+            group_id = parts[1]
+            plan_name = urllib.parse.unquote(parts[2])
+        else:
+            parts = call.data.split("_", 2)
+            group_id = parts[1]
+            ref_plan_id = parts[2]
+            ref_plan = next((p for p in db.get("vpn_plans", []) if p["id"] == ref_plan_id), None)
+            plan_name = ref_plan["name"] if ref_plan else ""
+
+        # Find group
+        group = None
         if str(group_id).startswith("ib_"):
             ib_id_str = str(group_id).replace("ib_", "")
             cache_inbounds = db.get("inbounds", [])
             matched_ib = next((ib for ib in cache_inbounds if str(ib.get("id")) == ib_id_str), None)
-            group = {
-                "id": group_id,
-                "name": matched_ib.get("remark", f"Inbound #{ib_id_str}") if matched_ib else f"Inbound #{ib_id_str}",
-                "inboundIds": [int(ib_id_str)],
-                "planIds": []
-            }
+            group = {"id": group_id, "name": matched_ib.get("remark", f"Inbound #{ib_id_str}") if matched_ib else f"Inbound #{ib_id_str}", "planIds": []}
         else:
             settings_str = db.get("settings", {}).get("panel_config")
             inbound_groups = []
             if settings_str:
-                try:
-                    panel_cfg = json.loads(settings_str)
-                    inbound_groups = panel_cfg.get("inboundGroups", [])
-                except:
-                    pass
+                try: panel_cfg = json.loads(settings_str); inbound_groups = panel_cfg.get("inboundGroups", [])
+                except: pass
             group = next((g for g in inbound_groups if g.get("id") == group_id), None)
-            
+
         if not group:
-            bot.send_message(call.message.chat.id, "❌ گروه مورد نظر یافت نشد.")
+            bot.send_message(call.message.chat.id, "❌ گروه یافت نشد.")
             return
 
+        group_allowed_categories = group.get("planIds", []) or []
         db_plans = db.get("vpn_plans", [])
-        plans_data = []
-        for dp in db_plans:
-            cat = dp.get("category", "Standard")
-            if cat.lower() == category_name.lower():
-                plans_data.append({
-                    "id": dp["id"],
-                    "name": dp["name"],
-                    "price": dp["price"],
-                    "traffic": dp.get("trafficGb", 30),
-                    "duration": dp.get("durationDays", 30)
-                })
-                    
-        cfg = get_config()
-        nickname = cfg.get("BOT_NICKNAME", "دالتون")
-        
-        display_cat = category_name
-        if category_name.lower() == "standard": display_cat = "Standard"
-        elif category_name.lower() == "vip": display_cat = "Vip"
-        elif "voip" in category_name.lower(): display_cat = "Unlimited VoIp"
-            
+        available_plans = [p for p in db_plans if p.get("name") == plan_name and (not group_allowed_categories or p.get("category", "Standard") in group_allowed_categories)]
+
+        if not available_plans:
+            bot.send_message(call.message.chat.id, "❌ پلنی یافت نشد.")
+            return
+
         message_body = (
-            f"⚡️ <b>پلن‌های لوکیشن {group['name']} (بخش {display_cat}) - {nickname}</b>\n\n"
-            "لطفاً یکی از تعرفه‌ها زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:"
+            f"💎 <b>انتخاب دسته‌بندی برای پلن «{plan_name}»:</b>\n\n"
+            "لطفاً نوع یا کیفیت سرویس مورد نظر خود را انتخاب کنید:"
         )
         
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for p in plans_data:
-            clean_name = p['name']
-            if clean_name.startswith("پلن "):
-                clean_name = clean_name[4:]
-            elif clean_name.startswith("پلان "):
-                clean_name = clean_name[5:]
-                
-            btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
-            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}:{group_id}"))
+        db_categories_list = db.get("plan_categories", [])
+        
+        for p in available_plans:
+            cat_name = p.get("category", "Standard")
+            cat_info = next((c for c in db_categories_list if c.get("name") == cat_name), None)
+            emoji = cat_info.get("emoji", "⚡️") if cat_info else "⚡️"
+            if not cat_info:
+                if "vip" in cat_name.lower(): emoji = "⭐️"
+                else: emoji = "⚡️"
             
+            btn_text = f"{emoji} {cat_name} ┃ {p['price']:,} تومان"
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}:{group_id}"))
+
         markup.row(
-            types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data=f"igsel_{group_id}"),
+            types.InlineKeyboardButton("🔙 بازگشت به پلن‌ها", callback_data=f"igsel_{group_id}"),
             types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
         )
-            
+
         bot.edit_message_text(
             message_body,
             chat_id=call.message.chat.id,
@@ -3953,6 +3930,7 @@ def callback_handler(call):
             reply_markup=markup
         )
         return
+
 
     if call.data.startswith("buy_"):
         buy_data = call.data[4:].split(":")
