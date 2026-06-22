@@ -664,10 +664,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     if not base_url: return None, None
     if base_url.endswith("/"): base_url = base_url[:-1]
 
-    session = login_xui()
-    if not session:
+    if not login_xui():
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
+
+    session = get_session()
 
     if not client_uuid:
          client_uuid = str(uuid.uuid4())
@@ -771,9 +772,10 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
     if base_url.endswith("/"):
         base_url = base_url[:-1]
 
-    session = login_xui()
-    if not session:
+    if not login_xui():
         return False
+        
+    session = get_session()
         
     safe_email = ""
     if client_email:
@@ -930,6 +932,8 @@ def delete_vpn_client_api(client_email, client_uuid=None):
     if not login_xui():
         print("[Sanaei API Error] Login failed in delete_vpn_client_api")
         return False
+        
+    session = get_session()
         
     import re
     safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
