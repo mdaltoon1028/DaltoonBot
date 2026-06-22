@@ -82,6 +82,17 @@ export interface PanelSettings {
   autoWarningNoConnectionBtn?: boolean;
   autoWarningFirstConnectionBtn?: boolean;
 
+  // Guide Video URLs / File IDs
+  guideVideoHapp?: string;
+  guideVideoIos?: string;
+  guideVideoAndroid?: string;
+  guideVideoV2rayn?: string;
+  guideVideoKaring?: string;
+  guideVideoMac?: string;
+  guideVideoLinux?: string;
+  guideVideoUpdate?: string;
+  guideVideoCrypto?: string;
+
   // Mandatory Join Config
   mandatoryJoinActive?: boolean;
   mandatoryJoinChannel?: string;

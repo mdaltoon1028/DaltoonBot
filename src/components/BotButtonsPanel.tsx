@@ -90,6 +90,15 @@ export default function BotButtonsPanel({
   const [showGuidesModal, setShowGuidesModal] = useState(false);
   const [tempGuidesText, setTempGuidesText] = useState("");
 
+  // States for Guide Video URLs / File IDs
+  const [guideVideoHapp, setGuideVideoHapp] = useState(settings.guideVideoHapp || "");
+  const [guideVideoIos, setGuideVideoIos] = useState(settings.guideVideoIos || "");
+  const [guideVideoAndroid, setGuideVideoAndroid] = useState(settings.guideVideoAndroid || "");
+  const [guideVideoV2rayn, setGuideVideoV2rayn] = useState(settings.guideVideoV2rayn || "");
+  const [guideVideoKaring, setGuideVideoKaring] = useState(settings.guideVideoKaring || "");
+  const [guideVideoMac, setGuideVideoMac] = useState(settings.guideVideoMac || "");
+  const [guideVideoLinux, setGuideVideoLinux] = useState(settings.guideVideoLinux || "");
+
   const [walletChargeAmounts, setWalletChargeAmounts] = useState<number[]>(() => {
     return settings.walletChargeAmounts && Array.isArray(settings.walletChargeAmounts)
       ? settings.walletChargeAmounts
@@ -250,7 +259,14 @@ export default function BotButtonsPanel({
       hideBtnAiChat,
       keyboardLayout,
       mainButtonsOrder,
-      walletChargeAmounts
+      walletChargeAmounts,
+      guideVideoHapp,
+      guideVideoIos,
+      guideVideoAndroid,
+      guideVideoV2rayn,
+      guideVideoKaring,
+      guideVideoMac,
+      guideVideoLinux
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -461,6 +477,132 @@ export default function BotButtonsPanel({
                   );
                 });
               })()}
+            </div>
+          </div>
+        </div>
+
+        {/* Client Video Tutorials Section */}
+        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-6">
+          <div className="flex items-center gap-3 border-b border-gray-800 pb-3">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+              <Activity className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-display font-medium text-base text-white">
+                {lang === "fa" ? "🎥 ویدیوها و فایل‌های آموزش اتصال کلاینت‌ها" : "🎥 Client Setup Video Tutorials"}
+              </h4>
+              <p className="text-xs text-gray-400">
+                {lang === "fa" 
+                  ? "لینک مستقیم ویدیو/GIF یا شناسه فایل تلگرامی (File ID) را قرار دهید تا آموزش کلاینت مربوطه تصویری ارسال شود." 
+                  : "Associate a Direct Video URL, Playable GIF link, or Telegram File ID for each connection client guide."}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-indigo-650/10 border border-indigo-500/20 p-4 rounded-xl text-xs text-gray-300 space-y-2 leading-relaxed">
+            <p className="font-semibold text-indigo-300">💡 {lang === "fa" ? "چگونه یک منبع تصویری یا ویدیو اضافه کنیم؟" : "How to specify an educational media file?"}</p>
+            <p>
+              {lang === "fa"
+                ? "۱. شناسه فایل تلگرام (File ID): برای ارسال سریع و پرسرعت مستقیم در تلگرام، ویدیو یا GIF مورد نظرتان را به ربات بفرستید؛ شناسه آن در لاگ‌های کنسول به شما نشان داده می‌شود. کپی کرده و در کادرهای زیر بگذارید."
+                : "1. Telegram File ID (Recommended): Best for high-speed delivery. Send any tutorial video/GIF file to your bot, note the generated file ID in terminal/logs, and paste it below."}
+            </p>
+            <p>
+              {lang === "fa"
+                ? "۲. لینک مستقیم (URL): می‌توانید لینک مستقیم فایل ویدیویی خود (مثلاً https://example.com/guide.mp4) را قرار دهید تا ربات از آن جهت نمایش ویدیو استفاده کند."
+                : "2. Direct Web Link: Provide a direct cloud hosted URL (e.g., https://yourdomain.com/setup.mp4) for users to interact or play natively."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "📱 کلاینت HAPP (موبایل)" : "📱 HAPP Client Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoHapp}
+                onChange={(e) => setGuideVideoHapp(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "🍎 کلاینت‌های آیفون / iOS" : "🍎 iOS Clients Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoIos}
+                onChange={(e) => setGuideVideoIos(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "🤖 کلاینت اندروید (v2rayNG)" : "🤖 Android v2rayNG Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoAndroid}
+                onChange={(e) => setGuideVideoAndroid(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "💻 کلاینت ویندوز (v2rayN)" : "💻 Windows v2rayN Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoV2rayn}
+                onChange={(e) => setGuideVideoV2rayn(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "💻 کلاینت ویندوز (Karing)" : "💻 Windows Karing Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoKaring}
+                onChange={(e) => setGuideVideoKaring(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "💻 کلاینت مک (macOS)" : "💻 macOS Client Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoMac}
+                onChange={(e) => setGuideVideoMac(e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-[11px] text-gray-400 mb-1 font-semibold">
+                {lang === "fa" ? "🐧 کلاینت لینوکس (Linux)" : "🐧 Linux Client Video / File ID"}
+              </label>
+              <input
+                type="text"
+                placeholder={lang === "fa" ? "شناسه فایل یا آدرس ویدیو" : "e.g., AgACAgIAAx..."}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-sans"
+                value={guideVideoLinux}
+                onChange={(e) => setGuideVideoLinux(e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -737,7 +879,14 @@ export default function BotButtonsPanel({
                     hideBtnAiChat,
                     keyboardLayout,
                     mainButtonsOrder,
-                    walletChargeAmounts
+                    walletChargeAmounts,
+                    guideVideoHapp,
+                    guideVideoIos,
+                    guideVideoAndroid,
+                    guideVideoV2rayn,
+                    guideVideoKaring,
+                    guideVideoMac,
+                    guideVideoLinux
                   });
                   setShowGuidesModal(false);
                 }}

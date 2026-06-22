@@ -267,6 +267,11 @@ def get_config():
                 config["MANDATORY_JOIN_CHANNEL"] = panel_cfg["mandatoryJoinChannel"]
             if "mandatoryJoinText" in panel_cfg:
                 config["MANDATORY_JOIN_TEXT"] = panel_cfg["mandatoryJoinText"]
+
+            # Parse Guide Videos / File IDs
+            for key in ["guideVideoHapp", "guideVideoIos", "guideVideoAndroid", "guideVideoV2rayn", "guideVideoKaring", "guideVideoMac", "guideVideoLinux"]:
+                if key in panel_cfg:
+                    config[key] = panel_cfg[key]
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
@@ -3486,14 +3491,71 @@ def callback_handler(call):
                 "پس از نصب Nekoray در توزیع خود، با زدن دکمه <code>Preferences > Groups</code> گروه جدید بسازید، نوع آن را روی Subscription ست نموده و لینک خود را اضافه کرده و دکمه آپدیت را بزنید تا سرورها لود شوند."
             )
             
-        bot.edit_message_text(
-            guide_text,
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            parse_mode="HTML",
-            reply_markup=markup,
-            disable_web_page_preview=False
-        )
+        # Check if a custom video / File ID is configured for this client
+        video_key_map = {
+            "happ": "guideVideoHapp",
+            "ios": "guideVideoIos",
+            "android": "guideVideoAndroid",
+            "v2rayn": "guideVideoV2rayn",
+            "karing": "guideVideoKaring",
+            "mac": "guideVideoMac",
+            "linux": "guideVideoLinux"
+        }
+        cfg = get_config()
+        react_key = video_key_map.get(item, f"guideVideo{item.capitalize()}")
+        guide_video = cfg.get(react_key, "").strip() if cfg else ""
+        
+        sent_video = False
+        if guide_video:
+            try:
+                # Attempt to delete the previous text-only menu message to prevent clutter
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
+                
+            try:
+                # Attempt to send as video first
+                bot.send_video(
+                    call.message.chat.id,
+                    guide_video,
+                    caption=guide_text,
+                    parse_mode="HTML",
+                    reply_markup=markup
+                )
+                sent_video = True
+            except Exception:
+                try:
+                    # Attempt to send as animation/GIF if sending video failed
+                    bot.send_animation(
+                        call.message.chat.id,
+                        guide_video,
+                        caption=guide_text,
+                        parse_mode="HTML",
+                        reply_markup=markup
+                    )
+                    sent_video = True
+                except Exception:
+                    pass
+
+        if not sent_video:
+            try:
+                bot.edit_message_text(
+                    guide_text,
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    parse_mode="HTML",
+                    reply_markup=markup,
+                    disable_web_page_preview=False
+                )
+            except Exception:
+                # If message deletion was successful but video send failed and edit failed since message doesn't exist, send a fresh text message
+                bot.send_message(
+                    call.message.chat.id,
+                    guide_text,
+                    parse_mode="HTML",
+                    reply_markup=markup
+                )
+                
         bot.answer_callback_query(call.id)
 
     elif call.data == "btn_back_home":
@@ -4429,8 +4491,49 @@ def process_custom_charge_amount(message):
     )
     bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=get_cancel_keyboard())
 
-# --- Photo & Document Receipt Handler ---
-@bot.message_handler(content_types=['photo', 'document'])
+# --- Photo, Video & Document Master Media Handler ---
+@bot.message_handler(content_types=['photo', 'document', 'video', 'animation'])
+def handle_master_media_upload(message):
+    tg_id = message.from_user.id
+    cfg = get_config()
+    is_owner = bool(int(tg_id) == int(cfg.get("OWNER_ID", 0)))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    
+    # If the user is an admin or owner, solve their request by giving them the File ID instantly!
+    if is_owner or is_admin:
+        file_id = None
+        media_type = "نامشخص"
+        if message.content_type == 'photo':
+            file_id = message.photo[-1].file_id
+            media_type = "تصویر (Photo)"
+        elif message.content_type == 'video':
+            file_id = message.video.file_id
+            media_type = "ویدیو (Video)"
+        elif message.content_type == 'animation':
+            file_id = message.animation.file_id
+            media_type = "انیمیشن/GIF (Animation)"
+        elif message.content_type == 'document':
+            file_id = message.document.file_id
+            media_type = "سند (Document)"
+            
+        if file_id:
+            reply_txt = (
+                f"🔑 <b>مکانیزم استخراج شناسه رسانه ربات دالتون</b>\n\n"
+                f"📂 نوع فایل ارسالی: <b>{media_type}</b>\n"
+                f"📌 شناسه فایل (File ID):\n"
+                f"<code>{file_id}</code>\n\n"
+                f"💡 <i>ادمین گرامی، می‌توانید با کپی کردن شناسه بالا، آن را در پنل وب مدیریت در کادر کلاینت مربوطه بگذارید تا کاربرانتان آموزشها را ویدیویی دریافت کنند!</i>"
+            )
+            bot.reply_to(message, reply_txt, parse_mode="HTML")
+            return
+
+    # Non-admins flow
+    if message.content_type in ['photo', 'document']:
+        handle_receipt_upload(message)
+    else:
+        bot.send_message(message.chat.id, "⚠️ <b>قالب ارسالی نامعتبر است!</b>\n\nلطفاً فقط تصویر فیش یا رسید واریزی خود را ارسال فرمایید تا جهت تأیید و شارژ یا تمدید اشتراک برای مدیریت ارسال شود.", parse_mode="HTML")
+
+# --- Receipt Handler Logic ---
 def handle_receipt_upload(message):
     tg_id = message.from_user.id
     username = message.from_user.username or f"user_{tg_id}"
