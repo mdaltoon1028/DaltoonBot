@@ -404,7 +404,19 @@ def check_client_exists(client_email):
         print(f"[Panel Check Error] {e}")
     return False
 
-def send_purchase_success_note_if_any(chat_id):
+def add_copy_button_to_markup(markup, text, link):
+    try:
+        from telebot.types import CopyTextButton
+        markup.add(types.InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=link)))
+    except TypeError:
+        markup.add(types.InlineKeyboardButton(text=text, url=link))
+    except Exception:
+        try:
+            markup.add(types.InlineKeyboardButton(text=text, copy_text={"text": link}))
+        except Exception:
+            markup.add(types.InlineKeyboardButton(text=text, url=link))
+
+def send_purchase_success_note_if_any(chat_id, only_media=True):
     cfg = get_config()
     note_text = cfg.get("PURCHASE_SUCCESS_NOTE", "")
     note_attach = cfg.get("PURCHASE_SUCCESS_ATTACHMENT", None)
@@ -440,7 +452,7 @@ def send_purchase_success_note_if_any(chat_id):
             else:
                 file_io.name = note_attach.get("fileName", "file.dat")
                 bot.send_document(chat_id, file_io, caption=note_text, parse_mode="HTML")
-        elif note_text:
+        elif note_text and not only_media:
             bot.send_message(chat_id, note_text, parse_mode="HTML")
     except Exception as e:
         print(f"[Purchase Success Note] Error sending attachment/text: {e}")
@@ -1944,25 +1956,37 @@ def handle_main_menu_callback(call):
             client_uuid=client_uuid
         )
         
+        cfg_settings = get_config()
+        success_note = cfg_settings.get("PURCHASE_SUCCESS_NOTE", "").strip()
+        note_attach = cfg_settings.get("PURCHASE_SUCCESS_ATTACHMENT", None)
+        has_media = bool(note_attach and "fileData" in note_attach)
+        
+        note_append = ""
+        if success_note and not has_media:
+            note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
+
         success_text = (
             f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
             f"👤 نام کاربری تست: <code>{free_username}</code>\n"
             f"⏳ اعتبار: ۱ روز\n"
             f"📊 حجم: ۱۰۰ مگابایت\n\n"
-            f"🔑 <b>مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):</b>\n\n"
-            f"<code>{sub_link}</code>\n"
+            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
         )
         
         try:
             import urllib.parse
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
             markup = types.InlineKeyboardMarkup(row_width=1)
+            add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
         except:
-            bot.send_message(message.chat.id, success_text, parse_mode="HTML")
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+            markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
+            bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
             
-        send_purchase_success_note_if_any(message.chat.id)
+        send_purchase_success_note_if_any(message.chat.id, only_media=True)
 
     # 6. Referral
     elif action == "mm_btnReferral":
@@ -2205,17 +2229,25 @@ def handle_buy_pay(call):
         )
         clear_user_pending_purchase(tg_id)
         
+        cfg_settings = get_config()
+        success_note = cfg_settings.get("PURCHASE_SUCCESS_NOTE", "").strip()
+        note_attach = cfg_settings.get("PURCHASE_SUCCESS_ATTACHMENT", None)
+        has_media = bool(note_attach and "fileData" in note_attach)
+        
+        note_append = ""
+        if success_note and not has_media:
+            note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
+
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
             f"🛒 اشتراک: <b>{spec['name']}</b>\n"
             f"👤 شناسه: <code>{username_input}</code>\n"
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"🚥 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n\n"
-            f"🔗 <b>لینک اشتراک (V2Ray):</b>\n"
-            f"<code>{sub_link}</code>\n\n"
-            f"جهت استفاده لینک بالا را کپی کرده و در کلاینت خود وارد کنید."
+            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
         )
-        markup = types.InlineKeyboardMarkup()
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
         markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
         
         try:
@@ -2226,7 +2258,7 @@ def handle_buy_pay(call):
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
             bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=markup)
             
-        send_purchase_success_note_if_any(tg_id)
+        send_purchase_success_note_if_any(tg_id, only_media=True)
         
     elif method in ["cryptomus", "nowpayments", "plisio", "heleket", "stars"]:
         # Mock implementations
@@ -2470,8 +2502,14 @@ def process_purchase_username(message, plan_id, spec):
             client_uuid=client_uuid
         )
 
-        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
-        note_append = f"\n\n{success_note}" if success_note else ""
+        success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "").strip()
+        note_attach = cfg.get("PURCHASE_SUCCESS_ATTACHMENT", None)
+        has_media = bool(note_attach and "fileData" in note_attach)
+        
+        note_append = ""
+        if success_note and not has_media:
+            note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
+            
         price_charged_display = "رایگان (مدیر سیستم)" if is_privileged else f"{spec['price']:,} تومان"
         
         log_action(
@@ -2486,21 +2524,28 @@ def process_purchase_username(message, plan_id, spec):
             f"👤 نام کاربری سرویس شما: <code>{username_input}</code>\n"
             f"💳 هزینه کسر شده: {price_charged_display}\n"
             f"💰 موجودی باقیمانده کیف پول: {int(new_balance):,} تومان\n\n"
-            f"🔑 <b>کانفیگ VLESS اختصاصی شما صادر شد:</b>\n"
-            f"• مسیر اشتراک (در V2rayNG، V2box، Happ و... وارد کنید):\n\n"
-            f"<code>{sub_link}</code>"
+            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
         )
         
+        # Build markup with copy button at the top, and append custom menu keys
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+        
+        from_kbd = get_custom_keyboard()
+        if from_kbd and hasattr(from_kbd, 'keyboard'):
+            for row in from_kbd.keyboard:
+                markup.keyboard.append(row)
+                
         # Try sending the QR code photo
         try:
             import urllib.parse
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-            bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+            bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
-            bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+            bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
             
-        send_purchase_success_note_if_any(message.chat.id)
+        send_purchase_success_note_if_any(message.chat.id, only_media=True)
     finally:
         active_purchases.discard(tg_id)
 
@@ -3987,17 +4032,41 @@ def process_col_create_days(message, acc, name, gb):
     
     bot.send_message(message.chat.id, "✅ کانفیگ در پنل X-UI ایجاد شد.", reply_markup=get_custom_keyboard())
     
-    text_msg = f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n👤 <b>نام:</b> {full_name}\n🗄 <b>حجم:</b> {gb} گیگابایت\n⏳ <b>اعتبار:</b> {days} روز\n\n🔗 <code>{sub_link}</code>"
+    cfg_settings = get_config()
+    success_note = cfg_settings.get("PURCHASE_SUCCESS_NOTE", "").strip()
+    note_attach = cfg_settings.get("PURCHASE_SUCCESS_ATTACHMENT", None)
+    has_media = bool(note_attach and "fileData" in note_attach)
     
+    note_append = ""
+    if success_note and not has_media:
+        note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
+
+    text_msg = (
+        f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
+        f"👤 <b>نام:</b> {full_name}\n"
+        f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
+        f"⏳ <b>اعتبار:</b> {days} روز\n\n"
+        f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}"
+    )
+    
+    # Build markup with copy button at the top, and append custom menu keys
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+    
+    from_kbd = get_custom_keyboard()
+    if from_kbd and hasattr(from_kbd, 'keyboard'):
+        for row in from_kbd.keyboard:
+            markup.keyboard.append(row)
+            
     try:
         import urllib.parse
         qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-        bot.send_photo(message.chat.id, qr_url, caption=text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+        bot.send_photo(message.chat.id, qr_url, caption=text_msg, parse_mode="HTML", reply_markup=markup)
     except Exception as e:
         print(f"[Bot Warning] Failed to send QR Photo: {e}")
-        bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+        bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=markup)
         
-    send_purchase_success_note_if_any(message.chat.id)
+    send_purchase_success_note_if_any(message.chat.id, only_media=True)
     
     show_colleague_panel_msg(message, live_acc)
 
