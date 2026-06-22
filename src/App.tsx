@@ -332,11 +332,8 @@ export default function App() {
   const [showSetupModal, setShowSetupModal] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && settings && (!settings.botToken || settings.botToken.trim() === "" || settings.botToken === "DUMMY_TOKEN")) {
-      setShowSetupModal(true);
-    } else {
-      setShowSetupModal(false);
-    }
+    // Disabled SetupModal per user request
+    setShowSetupModal(false);
   }, [isAuthenticated, settings?.botToken]);
 
   useEffect(() => {
