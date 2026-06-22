@@ -48,72 +48,182 @@ import { LoginScreen } from "./components/LoginScreen";
 import ConfirmationModal from "./components/ConfirmationModal";
 import SetupModal from "./components/SetupModal";
 
-const LionAndSunFlag = () => (
-  <div className="inline-flex items-center select-none" title="پرچم شیر و خورشید ایران">
-    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" className="rounded-full overflow-hidden shadow-[0_0_12px_rgba(99,102,241,0.3)] border border-slate-700/60 bg-white">
-      <defs>
-        <clipPath id="circle-flag-clip">
-          <circle cx="18" cy="18" r="18" />
-        </clipPath>
-      </defs>
-      <g clipPath="url(#circle-flag-clip)">
-        {/* Green Band (top) */}
-        <rect x="0" y="0" width="36" height="12" fill="#008B38" />
-        {/* White Band (middle) */}
-        <rect x="0" y="12" width="36" height="12" fill="#FFFFFF" />
-        {/* Red Band (bottom) */}
-        <rect x="0" y="24" width="36" height="12" fill="#DA291C" />
-        
-        {/* Elegant White Circular Emblem Plate Overlay */}
-        <circle cx="18" cy="18" r="10" fill="#FFFFFF" className="shadow-xs" />
-        
-        {/* High-Fidelity Correct Left-Facing Gold Lion and Sun Emblem group */}
-        <g transform="translate(18, 18) scale(0.85)">
-          {/* Sun background & rays */}
-          <circle cx="1.8" cy="-1.5" r="3.2" fill="#FFA000" />
-          <path d="M 1.8 -1.5 L 1.8 -9
-                   M -0.2 -2 L -3.8 -7
-                   M 3.8 -2 L 7.4 -7
-                   M -0.8 -0.5 L -5.8 -4
-                   M 4.4 -0.5 L 9.4 -4
-                   M 1.8 -1.5 L -1.2 -7
-                   M 1.8 -1.5 L 4.8 -7" stroke="#FFA000" strokeWidth="0.8" strokeLinecap="round" />
-          
-          {/* Pedestal Ground Line */}
-          <path d="M -9 6 L 9 6" stroke="#C59000" strokeWidth="0.9" strokeLinecap="round" />
-          
-          {/* Detailed Lion Tail */}
-          <path d="M 5 2 C 7.5 -0.5, 6.5 -5, 4.5 -4.5 C 3.5 -4, 4.5 -2, 4 -2.5" stroke="#D4AF37" strokeWidth="1" fill="none" strokeLinecap="round" />
-          <circle cx="4" cy="-5" r="0.6" fill="#D4AF37" />
+const LionAndSunFlag = () => {
+  return (
+    <div className="inline-flex items-center select-none" title="درَفش شَهباز (پرچم کوروش بزرگ)">
+      <svg width="34" height="34" viewBox="0 0 100 100" fill="none" className="rounded-md overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.6)] border border-yellow-600/50 transition duration-300 hover:scale-110 shrink-0">
+        <defs>
+          <radialGradient id="royalRed" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stopColor="#9C0000" />
+            <stop offset="60%" stopColor="#6E0000" />
+            <stop offset="100%" stopColor="#3A0000" />
+          </radialGradient>
+          <linearGradient id="goldSovereign" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#FFF4D0" />
+            <stop offset="30%" stopColor="#FFD54F" />
+            <stop offset="70%" stopColor="#FB8C00" />
+            <stop offset="100%" stopColor="#8D6E63" />
+          </linearGradient>
+          <linearGradient id="goldInner" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#E5A93B" />
+            <stop offset="50%" stopColor="#FFD54F" />
+            <stop offset="100%" stopColor="#FFE082" />
+          </linearGradient>
+          <filter id="goldGlow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="0.5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
 
-          {/* back legs for depth */}
-          <path d="M 3.5 2.5 L 4.5 6" stroke="#9E7815" strokeWidth="1.5" strokeLinecap="round" />
-          <path d="M -1.8 3 L -2.5 6" stroke="#9E7815" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Deep rich crimson/burgundy background */}
+        <rect width="100" height="100" fill="url(#royalRed)" />
+
+        {/* Texture detail line pattern overlay (subtle royal pattern) */}
+        <rect fill="none" stroke="url(#goldSovereign)" strokeWidth="0.8" className="opacity-70" x="2.5" y="2.5" width="95" height="95" />
+        <rect fill="none" stroke="url(#goldSovereign)" strokeWidth="0.3" className="opacity-40" x="5.5" y="5.5" width="89" height="89" />
+
+        {/* --- BORDER OF GOLDEN TRIANGLES (POINTING INWARDS) --- */}
+        {/* Top edge pointing down */}
+        {Array.from({ length: 15 }).map((_, i) => {
+          const step = 88 / 15;
+          const x1 = 6 + i * step;
+          const x2 = 6 + (i + 1) * step;
+          const xc = x1 + step / 2;
+          return <polygon key={`t-${i}`} points={`${x1},5.5 ${x2},5.5 ${xc},9.5`} fill="url(#goldSovereign)" />;
+        })}
+        {/* Bottom edge pointing up */}
+        {Array.from({ length: 15 }).map((_, i) => {
+          const step = 88 / 15;
+          const x1 = 6 + i * step;
+          const x2 = 6 + (i + 1) * step;
+          const xc = x1 + step / 2;
+          return <polygon key={`b-${i}`} points={`${x1},94.5 ${x2},94.5 ${xc},90.5`} fill="url(#goldSovereign)" />;
+        })}
+        {/* Left edge pointing right */}
+        {Array.from({ length: 15 }).map((_, i) => {
+          const step = 88 / 15;
+          const y1 = 6 + i * step;
+          const y2 = 6 + (i + 1) * step;
+          const yc = y1 + step / 2;
+          return <polygon key={`l-${i}`} points={`5.5,${y1} 5.5,${y2} 9.5,${yc}`} fill="url(#goldSovereign)" />;
+        })}
+        {/* Right edge pointing left */}
+        {Array.from({ length: 15 }).map((_, i) => {
+          const step = 88 / 15;
+          const y1 = 6 + i * step;
+          const y2 = 6 + (i + 1) * step;
+          const yc = y1 + step / 2;
+          return <polygon key={`r-${i}`} points={`94.5,${y1} 94.5,${y2} 90.5,${yc}`} fill="url(#goldSovereign)" />;
+        })}
+
+        {/* --- ROYAL GOLD SHAHBAZ (THE CYRUS STANDARD EAGLE-FALCON) --- */}
+        <g filter="url(#goldGlow)">
+          {/* 1. Golden Disc above Head */}
+          <circle cx="50" cy="22.5" r="4.5" fill="url(#goldSovereign)" />
+          <circle cx="50" cy="22.5" r="3.2" fill="url(#goldInner)" />
+
+          {/* 2. Shahbaz main body */}
+          {/* Head & elegant beak facing right */}
+          <path d="M 48 29 C 48 29, 45 30, 45 33 C 45 35, 47 36, 49 35.5 C 50.5 35, 52 35.5, 53.5 35 C 55 34.5, 56.5 33, 56.5 31 C 56.5 29, 54.5 29, 54.5 29 C 54.5 29, 56.5 27, 54.5 27 C 52.5 27, 51.5 28.5, 48 29 Z" fill="url(#goldSovereign)" />
+          {/* Eye detail */}
+          <circle cx="51.5" cy="31" r="0.8" fill="#540202" />
+          <circle cx="51.5" cy="31" r="0.3" fill="#FFFED0" />
+
+          {/* Detailed crown or small crest feathers on neck */}
+          <path d="M 47.5 28 C 47.5 28, 46 26.5, 48 27 C 50 27.5, 48 29, 48 29 Z" fill="url(#goldInner)" />
+
+          {/* 3. Horizontal Wing spreads left & right (Symmetric feather layers) */}
+          {/* Left Wing upper curve */}
+          <path d="M 48 37 C 35 34, 25 31, 14 36 C 14 36, 17 48, 26 48 L 47 43 Z" fill="url(#goldSovereign)" />
+          {/* Left Wing feather details */}
+          <path d="M 14.5 38.5 Q 24 38, 45.5 44" stroke="#783400" strokeWidth="0.5" fill="none" opacity="0.6" />
+          <path d="M 16.5 41 Q 25 41, 44 45.5" stroke="#783400" strokeWidth="0.5" fill="none" opacity="0.6" />
+          <path d="M 18.5 43.5 Q 26 43, 42.5 47" stroke="#783400" strokeWidth="0.5" fill="none" opacity="0.6" />
+
+          {/* Beautiful gold stylized inner layers of feathers */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const rot = i * 2.5;
+            return (
+              <path
+                key={`lw-${i}`}
+                d="M 47 42 C 43 45, 25 43, 17 45.5 C 19 48, 30 49, 46 44.5 C 46 44.5, 46 43, 47 42 Z"
+                fill="url(#goldInner)"
+                transform={`rotate(${rot} 47 42)`}
+                opacity="0.9"
+              />
+            );
+          })}
+
+          {/* Right Wing upper curve */}
+          <path d="M 52 37 C 65 34, 75 31, 86 36 C 86 36, 83 48, 74 48 L 53 43 Z" fill="url(#goldSovereign)" />
+          {/* Right Wing feather details */}
+          <path d="M 85.5 38.5 Q 76 38, 54.5 44" stroke="#783400" strokeWidth="0.5" fill="none" opacity="0.6" />
+          <path d="M 83.5 41 Q 75 41, 56 45.5" stroke="#783400" strokeWidth="0.5" fill="none" opacity="0.6" />
+          <path d="M 81.5 43.5 Q 74 43, 57.5 47" stroke="#783400" strokeWidth="0.5" fill="none" opacity="0.6" />
+
+          {/* Right wing feather layers */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const rot = -i * 2.5;
+            return (
+              <path
+                key={`rw-${i}`}
+                d="M 53 42 C 57 45, 75 43, 83 45.5 C 81 48, 70 49, 54 44.5 C 54 44.5, 54 43, 53 42 Z"
+                fill="url(#goldInner)"
+                transform={`rotate(${rot} 53 42)`}
+                opacity="0.9"
+              />
+            );
+          })}
+
+          {/* 4. Elegant ribbed tall body torso */}
+          <path d="M 46 36 C 46 36, 44 47, 43 62 C 43 62, 50 67, 57 62 C 56 47, 54 36, 54 36 Z" fill="url(#goldSovereign)" stroke="#5D4037" strokeWidth="0.3" />
           
-          {/* Lion Body (facing left) */}
-          <path d="M -5.2 2.8 C -5.2 0.8, -1.5 0.5, 1 1 C 3 1.2, 5.2 1.5, 5.2 3 C 5.2 4.2, 3.2 5, -1 5 C -3.8 5, -5.2 4, -5.2 2.8 Z" fill="#D4AF37" />
-          
-          {/* Front standing leg */}
-          <path d="M -3.5 3 L -4.2 6" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" />
-          <path d="M 2.2 3.5 L 2.8 6" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" />
-          
-          {/* Mane and Head */}
-          <circle cx="-4.5" cy="1" r="1.8" fill="#D4AF37" />
-          <circle cx="-3.8" cy="0.4" r="1.3" fill="#FFC107" />
-          
-          {/* Sword raising right arm */}
-          <path d="M -4 2 C -4 0.5, -4.8 -1.2, -4.5 -2" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-          
-          {/* Sabre (Sword) - Raised high, curving backward over the head correctly */}
-          <path d="M -4.5 -2 C -7.5 -5.2, -5.5 -10, -2.5 -11.5" stroke="#ECEFF1" strokeWidth="1.1" strokeLinecap="round" fill="none" />
-          <path d="M -4.5 -2 C -7.5 -5.2, -5.5 -10, -2.5 -11.5" stroke="#37474F" strokeWidth="0.4" strokeLinecap="round" fill="none" />
-          {/* Sword hilt */}
-          <path d="M -5.2 -1.6 L -3.8 -2.4" stroke="#FFA000" strokeWidth="1" strokeLinecap="round" />
+          {/* Torso golden horizontal ribbing details */}
+          {Array.from({ length: 9 }).map((_, i) => {
+            const y = 39 + i * 2.6;
+            const w = 8 - Math.abs(5 - i) * 0.45;
+            return (
+              <path
+                key={`rib-${i}`}
+                d={`M ${50 - w/2} ${y} Q 50 ${y + 0.8} ${50 + w/2} ${y}`}
+                stroke="#5D4037"
+                strokeWidth="0.65"
+                fill="none"
+              />
+            );
+          })}
+
+          {/* 5. Imperial flared Tail Standard */}
+          <path d="M 46.5 63 C 46.5 63, 44 76, 41 78.5 C 44 79, 56 79, 59 78.5 C 56 76, 53.5 63, 53.5 63 Z" fill="url(#goldSovereign)" />
+          {/* Tail vertical gold details */}
+          <g opacity="0.8">
+            <line x1="50" y1="63" x2="50" y2="78.5" stroke="#783400" strokeWidth="0.6" />
+            <line x1="48" y1="63.5" x2="45.5" y2="77.5" stroke="#783400" strokeWidth="0.5" />
+            <line x1="52" y1="63.5" x2="54.5" y2="77.5" stroke="#783400" strokeWidth="0.5" />
+            <line x1="46" y1="64" x2="42.5" y2="76" stroke="#783400" strokeWidth="0.4" />
+            <line x1="54" y1="64" x2="57.5" y2="76" stroke="#783400" strokeWidth="0.4" />
+          </g>
+          {/* Intersecting design curve at base of tail */}
+          <path d="M 41 78.5 Q 50 75.5 59 78.5" stroke="url(#goldInner)" strokeWidth="0.8" fill="none" />
+
+          {/* 6. Powerful legs/talons holding golden circular elements */}
+          {/* Left leg */}
+          <path d="M 45 56 Q 36 67, 24.5 73.5" stroke="url(#goldSovereign)" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+          <path d="M 45 56 Q 36 67, 24.5 73.5" stroke="url(#goldInner)" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+          <circle cx="23" cy="74.5" r="4" fill="url(#goldSovereign)" stroke="#5D4037" strokeWidth="0.4" />
+          <circle cx="23" cy="74.5" r="2.5" fill="url(#goldInner)" />
+
+          {/* Right leg */}
+          <path d="M 55 56 Q 64 67, 75.5 73.5" stroke="url(#goldSovereign)" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+          <path d="M 55 56 Q 64 67, 75.5 73.5" stroke="url(#goldInner)" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+          <circle cx="77" cy="74.5" r="4" fill="url(#goldSovereign)" stroke="#5D4037" strokeWidth="0.4" />
+          <circle cx="77" cy="74.5" r="2.5" fill="url(#goldInner)" />
         </g>
-      </g>
-    </svg>
-  </div>
-);
+      </svg>
+    </div>
+  );
+};
+
 
 export default function App() {
   // State initialization with localStorage persistence
@@ -810,8 +920,8 @@ export default function App() {
       >
         <div className="flex items-center justify-between p-5 border-b border-[#1f2937]">
           <div className="flex items-center gap-2">
-            <h2 className="font-display font-bold text-white tracking-wider flex items-center gap-2">
-              {t.appTitle}
+            <h2 className="font-display font-bold text-white tracking-wider flex items-center gap-2 whitespace-nowrap">
+              <span>{t.appTitle}</span>
               <LionAndSunFlag />
             </h2>
             <button 
@@ -1018,9 +1128,9 @@ export default function App() {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer">
               <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="cursor-pointer flex items-center gap-2" onClick={() => setIsSidebarOpen(true)}>
-                <h1 className="font-display font-bold text-xl tracking-wide text-white block">{t.appTitle}</h1>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="cursor-pointer flex items-center gap-2 flex-shrink-0" onClick={() => setIsSidebarOpen(true)}>
+                <h1 className="font-display font-bold text-lg sm:text-xl md:text-2xl tracking-wide text-white whitespace-nowrap">{t.appTitle}</h1>
                 <LionAndSunFlag />
               </div>
             </div>
