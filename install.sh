@@ -38,17 +38,25 @@ BACKUP_DIR="/tmp/daltoon_db_backup"
 mkdir -p "$BACKUP_DIR"
 
 # Backup databases if they exist anywhere to verify persistence
-if [ -f "/opt/daltoon-store/database.json" ]; then
-    echo -e "${GREEN}Backing up server database...${NC}"
-    cp /opt/daltoon-store/database.json "$BACKUP_DIR/database.json"
-fi
-if [ -f "/opt/daltoon-store/Daltoon_Bot.json" ]; then
-    echo -e "${GREEN}Backing up bot database...${NC}"
-    cp /opt/daltoon-store/Daltoon_Bot.json "$BACKUP_DIR/Daltoon_Bot.json"
-elif [ -f "/opt/daltoon-store/bot_database.json" ]; then
-    echo -e "${GREEN}Migrating legacy bot_database.json to Daltoon_Bot.json...${NC}"
-    cp /opt/daltoon-store/bot_database.json "$BACKUP_DIR/Daltoon_Bot.json"
-fi
+for dir in "/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/DaltoonBot"; do
+    if [ -f "$dir/Daltoon_Bot.json" ] && [ -s "$dir/Daltoon_Bot.json" ]; then
+        echo -e "${GREEN}Backing up bot database from $dir/Daltoon_Bot.json...${NC}"
+        cp "$dir/Daltoon_Bot.json" "$BACKUP_DIR/Daltoon_Bot.json"
+        break
+    elif [ -f "$dir/bot_database.json" ] && [ -s "$dir/bot_database.json" ]; then
+        echo -e "${GREEN}Migrating legacy bot_database.json from $dir to Daltoon_Bot.json...${NC}"
+        cp "$dir/bot_database.json" "$BACKUP_DIR/Daltoon_Bot.json"
+        break
+    fi
+done
+
+for dir in "/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/DaltoonBot"; do
+    if [ -f "$dir/database.json" ] && [ -s "$dir/database.json" ]; then
+        echo -e "${GREEN}Backing up server database from $dir/database.json...${NC}"
+        cp "$dir/database.json" "$BACKUP_DIR/database.json"
+        break
+    fi
+done
 
 if [ ! -f "package.json" ]; then
     echo -e "${YELLOW}No package.json detected in the current directory.${NC}"
@@ -78,14 +86,16 @@ else
     echo -e "${GREEN}[3/6] package.json detected. Skipping git clone...${NC}"
 fi
 
-# Restore databases if backups exist
+# Restore databases if backups exist to both current dir & opt-store targets
 if [ -f "$BACKUP_DIR/database.json" ]; then
     echo -e "${GREEN}Restoring server database from backup...${NC}"
-    cp "$BACKUP_DIR/database.json" "database.json" 2>/dev/null || cp "$BACKUP_DIR/database.json" "/opt/daltoon-store/database.json"
+    cp "$BACKUP_DIR/database.json" "database.json" 2>/dev/null
+    cp "$BACKUP_DIR/database.json" "/opt/daltoon-store/database.json" 2>/dev/null
 fi
 if [ -f "$BACKUP_DIR/Daltoon_Bot.json" ]; then
     echo -e "${GREEN}Restoring bot database from backup...${NC}"
-    cp "$BACKUP_DIR/Daltoon_Bot.json" "Daltoon_Bot.json" 2>/dev/null || cp "$BACKUP_DIR/Daltoon_Bot.json" "/opt/daltoon-store/Daltoon_Bot.json"
+    cp "$BACKUP_DIR/Daltoon_Bot.json" "Daltoon_Bot.json" 2>/dev/null
+    cp "$BACKUP_DIR/Daltoon_Bot.json" "/opt/daltoon-store/Daltoon_Bot.json" 2>/dev/null
 fi
 
 # 5. Install Node-modules and Build project
@@ -150,19 +160,59 @@ else
     node -e "
     const fs = require('fs');
     const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-    let db = { settings: {} };
+    let db = {};
     if (fs.existsSync(dbPath)) {
-      try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch(e){}
+      try { 
+        const content = fs.readFileSync(dbPath, 'utf8');
+        if (content && content.trim()) {
+          db = JSON.parse(content) || {};
+        }
+      } catch(e){}
     }
+    
+    // Ensure standard keys are preserved/created to avoid any data loss or blank UI
+    if (!db.users) db.users = [];
+    if (!db.transactions) db.transactions = [];
+    if (!db.subscription_keys) db.subscription_keys = [];
+    if (!db.vpn_plans || db.vpn_plans.length === 0) {
+      db.vpn_plans = [
+        { id: 'std_1m_30g', name: 'یک‌ماهه ۳۰ گیگابایت', durationDays: 30, trafficGb: 30, price: 60000, category: 'Standard' },
+        { id: 'std_1m_50g', name: 'یک‌ماهه ۵۰ گیگابایت', durationDays: 30, trafficGb: 50, price: 90000, category: 'Standard' },
+        { id: 'std_1m_100g', name: 'یک‌ماهه ۱۰۰ گیگابایت', durationDays: 30, trafficGb: 100, price: 150000, category: 'Standard' },
+        { id: 'vip_1m_50g', name: 'وی‌آی‌پی یک‌ماهه ۵۰ گیگابایت', durationDays: 30, trafficGb: 50, price: 110000, category: 'Vip' },
+        { id: 'vip_1m_100g', name: 'وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت', durationDays: 30, trafficGb: 100, price: 180000, category: 'Vip' },
+        { id: 'vip_3m_200g', name: 'وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت', durationDays: 90, trafficGb: 200, price: 320000, category: 'Vip' },
+        { id: 'unl_1m_unlimit', name: 'یک‌ماهه نامحدود', durationDays: 30, trafficGb: 0, price: 250000, category: 'Unlimited' }
+      ];
+    }
+    if (!db.custom_buttons || db.custom_buttons.length === 0) {
+      db.custom_buttons = [
+        { id: 'cb_gift', text: '🎁 تست رایگان ۲ ساعته', replyText: 'کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\\n\\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest' },
+        { id: 'cb_channel', text: '📢 کانال تلگرام', replyText: 'دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\\n\\n👉 @example_channel' }
+      ];
+    }
+    if (!db.plan_categories || db.plan_categories.length === 0) {
+      db.plan_categories = [
+        { id: '1', name: 'Standard', emoji: '⚡️' },
+        { id: '2', name: 'Vip', emoji: '⭐️' },
+        { id: '3', name: 'Unlimited', emoji: '🚀' }
+      ];
+    }
+    
     let panel_config = {};
     if (db.settings && db.settings.panel_config) {
-      try { panel_config = JSON.parse(db.settings.panel_config); } catch(e){}
+      try { 
+        panel_config = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config; 
+      } catch(e){}
     }
+    
     panel_config.dashboardUsername = '$DASH_USER';
     panel_config.dashboardPassword = '$DASH_PASS';
     panel_config.serverPort = Number('$DASH_PORT');
+    
     if (!db.settings) db.settings = {};
     db.settings.panel_config = JSON.stringify(panel_config);
+    
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
     "
 fi

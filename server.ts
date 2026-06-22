@@ -140,11 +140,22 @@ function readJsonDb(): DbSchema {
         users: [],
         transactions: [],
         subscription_keys: [],
-        vpn_plans: [],
+        vpn_plans: [
+          { id: "std_1m_30g", name: "یک‌ماهه ۳۰ گیگابایت", durationDays: 30, trafficGb: 30, price: 60000, category: "Standard" },
+          { id: "std_1m_50g", name: "یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 90000, category: "Standard" },
+          { id: "std_1m_100g", name: "یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 150000, category: "Standard" },
+          { id: "vip_1m_50g", name: "وی‌آی‌پی یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 110000, category: "Vip" },
+          { id: "vip_1m_100g", name: "وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 180000, category: "Vip" },
+          { id: "vip_3m_200g", name: "وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت", durationDays: 90, trafficGb: 200, price: 320000, category: "Vip" },
+          { id: "unl_1m_unlimit", name: "یک‌ماهه نامحدود", durationDays: 30, trafficGb: 0, price: 250000, category: "Unlimited" }
+        ],
         colleague_packages: [],
         colleague_accounts: [],
         inbounds: [],
-        custom_buttons: [],
+        custom_buttons: [
+          { id: "cb_gift", text: "🎁 تست رایگان ۲ ساعته", replyText: "کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\n\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest" },
+          { id: "cb_channel", text: "📢 کانال تلگرام", replyText: "دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\n\n👉 @example_channel" }
+        ],
         gift_codes: [],
         promo_codes: [],
         tickets: [],
@@ -203,6 +214,39 @@ function readJsonDb(): DbSchema {
         db[key] = [];
         modified = true;
       }
+    }
+
+    // Seed vpn_plans if empty
+    if (!db.vpn_plans || db.vpn_plans.length === 0) {
+      db.vpn_plans = [
+        { id: "std_1m_30g", name: "یک‌ماهه ۳۰ گیگابایت", durationDays: 30, trafficGb: 30, price: 60000, category: "Standard" },
+        { id: "std_1m_50g", name: "یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 90000, category: "Standard" },
+        { id: "std_1m_100g", name: "یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 150000, category: "Standard" },
+        { id: "vip_1m_50g", name: "وی‌آی‌پی یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 110000, category: "Vip" },
+        { id: "vip_1m_100g", name: "وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 180000, category: "Vip" },
+        { id: "vip_3m_200g", name: "وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت", durationDays: 90, trafficGb: 200, price: 320000, category: "Vip" },
+        { id: "unl_1m_unlimit", name: "یک‌ماهه نامحدود", durationDays: 30, trafficGb: 0, price: 250000, category: "Unlimited" }
+      ];
+      modified = true;
+    }
+
+    // Seed custom_buttons if empty
+    if (!db.custom_buttons || db.custom_buttons.length === 0) {
+      db.custom_buttons = [
+        { id: "cb_gift", text: "🎁 تست رایگان ۲ ساعته", replyText: "کاربر گرامی، بدین وسیله یک اکانت تست ۲ ساعته با حجم ۲۰۰ مگابایت برای شما تولید شد:\n\nvless://f39281a1-9b1d-4050-b498-3882aef1277a@example.com:2052?security=reality&sni=google.com&fp=chrome#GiftTest" },
+        { id: "cb_channel", text: "📢 کانال تلگرام", replyText: "دوست گرامی! برای عضویت در گروه حل مشکلات و مطلع شدن از آخرین اخبار و پایداری شبکه روی پیوند زیر ضربه بزنید:\n\n👉 @example_channel" }
+      ];
+      modified = true;
+    }
+
+    // Seed plan_categories if empty
+    if (!db.plan_categories || db.plan_categories.length === 0) {
+      db.plan_categories = [
+        { id: "1", name: "Standard", emoji: "⚡️" },
+        { id: "2", name: "Vip", emoji: "⭐️" },
+        { id: "3", name: "Unlimited", emoji: "🚀" }
+      ];
+      modified = true;
     }
 
     if (modified) {
@@ -314,8 +358,7 @@ function startPythonBot() {
         cwd: process.cwd(),
         env: { 
           ...process.env, 
-          PYTHONUNBUFFERED: "1",
-          PYTHONPATH: "/root/.local/lib/python3.10/site-packages"
+          PYTHONUNBUFFERED: "1"
         },
         stdio: "pipe",
       });

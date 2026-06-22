@@ -287,7 +287,7 @@ cfg_boot = get_config()
 # (Already imported at top)
 
 # Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
-bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML")
+bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML", threaded=True, num_threads=30)
 
 _session = None
 def get_session():
@@ -5502,6 +5502,29 @@ def handle_receipt_upload(message):
 
 # Initialize JSON DB on startup
 if __name__ == "__main__":
+    # Terminate any duplicate bot processes to avoid polling conflict & delayed updates
+    import signal
+    pid_file = os.path.join(SCRIPT_DIR, "bot.pid")
+    current_pid = os.getpid()
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file, "r") as f:
+                old_pid = int(f.read().strip())
+                if old_pid != current_pid:
+                    print(f"[Daltoon Bot] Shutting down older bot process (PID {old_pid}) to prevent 409 dual polling conflict...")
+                    try:
+                        os.kill(old_pid, signal.SIGKILL)
+                        time.sleep(1)
+                    except OSError:
+                        pass
+        except Exception as pid_err:
+            print(f"[Daltoon Bot PID Lock Error]: {pid_err}")
+    try:
+        with open(pid_file, "w") as f:
+            f.write(str(current_pid))
+    except Exception as pid_err:
+        print(f"[Daltoon Bot PID Write Error]: {pid_err}")
+
     read_db_json()
     print("Daltoon Telegram Bot core fully online on JSON synchronization database...")
     
