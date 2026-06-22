@@ -2387,7 +2387,7 @@ def handle_buy_pay(call):
         
         if not sub_link:
             if not cfg.get("SIMULATOR_MODE"):
-                bot.send_message(tg_id, "❌ متأسفانه خطایی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ وجود ندارد.\n\n⚠️ لطفاً موضوع را به پشتیبانی اطلاع دهید. مبلغ کسر شده طی ۲۴ ساعت آینده به کیف پول شما بازگردانده خواهد شد (یا توسط ادمین دستی تایید می‌شود).", parse_mode="HTML")
+                bot.send_message(tg_id, "❌ متأسفانه خطایی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ وجود ندارد (v4).\n\n⚠️ لطفاً موضوع را به پشتیبانی اطلاع دهید. مبلغ کسر شده طی ۲۴ ساعت آینده به کیف پول شما بازگردانده خواهد شد (یا توسط ادمین دستی تایید می‌شود).", parse_mode="HTML")
                 # Optional: Refund wallet automatically here or wait for admin
                 return
             
