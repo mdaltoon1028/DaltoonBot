@@ -2751,6 +2751,31 @@ def process_purchase_username(message, plan_id, spec):
     finally:
         active_purchases.discard(tg_id)
 
+def edit_or_reply_message(call, text, reply_markup=None, parse_mode="HTML"):
+    message = call.message
+    is_photo = False
+    if hasattr(message, 'photo') and message.photo:
+        is_photo = True
+    elif hasattr(message, 'content_type') and message.content_type == 'photo':
+        is_photo = True
+        
+    if is_photo:
+        try:
+            bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+        except Exception:
+            pass
+        return bot.send_message(chat_id=message.chat.id, text=text, parse_mode=parse_mode, reply_markup=reply_markup)
+    else:
+        try:
+            return bot.edit_message_text(text=text, chat_id=message.chat.id, message_id=message.message_id, parse_mode=parse_mode, reply_markup=reply_markup)
+        except Exception as e:
+            print(f"[edit_or_reply_message Fallback] {e}")
+            try:
+                bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+            except Exception:
+                pass
+            return bot.send_message(chat_id=message.chat.id, text=text, parse_mode=parse_mode, reply_markup=reply_markup)
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     tg_id = call.from_user.id
@@ -2835,7 +2860,7 @@ def callback_handler(call):
         k = next((sub for sub in subscription_keys if sub["id"] == target_sub_id and sub["userId"] == tg_id), None)
         
         if not k:
-            bot.edit_message_text("❌ خطا: این کلید اشتراک یافت نشد یا متعلق به شما نیست.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            edit_or_reply_message(call, "❌ خطا: این کلید اشتراک یافت نشد یا متعلق به شما نیست.")
             return
 
         client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
@@ -2871,7 +2896,7 @@ def callback_handler(call):
                 f"📍 وضعیت فعلی: {status_txt}\n\n"
                 f"لطفاً یکی از گزینه‌های زیر را جهت مدیریت انتخاب نمایید:"
             )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            edit_or_reply_message(call, text, reply_markup=markup)
             return
 
         elif sub_action == "toggle":
@@ -2929,7 +2954,7 @@ def callback_handler(call):
                 f"📍 وضعیت فعلی: {status_txt}\n\n"
                 f"لطفاً یکی از گزینه‌های زیر را جهت مدیریت انتخاب نمایید:"
             )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            edit_or_reply_message(call, text, reply_markup=markup)
             return
 
         elif sub_action == "link":
@@ -2954,7 +2979,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
             )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            edit_or_reply_message(call, text, reply_markup=markup)
             return
 
         elif sub_action == "vless":
@@ -2981,7 +3006,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
             )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            edit_or_reply_message(call, text, reply_markup=markup)
             return
 
         elif sub_action == "info":
@@ -3020,7 +3045,7 @@ def callback_handler(call):
             markup.row(
                 types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}")
             )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            edit_or_reply_message(call, text, reply_markup=markup)
             return
 
         elif sub_action == "del":
@@ -3035,7 +3060,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 بله، برای همیشه حذف کن", callback_data=f"mysub_delconfirm_{target_sub_id}"),
                 types.InlineKeyboardButton("❌ خیر، لغو و بازگشت", callback_data=f"mysub_manage_{target_sub_id}")
             )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            edit_or_reply_message(call, text, reply_markup=markup)
             return
 
         elif sub_action == "delconfirm":
