@@ -342,7 +342,7 @@ def login_xui():
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
         print(f"[Sanaei X-UI API] Connecting to handshake URL: {base_url}")
         session = get_session()
-        get_res = session.get(base_url, timeout=8, verify=False)
+        get_res = session.get(base_url, timeout=20, verify=False)
         
         csrf_token = ""
         import re
@@ -368,7 +368,7 @@ def login_xui():
             print(f"[Sanaei X-UI API] CSRF token applied to session headers.")
 
         print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
-        response = get_session().post(login_url, data=login_data, headers=headers, timeout=8, verify=False)
+        response = get_session().post(login_url, data=login_data, headers=headers, timeout=20, verify=False)
         
         # After login, the panel might issue a NEW CSRF token or update cookies
         if response.status_code == 200:
@@ -417,7 +417,7 @@ def check_client_exists(client_email):
         return False
     try:
         url = f"{base_url}/panel/api/inbounds/getClientTraffics/{client_email}"
-        response = get_session().get(url, timeout=5, verify=False)
+        response = get_session().get(url, timeout=20, verify=False)
         data = response.json()
         if data.get("success") and data.get("obj"):
             return True
@@ -527,7 +527,7 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
         # 1. Try links by Email first
         try:
             url = f"{base_url}/panel/api/clients/links/{client_name}"
-            res = session.get(url, timeout=6, verify=False)
+            res = session.get(url, timeout=20, verify=False)
             data = res.json()
             if data.get("success") and isinstance(data.get("obj"), list):
                 links = [str(lnk) for lnk in data["obj"] if str(lnk).startswith("vless://")]
@@ -543,7 +543,7 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
                     sub_id = sub_link.split("/sub/")[1].split("?")[0]
                 if sub_id:
                     url = f"{base_url}/panel/api/clients/subLinks/{sub_id}"
-                    res = session.get(url, timeout=6, verify=False)
+                    res = session.get(url, timeout=20, verify=False)
                     data = res.json()
                     if data.get("success") and isinstance(data.get("obj"), list):
                         links = [str(lnk) for lnk in data["obj"] if str(lnk).startswith("vless://")]
@@ -555,7 +555,7 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
         if not links:
             try:
                 url_list = f"{base_url}/panel/api/inbounds/list"
-                res_inb = session.get(url_list, timeout=6, verify=False)
+                res_inb = session.get(url_list, timeout=20, verify=False)
                 inb_data = res_inb.json()
                 if inb_data.get("success") and isinstance(inb_data.get("obj"), list):
                     # We will reconstruct standard links for inbounds of VLESS protocol
@@ -711,7 +711,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     valid_ids = []
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
-        list_res = session.get(list_url, timeout=5, verify=False)
+        list_res = session.get(list_url, timeout=20, verify=False)
         res_json = list_res.json()
         if res_json.get("success") and isinstance(res_json.get("obj"), list):
             valid_ids = [int(item["id"]) for item in res_json["obj"]]
@@ -737,7 +737,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             "client": client_config,
             "inboundIds": inbound_ids
         }
-        u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=10, verify=False)
+        u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
         if u_res.ok and u_res.json().get("success"):
             print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
             return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
@@ -753,7 +753,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             "settings": json.dumps({"clients": [client_config]})
         }
         try:
-            c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=5, verify=False)
+            c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=20, verify=False)
             if c_res.ok and c_res.json().get("success"):
                 success_count += 1
                 print(f"[Classic API] Added user '{safe_email}' to inbound {inb_id}")
@@ -790,7 +790,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
         # New Sanaei Global uuid update endpoint
         try:
             get_url = f"{base_url}/panel/api/clients/get/{safe_email}"
-            get_res = session.get(get_url, timeout=5, verify=False)
+            get_res = session.get(get_url, timeout=20, verify=False)
             rj = get_res.json()
             if rj.get("success") and rj.get("obj"):
                 client_obj = rj.get("obj")
@@ -801,13 +801,13 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                 payload_data = {"id": inbound_id, "settings": json.dumps({"clients": [client_obj]})}
                 
                 upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
-                upd_res = session.post(upd_url, data=payload_data, timeout=5, verify=False)
+                upd_res = session.post(upd_url, data=payload_data, timeout=20, verify=False)
                 if upd_res.json().get("success"):
                     print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint (form).")
                     return True
                 
                 # Fallback to json matching if form fails
-                upd_res_json = session.post(upd_url, json=client_obj, timeout=5, verify=False)
+                upd_res_json = session.post(upd_url, json=client_obj, timeout=20, verify=False)
                 if upd_res_json.json().get("success"):
                     print(f"[Sanaei Update API] Successfully updated '{safe_email}' via global client/update endpoint (json).")
                     return True
@@ -817,7 +817,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
     if not targets or client_email:
         try:
             list_url = f"{base_url}/panel/api/inbounds/list"
-            list_res = session.get(list_url, timeout=8, verify=False)
+            list_res = session.get(list_url, timeout=20, verify=False)
             res_json = list_res.json()
             if res_json.get("success") and isinstance(res_json.get("obj"), list):
                 for inbound in res_json["obj"]:
@@ -838,7 +838,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
         try:
             # We try to update on all inbounds for robustness
             list_url = f"{base_url}/panel/api/inbounds/list"
-            list_res = session.get(list_url, timeout=8, verify=False)
+            list_res = session.get(list_url, timeout=20, verify=False)
             res_json = list_res.json()
             if res_json.get("success") and isinstance(res_json.get("obj"), list):
                 for inb in res_json["obj"]:
@@ -868,12 +868,12 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                 # 0. Direct REPLACE row payload using email endpoint (as per new 3x-ui docs)
                                 email_upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
                                 try:
-                                    res_email_form = session.post(email_upd_url, data=payload, timeout=5, verify=False)
+                                    res_email_form = session.post(email_upd_url, data=payload, timeout=20, verify=False)
                                     if res_email_form.ok and res_email_form.json().get("success"):
                                          print(f"[Sanaei API] Successfully updated {safe_email} via /panel/api/clients/update/{{email}} (form)")
                                          success = True
                                          continue
-                                    res_email = session.post(email_upd_url, json=merged_c, timeout=5, verify=False)
+                                    res_email = session.post(email_upd_url, json=merged_c, timeout=20, verify=False)
                                     if res_email.ok and res_email.json().get("success"):
                                          print(f"[Sanaei API] Successfully updated {safe_email} via /panel/api/clients/update/{{email}} (json)")
                                          success = True
@@ -883,12 +883,12 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                 # 1. Replace row using UUID endpoint as fallback
                                 uuid_upd_url = f"{base_url}/panel/api/clients/update/{uid}"
                                 try:
-                                    res_uuid_form = session.post(uuid_upd_url, data=payload, timeout=5, verify=False)
+                                    res_uuid_form = session.post(uuid_upd_url, data=payload, timeout=20, verify=False)
                                     if res_uuid_form.ok and res_uuid_form.json().get("success"):
                                          print(f"[Sanaei API] Successfully updated {uid} via /panel/api/clients/update/{{uuid}} (form)")
                                          success = True
                                          continue
-                                    res_uuid_json = session.post(uuid_upd_url, json=merged_c, timeout=5, verify=False)
+                                    res_uuid_json = session.post(uuid_upd_url, json=merged_c, timeout=20, verify=False)
                                     if res_uuid_json.ok and res_uuid_json.json().get("success"):
                                          print(f"[Sanaei API] Successfully updated {uid} via /panel/api/clients/update/{{uuid}} (json)")
                                          success = True
@@ -896,20 +896,20 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
                                 except: pass
                                 
                                 # Try standard updateClient endpoint first
-                                upd_res = session.post(upd_url, data=payload, timeout=5, verify=False)
+                                upd_res = session.post(upd_url, data=payload, timeout=20, verify=False)
                                 if upd_res.ok and upd_res.json().get("success"):
                                     print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via /updateClient/{{uuid}}")
                                     success = True
                                 else:
                                     # Fallback 1: json payload
-                                    upd_res_json = session.post(upd_url, json=payload, timeout=5, verify=False)
+                                    upd_res_json = session.post(upd_url, json=payload, timeout=20, verify=False)
                                     if upd_res_json.ok and upd_res_json.json().get("success"):
                                         print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via /updateClient/{{uuid}} (JSON)")
                                         success = True
                                     else:
                                         # Fallback 2: Many Sanaei panels use a general update endpoint
                                         fallback_url = f"{base_url}/panel/api/inbounds/updateClient"
-                                        fallback_res = session.post(fallback_url, data=payload, timeout=5, verify=False)
+                                        fallback_res = session.post(fallback_url, data=payload, timeout=20, verify=False)
                                         if fallback_res.ok and fallback_res.json().get("success"):
                                             print(f"[Sanaei API] Successfully updated client {uid} status to {enable} via fallback /updateClient")
                                             success = True
@@ -944,7 +944,7 @@ def delete_vpn_client_api(client_email, client_uuid=None):
         try:
             del_api_url = f"{base_url}/panel/api/clients/del/{safe_email}"
             print(f"[Sanaei Delete API] Trying new global delete endpoint for email: {safe_email}...")
-            resp = session.post(del_api_url, timeout=5, verify=False)
+            resp = session.post(del_api_url, timeout=20, verify=False)
             try:
                 rj = resp.json()
                 if rj.get("success"):
@@ -960,7 +960,7 @@ def delete_vpn_client_api(client_email, client_uuid=None):
     
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
-        list_res = session.get(list_url, timeout=8, verify=False)
+        list_res = session.get(list_url, timeout=20, verify=False)
         res_json = list_res.json()
         if res_json.get("success") and isinstance(res_json.get("obj"), list):
             valid_ids = [int(item["id"]) for item in res_json["obj"]]
@@ -1060,7 +1060,7 @@ def delete_vpn_client_api(client_email, client_uuid=None):
                 try:
                     del_url = f"{base_url}/panel/api/inbounds/{inbound_id}/delClient/{uid}"
                     # Ensure X-Csrf-Token is present in current session headers from login_xui
-                    resp = session.post(del_url, timeout=5, verify=False)
+                    resp = session.post(del_url, timeout=20, verify=False)
                     if resp.status_code == 200:
                          resp_data = resp.json()
                          if resp_data.get("success"):
@@ -1076,7 +1076,7 @@ def delete_vpn_client_api(client_email, client_uuid=None):
         # 2. Global client delete endpoint (some newer 3x-ui panels use this)
         try:
             del_url2 = f"{base_url}/panel/api/clients/del/{uid}"
-            resp2 = session.post(del_url2, timeout=5, verify=False)
+            resp2 = session.post(del_url2, timeout=20, verify=False)
             if resp2.status_code == 200:
                 resp2_data = resp2.json()
                 if resp2_data.get("success"):
@@ -4116,7 +4116,7 @@ def process_ai_chat(message):
     
     try:
         import requests
-        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text}, timeout=60)
+        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text}, timeout=200)
         bot.delete_message(message.chat.id, typing_msg.message_id)
         if response.status_code == 200:
             data = response.json()
@@ -5274,7 +5274,11 @@ if __name__ == "__main__":
                     print(f"[Daltoon Bot] Real-time connection established for @{bot.get_me().username}")
                     startup_sync_complete = True
                 except Exception as setup_err:
-                    print(f"[Daltoon Bot Setup Error] {setup_err}")
+                    err_str = str(setup_err)
+                    if "401" in err_str or "unauthorized" in err_str.lower():
+                        pass # Valid, handled below at polling level
+                    else:
+                        print(f"[Daltoon Bot Setup Error] {setup_err}")
             
             # Start real-time polling (interval=0 for maximum responsiveness)
             bot.polling(none_stop=True, interval=0, timeout=30)
