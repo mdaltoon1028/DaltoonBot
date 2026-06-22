@@ -290,6 +290,9 @@ def get_config():
         for key in ["guideVideoHapp", "guideVideoIos", "guideVideoAndroid", "guideVideoV2rayn", "guideVideoKaring", "guideVideoMac", "guideVideoLinux"]:
             if key in panel_cfg:
                 config[key] = panel_cfg[key]
+        
+        config["SIMULATOR_MODE"] = bool(panel_cfg.get("simulatorMode", False))
+                
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
     return config
@@ -685,7 +688,8 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         "id": client_uuid,
         "email": safe_email,
         "limitIp": 0,
-        "totalGB": total_bytes, # Note: In most Sanaei panels this is total bytes
+        "totalGB": total_bytes, # Standard Sanaei field name (often holds bytes)
+        "total": total_bytes,   # Fallback for systems strictly using 'total'
         "expiryTime": expiry_time_ms,
         "enable": True,
         "tgId": "",
@@ -729,19 +733,21 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     session = get_session()
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
-        list_res = session.get(list_url, timeout=8, verify=False)
+        list_res = session.get(list_url, timeout=5, verify=False)
         res_json = list_res.json()
         if res_json.get("success") and isinstance(res_json.get("obj"), list):
             valid_ids = [int(item["id"]) for item in res_json["obj"]]
-            print(f"[Sanaei API] Dynamic read succeeded: {len(valid_ids)} inbounds found.")
-    except Exception as e:
-        print(f"[Sanaei API] Dynamic read failed: {e}")
+    except: pass
 
     if inbound_ids and valid_ids:
         inbound_ids = [i for i in inbound_ids if i in valid_ids]
 
     if not inbound_ids:
         inbound_ids = valid_ids if valid_ids else [1]
+        
+    # Limit number of inbounds to prevent hanging
+    if len(inbound_ids) > 10:
+        inbound_ids = inbound_ids[:10]
 
     add_url = f"{base_url}/panel/api/clients/add"
     payload = {
@@ -749,50 +755,37 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         "inboundIds": inbound_ids
     }
     
+    headers = {"Accept": "application/json"}
     try:
-        headers = {"Accept": "application/json"}
-        response = session.post(add_url, json=payload, headers=headers, timeout=10, verify=False)
+        response = session.post(add_url, json=payload, headers=headers, timeout=12, verify=False)
         res_json = {}
         try: res_json = response.json()
         except: pass
             
         if res_json.get("success"):
-            print(f"[Sanaei API Sync] Created user '{client_email}' globally on inbounds successfully.")
-            sub_link = f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
-            return client_uuid, sub_link
-        else:
-            print(f"[Sanaei API Response] Creation error/unsupported via global add: {response.text}")
-    except Exception as e:
-        print(f"[Sanaei API Request Error] Global client add error: {e}")
+            print(f"[Sanaei API Sync] Created user '{client_email}' globally successfully.")
+            return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+    except: pass
 
-    # Fallback to per-inbound addition
+    # Fallback to per-inbound addition (optimized for speed)
     fallback_success = False
-    import json
-    headers = {"Accept": "application/json"}
-    for inb_id in inbound_ids:
+    for inb_id in inbound_ids[:3]:
         classic_url = f"{base_url}/panel/api/inbounds/addClient"
         classic_payload = {
             "id": inb_id,
             "settings": json.dumps({"clients": [client_config]})
         }
         try:
-            c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=10, verify=False)
-            c_res_json = {}
-            try:
-                c_res_json = c_res.json()
-            except:
-                pass
-            if c_res_json.get("success"):
-                print(f"[Sanaei API Sync] Added user '{client_email}' to inbound {inb_id}")
+            c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=5, verify=False)
+            if c_res.json().get("success"):
+                print(f"[Sanaei API Fallback] Added user to inbound {inb_id}")
                 fallback_success = True
-            else:
-                print(f"[Sanaei API error inbound {inb_id}]: {c_res.text}")
-        except Exception as ce:
-            print(f"[Sanaei API Exception inbound {inb_id}]: {ce}")
+        except: pass
     
     if fallback_success:
-        sub_link = f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
-        return client_uuid, sub_link
+        return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+
+    return None, None
 
     return None, None
 
@@ -2462,17 +2455,23 @@ def handle_buy_pay(call):
         u_temp = next((u for u in db_temp.get("users", []) if u["userId"] == tg_id), None)
         grp_id = u_temp.get("pendingPurchaseGroupId") if u_temp else None
         
+        cfg = get_config()
         client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], group_id=grp_id)
+        
         if not sub_link:
-            import uuid
+            if not cfg.get("SIMULATOR_MODE"):
+                bot.send_message(tg_id, "❌ متأسفانه خطایی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ وجود ندارد.\n\n⚠️ لطفاً موضوع را به پشتیبانی اطلاع دهید. مبلغ کسر شده طی ۲۴ ساعت آینده به کیف پول شما بازگردانده خواهد شد (یا توسط ادمین دستی تایید می‌شود).", parse_mode="HTML")
+                # Optional: Refund wallet automatically here or wait for admin
+                return
+            
+            # Simulator mode - allow mock links
+            client_uuid = client_uuid if client_uuid else str(uuid.uuid4())
             from urllib.parse import urlparse
-            cfg = get_config()
             parsed = urlparse(cfg.get('XUI_URL', ''))
             host = parsed.hostname or "panel.your-vpn.com"
-            client_uuid = str(uuid.uuid4())
             fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
             sub_link = f"{cfg.get('SUB_URL', f'https://{host}:2096')}/sub/{fallback_sub_id}"
-            print(f"[Bot Warning] API failed. Using semi-dynamic fallback sub_link for {host}")
+            print(f"[Bot Simulator] Using mock sub_link for {host}")
 
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + spec['duration'] * 24 * 60 * 60))
         sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"

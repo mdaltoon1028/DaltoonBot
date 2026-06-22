@@ -420,6 +420,26 @@ startPythonBot();
 
 // --- API Endpoints ---
 
+// Full Wipe Database API
+app.post("/api/database/wipe-all", async (req, res) => {
+  try {
+    const possibleFiles = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"];
+    for (const f of possibleFiles) {
+      const p = path.resolve(process.cwd(), f);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+    // Also clear process-level cache if any (though here it's just variables)
+    res.json({ success: true, message: "System wiped and will re-initialize on next load." });
+    
+    // Optional: delay exit to allow response to be sent
+    setTimeout(() => {
+      process.exit(0);
+    }, 1000);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Reset Database API
 app.post("/api/database/reset", async (req, res) => {
   try {

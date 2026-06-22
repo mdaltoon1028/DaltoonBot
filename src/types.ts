@@ -114,6 +114,7 @@ export interface PanelSettings {
   // Group Inbounds
   isGroupInboundsEnabled?: boolean;
   inboundGroups?: InboundGroup[];
+  simulatorMode?: boolean;
 }
 
 export interface InboundGroup {
