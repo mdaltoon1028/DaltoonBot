@@ -932,11 +932,73 @@ def clear_user_pending_purchase(tg_id):
         user.pop("pendingPurchaseClientName", None)
         write_db_json(db)
 
+def to_persian_digits(s):
+    eng = "0123456789"
+    per = "۰۱۲۳۴۵۶۷۸۹"
+    translation_table = str.maketrans(eng, per)
+    return str(s).translate(translation_table)
+
+def gregorian_to_jalali(gy, gm, gd):
+    g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 335]
+    if gy > 1600:
+        g_y = gy - 1600
+        g_m = gm
+        g_d = gd
+    else:
+        g_y = gy
+        g_m = gm
+        g_d = gd
+    
+    gy2 = (g_y - 1) if g_m > 2 else (g_y - 2)
+    g_day_no = 365 * g_y + gy2 // 4 - gy2 // 100 + gy2 // 400 + gd + g_d_m[g_m - 1]
+    
+    j_day_no = g_day_no - 79
+    j_np = j_day_no // 12053
+    j_day_no %= 12053
+    jy = 979 + 33 * j_np + 4 * (j_day_no // 1461)
+    j_day_no %= 1461
+    
+    if j_day_no >= 366:
+        jy += (j_day_no - 1) // 365
+        j_day_no = (j_day_no - 1) % 365
+        
+    for i in range(11):
+        if j_day_no < (31 if i < 6 else 30):
+            jm = i + 1
+            jd = j_day_no + 1
+            break
+        j_day_no -= 31 if i < 6 else 30
+    else:
+        jm = 12
+        jd = j_day_no + 1
+        
+    return jy, jm, jd
+
+def format_gregorian_to_jalali_str(g_date_str):
+    try:
+        if not g_date_str:
+            return "نامشخص"
+        if "T" in g_date_str:
+            g_date_str = g_date_str.split("T")[0]
+        parts = [int(p) for p in g_date_str.split("-") if p.isdigit()]
+        if len(parts) != 3:
+            return g_date_str
+        jy, jm, jd = gregorian_to_jalali(parts[0], parts[1], parts[2])
+        return to_persian_digits(f"{jy}/{jm}/{jd}")
+    except Exception as e:
+        print("Error formatting date:", e)
+        return g_date_str
+
+def get_tehran_date_str():
+    from datetime import datetime, timedelta
+    tehran_now = datetime.utcnow() + timedelta(hours=3.5)
+    return tehran_now.strftime("%Y-%m-%d")
+
 def register_tg_user(tg_id, username, referral_id=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if not user:
-        join_date = time.strftime("%Y-%m-%d")
+        join_date = get_tehran_date_str()
         new_user = {
             "userId": tg_id,
             "username": username or f"user_{tg_id}",
@@ -1660,15 +1722,27 @@ def handle_main_menu_callback(call):
         bal = user.get("walletBalance", 0)
         formatted_bal = f"{int(bal):,}" if bal is not None else "0"
 
-        # The Persian digits converter helper
-        f_date = "۱۴۰۲/۰۱/۰۱" 
+        # Get and format joinDate
+        join_date_g = user.get("joinDate")
+        if not join_date_g:
+            join_date_g = get_tehran_date_str()
+            # update user in db to store it
+            user["joinDate"] = join_date_g
+            db_conn = read_db_json()
+            for u in db_conn.get("users", []):
+                if u["userId"] == tg_id:
+                    u["joinDate"] = join_date_g
+                    break
+            write_db_json(db_conn)
+            
+        f_date = format_gregorian_to_jalali_str(join_date_g)
 
         profile_text = (
             f"📄 <b>اطلاعات حساب کاربری شما:</b>\n\n"
             f"💰 موجودی: {formatted_bal} تومان\n"
             f"👤 آیدی عددی: <code>{tg_id}</code>\n"
             f"📦 تعداد سرویس ها: {len(active_keys)}\n"
-            f"🗓 تاریخ ورود به بات: به زودی\n\n"
+            f"🗓 تاریخ ورود به بات: {f_date}\n\n"
             f"🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید."
         )
         
@@ -1773,6 +1847,10 @@ def handle_main_menu_callback(call):
                 reply_markup=markup
             )
         except Exception:
+            try:
+                bot.delete_message(message.chat.id, message.message_id)
+            except Exception:
+                pass
             bot.send_message(
                 message.chat.id,
                 guides_main_text,
@@ -3350,13 +3428,25 @@ def callback_handler(call):
             "لطفاً آموزش مورد نظر خود را بر اساس سیستم‌عامل دستگاه خود انتخاب کنید.\n\n"
             "⚠️ گزینه‌های ستاره‌دار ⭐ پیشنهاد ما برای بهترین عملکرد هستند."
         )
-        bot.edit_message_text(
-            sub_text,
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            parse_mode="HTML",
-            reply_markup=markup
-        )
+        try:
+            bot.edit_message_text(
+                sub_text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+        except Exception:
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
+            bot.send_message(
+                call.message.chat.id,
+                sub_text,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
         bot.answer_callback_query(call.id)
 
     elif call.data == "guide_update_menu":
@@ -3372,13 +3462,25 @@ def callback_handler(call):
             "۴. چند لحظه صبر کنید تا پیام موفقیت‌آمیز بودن نمایش داده شود و تمام سرورهای جدید بارگذاری گردند.\n"
             "۵. در صورتیکه هنوز اتصال برقرار نشد، مطمئن شوید حجم ترافیک بسته شما در حساب کاربری تمام نشده باشد."
         )
-        bot.edit_message_text(
-            update_text,
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            parse_mode="HTML",
-            reply_markup=markup
-        )
+        try:
+            bot.edit_message_text(
+                update_text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+        except Exception:
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
+            bot.send_message(
+                call.message.chat.id,
+                update_text,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
         bot.answer_callback_query(call.id)
 
     elif call.data == "guide_crypto_menu":
@@ -3394,13 +3496,25 @@ def callback_handler(call):
             "۴. از صرافی یا کیف پول خود (مانند تراست ولت) مبلغ دقیق خواسته شده را به همان آدرس ارسال کنید.\n"
             "۵. پس از ارسال کوین، منتظر تایید تراکنش بمانید؛ سیستم به صورت ۱۰۰٪ هوشمند تراکنش را تایید کرده و فعال‌سازی اشتراک شما را شروع خواهد کرد!"
         )
-        bot.edit_message_text(
-            crypto_text,
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            parse_mode="HTML",
-            reply_markup=markup
-        )
+        try:
+            bot.edit_message_text(
+                crypto_text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+        except Exception:
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
+            bot.send_message(
+                call.message.chat.id,
+                crypto_text,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
         bot.answer_callback_query(call.id)
 
     elif call.data.startswith("guide_item_"):
@@ -3548,7 +3662,10 @@ def callback_handler(call):
                     disable_web_page_preview=False
                 )
             except Exception:
-                # If message deletion was successful but video send failed and edit failed since message doesn't exist, send a fresh text message
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
                 bot.send_message(
                     call.message.chat.id,
                     guide_text,

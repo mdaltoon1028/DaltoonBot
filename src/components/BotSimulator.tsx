@@ -493,11 +493,24 @@ export default function BotSimulator({
     } 
     else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
       const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
+      
+      let faJoinDate = "نامشخص";
+      let enJoinDate = "Unknown";
+      if (currentUser?.joinDate) {
+        try {
+          const jdDate = new Date(currentUser.joinDate);
+          faJoinDate = new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(jdDate);
+          enJoinDate = currentUser.joinDate;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
       // Profile Info (without active plans details string, we'll keep it simple profile)
       addBotReply(
         lang === "fa"
-          ? `📄 <b>اطلاعات حساب کاربری شما:</b>\n\n💰 موجودی: ${(currentUser.walletBalance || 0).toLocaleString()} تومان\n👤 آیدی عددی: <code>${currentUser.userId}</code>\n📦 تعداد سرویس ها: ${activeUserKeys.length}\n🗓 تاریخ ورود به بات: به زودی\n\n🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید.`
-          : `📄 <b>My Account Profile:</b>\n\n💰 Balance: ${(currentUser.walletBalance || 0).toLocaleString()} T\n👤 User ID: <code>${currentUser.userId}</code>\n📦 Active Services: ${activeUserKeys.length}\n🗓 Join Date: Soon\n\n🔹 To recharge your wallet, please refer to the Wallet section in the main menu.`,
+          ? `📄 <b>اطلاعات حساب کاربری شما:</b>\n\n💰 موجودی: ${(currentUser.walletBalance || 0).toLocaleString()} تومان\n👤 آیدی عددی: <code>${currentUser.userId}</code>\n📦 تعداد سرویس ها: ${activeUserKeys.length}\n🗓 تاریخ ورود به بات: ${faJoinDate}\n\n🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید.`
+          : `📄 <b>My Account Profile:</b>\n\n💰 Balance: ${(currentUser.walletBalance || 0).toLocaleString()} T\n👤 User ID: <code>${currentUser.userId}</code>\n📦 Active Services: ${activeUserKeys.length}\n🗓 Join Date: ${enJoinDate}\n\n🔹 To recharge your wallet, please refer to the Wallet section in the main menu.`,
         600,
         undefined,
         [
