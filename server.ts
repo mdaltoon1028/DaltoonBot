@@ -395,6 +395,213 @@ app.post("/api/database/reset", async (req, res) => {
   }
 });
 
+// AESTHETIC TELEGRAM WEB APP SUBSCRIPTION COPY CONTAINER
+app.get("/copy", (req, res) => {
+  try {
+    // Dynamic host domain auto-detection & registration for Python Bot synchrony
+    const host = req.headers.host;
+    if (host) {
+      const protocol = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
+      const dynamicUrl = `${protocol}://${host}`;
+      const db = readJsonDb();
+      if (db.settings) {
+        let pcObj: any = {};
+        if (db.settings.panel_config) {
+          try {
+            pcObj = JSON.parse(db.settings.panel_config);
+          } catch (err) {}
+        }
+        if (pcObj.botWebUrl !== dynamicUrl) {
+          pcObj.botWebUrl = dynamicUrl;
+          db.settings.panel_config = JSON.stringify(pcObj);
+          writeJsonDb(db);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Dynamic Host Save Failed]", err);
+  }
+
+  const link = (req.query.link as string) || "";
+  
+  res.send(`
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دریافت لینک اتصال دالتون</title>
+    <!-- Tailwind CSS Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Vazirmatn', 'Inter', sans-serif;
+            background-color: #080512;
+            overflow-x: hidden;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-slide-up { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-between min-h-screen text-slate-100 p-4 select-none relative">
+    <!-- Visual Ambient Glow Lights -->
+    <div class="absolute -top-10 -left-10 w-48 h-48 bg-purple-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+    <div class="absolute -bottom-10 -right-10 w-64 h-64 bg-indigo-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+    
+    <!-- Top Brand Logo Header -->
+    <div class="w-full flex flex-col items-center mt-6 z-10 animate-fade-in">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.25)] mb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.172 13.828a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </div>
+        <h1 class="text-xl font-extrabold text-white tracking-wide">روتر اختصاصی دالتون</h1>
+        <p class="text-[10px] text-indigo-400 mt-1 font-semibold tracking-widest uppercase">Daltoon Subscription Gateway</p>
+    </div>
+
+    <!-- Main Content Glass Box -->
+    <div class="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl border border-indigo-500/20 rounded-3xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-10 my-4 space-y-5 animate-slide-up">
+        <div id="toast" class="hidden fixed top-6 right-1/2 translate-x-1/2 z-50 bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5 transition-all duration-300 transform scale-90 opacity-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+          </svg>
+          <span dir="rtl">لینک با موفقیت کپی شد! ✅</span>
+        </div>
+
+        <div class="space-y-2">
+            <label class="text-xs font-bold text-slate-400 flex items-center gap-1.5 mr-1 justify-between">
+              <span>🔗 لینک اشتراک سابسکریپشن:</span>
+              <span class="text-[10px] text-pink-400/80 font-mono">VLESS / X-UI Link</span>
+            </label>
+            <!-- Link Display Area -->
+            <div class="relative group">
+              <textarea id="subLinkTextarea" readonly class="w-full h-28 p-3.5 bg-black/40 border border-slate-700/50 rounded-xl text-left text-xs font-mono text-zinc-300 resize-none break-all outline-none focus:border-indigo-500/50 transition scrollbar-none" style="direction: ltr; font-family: 'Inter', monospace;"></textarea>
+              <div class="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/20 to-transparent rounded-b-xl pointer-events-none"></div>
+            </div>
+        </div>
+
+        <!-- Copy Action Button -->
+        <button id="copyBtn" class="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-[0_10px_25px_-5px_rgba(124,58,237,0.4)] hover:brightness-110 active:scale-95 transition transform duration-150 cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" id="copyIcon" class="w-5 h-5 text-indigo-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" id="checkIcon" class="w-5 h-5 text-emerald-300 hidden animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span id="btnText">کپی کردن لینک اشتراک</span>
+        </button>
+
+        <p class="text-[10px] text-center text-slate-400 font-medium leading-relaxed px-1">
+          💡 این لینک را کپی کرده و در برنامه کلاینت (مانند v2rayNG ،V2box ،Happ یا Streisand) اضافه نمایید تا تمام کانفیگ‌های فعال به طور خودکار بارگذاری شوند.
+        </p>
+    </div>
+
+    <!-- Bottom Close Button Area -->
+    <div class="w-full max-w-sm px-4 mb-6 z-10">
+        <button id="closeBtn" class="w-full py-3.5 px-4 bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <span>بستن پنجره</span>
+        </button>
+    </div>
+
+    <script>
+        const WebApp = window.Telegram?.WebApp;
+        if (WebApp) {
+            WebApp.ready();
+            WebApp.expand();
+        }
+
+        const subLink = decodeURIComponent("${encodeURIComponent(link)}");
+        const textarea = document.getElementById('subLinkTextarea');
+        textarea.value = subLink;
+
+        const copyBtn = document.getElementById('copyBtn');
+        const copyIcon = document.getElementById('copyIcon');
+        const checkIcon = document.getElementById('checkIcon');
+        const btnText = document.getElementById('btnText');
+        const toast = document.getElementById('toast');
+
+        copyBtn.addEventListener('click', () => {
+            if (!subLink) return;
+            
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            
+            const performCopy = () => {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(subLink).then(handleSuccess).catch(fallbackCopy);
+                } else {
+                    fallbackCopy();
+                }
+            };
+
+            const fallbackCopy = () => {
+                try {
+                    document.execCommand('copy');
+                    handleSuccess();
+                } catch(err) {
+                    // console.error(err);
+                }
+            };
+
+            performCopy();
+        });
+
+        function handleSuccess() {
+            if (WebApp?.HapticFeedback) {
+                WebApp.HapticFeedback.notificationOccurred('success');
+            }
+
+            copyIcon.classList.add('hidden');
+            checkIcon.classList.remove('hidden');
+            btnText.textContent = 'لینک با موفقیت کپی شد! ✅';
+            copyBtn.classList.remove('from-purple-600', 'to-indigo-600');
+            copyBtn.classList.add('from-emerald-600', 'to-green-600', 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.3)]');
+
+            toast.classList.remove('hidden', 'scale-90', 'opacity-0');
+            toast.classList.add('scale-100', 'opacity-100');
+
+            setTimeout(() => {
+                copyIcon.classList.remove('hidden');
+                checkIcon.classList.add('hidden');
+                btnText.textContent = 'کپی کردن لینک اشتراک';
+                copyBtn.classList.add('from-purple-600', 'to-indigo-600');
+                copyBtn.classList.remove('from-emerald-600', 'to-green-600', 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.3)]');
+                
+                toast.classList.add('scale-90', 'opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 350);
+            }, 3000);
+        }
+
+        const closeBtn = document.getElementById('closeBtn');
+        closeBtn.addEventListener('click', () => {
+            if (WebApp) {
+                WebApp.close();
+            } else {
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>
+  `);
+});
+
 // 1. Get complete aggregated database snapshot
 app.get("/api/data", async (req, res) => {
   try {

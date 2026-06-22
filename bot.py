@@ -154,6 +154,8 @@ def get_config():
                 config["CARD_NUMBER"] = panel_cfg["cardNumber"]
             if panel_cfg.get("cardHolder"):
                 config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+            if panel_cfg.get("botWebUrl"):
+                config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
 
             if panel_cfg.get("btnTextBuy"):
                 config["BTN_BUY"] = panel_cfg["btnTextBuy"]
@@ -225,6 +227,8 @@ def get_config():
                 config["CARD_NUMBER"] = panel_cfg["cardNumber"]
             if panel_cfg.get("cardHolder"):
                 config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+            if panel_cfg.get("botWebUrl"):
+                config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
             if "welcomeText" in panel_cfg:
                 config["WELCOME_TEXT"] = panel_cfg["welcomeText"]
             if "supportText" in panel_cfg:
@@ -406,15 +410,30 @@ def check_client_exists(client_email):
 
 def add_copy_button_to_markup(markup, text, link):
     try:
-        from telebot.types import CopyTextButton
-        markup.add(types.InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=link)))
-    except TypeError:
-        markup.add(types.InlineKeyboardButton(text=text, url=link))
-    except Exception:
+        import urllib.parse
+        cfg = get_config()
+        # Find bot web URL
+        bot_web_url = cfg.get("BOT_WEB_URL", "")
+        if not bot_web_url:
+            bot_web_url = "https://ais-dev-cri25e3qykgpuufepdfpmw-413733104605.europe-west3.run.app"
+        
+        # We will craft a URL parameters pointing to the aesthetic standalone copy route of our server
+        web_app_url = f"{bot_web_url.rstrip('/')}/copy?link={urllib.parse.quote(link)}"
+        
+        # Add a gorgeous, premium web app button
+        markup.add(types.InlineKeyboardButton(text=text, web_app=types.WebAppInfo(url=web_app_url)))
+    except Exception as e:
+        print(f"[WebApp Copy Button Failed, Fallback to CopyText] {e}")
         try:
-            markup.add(types.InlineKeyboardButton(text=text, copy_text={"text": link}))
-        except Exception:
+            from telebot.types import CopyTextButton
+            markup.add(types.InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=link)))
+        except TypeError:
             markup.add(types.InlineKeyboardButton(text=text, url=link))
+        except Exception:
+            try:
+                markup.add(types.InlineKeyboardButton(text=text, copy_text={"text": link}))
+            except Exception:
+                markup.add(types.InlineKeyboardButton(text=text, url=link))
 
 def send_purchase_success_note_if_any(chat_id, only_media=True):
     cfg = get_config()
