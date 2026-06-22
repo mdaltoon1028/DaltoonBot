@@ -152,8 +152,8 @@ for (const p of dbPaths) {
     } catch(e){}
   }
 }
-process.stdout.write(foundConfig ? 'true' : 'false');
-")
+console.log(foundConfig ? 'true' : 'false');
+" | tr -d '\n')
 
 if [ "$ALREADY_CONFIGURED" = "true" ]; then
     echo -e "${GREEN}Existing configuration found! Preserving previous Username, Password, and Port...${NC}"
@@ -192,8 +192,8 @@ if [ "$ALREADY_CONFIGURED" = "true" ]; then
           }
         }
       } catch(e) {}
-      process.stdout.write(port.toString());
-    ")
+      console.log(port.toString());
+    " | tr -d '\n')
 else
     read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
     DASH_USER=${DASH_USER:-Daltoon}
