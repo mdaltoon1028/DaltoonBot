@@ -15,6 +15,48 @@ import {
   Camera 
 } from "lucide-react";
 
+const ConfigGlassButton: React.FC<{ link: string; lang: Language }> = ({ link, lang }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    copyTextToClipboard(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      type="button"
+      className={`relative w-full my-2.5 py-3 px-4 rounded-xl transition-all duration-300 overflow-hidden flex items-center justify-center gap-2 border shadow-lg backdrop-blur-md group cursor-pointer text-xs font-semibold select-none
+        ${copied 
+          ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-300 shadow-emerald-500/10 font-bold" 
+          : "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/25 hover:border-amber-500/50 text-amber-300 hover:text-amber-200 shadow-[#d29900]/5 hover:shadow-[#f9d034]/10"
+        }
+        hover:scale-[1.015] active:scale-[0.985]
+      `}
+    >
+      {/* Sleek light gloss sheen sweeping from left to right */}
+      <div className="absolute inset-0 w-[40%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 translate-x-[-150%] group-hover:translate-x-[250%] transition-transform duration-1000 ease-out" />
+      
+      {copied ? (
+        <>
+          <span className="flex h-2 w-2 relative">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>{lang === "fa" ? "کپی شد! ✅" : "Copied! ✅"}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-[13px] group-hover:rotate-12 transition-transform duration-300">🔗</span>
+          <span>{lang === "fa" ? "لینک سابسکریپشن" : "Subscription Link"}</span>
+        </>
+      )}
+    </button>
+  );
+};
+
 interface BotSimulatorProps {
   users: User[];
   plans: VpnPlan[];
@@ -1271,6 +1313,26 @@ export default function BotSimulator({
                             if (part === "</code>") { isCode = false; return null; }
                             if (part === "\n") return <br key={i} />;
                             if (isCode) {
+                              const trimmed = part.trim();
+                              const isConfigOrSubLink = 
+                                trimmed.startsWith("vless://") ||
+                                trimmed.startsWith("vmess://") ||
+                                trimmed.startsWith("trojan://") ||
+                                trimmed.startsWith("ss://") ||
+                                trimmed.startsWith("shadowsocks://") ||
+                                trimmed.startsWith("http://") ||
+                                trimmed.startsWith("https://");
+
+                              if (isConfigOrSubLink) {
+                                return (
+                                  <ConfigGlassButton 
+                                    key={i} 
+                                    link={trimmed} 
+                                    lang={lang} 
+                                  />
+                                );
+                              }
+
                               return (
                                 <code 
                                   key={i} 
