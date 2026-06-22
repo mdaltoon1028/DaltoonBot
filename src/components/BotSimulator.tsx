@@ -498,6 +498,12 @@ export default function BotSimulator({
               text: confirmMsg,
               timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               keyboard: getKeyboard(),
+              inlineButtons: [
+                [
+                  { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${randomSubId}` },
+                  { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${randomSubId}` }
+                ]
+              ],
               imageUrl: qrUrl
             }
           ]);
@@ -625,7 +631,12 @@ export default function BotSimulator({
                  `<code>${mockSub.subLink}</code>\n\n` +
                  `⚠️ <i>Notice: This is an educational sandbox.</i>`;
      
-             addBotReply(confirmMsg, 1000, getKeyboard());
+             addBotReply(confirmMsg, 1000, getKeyboard(), [
+               [
+                 { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${randomSubId}` },
+                 { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${randomSubId}` }
+               ]
+             ]);
            }, 1500);
         }
     }

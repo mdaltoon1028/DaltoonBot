@@ -2135,11 +2135,13 @@ def handle_main_menu_callback(call):
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
             markup = types.InlineKeyboardMarkup(row_width=1)
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+            markup.row(types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
         except:
             markup = types.InlineKeyboardMarkup(row_width=1)
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+            markup.row(types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
             
@@ -2421,6 +2423,7 @@ def handle_buy_pay(call):
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+        markup.row(types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_id}"))
         markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
         
         try:
@@ -2728,6 +2731,7 @@ def process_purchase_username(message, plan_id, spec):
         # Build markup with copy button at the top, and append custom menu keys
         markup = types.InlineKeyboardMarkup(row_width=2)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+        markup.row(types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_id}"))
         
         from_kbd = get_custom_keyboard()
         if from_kbd and hasattr(from_kbd, 'keyboard'):
@@ -2792,6 +2796,13 @@ def callback_handler(call):
                     f"💡 این لینک را کپی کرده و در برنامه مورد نظر خود (مانند v2rayNG ، V2box...) وارد نمایید."
                 )
                 markup = types.InlineKeyboardMarkup(row_width=1)
+                
+                # Check if we can find a matching subscription to get standard VLESS links
+                sub_obj = next((k for k in db.get("subscription_keys", []) if k.get("subLink") == link), None)
+                if sub_obj:
+                    vless_btn = types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_obj['id']}")
+                    markup.row(vless_btn)
+                
                 markup.add(
                     types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                     types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
@@ -4314,6 +4325,7 @@ def process_col_create_days(message, acc, name, gb):
     # Build markup with copy button at the top, and append custom menu keys
     markup = types.InlineKeyboardMarkup(row_width=2)
     add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن", sub_link)
+    markup.row(types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{sub_id}"))
     
     from_kbd = get_custom_keyboard()
     if from_kbd and hasattr(from_kbd, 'keyboard'):
