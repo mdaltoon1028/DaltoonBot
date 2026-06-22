@@ -15,16 +15,42 @@ import {
   Camera 
 } from "lucide-react";
 
-const ConfigGlassButton: React.FC<{ link: string; lang: Language; onClick: () => void }> = ({ link, lang, onClick }) => {
+const ConfigGlassButton: React.FC<{ link: string; lang: Language }> = ({ link, lang }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    copyTextToClipboard(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleCopy}
       type="button"
-      className="relative w-full my-2.5 py-3 px-4 rounded-xl transition-all duration-300 overflow-hidden flex items-center justify-center gap-2 border shadow-lg backdrop-blur-md group cursor-pointer text-xs font-semibold select-none bg-indigo-500/10 hover:bg-indigo-500/15 border-indigo-500/25 hover:border-indigo-500/50 text-indigo-300 hover:text-indigo-200 shadow-indigo-500/5 hover:shadow-indigo-500/10 hover:scale-[1.015] active:scale-[0.985]"
+      className={`relative w-full my-2.5 py-3 px-4 rounded-xl transition-all duration-300 overflow-hidden flex items-center justify-center gap-2 border shadow-lg backdrop-blur-md group cursor-pointer text-xs font-semibold select-none
+        ${copied 
+          ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-300 shadow-emerald-500/10 font-bold" 
+          : "bg-indigo-500/10 hover:bg-indigo-500/15 border-indigo-500/25 hover:border-indigo-500/50 text-indigo-300 hover:text-indigo-200 shadow-indigo-500/5 hover:shadow-indigo-500/10"
+        }
+        hover:scale-[1.015] active:scale-[0.985]
+      `}
     >
       <div className="absolute inset-0 w-[40%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 translate-x-[-150%] group-hover:translate-x-[250%] transition-transform duration-1000 ease-out" />
-      <span className="text-[13px] group-hover:rotate-12 transition-transform duration-300">🔗</span>
-      <span>{lang === "fa" ? "لینک سابسکریپشن" : "Subscription Link"}</span>
+      {copied ? (
+        <>
+          <span className="flex h-2 w-2 relative">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>{lang === "fa" ? "کپی شد! ✅" : "Copied! ✅"}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-[13px] group-hover:rotate-12 transition-transform duration-300">🔗</span>
+          <span>{lang === "fa" ? "کپی لینک اشتراک" : "Copy Subscription Link"}</span>
+        </>
+      )}
     </button>
   );
 };
@@ -107,10 +133,6 @@ export default function BotSimulator({
   const [supportStep, setSupportStep] = useState<"idle" | "ask_subject" | "ask_message">("idle");
   const [ticketSubject, setTicketSubject] = useState("");
   const [adminNotification, setAdminNotification] = useState<{ id: string; username: string; subject: string } | null>(null);
-
-  // Simulated copy WebApp popup state
-  const [copyPopupLink, setCopyPopupLink] = useState<string | null>(null);
-  const [popupCopied, setPopupCopied] = useState(false);
 
   // Invoice form fields
   const [invoiceAmount, setInvoiceAmount] = useState("");
@@ -754,14 +776,15 @@ export default function BotSimulator({
     // Mimic clicking standard inline telegram button
     if (action.startsWith("btn_sub_link_")) {
       const subId = action.substring(13);
-      const k = simulatedKeys.find(item => item.id === subId);
-      if (k) {
-        setCopyPopupLink(k.subLink);
-        setPopupCopied(false);
-      } else {
-        setCopyPopupLink(`vless://your-subscription-link-${subId}@server.example.com:2052?security=reality#Daltoon_${subId}`);
-        setPopupCopied(false);
-      }
+      const k = keys.find(item => item.id === subId);
+      const link = k ? k.subLink : `https://tr.sub-daltoon.ir:2096/sub/simulated_${subId}`;
+      
+      addBotReply(
+        lang === "fa" 
+          ? `🔗 <b>لینک اتصال و اشتراک اختصاصی شما:</b>\n\n👇 <b>جهت کپی کردن، روی باکس زیر کلیک یا لمس کنید:</b>\n\n<code>${link}</code>\n\n💡 این لینک را کپی کرده و در برنامه مورد نظر خود (مانند v2rayNG) وارد نمایید.`
+          : `🔗 <b>Your Subscription Link:</b>\n\n👇 <b>Click the block below to copy:</b>\n\n<code>${link}</code>\n\n💡 Paste this link into your client application (e.g. v2rayNG).`,
+        300
+      );
       return;
     }
 
@@ -1318,10 +1341,6 @@ export default function BotSimulator({
                                     key={i} 
                                     link={trimmed} 
                                     lang={lang} 
-                                    onClick={() => {
-                                      setCopyPopupLink(trimmed);
-                                      setPopupCopied(false);
-                                    }}
                                   />
                                 );
                               }
@@ -1559,91 +1578,7 @@ export default function BotSimulator({
             </div>
           )}
 
-          {/* SIMULATED telegram WEB APP COPY MODAL POPUP */}
-          {copyPopupLink && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-md rounded-3xl z-40 flex flex-col justify-end overflow-hidden select-none animate-fade-in">
-              {/* Visual Ambient Glow Lights inside phone frame */}
-              <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-purple-900/10 to-transparent pointer-events-none"></div>
-              
-              {/* Glassmorphic Slide-up Sheet */}
-              <div className="w-full bg-[#080512]/95 border-t border-indigo-500/30 rounded-t-3xl p-5 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] z-50 flex flex-col space-y-4 animate-in slide-in-from-bottom duration-300">
-                
-                {/* Visual Pull Pill */}
-                <div className="w-12 h-1 bg-slate-700 rounded-full mx-auto mb-1"></div>
-                
-                {/* Top Brand Logo Header */}
-                <div className="w-full flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.25)] mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M10.172 13.828a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                  </div>
-                  <h2 className="text-sm font-bold text-white tracking-wide text-center">روتر اختصاصی دالتون</h2>
-                  <p className="text-[8px] text-indigo-400 font-semibold tracking-widest uppercase mt-0.5">Daltoon Subscription Gateway</p>
-                </div>
 
-                {/* Main link box */}
-                <div className="space-y-1.5 text-right w-full" dir="rtl">
-                  <label className="text-[11px] font-bold text-slate-400 flex items-center justify-between px-1">
-                    <span>🔗 لینک اشتراک سابسکریپشن:</span>
-                    <span className="text-[9px] text-indigo-400/80 font-mono">VLESS / X-UI Link</span>
-                  </label>
-                  <textarea
-                    readOnly
-                    value={copyPopupLink}
-                    style={{ direction: "ltr", fontFamily: "monospace" }}
-                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                    className="w-full h-24 p-3 bg-black/40 border border-slate-800 rounded-xl text-xs text-indigo-200 resize-none break-all outline-none focus:border-indigo-500/50 transition font-mono"
-                  ></textarea>
-                </div>
-
-                {/* Simulated Toast inside Phone frame */}
-                {popupCopied && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold p-2 rounded-xl flex items-center justify-center gap-1 animate-bounce">
-                    <span>لینک با موفقیت کپی شد! ✅</span>
-                  </div>
-                )}
-
-                {/* Big Copy Button */}
-                <button
-                  onClick={() => {
-                    copyTextToClipboard(copyPopupLink);
-                    setPopupCopied(true);
-                    setTimeout(() => setPopupCopied(false), 2500);
-                  }}
-                  className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all duration-300
-                    ${popupCopied 
-                      ? "bg-emerald-600 text-white shadow-[0_5px_15px_rgba(16,185,129,0.3)]" 
-                      : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_5px_15px_rgba(124,58,237,0.3)] hover:brightness-110 active:scale-95"
-                    }
-                  `}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                  </svg>
-                  <span>{popupCopied ? "لینک با موفقیت کپی شد!" : "کپی کردن لینک اشتراک"}</span>
-                </button>
-
-                {/* Info Text */}
-                <p className="text-[9px] text-center text-slate-400 leading-relaxed px-2" dir="rtl">
-                  💡 این لینک را کپی کرده و در برنامه کلاینت (مانند v2rayNG) اضافه نمایید تا کانفیگ‌ها فعال شوند.
-                </p>
-
-                {/* Bottom Close Button */}
-                <button
-                  onClick={() => setCopyPopupLink(null)}
-                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-[10px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>بستن پنجره</span>
-                </button>
-
-              </div>
-            </div>
-          )}
 
         </div>
       </div>

@@ -410,20 +410,34 @@ def check_client_exists(client_email):
 
 def add_copy_button_to_markup(markup, text, link):
     try:
-        import urllib.parse
-        cfg = get_config()
-        # Find bot web URL
-        bot_web_url = cfg.get("BOT_WEB_URL", "")
-        if not bot_web_url:
-            bot_web_url = "https://ais-dev-cri25e3qykgpuufepdfpmw-413733104605.europe-west3.run.app"
+        import random, string
+        db = read_db_json()
+        if "link_tokens" not in db:
+            db["link_tokens"] = {}
         
-        # We will craft a URL parameters pointing to the aesthetic standalone copy route of our server
-        web_app_url = f"{bot_web_url.rstrip('/')}/copy?link={urllib.parse.quote(link)}"
-        
-        # Add a gorgeous, premium web app button
-        markup.add(types.InlineKeyboardButton(text=text, web_app=types.WebAppInfo(url=web_app_url)))
+        # Check if this link already has a token
+        token = None
+        for tk, lnk in db["link_tokens"].items():
+            if lnk == link:
+                token = tk
+                break
+                
+        if not token:
+            token = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            db["link_tokens"][token] = link
+            # Clean up old tokens if there are too many (e.g. > 2000)
+            if len(db["link_tokens"]) > 2000:
+                all_tks = list(db["link_tokens"].keys())
+                for tk in all_tks[:500]:
+                    try:
+                        del db["link_tokens"][tk]
+                    except KeyError:
+                        pass
+            write_db_json(db)
+            
+        markup.add(types.InlineKeyboardButton(text=text, callback_data=f"showlink_{token}"))
     except Exception as e:
-        print(f"[WebApp Copy Button Failed, Fallback to CopyText] {e}")
+        print(f"[Callback Copy Button Failed, Fallback to CopyText] {e}")
         try:
             from telebot.types import CopyTextButton
             markup.add(types.InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=link)))
@@ -2596,6 +2610,28 @@ def callback_handler(call):
     if cfg.get("MANDATORY_JOIN_ACTIVE") and not is_user_member_of_channel(tg_id):
         bot.answer_callback_query(call.id, "❌ برای استفاده از دکمه‌های ربات، عضویت در کانال اسپانسر الزامی است.", show_alert=True)
         verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
+        return
+
+    # Show single copyable link directly in chat (User requested no Mini-App)
+    if call.data.startswith("showlink_"):
+        token = call.data.split("_")[1]
+        try:
+            db = read_db_json()
+            link = db.get("link_tokens", {}).get(token)
+            if link:
+                bot.answer_callback_query(call.id, "لینک کانفیگ با موفقیت آماده شد ⚡")
+                msg_text = (
+                    f"🔗 <b>لینک اتصال و اشتراک اختصاصی شما:</b>\n\n"
+                    f"👇 <b>جهت کپی کردن، روی باکس زیر کلیک یا لمس کنید:</b>\n\n"
+                    f"<code>{link}</code>\n\n"
+                    f"💡 این لینک را کپی کرده و در برنامه مورد نظر خود (مانند v2rayNG ، V2box...) وارد نمایید."
+                )
+                bot.send_message(call.message.chat.id, msg_text, parse_mode="HTML")
+            else:
+                bot.answer_callback_query(call.id, "⚠️ لینک مورد نظر یافت نشد یا منقضی شده است.", show_alert=True)
+        except Exception as e:
+            print(f"[Error in showlink callback] {e}")
+            bot.answer_callback_query(call.id, "⚠️ خطایی رخ داد.", show_alert=True)
         return
 
     # Buy Pay Selection Handler
