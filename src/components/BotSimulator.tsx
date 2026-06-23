@@ -1282,7 +1282,7 @@ export default function BotSimulator({
     e.preventDefault();
     const amountNum = parseInt(invoiceAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      alert(lang === "fa" ? "لطفا مبلغ معتبری وارد کنید." : "Please enter a valid amount.");
+      console.warn(lang === "fa" ? "لطفا مبلغ معتبری وارد کنید." : "Please enter a valid amount.");
       return;
     }
 

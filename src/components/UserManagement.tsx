@@ -234,7 +234,7 @@ export default function UserManagement({
     if (!adjustingUser) return;
     const amountNum = parseInt(adjustAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      alert(lang === "fa" ? "لطفا مبلغ معتبری وارد کنید." : "Please enter a valid amount.");
+      console.warn(lang === "fa" ? "لطفا مبلغ معتبری وارد کنید." : "Please enter a valid amount.");
       return;
     }
     
@@ -249,11 +249,11 @@ export default function UserManagement({
     const parsedId = parseInt(newUserId);
     const parsedBalance = parseInt(newBalance) || 0;
     if (isNaN(parsedId) || parsedId <= 0) {
-      alert(lang === "fa" ? "لطفا شناسه عددی تلگرام معتبری وارد کنید." : "Please enter a valid Telegram User ID.");
+      console.warn(lang === "fa" ? "لطفا شناسه عددی تلگرام معتبری وارد کنید." : "Please enter a valid Telegram User ID.");
       return;
     }
     if (!newUsername) {
-      alert(lang === "fa" ? "لطفا نام کاربری را وارد کنید." : "Please enter a username.");
+      console.warn(lang === "fa" ? "لطفا نام کاربری را وارد کنید." : "Please enter a username.");
       return;
     }
 

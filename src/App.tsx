@@ -709,7 +709,7 @@ export default function App() {
 
   const addNewUser = (user: User) => {
     if (users.some(u => u.userId === user.userId)) {
-      alert(lang === "fa" ? "این شناسه کاربری تلگرام قبلاً در دیتابیس ثبت شده است." : "This Telegram User ID already exists in the bot database.");
+      console.warn(lang === "fa" ? "این شناسه کاربری تلگرام قبلاً در دیتابیس ثبت شده است." : "This Telegram User ID already exists in the bot database.");
       return;
     }
     setUsers(prev => [user, ...prev]);

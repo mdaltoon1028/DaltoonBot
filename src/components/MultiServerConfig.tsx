@@ -1,0 +1,318 @@
+import React, { useState } from "react";
+import { ServerConfig, PanelSettings, InboundInfo } from "../types";
+import { Language } from "../locales";
+import { Cpu, RefreshCw, X, Check, Activity, ChevronDown, ChevronUp, Save, Server, Trash2, Edit } from "lucide-react";
+
+interface MultiServerConfigProps {
+  settings: PanelSettings;
+  onSaveSettings: (settings: PanelSettings) => void;
+  lang: Language;
+}
+
+export default function MultiServerConfig({ settings, onSaveSettings, lang }: MultiServerConfigProps) {
+  const [servers, setServers] = useState<ServerConfig[]>(settings.servers || []);
+  const [showForm, setShowForm] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  // Form State
+  const [name, setName] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [subUrl, setSubUrl] = useState("");
+  const [panelUsername, setPanelUsername] = useState("");
+  const [panelPassword, setPanelPassword] = useState("");
+
+  const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
+  const [inbounds, setInbounds] = useState<InboundInfo[]>([]);
+  const [checkedInboundIds, setCheckedInboundIds] = useState<number[]>([]);
+  const [showInbounds, setShowInbounds] = useState(true);
+
+  const startAdd = () => {
+    setName("");
+    setBaseUrl("");
+    setSubUrl("");
+    setPanelUsername("");
+    setPanelPassword("");
+    setInbounds([]);
+    setCheckedInboundIds([]);
+    setTestStatus({ type: "idle", message: "" });
+    setEditingIndex(null);
+    setShowForm(true);
+  };
+
+  const startEdit = (index: number) => {
+    const s = servers[index];
+    setName(s.name);
+    setBaseUrl(s.panelUrl);
+    setSubUrl(s.subUrl || "");
+    setPanelUsername(s.panelUsername);
+    setPanelPassword(s.panelPassword);
+    setCheckedInboundIds(s.activeInboundIds || []);
+    setInbounds([]); // We don't have the old list, need to re-test to fetch them or just let them stay as ids.
+    setTestStatus({ type: "idle", message: "" });
+    setEditingIndex(index);
+    setShowForm(true);
+  };
+
+  const handleDelete = (index: number) => {
+    const newServers = [...servers];
+    newServers.splice(index, 1);
+    setServers(newServers);
+    onSaveSettings({ ...settings, servers: newServers });
+  };
+
+  const handleTestConnection = async () => {
+    if (!name.trim()) {
+      setTestStatus({ type: "error", message: lang === "fa" ? "نام سرور الزامی است." : "Server name is required." });
+      return;
+    }
+    setTestStatus({ 
+      type: "loading", 
+      message: lang === "fa" ? "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها..." : "Connecting to panel and retrieving inbounds..." 
+    });
+    try {
+      const response = await fetch("/api/xui/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl, panelUsername, panelPassword })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTestStatus({ type: "success", message: data.message });
+        if (Array.isArray(data.inbounds)) {
+          setInbounds(data.inbounds);
+          if (checkedInboundIds.length === 0) {
+            setCheckedInboundIds(data.inbounds.map((ib: any) => ib.id));
+          }
+        }
+      } else {
+        setTestStatus({ type: "error", message: data.error });
+      }
+    } catch (err: any) {
+      setTestStatus({ type: "error", message: lang === "fa" ? "خطا در اتصال به سرور." : "Connection failed." });
+    }
+  };
+
+  const handleSave = () => {
+    if (!name.trim() || !baseUrl.trim()) return;
+
+    const newServer: ServerConfig = {
+      id: editingIndex !== null ? servers[editingIndex].id : "srv_" + Math.random().toString(36).substring(2, 8),
+      name,
+      panelUrl: baseUrl,
+      subUrl,
+      panelUsername,
+      panelPassword,
+      activeInboundIds: checkedInboundIds,
+      status: "active"
+    };
+
+    let newServers = [...servers];
+    if (editingIndex !== null) {
+      newServers[editingIndex] = newServer;
+    } else {
+      newServers.push(newServer);
+    }
+    
+    setServers(newServers);
+    onSaveSettings({ ...settings, servers: newServers });
+    setShowForm(false);
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-[#0c1020] to-[#121c35] border border-indigo-500/20 p-6 rounded-2xl space-y-6 shadow-lg shadow-black/40">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-850 pb-4 gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
+            <Cpu className="w-6 h-6 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="font-display font-bold text-lg text-white">
+              {lang === "fa" ? "🔌 مدیریت سرورهای X-UI" : "🔌 X-UI Servers Management"}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {lang === "fa" 
+                ? "پنل‌های خود را برای ساخت خودکار اشتراک‌ها اضافه کنید."
+                : "Manage your X-UI panels for automated subscription delivery."}
+            </p>
+          </div>
+        </div>
+        {!showForm && (
+          <button
+            onClick={startAdd}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition active:scale-95"
+          >
+            {lang === "fa" ? "افزودن سرور جدید +" : "Add New Server +"}
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="space-y-4 animate-fade-in bg-[#13192e]/50 p-4 rounded-xl border border-indigo-500/10">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-sm font-bold text-white">
+              {editingIndex !== null 
+                ? (lang === "fa" ? "ویرایش سرور" : "Edit Server") 
+                : (lang === "fa" ? "افزودن اتصال جدید" : "Add New Connection")}
+            </h4>
+            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
+                {lang === "fa" ? "نام دلخواه سرور" : "Server Name"}
+              </label>
+              <input
+                type="text"
+                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                placeholder={lang === "fa" ? "مثلا: آلمان ۱" : "e.g. Germany 1"}
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
+                {lang === "fa" ? "آدرس پنل (با پورت)" : "Panel URL (with port)"}
+              </label>
+              <input
+                type="text"
+                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
+                placeholder="http://ip:port"
+                value={baseUrl}
+                onChange={e => setBaseUrl(e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
+                {lang === "fa" ? "لینک سابسکریپشن (اختیاری)" : "Subscription URL (Optional)"}
+              </label>
+              <input
+                type="text"
+                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
+                placeholder="https://sub.example.com"
+                value={subUrl}
+                onChange={e => setSubUrl(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
+                {lang === "fa" ? "نام کاربری X-UI" : "Username"}
+              </label>
+              <input
+                type="text"
+                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
+                value={panelUsername}
+                onChange={e => setPanelUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
+                {lang === "fa" ? "رمز عبور X-UI" : "Password"}
+              </label>
+              <input
+                type="password"
+                className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
+                value={panelPassword}
+                onChange={e => setPanelPassword(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={handleTestConnection}
+              className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`} />
+              {lang === "fa" ? "تست اتصال و دریافت اینباندها" : "Test Connection & Fetch Inbounds"}
+            </button>
+          </div>
+
+          {testStatus.type !== "idle" && (
+            <div className={`p-3 rounded-lg text-xs font-medium ${
+              testStatus.type === "success" ? "bg-emerald-500/10 text-emerald-400" :
+              testStatus.type === "loading" ? "bg-indigo-500/10 text-indigo-400 animate-pulse" :
+              "bg-rose-500/10 text-rose-400"
+            }`}>
+              {testStatus.message}
+            </div>
+          )}
+
+          {inbounds.length > 0 && (
+            <div className="border border-indigo-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
+              <h4 className="text-xs font-bold text-gray-200 mb-3">{lang === "fa" ? "اینباندهای مجاز برای ساخت اکانت:" : "Allowed Inbounds:"}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-1">
+                {inbounds.map(ib => (
+                  <label key={ib.id} className="flex items-start gap-2 p-2 rounded-lg border border-gray-800 hover:border-indigo-500/50 cursor-pointer bg-[#111827]">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={checkedInboundIds.includes(ib.id)}
+                      onChange={e => {
+                        if (e.target.checked) setCheckedInboundIds(prev => [...prev, ib.id]);
+                        else setCheckedInboundIds(prev => prev.filter(id => id !== ib.id));
+                      }}
+                    />
+                    <div className="text-xs text-gray-300">
+                      <div className="font-bold text-white">{ib.remark}</div>
+                      <div>{ib.protocol} | Port: {ib.port}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-4 flex justify-end">
+            <button
+              onClick={handleSave}
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {lang === "fa" ? "ذخیره سرور" : "Save Server"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List of Servers */}
+      {!showForm && servers.length > 0 && (
+        <div className="space-y-3">
+          {servers.map((srv, index) => (
+            <div key={srv.id} className="bg-[#13192e] border border-gray-800 p-4 rounded-xl flex items-center justify-between hover:border-indigo-500/30 transition">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                  <Server className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-sm">{srv.name}</h4>
+                  <p className="text-xs text-gray-500 font-mono">{srv.panelUrl}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => startEdit(index)}
+                  className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg transition"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(index)}
+                  className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!showForm && servers.length === 0 && (
+        <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl">
+          <p className="text-gray-500 text-sm">{lang === "fa" ? "هیچ سروری اضافه نشده است." : "No servers added yet."}</p>
+        </div>
+      )}
+    </div>
+  );
+}

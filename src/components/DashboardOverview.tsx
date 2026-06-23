@@ -137,7 +137,6 @@ export default function DashboardOverview({
                   reader.onload = async (ev) => {
                      const content = ev.target?.result;
                      if (typeof content === 'string') {
-                        if (confirm(lang === "fa" ? "هشدار! با این کار اطلاعات فعلی پاک و با این بکاپ جایگزین می‌شود. آیا مطمئنید؟" : "Warning! Current database will be completely replaced by the backup. Are you sure?")) {
                             try {
                               const fb = await fetch("/api/backup-restore", {
                                 method: "POST",
@@ -146,15 +145,14 @@ export default function DashboardOverview({
                               });
                               const rJson = await fb.json();
                               if (rJson.success) {
-                                alert(lang === "fa" ? "بکاپ با موفقیت بازگردانی شد. داشبورد تا ثانیه‌هایی دیگر بروز خواهد شد." : "Backup restored. Dashboard will be reloaded soon.");
+                                console.log(lang === "fa" ? "بکاپ با موفقیت بازگردانی شد. داشبورد تا ثانیه‌هایی دیگر بروز خواهد شد." : "Backup restored. Dashboard will be reloaded soon.");
                                 setTimeout(() => window.location.reload(), 1500);
                               } else {
-                                alert(rJson.error || "Error restoring backup");
+                                console.error(rJson.error || "Error restoring backup");
                               }
                             } catch(er: any) {
-                              alert(er.message);
+                              console.error(er.message);
                             }
-                        }
                      }
                   }
                   reader.readAsText(file);

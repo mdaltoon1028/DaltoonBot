@@ -652,25 +652,23 @@ app.get("/api/data", async (req, res) => {
     console.log("[DEBUG] /api/data returned settings.botToken:", settings.botToken);
 
     // REAL-TIME 3X-UI INBOUNDS MONITORING IMPLEMENTATION
-    if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
+    const activeServers = getActiveServers(settings);
+    if (activeServers.length > 0) {
       try {
-        const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-        const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+        let allInbounds: any[] = [];
+        for (const server of activeServers) {
+          const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+          const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
 
-        if (loginResult.success && loginResult.cookie) {
-          // 2. Fetch the active state of all inbounds
-          const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
-            method: "GET",
-            headers: { 
-              "Cookie": loginResult.cookie
-            }
-          }, 5000);
+          if (loginResult.success && loginResult.cookie) {
+            const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, {
+              method: "GET",
+              headers: { "Cookie": loginResult.cookie }
+            }, 5000);
 
             if (listRes.ok) {
-              const listText = await listRes.text();
-              const listJson = JSON.parse(listText);
+              const listJson = await listRes.json();
               if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-                // Map Sanaei obj data into local DB inbounds structure
                 const freshInbounds = listJson.obj.map((item: any) => {
                   let totalClientsCount = 0;
                   try {
@@ -685,7 +683,7 @@ app.get("/api/data", async (req, res) => {
 
                   return {
                     id: item.id,
-                    remark: item.remark || `Inbound #${item.id}`,
+                    remark: `[${server.name}] ` + (item.remark || `Inbound #${item.id}`),
                     protocol: item.protocol || "vless",
                     port: item.port || 1234,
                     totalClients: totalClientsCount,
@@ -694,13 +692,13 @@ app.get("/api/data", async (req, res) => {
                     status: item.enable ? "active" : "inactive"
                   };
                 });
-
-                // Overwrite inbounds with real live data
-                db.inbounds = freshInbounds;
-                writeJsonDb(db);
+                allInbounds = allInbounds.concat(freshInbounds);
               }
             }
           }
+        }
+        db.inbounds = allInbounds;
+        writeJsonDb(db);
       } catch (e: any) {
         console.warn("[Background 3x-ui Sync Warning]:", e.message);
       }
@@ -1060,9 +1058,11 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
         const newUuid = crypto.randomUUID();
         const newSubId = crypto.randomBytes(8).toString('hex');
         const settings = getSystemSettings(db);
-        const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-          ? normalizeXuiUrl(settings.subUrl) 
-          : (settings.baseUrl ? normalizeXuiUrl(settings.baseUrl) : "https://tr.sub-daltoon.ir:2096");
+        const activeServers = getActiveServers(settings);
+        let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
+        const subBase = fallbackServer && fallbackServer.subUrl && fallbackServer.subUrl.trim() !== "" 
+          ? normalizeXuiUrl(fallbackServer.subUrl) 
+          : (fallbackServer ? normalizeXuiUrl(fallbackServer.panelUrl) : "https://tr.sub-daltoon.ir:2096");
         const subLink = `${subBase}/sub/${newSubId}`;
         resetResult = { success: true, clientUuid: newUuid, subLink };
         console.log(`[regenerate-uuid API] Regenerated manual client locally: ${key.id}`);
@@ -1491,6 +1491,26 @@ async function xuiFetch(url: string, options: any = {}, timeoutMs = 8000) {
   }
 }
 
+function getActiveServers(settings: any) {
+  if (settings.servers && Array.isArray(settings.servers) && settings.servers.length > 0) {
+    return settings.servers.filter((s: any) => s.status !== 'inactive');
+  }
+  // Fallback to legacy single server configuration if active
+  if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
+    return [{
+      id: 'legacy_server',
+      name: 'پنل اصلی',
+      panelUrl: settings.baseUrl,
+      subUrl: settings.subUrl,
+      panelUsername: settings.panelUsername,
+      panelPassword: settings.panelPassword,
+      activeInboundIds: settings.activeInboundIds || [],
+      status: 'active'
+    }];
+  }
+  return [];
+}
+
 function normalizeXuiUrl(url: string): string {
   let cleaned = `${url}`.trim();
   // Remove any trailing slashes
@@ -1602,11 +1622,16 @@ async function addVpnClientApi(
       }
     }
 
-    if (!settings.baseUrl || !settings.panelUsername || !settings.panelPassword) {
-      return { success: false, error: "تنظیمات اتصال به پنل کامل نیست." };
+    const activeServers = getActiveServers(settings);
+    if (activeServers.length === 0) {
+      return { success: false, error: "تنظیمات اتصال به پنل کامل نیست یا سرور فعالی وجود ندارد." };
     }
-    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+    
+    // Pick a random server for load balancing
+    const server = activeServers[Math.floor(Math.random() * activeServers.length)];
+
+    const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
     if (!loginResult.success || !loginResult.cookie) {
       return { success: false, error: "ورود به پنل با خطا مواجه شد: " + (loginResult.error || "خطای نامشخص") };
     }
@@ -1617,8 +1642,8 @@ async function addVpnClientApi(
 
     // Determine inbound_ids
     let inboundIds: number[] = [];
-    if (Array.isArray(settings.activeInboundIds) && settings.activeInboundIds.length > 0) {
-      inboundIds = settings.activeInboundIds.map((id: any) => Number(id)).filter(id => !isNaN(id));
+    if (Array.isArray(server.activeInboundIds) && server.activeInboundIds.length > 0) {
+      inboundIds = server.activeInboundIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
     }
 
     // Fallback: fetch dynamically if none specified
@@ -1735,8 +1760,8 @@ async function addVpnClientApi(
           const addJson = JSON.parse(addText);
           if (addJson && addJson.success) {
             console.log(`[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(', ')} successfully.`);
-            const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-              ? normalizeXuiUrl(settings.subUrl) 
+            const subBase = server.subUrl && server.subUrl.trim() !== "" 
+              ? normalizeXuiUrl(server.subUrl) 
               : cleanedUrl;
             const subLink = `${subBase}/sub/${xuiSubId}`;
             return { success: true, clientUuid, subLink };
@@ -1789,8 +1814,8 @@ async function addVpnClientApi(
     }
     
     if (fallbackSuccess) {
-      const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-        ? normalizeXuiUrl(settings.subUrl) 
+      const subBase = server.subUrl && server.subUrl.trim() !== "" 
+        ? normalizeXuiUrl(server.subUrl) 
         : cleanedUrl;
       const subLink = `${subBase}/sub/${xuiSubId}`;
       return { success: true, clientUuid, subLink };
@@ -1808,24 +1833,34 @@ async function deleteVpnClientApi(clientEmail: string) {
   try {
     const db = readJsonDb();
     const settings = getSystemSettings(db);
-    if (!settings.panelConnectionActive || !settings.baseUrl) return { success: false, error: "XUI disconnected" };
+    const activeServers = getActiveServers(settings);
+    if (activeServers.length === 0) return { success: false, error: "XUI disconnected" };
 
-    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
-    if (!loginResult.success || !loginResult.cookie) return { success: false, error: "Login failed" };
+    let deletedAtLeastOnce = false;
 
-    const delUrl = `${cleanedUrl}/panel/api/clients/del/${clientEmail}`;
-    const headers: Record<string, string> = {
-      "Cookie": loginResult.cookie,
-      "Accept": "application/json"
-    };
-    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+    for (const server of activeServers) {
+      try {
+        const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
+        if (!loginResult.success || !loginResult.cookie) continue;
 
-    const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000).catch(() => null);
-    if (res && res.ok) {
-      return { success: true };
+        const delUrl = `${cleanedUrl}/panel/api/clients/del/${clientEmail}`;
+        const headers: Record<string, string> = {
+          "Cookie": loginResult.cookie,
+          "Accept": "application/json"
+        };
+        if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+        const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000).catch(() => null);
+        if (res && res.ok) {
+          deletedAtLeastOnce = true;
+        }
+      } catch (e) {
+        // Ignore individual server errors and try others
+      }
     }
-    return { success: false, error: "Panel deletion failed" };
+    
+    return { success: deletedAtLeastOnce, error: deletedAtLeastOnce ? undefined : "Panel deletion failed on all servers" };
   } catch (e) {
     return { success: false, error: "Exception during deletion" };
   }
@@ -1836,43 +1871,53 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
   try {
     const db = readJsonDb();
     const settings = getSystemSettings(db);
-    if (!settings.panelConnectionActive || !settings.baseUrl) return { success: false, error: "XUI disconnected" };
+    const activeServers = getActiveServers(settings);
+    if (activeServers.length === 0) return { success: false, error: "XUI disconnected" };
 
-    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
-    if (!loginResult.success || !loginResult.cookie) return { success: false, error: "Login failed" };
+    let toggledAtLeastOnce = false;
 
-    const headers: Record<string, string> = {
-      "Cookie": loginResult.cookie,
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    };
-    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+    for (const server of activeServers) {
+      try {
+        const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
+        if (!loginResult.success || !loginResult.cookie) continue;
 
-    // First fetch current client to follow "replace" rule
-    const getUrl = `${cleanedUrl}/panel/api/clients/get/${clientEmail}`;
-    const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
-    
-    if (getRes && getRes.ok) {
-      const getJson = await getRes.json();
-      if (getJson.success && getJson.obj) {
-        const client = getJson.obj;
-        client.enable = enabled;
+        const headers: Record<string, string> = {
+          "Cookie": loginResult.cookie,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        };
+        if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+        // First fetch current client to follow "replace" rule
+        const getUrl = `${cleanedUrl}/panel/api/clients/get/${clientEmail}`;
+        const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
         
-        const updateUrl = `${cleanedUrl}/panel/api/clients/update/${clientEmail}`;
-        const updateRes = await xuiFetch(updateUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(client)
-        }, 5000);
-        
-        if (updateRes.ok) {
-          const updateJson = await updateRes.json();
-          if (updateJson.success) return { success: true };
+        if (getRes && getRes.ok) {
+          const getJson = await getRes.json();
+          if (getJson.success && getJson.obj) {
+            const client = getJson.obj;
+            client.enable = enabled;
+            
+            const updateUrl = `${cleanedUrl}/panel/api/clients/update/${clientEmail}`;
+            const updateRes = await xuiFetch(updateUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(client)
+            }, 5000);
+            
+            if (updateRes.ok) {
+              const updateJson = await updateRes.json();
+              if (updateJson.success) toggledAtLeastOnce = true;
+            }
+          }
         }
+      } catch (e) {
+        // Ignore individual server errors and try others
       }
     }
-    return { success: false, error: "Toggle failed" };
+    
+    return { success: toggledAtLeastOnce, error: toggledAtLeastOnce ? undefined : "Toggle failed on all servers" };
   } catch (e) {
     return { success: false, error: "Exception during toggle" };
   }
@@ -1888,135 +1933,122 @@ async function resetVpnClientUuidApi(clientEmail: string) {
     // Pre-generate standard credentials locally as fallback
     const newUuid = crypto.randomUUID();
     const newSubId = crypto.randomBytes(8).toString('hex');
-    const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-      ? normalizeXuiUrl(settings.subUrl) 
-      : (settings.baseUrl ? normalizeXuiUrl(settings.baseUrl) : "https://tr.sub-daltoon.ir:2096");
+
+    const activeServers = getActiveServers(settings);
+
+    // Pick first server for subLink base if available
+    let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
+    const subBase = fallbackServer && fallbackServer.subUrl && fallbackServer.subUrl.trim() !== "" 
+      ? normalizeXuiUrl(fallbackServer.subUrl) 
+      : (fallbackServer ? normalizeXuiUrl(fallbackServer.panelUrl) : "https://tr.sub-daltoon.ir:2096");
     const subLink = `${subBase}/sub/${newSubId}`;
 
-    if (!settings.panelConnectionActive || !settings.baseUrl) {
+    if (activeServers.length === 0) {
       console.warn(`[resetVpnClientUuidApi] XUI disconnected/not configured. Performing local-only database reset fallback for ${clientEmail}`);
       return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
     }
 
-    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
-    if (!loginResult.success || !loginResult.cookie) {
-      console.warn(`[resetVpnClientUuidApi] XUI login failed for fallback update for ${clientEmail}`);
-      return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
-    }
+    let panelUpdatedOnce = false;
 
-    const headers: Record<string, string> = {
-      "Cookie": loginResult.cookie,
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    };
-    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
-
-    // Fetch the client's current settings from list
-    const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 8000).catch(() => null);
-    if (!listRes || !listRes.ok) {
-      console.warn(`[resetVpnClientUuidApi] List API empty, performing database local-only fallback for ${clientEmail}`);
-      return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
-    }
-    
-    const listJson = await listRes.json().catch(() => null);
-    if (!listJson || !listJson.success || !Array.isArray(listJson.obj)) {
-      console.warn(`[resetVpnClientUuidApi] Invalid json from List API, performing local fallback for ${clientEmail}`);
-      return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
-    }
-
-    let targetClient: any = null;
-    let oldUuid: string | null = null;
-    let parentInboundId: number | null = null;
-
-    for (const inb of listJson.obj) {
-      if (!inb.settings) continue;
+    for (const server of activeServers) {
       try {
-        const inbSettings = typeof inb.settings === "string" ? JSON.parse(inb.settings) : inb.settings;
-        if (Array.isArray(inbSettings.clients)) {
-          const client = inbSettings.clients.find((c: any) => c.email === clientEmail);
-          if (client) {
-            targetClient = { ...client };
-            oldUuid = client.id;
-            parentInboundId = inb.id;
-            break;
-          }
+        const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
+        if (!loginResult.success || !loginResult.cookie) continue;
+
+        const headers: Record<string, string> = {
+          "Cookie": loginResult.cookie,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        };
+        if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+        // Fetch the client's current settings from list
+        const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 8000).catch(() => null);
+        if (!listRes || !listRes.ok) continue;
+        
+        const listJson = await listRes.json().catch(() => null);
+        if (!listJson || !listJson.success || !Array.isArray(listJson.obj)) continue;
+
+        let targetClient: any = null;
+        let oldUuid: string | null = null;
+        let parentInboundId: number | null = null;
+
+        for (const inb of listJson.obj) {
+          if (!inb.settings) continue;
+          try {
+            const inbSettings = typeof inb.settings === "string" ? JSON.parse(inb.settings) : inb.settings;
+            if (Array.isArray(inbSettings.clients)) {
+              const client = inbSettings.clients.find((c: any) => c.email === clientEmail);
+              if (client) {
+                targetClient = { ...client };
+                oldUuid = client.id;
+                parentInboundId = inb.id;
+                break;
+              }
+            }
+          } catch (e) {}
         }
-      } catch (e) {}
-    }
 
-    if (!targetClient || !oldUuid) {
-      console.warn(`[resetVpnClientUuidApi] Client email ${clientEmail} not found, generating local-only update.`);
-      return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
-    }
+        if (!targetClient || !oldUuid) continue;
 
-    // Set new UUID and Sub ID inside the cloned client schema
-    targetClient.id = newUuid;
-    targetClient.subId = newSubId;
-    targetClient.tgId = typeof targetClient.tgId === 'number' ? targetClient.tgId : (parseInt(targetClient.tgId) || 0);
+        // Set new UUID and Sub ID inside the cloned client schema
+        targetClient.id = newUuid;
+        targetClient.subId = newSubId;
+        targetClient.tgId = typeof targetClient.tgId === 'number' ? targetClient.tgId : (parseInt(targetClient.tgId) || 0);
 
-    // 1. Recreate the client manually via deletion then addition inside inbound (the only way that changes UUID on panel)
-    console.log(`[resetVpnClientUuidApi] Recreating client to change UUID and Sub ID on panel for email: ${clientEmail}`);
-    try {
-      // Step A: Delete client using ID match
-      const deleteUrl = `${cleanedUrl}/panel/api/inbounds/${parentInboundId}/delClient/${oldUuid}`;
-      const delRes = await xuiFetch(deleteUrl, { method: "POST", headers }, 8000).catch(() => null);
-      if (delRes) {
-        console.log(`[resetVpnClientUuidApi] Sent delete client request for old UUID: ${oldUuid}`);
-      }
+        // 1. Recreate the client manually via deletion then addition inside inbound
+        // Step A: Delete client using ID match
+        const deleteUrl = `${cleanedUrl}/panel/api/inbounds/${parentInboundId}/delClient/${oldUuid}`;
+        await xuiFetch(deleteUrl, { method: "POST", headers }, 8000).catch(() => null);
 
-      // Step B: Add client with updated UUID and sub ID to the same inbound
-      const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
-      const payload = {
-        id: parentInboundId,
-        settings: JSON.stringify({ clients: [targetClient] })
-      };
-      const addRes = await xuiFetch(addUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload)
-      }, 8000);
-
-      if (addRes && addRes.ok) {
-        const addJson = await addRes.json().catch(() => null);
-        if (addJson && addJson.success) {
-          console.log(`[resetVpnClientUuidApi] Successfully recreated client ${clientEmail} with new UUID/subId on inbound ${parentInboundId}`);
-          return { success: true, clientUuid: newUuid, subLink };
-        } else {
-          console.warn(`[resetVpnClientUuidApi] Panel rejected client addition during reset:`, addJson);
-        }
-      } else {
-        console.warn(`[resetVpnClientUuidApi] Panel HTTP error ${addRes ? addRes.status : 'None'} during add-client recreation`);
-      }
-    } catch (err: any) {
-      console.error(`[resetVpnClientUuidApi] Error during client recreation process: ${err.message}`);
-    }
-
-    // 2. Fallback: If delete-add failed, try typical modern client ID change (just in case delete failed and we have to modify the existing one)
-    console.log(`[resetVpnClientUuidApi] Delete-add failed. Trying updateClient as last-resort...`);
-    const updateUrl = `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`;
-    try {
-      const updateRes = await xuiFetch(updateUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
+        // Step B: Add client with updated UUID and sub ID to the same inbound
+        const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
+        const payload = {
           id: parentInboundId,
           settings: JSON.stringify({ clients: [targetClient] })
-        })
-      }, 8000);
-      
-      if (updateRes && updateRes.ok) {
-         const updateJson = await updateRes.json().catch(() => null);
-         if (updateJson && updateJson.success) {
-            console.log(`[resetVpnClientUuidApi] Fallback updateClient succeed for: ${clientEmail}`);
-            return { success: true, clientUuid: newUuid, subLink };
-         }
+        };
+        const addRes = await xuiFetch(addUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload)
+        }, 8000);
+
+        if (addRes && addRes.ok) {
+          const addJson = await addRes.json().catch(() => null);
+          if (addJson && addJson.success) {
+            panelUpdatedOnce = true;
+          }
+        }
+        
+        if (!panelUpdatedOnce) {
+            const updateUrl = `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`;
+            const updateRes = await xuiFetch(updateUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                id: parentInboundId,
+                settings: JSON.stringify({ clients: [targetClient] })
+              })
+            }, 8000);
+            
+            if (updateRes && updateRes.ok) {
+              const updateJson = await updateRes.json().catch(() => null);
+              if (updateJson && updateJson.success) {
+                 panelUpdatedOnce = true;
+              }
+            }
+        }
+
+      } catch (err) {
+        // Continue to next server
       }
-    } catch (e) {
-      console.warn(`[resetVpnClientUuidApi] Fallback updateClient failed:`, e);
     }
 
-    // 3. Absolute fallback: Return local success anyway so the database is updated and they can try later
+    if (panelUpdatedOnce) {
+      return { success: true, clientUuid: newUuid, subLink };
+    }
+
     console.warn(`[resetVpnClientUuidApi] Panel-facing recreation rejected, completing with database-level local update.`);
     return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
   } catch (e: any) {
@@ -2028,9 +2060,12 @@ async function resetVpnClientUuidApi(clientEmail: string) {
       const newSubId = crypto.randomBytes(8).toString('hex');
       const db = readJsonDb();
       const settings = getSystemSettings(db);
-      const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-        ? normalizeXuiUrl(settings.subUrl) 
-        : (settings.baseUrl ? normalizeXuiUrl(settings.baseUrl) : "https://tr.sub-daltoon.ir:2096");
+      
+      const activeServers = getActiveServers(settings);
+      let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
+      const subBase = fallbackServer && fallbackServer.subUrl && fallbackServer.subUrl.trim() !== "" 
+        ? normalizeXuiUrl(fallbackServer.subUrl) 
+        : (fallbackServer ? normalizeXuiUrl(fallbackServer.panelUrl) : "https://tr.sub-daltoon.ir:2096");
       const subLink = `${subBase}/sub/${newSubId}`;
       return { success: true, clientUuid: newUuid, subLink, wasLocalFallback: true };
     } catch (err) {
@@ -3440,42 +3475,45 @@ async function autoCleanExpiredFreeTrials() {
     console.log(`[Auto Cleanup] Found ${keysToDelete.length} expired free trials. Deleting...`);
 
     const parsedSettings = getSystemSettings(db);
-    if (parsedSettings && parsedSettings.panelConnectionActive && parsedSettings.baseUrl) {
-      const cleanedUrl = normalizeXuiUrl(parsedSettings.baseUrl);
-      const loginResult = await loginXuiPanel(cleanedUrl, parsedSettings.panelUsername, parsedSettings.panelPassword);
+    const activeServers = getActiveServers(parsedSettings);
 
-      if (loginResult.success && loginResult.cookie) {
-        const headers: Record<string, string> = {
-          "Cookie": loginResult.cookie,
-          "Accept": "application/json"
-        };
-        if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+    for (const server of activeServers) {
+      try {
+        const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
 
-        for (let k of keysToDelete) {
-           let uuid = "";
-           if (k.subLink) {
-              const match = k.subLink.match(/(vless|vmess|trojan):\/\/([^@]+)@/);
-              if (match && match[2]) uuid = match[2];
-           }
+        if (loginResult.success && loginResult.cookie) {
+          const headers: Record<string, string> = {
+            "Cookie": loginResult.cookie,
+            "Accept": "application/json"
+          };
+          if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
 
-           if (uuid) {
-               // Global delete client (Sanaei modern API)
-               await xuiFetch(`${cleanedUrl}/panel/api/client/${uuid}/del`, { method: "POST", headers }, 4000).catch(()=>{});
-               
-               // Fallback: delete client by UUID from each inbound specifically (Sanaei traditional API)
-               try {
-                 const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 4000);
-                 if (inbRes.ok) {
-                   const inbJson = await inbRes.json();
-                   if (inbJson.success && Array.isArray(inbJson.obj)) {
-                     for (let inb of inbJson.obj) {
-                       await xuiFetch(`${cleanedUrl}/panel/api/inbounds/${inb.id}/delClient/${uuid}`, { method: "POST", headers }, 3000).catch(()=>{});
+          for (let k of keysToDelete) {
+             let uuid = "";
+             if (k.subLink) {
+                const match = k.subLink.match(/(vless|vmess|trojan):\/\/([^@]+)@/);
+                if (match && match[2]) uuid = match[2];
+             }
+
+             if (uuid) {
+                 await xuiFetch(`${cleanedUrl}/panel/api/client/${uuid}/del`, { method: "POST", headers }, 4000).catch(()=>{});
+                 try {
+                   const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 4000);
+                   if (inbRes.ok) {
+                     const inbJson = await inbRes.json();
+                     if (inbJson.success && Array.isArray(inbJson.obj)) {
+                       for (let inb of inbJson.obj) {
+                         await xuiFetch(`${cleanedUrl}/panel/api/inbounds/${inb.id}/delClient/${uuid}`, { method: "POST", headers }, 3000).catch(()=>{});
+                       }
                      }
                    }
-                 }
-               } catch(err) {}
-           }
+                 } catch(err) {}
+             }
+          }
         }
+      } catch (err) {
+         // Continue to next server
       }
     }
 
@@ -3568,74 +3606,85 @@ async function autoSyncTrafficUsage() {
     const db = readJsonDb();
     const settings = getSystemSettings(db);
     
+    const activeServers = getActiveServers(settings);
+    
     // Only continue if panel is connected
-    if (!settings.panelConnectionActive || !settings.baseUrl) {
+    if (activeServers.length === 0) {
       return;
     }
-
-    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
-    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
-
-    if (!loginResult.success || !loginResult.cookie) {
-      console.log("[Auto Sync Usage] Failed to connect to X-UI panel.");
-      return;
-    }
-
-    const headers: Record<string, string> = {
-      "Cookie": loginResult.cookie,
-      "Accept": "application/json"
-    };
-
-    // Try to get clientTraffics API directly for accurate unique stats
-    let trafficJson = null;
-    try {
-        const ctRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/getClientTraffics`, { method: "GET", headers }, 8000);
-        if (ctRes.ok) trafficJson = await ctRes.json();
-    } catch(e) {}
 
     const trafficMap: Record<string, { up: number, down: number, total: number, expiryTime?: number, totalGb?: number }> = {};
-    
-    if (trafficJson && trafficJson.success && Array.isArray(trafficJson.obj)) {
-      for (let cs of trafficJson.obj) {
-        if (cs.email) {
-          const lMail = cs.email.toLowerCase();
-          if (!trafficMap[lMail]) trafficMap[lMail] = { up: 0, down: 0, total: 0 };
-          trafficMap[lMail].up += Number(cs.up) || 0;
-          trafficMap[lMail].down += Number(cs.down) || 0;
-          trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
-          if (cs.expiryTime) trafficMap[lMail].expiryTime = Number(cs.expiryTime);
-          if (cs.total) trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
+    const seenStats = new Set<string>();
+
+    for (const server of activeServers) {
+      try {
+        const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+        const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
+
+        if (!loginResult.success || !loginResult.cookie) {
+          continue;
         }
-      }
-    } else {
-      // Get all inbounds fallback
-      const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 10000);
-      if (!inbRes.ok) return;
-      
-      const inbJson = await inbRes.json();
-      if (!inbJson.success || !Array.isArray(inbJson.obj)) return;
 
-      const seenStats = new Set<string>();
+        const headers: Record<string, string> = {
+          "Cookie": loginResult.cookie,
+          "Accept": "application/json"
+        };
 
-      for (let inb of inbJson.obj) {
-        let clientStats = inb.clientStats || [];
-        for (let cs of clientStats) {
-          if (cs.email) {
-            // deduplicate if id exists
-            if (cs.id !== undefined && cs.id !== null) {
-              const statKey = `${cs.id}_${cs.email}`;
-              if (seenStats.has(statKey)) continue;
-              seenStats.add(statKey);
+        // Try to get clientTraffics API directly for accurate unique stats
+        let trafficJson = null;
+        try {
+            const ctRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/getClientTraffics`, { method: "GET", headers }, 8000);
+            if (ctRes.ok) trafficJson = await ctRes.json();
+        } catch(e) {}
+        
+        if (trafficJson && trafficJson.success && Array.isArray(trafficJson.obj)) {
+          for (let cs of trafficJson.obj) {
+            if (cs.email) {
+              const lMail = cs.email.toLowerCase();
+              if (cs.id !== undefined && cs.id !== null) {
+                const statKey = `${cs.id}_${cs.email}`;
+                if (seenStats.has(statKey)) continue;
+                seenStats.add(statKey);
+              }
+              if (!trafficMap[lMail]) trafficMap[lMail] = { up: 0, down: 0, total: 0 };
+              trafficMap[lMail].up += Number(cs.up) || 0;
+              trafficMap[lMail].down += Number(cs.down) || 0;
+              trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+              if (cs.expiryTime) trafficMap[lMail].expiryTime = Number(cs.expiryTime);
+              if (cs.total) trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
             }
-            const lMail = cs.email.toLowerCase();
-            if (!trafficMap[lMail]) trafficMap[lMail] = { up: 0, down: 0, total: 0 };
-            trafficMap[lMail].up += Number(cs.up) || 0;
-            trafficMap[lMail].down += Number(cs.down) || 0;
-            trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
-            if (cs.expiryTime) trafficMap[lMail].expiryTime = Number(cs.expiryTime);
-            if (cs.total) trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
+          }
+        } else {
+          // Get all inbounds fallback
+          const inbRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 10000);
+          if (!inbRes.ok) continue;
+          
+          const inbJson = await inbRes.json();
+          if (!inbJson.success || !Array.isArray(inbJson.obj)) continue;
+
+          for (let inb of inbJson.obj) {
+            let clientStats = inb.clientStats || [];
+            for (let cs of clientStats) {
+              if (cs.email) {
+                // deduplicate if id exists
+                if (cs.id !== undefined && cs.id !== null) {
+                  const statKey = `${cs.id}_${cs.email}`;
+                  if (seenStats.has(statKey)) continue;
+                  seenStats.add(statKey);
+                }
+                const lMail = cs.email.toLowerCase();
+                if (!trafficMap[lMail]) trafficMap[lMail] = { up: 0, down: 0, total: 0 };
+                trafficMap[lMail].up += Number(cs.up) || 0;
+                trafficMap[lMail].down += Number(cs.down) || 0;
+                trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
+                if (cs.expiryTime) trafficMap[lMail].expiryTime = Number(cs.expiryTime);
+                if (cs.total) trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
+              }
+            }
           }
         }
+      } catch (err) {
+         // Continue
       }
     }
 

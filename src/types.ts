@@ -1,12 +1,24 @@
-export interface PanelSettings {
-  botToken: string;
-  botNickname?: string;
-  baseUrl: string;
-  subUrl?: string;
+export interface ServerConfig {
+  id: string;
+  name: string;
   panelUrl: string;
+  subUrl?: string;
   panelUsername: string;
   panelPassword: string;
   activeInboundIds: number[];
+  status?: "active" | "inactive";
+}
+
+export interface PanelSettings {
+  servers?: ServerConfig[];
+  botToken: string;
+  botNickname?: string;
+  baseUrl: string; // Deprecated, kept for backward compatibility
+  subUrl?: string; // Deprecated
+  panelUrl: string; // Deprecated
+  panelUsername: string; // Deprecated
+  panelPassword: string; // Deprecated
+  activeInboundIds: number[]; // Deprecated
   ownerId: number;
   geminiApiKey?: string;
   cardNumber?: string;

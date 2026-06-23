@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { VpnPlan, PanelSettings, InboundInfo, PlanCategory } from "../types";
 import { Language } from "../locales";
+import MultiServerConfig from "./MultiServerConfig";
 import { 
   Server, 
   Layers, 
@@ -74,163 +75,9 @@ export default function ServerManagement({
   // Safe Inline Deletion confirmation
   const [confirmDeletingId, setConfirmDeletingId] = useState<string | null>(null);
 
-  // 3x-ui Panel connection states
-  const [baseUrl, setBaseUrl] = useState(settings.baseUrl || "");
-  const [subUrl, setSubUrl] = useState(settings.subUrl || "");
-  const [panelUsername, setPanelUsername] = useState(settings.panelUsername || "");
-  const [panelPassword, setPanelPassword] = useState(settings.panelPassword || "");
-  const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
-  const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
-  
   // Simplify Inbounds display option
   const [showInbounds, setShowInbounds] = useState(false);
-  const [checkedInboundIds, setCheckedInboundIds] = useState<number[]>(() => {
-    return settings.activeInboundIds || [];
-  });
   const [inboundsSuccess, setInboundsSuccess] = useState(false);
-
-  // Sync inputs with parent settings prop changes
-  useEffect(() => {
-    setBaseUrl(settings.baseUrl || "");
-    setSubUrl(settings.subUrl || "");
-    setPanelUsername(settings.panelUsername || "");
-    setPanelPassword(settings.panelPassword || "");
-    setCheckedInboundIds(settings.activeInboundIds || []);
-  }, [settings]);
-
-  const handleDisconnectConfiguration = () => {
-    try {
-      setTestStatus({ type: "idle", message: "" });
-      onSaveSettings({
-        ...settings,
-        baseUrl: "",
-        subUrl: "",
-        panelUrl: "",
-        panelUsername: "",
-        panelPassword: "",
-        panelConnectionActive: false,
-        activeInboundIds: []
-      });
-      setBaseUrl("");
-      setSubUrl("");
-      setPanelUsername("");
-      setPanelPassword("");
-      setCheckedInboundIds([]);
-      setTestStatus({
-        type: "error",
-        message: lang === "fa" ? "🔌 اتصال با موفقیت قطع شد و اطلاعات پاک شدند." : "🔌 Connection disconnected and credentials cleared."
-      });
-      setTimeout(() => {
-        setTestStatus({ type: "idle", message: "" });
-      }, 3500);
-    } catch (err: any) {
-      console.error(err);
-    }
-  };
-
-  const handleSaveConfiguration = () => {
-    setSaveStatus({ type: "loading", message: "" });
-    try {
-      onSaveSettings({
-        ...settings,
-        baseUrl,
-        subUrl,
-        panelUrl: baseUrl,
-        panelUsername,
-        panelPassword,
-        activeInboundIds: checkedInboundIds
-      });
-      setSaveStatus({
-        type: "success",
-        message: lang === "fa" ? "✅ اطلاعات پنل ۳x-ui با موفقیت ذخیره شد." : "✅ Panel configuration saved successfully."
-      });
-      setTimeout(() => {
-        setSaveStatus({ type: "idle", message: "" });
-      }, 3500);
-    } catch (err: any) {
-      setSaveStatus({
-        type: "error",
-        message: lang === "fa" ? "❌ خطا در ذخیره اطلاعات." : "❌ Failed to save configuration."
-      });
-    }
-  };
-
-  const handleTestConnection = async () => {
-    setTestStatus({ 
-      type: "loading", 
-      message: lang === "fa" 
-        ? "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها..." 
-        : "Connecting to panel and retrieving inbounds..." 
-    });
-    try {
-      const response = await fetch("/api/xui/test-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseUrl,
-          panelUsername,
-          panelPassword
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setTestStatus({ type: "success", message: data.message });
-        if (Array.isArray(data.inbounds)) {
-          setInbounds(data.inbounds);
-          
-          // Auto-select all if nothing was selected yet
-          let nextChecked = checkedInboundIds;
-          if (checkedInboundIds.length === 0) {
-            nextChecked = data.inbounds.map((ib: any) => ib.id);
-            setCheckedInboundIds(nextChecked);
-          }
-
-          // Save credentials and set connection active state automatically forever
-          onSaveSettings({
-            ...settings,
-            baseUrl,
-            subUrl,
-            panelUrl: baseUrl,
-            panelUsername,
-            panelPassword,
-            panelConnectionActive: true,
-            activeInboundIds: nextChecked
-          });
-        } else {
-          onSaveSettings({
-            ...settings,
-            baseUrl,
-            subUrl,
-            panelUrl: baseUrl,
-            panelUsername,
-            panelPassword,
-            panelConnectionActive: true
-          });
-        }
-      } else {
-        setTestStatus({ type: "error", message: data.error });
-      }
-    } catch (err: any) {
-      setTestStatus({ 
-        type: "error", 
-        message: lang === "fa" 
-          ? "اتصال به هاست سرور با خطا مواجه شد. لطفاً بررسی کنید." 
-          : "Could not connect to panel host address." 
-      });
-    }
-  };
-
-  const handleSaveInboundSelection = () => {
-    setInboundsSuccess(false);
-    onSaveSettings({
-      ...settings,
-      activeInboundIds: checkedInboundIds
-    });
-    setInboundsSuccess(true);
-    setTimeout(() => {
-      setInboundsSuccess(false);
-    }, 2500);
-  };
 
   const startCreateNewPlan = () => {
     setEditingPlanId(null);
@@ -401,13 +248,13 @@ export default function ServerManagement({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
           <div className="space-y-1">
             <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-              {lang === "fa" ? "تعداد اینباندهای فعال در اتصال" : "Selected Active Inbounds"}
+              {lang === "fa" ? "تعداد سرورهای فعال" : "Active Servers"}
             </span>
             <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">
-              {checkedInboundCount}
+              {(settings.servers || []).filter(s => s.status !== 'inactive').length}
             </h3>
             <p className="text-[11px] text-emerald-400/80 font-sans">
-              {lang === "fa" ? "اینباند فعال جهت ارائه اشتراک" : "Sync inbounds for subscription links"}
+              {lang === "fa" ? "سرورهای متصل جهت ارائه اشتراک" : "Connected servers for subscriptions"}
             </p>
           </div>
           <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
@@ -431,294 +278,10 @@ export default function ServerManagement({
             <Sparkles className="w-6 h-6" />
           </div>
         </div>
-
-        <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
-          <div className="space-y-1">
-            <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-              {lang === "fa" ? "وضعیت: " : "Status: "}
-              {settings.panelConnectionActive ? (lang === "fa" ? "روشن" : "ON") : (lang === "fa" ? "خاموش" : "OFF")}
-            </span>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className={`w-2.5 h-2.5 rounded-full ${settings.panelConnectionActive ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`}></span>
-              <span className="text-sm font-bold text-white font-mono uppercase">
-                {lang === "fa" ? "اتصال پنل" : "Panel Link"}
-              </span>
-            </div>
-          </div>
-          <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
-            <Activity className="w-6 h-6" />
-          </div>
-        </div>
       </div>
 
-      {/* Sanaei 3x-ui Panel Direct API Connection Config Block */}
-      <div className="bg-gradient-to-br from-[#0c1020] to-[#121c35] border border-indigo-500/20 p-6 rounded-2xl space-y-6 shadow-lg shadow-black/40">
-        <div className="flex items-center justify-between border-b border-gray-850 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
-              <Cpu className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="font-display font-bold text-lg text-white">
-                {lang === "fa" ? "🔌 تنظیمات و احراز هویت پنل ۳x-ui" : "🔌 Sanaei 3x-ui Panel Direct API Connection"}
-              </h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {lang === "fa" 
-                  ? "اطلاعات پنل سنایی نسخه ۳x-ui خود را برای ساخت و تحویل اتوماتیک اکانت سابسکریپشن وارد کنید."
-                  : "Configure direct integration with your Sanaei 3x-ui panel to automate instant outbound client subscription deliveries."}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-3">
-            <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-              {lang === "fa" ? "آدرس کامل پنل (همراه با پورت و آدرس اختصاصی)" : "Panel Base URL (including Port & Path prefix)"}
-            </label>
-            <input
-              type="text"
-              className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              placeholder="e.g. https://panel.example.com:2053/secretPath"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-            />
-            <span className="text-[10px] text-gray-500 mt-1 block leading-relaxed">
-              {lang === "fa" ? "نکته مهم: حتماً پروتکل (http/https)، پورت سرور و در صورت وجود، آدرس فرعی (مثل Daltoon/) را دقیقاً مشابه تصویر بنویسید." : "Note: Must include protocol (http/https), port, and path prefix exactly as defined in your panel login."}
-            </span>
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-              {lang === "fa" ? "لینک سابسکریپشن (اختیاری)" : "Subscription URL Prefix (Optional)"}
-            </label>
-            <input
-              type="text"
-              className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              placeholder="e.g. https://sub.example.com:2096"
-              value={subUrl}
-              onChange={(e) => setSubUrl(e.target.value)}
-            />
-            <span className="text-[10px] text-gray-500 mt-1 block leading-relaxed">
-              {lang === "fa" ? "در صورتی که ساب دامین مجزا برای سابسکریپشن دارید وارد کنید (پورت یادتان نرود)." : "Enter your custom subscription domain + port if you have one."}
-            </span>
-          </div>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-gray-350 mb-1">
-              {lang === "fa" ? "نام کاربری پنل ادمین" : "Panel Username"}
-            </label>
-            <input
-              type="text"
-              className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-              placeholder="admin"
-              value={panelUsername}
-              onChange={(e) => setPanelUsername(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-gray-350 mb-1">
-              {lang === "fa" ? "کلمه عبور پنل ادمین یا توکن" : "Panel Password or Token"}
-            </label>
-            <input
-              type="password"
-              className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-              placeholder="••••••••"
-              value={panelPassword}
-              onChange={(e) => setPanelPassword(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 border border-indigo-400/20 active:scale-95"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`} />
-              {lang === "fa" ? "استعلام و اتصال به پنل" : "Check & Connect Panel"}
-            </button>
-          </div>
-        </div>
-
-        {settings.panelConnectionActive && (
-          <div className="flex justify-center pt-1">
-            <button
-              type="button"
-              onClick={handleDisconnectConfiguration}
-              className="w-full sm:w-auto px-6 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/40 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-2 active:scale-95"
-            >
-              <X className="w-4 h-4" />
-              {lang === "fa" ? "قطع اتصال از پنل ۳x-ui" : "Disconnect Connection from 3x-ui Panel"}
-            </button>
-          </div>
-        )}
-
-        {/* Test connection status alert feedback box */}
-        {testStatus.type !== "idle" && (
-          <div className={`p-3 rounded-lg text-xs leading-relaxed ${
-            testStatus.type === "success" 
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25" 
-              : testStatus.type === "loading"
-              ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 animate-pulse"
-              : "bg-rose-500/10 text-rose-400 border border-rose-500/25"
-          }`}>
-            <div className="flex items-center gap-1.5 font-medium">
-              {testStatus.type === "success" && <Check className="w-4 h-4 shrink-0 text-emerald-400" />}
-              {testStatus.type === "loading" && <span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0"></span>}
-              <span>{testStatus.message}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Expandable/Collapsible Inbounds List Option */}
-        {settings.panelConnectionActive && (
-          <div className="border border-indigo-500/15 rounded-xl bg-slate-950/40 p-1.5 overflow-hidden transition-all duration-300">
-            <button
-              type="button"
-              onClick={() => setShowInbounds(!showInbounds)}
-              className="w-full flex items-center justify-between p-3.5 text-xs text-indigo-300 hover:text-white transition font-semibold cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-400" />
-                <span>
-                  {lang === "fa" 
-                    ? `نمایش اینباند ها (${checkedInboundCount} انتخاب شده)` 
-                    : `Show Inbounds (${checkedInboundCount} selected)`}
-                </span>
-              </div>
-              {showInbounds ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {showInbounds && (
-              <div className="p-4 border-t border-indigo-500/10 space-y-4 animate-fade-in">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
-                      {lang === "fa" ? "اینباندهای فعال پنل ۳x-ui برای ساخت اشتراک کلاینت" : "Active Panel Inbounds for Clients"}
-                    </h4>
-                    <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">
-                      {lang === "fa" 
-                        ? "اینباندهای مورد نظر را انتخاب نمایید تا کلاینت همزمان برای تمام گزینه‌ها تولید شده و تحویل داده شود." 
-                        : "Check the inbounds that the dynamically generated customer credentials should be added to."}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setCheckedInboundIds(inbounds.map(ib => ib.id))}
-                      className="text-[9px] px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded cursor-pointer transition"
-                    >
-                      {lang === "fa" ? "گزینش همه" : "Select All"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCheckedInboundIds([])}
-                      className="text-[9px] px-2 py-1 bg-gray-850 hover:bg-gray-800 text-gray-400 border border-gray-750 rounded cursor-pointer transition"
-                    >
-                      {lang === "fa" ? "لغو همه" : "Deselect All"}
-                    </button>
-                  </div>
-                </div>
-
-                {inbounds.length === 0 ? (
-                  <div className="text-center py-6">
-                    <p className="text-xs text-gray-500">
-                      {lang === "fa" 
-                        ? "⚠️ هیچ اینباندی دریافت نشد. برای لود مجدد، دکمه «استعلام و اتصال به پنل» بالا را مجدداً بزنید." 
-                        : "⚠️ No inbounds retrieved yet. Please click 'Check & Connect Panel' to fetch them."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[260px] overflow-y-auto no-scrollbar pr-1 pt-1">
-                    {inbounds.map((ib) => {
-                      const isChecked = checkedInboundIds.includes(ib.id);
-                      return (
-                        <label 
-                          key={ib.id} 
-                          className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${
-                            isChecked 
-                              ? "bg-indigo-950/20 border-indigo-500/40 shadow-xs shadow-indigo-500/5 hover:border-indigo-500/60" 
-                              : "bg-[#111827] border-gray-800 hover:border-gray-700"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-1 rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setCheckedInboundIds(prev => [...prev, ib.id]);
-                              } else {
-                                setCheckedInboundIds(prev => prev.filter(id => id !== ib.id));
-                              }
-                            }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-semibold text-xs text-white truncate font-display">{ib.remark}</span>
-                              <span className="px-1.5 py-0.5 bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 text-[8px] font-bold font-mono rounded uppercase">
-                                {ib.protocol}
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 mt-2 text-[9px] text-gray-500 font-mono leading-tight">
-                              <div>Port: <span className="text-indigo-400 font-bold">{ib.port}</span></div>
-                              <div>Clients: <span className="text-white">{ib.totalClients}</span></div>
-                              <div className="col-span-2">Used: <span className="text-amber-400">{ib.trafficUsed} GB</span> / {ib.trafficLimit === "unlimited" ? (lang === "fa" ? "نامحدود" : "unlimited") : `${ib.trafficLimit} GB`}</div>
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-800/80">
-                  {inboundsSuccess && (
-                    <span className="text-xs text-emerald-400 font-semibold self-center flex items-center gap-1.5">
-                      <Check className="w-4 h-4" />
-                      {lang === "fa" ? "لیست گزینش اینباندها با موفقیت ذخیره شد." : "Inbounds preference stored successfully."}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleSaveInboundSelection}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer transition active:scale-95 shadow-md flex items-center gap-1.5"
-                  >
-                    <Save className="w-4 h-4" />
-                    {lang === "fa" ? "ذخیره و ثبت نهایی اینباندها" : "Save Inbounds Selection"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Centered Save Information button exactly below this card */}
-      <div className="flex flex-col items-center justify-center pt-2 pb-4 space-y-2.5">
-        <button
-          type="button"
-          onClick={handleSaveConfiguration}
-          className="mx-auto px-10 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-sm transition-all duration-300 shadow-lg hover:shadow-emerald-500/10 cursor-pointer flex items-center justify-center gap-2.5 active:scale-95 min-w-[220px]"
-        >
-          <Save className="w-4.5 h-4.5" />
-          {lang === "fa" ? "ذخیره اطلاعات پنل" : "Save Panel Information"}
-        </button>
-
-        {saveStatus.type !== "idle" && (
-          <div className={`p-2.5 px-6 rounded-xl text-xs font-semibold leading-relaxed animate-fade-in ${
-            saveStatus.type === "success" 
-              ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" 
-              : "bg-rose-500/15 text-rose-400 border border-rose-500/20"
-          }`}>
-            <span>{saveStatus.message}</span>
-          </div>
-        )}
-      </div>
+      {/* Multi-Server Config Block */}
+      <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} />
 
       {/* Plan Categories Management Section */}
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
@@ -810,9 +373,7 @@ export default function ServerManagement({
                 </button>
                 <button
                   onClick={() => {
-                    if (window.confirm(lang === "fa" ? "آیا از حذف این دسته‌بندی اطمینان دارید؟" : "Are you sure you want to delete this category?")) {
-                      handleDeleteCategory(cat.id);
-                    }
+                    handleDeleteCategory(cat.id);
                   }}
                   className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
                   title={lang === "fa" ? "حذف" : "Delete"}

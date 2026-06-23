@@ -832,7 +832,7 @@ export default function SettingsPanel({
                         window.location.reload();
                       }
                     } catch (err) {
-                      alert("Failed to wipe database.");
+                      console.error("Failed to wipe database.");
                     }
                   }
                 });
@@ -1483,6 +1483,7 @@ export default function SettingsPanel({
         </div>
 
       </form>
+
       <ConfirmationModal
         isOpen={deleteConfirmConfig.isOpen}
         message={deleteConfirmConfig.message}
