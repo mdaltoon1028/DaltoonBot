@@ -4127,8 +4127,10 @@ async function performAutoBackup() {
       body: formData as any,
     });
 
-    db.settings.lastAutoBackup = String(Date.now());
-    writeJsonDb(db);
+    const freshDb = readJsonDb();
+    if (!freshDb.settings) freshDb.settings = {};
+    freshDb.settings.lastAutoBackup = String(Date.now());
+    writeJsonDb(freshDb);
     console.log(`[Auto Backup] Successfully sent backup to owner ${ownerId}`);
   } catch (err: any) {
     console.error(`[Auto Backup Error]`, err.message);
@@ -4416,10 +4418,16 @@ async function autoCleanExpiredFreeTrials() {
       }
     }
 
-    db.subscription_keys = keysToKeep;
+    const freshDb = readJsonDb();
 
-    for (let u of db.users || []) {
-      u.activePlansCount = (db.subscription_keys || []).filter(
+    // We only remove keys that we specifically decided to delete earlier
+    const deletedIds = new Set(keysToDelete.map((k) => k.id));
+    freshDb.subscription_keys = (freshDb.subscription_keys || []).filter(
+      (k) => !deletedIds.has(k.id),
+    );
+
+    for (let u of freshDb.users || []) {
+      u.activePlansCount = (freshDb.subscription_keys || []).filter(
         (sk: any) =>
           sk.userId === u.userId &&
           sk.status === "active" &&
@@ -4427,7 +4435,7 @@ async function autoCleanExpiredFreeTrials() {
       ).length;
     }
 
-    writeJsonDb(db);
+    writeJsonDb(freshDb);
     console.log(
       `[Auto Cleanup] Successfully deleted ${keysToDelete.length} expired free trials from Panel and Local DB.`,
     );
@@ -4639,9 +4647,10 @@ async function autoSyncTrafficUsage() {
       }
     }
 
+    const freshDb = readJsonDb();
     let updatedCount = 0;
 
-    for (let k of db.subscription_keys || []) {
+    for (let k of freshDb.subscription_keys || []) {
       const matchName = (
         k.clientName ||
         k.planName ||
@@ -4688,7 +4697,7 @@ async function autoSyncTrafficUsage() {
 
       // Check Expiry Warning Feature (1GB remaining or 1 Day remaining)
       const isAutoWarningEnabled =
-        String(db.settings?.autoWarningConfigBtn || "true") !== "false";
+        String(freshDb.settings?.autoWarningConfigBtn || "true") !== "false";
       let expDateObj = null;
       let remainingDays = 999;
       const remainingGb = (k.trafficLimitGb || 50) - (k.trafficUsedGb || 0);
@@ -4733,7 +4742,8 @@ async function autoSyncTrafficUsage() {
 
       // Check No-Connection Warning Alert
       const isNoConnAlertEnabled =
-        String(db.settings?.autoWarningNoConnectionBtn || "true") !== "false";
+        String(freshDb.settings?.autoWarningNoConnectionBtn || "true") !==
+        "false";
       if (
         isNoConnAlertEnabled &&
         !k.noConnectionWarningSent &&
@@ -4794,7 +4804,7 @@ async function autoSyncTrafficUsage() {
 
       // Check First Connection Alert
       const isFirstConnAlertEnabled =
-        String(db.settings?.autoWarningFirstConnectionBtn || "true") !==
+        String(freshDb.settings?.autoWarningFirstConnectionBtn || "true") !==
         "false";
       if (
         isFirstConnAlertEnabled &&
@@ -4831,9 +4841,12 @@ async function autoSyncTrafficUsage() {
     }
 
     // Now recalculate colleague accounts' usedTrafficGb based on allocated limits
-    if (db.colleague_accounts && Array.isArray(db.colleague_accounts)) {
-      for (const colAcc of db.colleague_accounts) {
-        const colKeys = (db.subscription_keys || []).filter(
+    if (
+      freshDb.colleague_accounts &&
+      Array.isArray(freshDb.colleague_accounts)
+    ) {
+      for (const colAcc of freshDb.colleague_accounts) {
+        const colKeys = (freshDb.subscription_keys || []).filter(
           (k: any) => k.colleagueAccountId === colAcc.id,
         );
         const totalUsed = colKeys.reduce(
@@ -4861,7 +4874,7 @@ async function autoSyncTrafficUsage() {
     }
 
     if (updatedCount > 0) {
-      writeJsonDb(db);
+      writeJsonDb(freshDb);
       console.log(
         `[Auto Sync Usage] Updated traffic usage for ${updatedCount} subscriptions.`,
       );
