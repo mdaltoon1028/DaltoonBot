@@ -386,7 +386,8 @@ export default function ColleaguesManagement({
                        <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg overflow-x-auto">
                         {['📁', '⭐', '🚀', '💎'].map(em => (
                           <button key={em} onClick={() => setCatEmoji(em)} className={`w-6 h-6 flex items-center justify-center rounded text-xs hover:bg-white/5 ${catEmoji === em ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>{em}</button>
-                        ))}
+                         ))}
+
                        </div>
                      </div>
                    </div>
@@ -450,9 +451,6 @@ export default function ColleaguesManagement({
                        <option value="">{lang === "fa" ? "بدون دسته‌بندی" : "No Category"}</option>
                        {colleagueCategories.map(cat => (
                          <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
-                       ))}
-                       {planCategories.map(cat => (
-                         <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name} (Global)</option>
                        ))}
                      </select>
                      <input 
@@ -518,7 +516,7 @@ export default function ColleaguesManagement({
                   <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
                   {p.category && (
                     <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
-                      {colleagueCategories.find(c => c.name === p.category)?.emoji || planCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
+                      {colleagueCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
                     </span>
                   )}
                 </div>

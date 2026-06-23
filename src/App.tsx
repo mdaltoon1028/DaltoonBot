@@ -17,11 +17,26 @@ import {
   X,
   Clock,
   Tag,
-  MessageSquare
+  MessageSquare,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 
 // Types & Data
-import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey, CustomButton, GiftCode, PromoCode, Ticket, PlanCategory } from "./types";
+import { 
+  PanelSettings, 
+  InboundInfo, 
+  User, 
+  Transaction, 
+  VpnPlan, 
+  SubscriptionKey, 
+  CustomButton, 
+  GiftCode, 
+  PromoCode, 
+  PlanCategory,
+  Ticket
+} from "./types";
+
 import { Language, translations } from "./locales";
 import { 
   initialSettings, 
@@ -39,6 +54,7 @@ import TransactionApproval from "./components/TransactionApproval";
 import BotSimulator from "./components/BotSimulator";
 import ServerManagement from "./components/ServerManagement";
 import ColleaguesManagement from "./components/ColleaguesManagement";
+import ColleagueAccounts from "./components/ColleagueAccounts";
 import SettingsPanel from "./components/SettingsPanel";
 import BotButtonsPanel from "./components/BotButtonsPanel";
 import GiftCodeManager from "./components/GiftCodeManager";
@@ -315,7 +331,7 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleagues" | "buttons" | "giftcodes" | "promocodes" | "tickets" | "logs" | "settings" | "guide" | "xui_connector">(() => {
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "transactions" | "simulator" | "servers" | "colleague_accounts" | "colleagues" | "buttons" | "giftcodes" | "promocodes" | "tickets" | "logs" | "settings" | "guide" | "xui_connector">(() => {
     const cached = localStorage.getItem("daltoon_active_tab");
     return (cached as any) || "dashboard";
   });
@@ -1007,17 +1023,17 @@ export default function App() {
               {t.tabSimulator}
             </button>
 
-            <button
-              onClick={() => setActiveTab("servers")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
-                activeTab === "servers" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <Server className="w-4 h-4" />
-              {t.tabServers}
-            </button>
+             <button
+               onClick={() => setActiveTab("servers")}
+               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+                 activeTab === "servers" 
+                   ? "bg-indigo-600/10 text-indigo-400" 
+                   : "text-gray-400 hover:text-white hover:bg-white/5"
+               }`}
+             >
+               <Server className="w-4 h-4" />
+               {lang === "fa" ? "مدیریت سرورها" : "Server Management"}
+             </button>
 
             <button
               onClick={() => setActiveTab("colleagues")}
@@ -1260,6 +1276,16 @@ export default function App() {
               inbounds={inbounds}
               setInbounds={setInbounds}
             />
+          )}
+
+          {activeTab === "colleague_accounts" && (
+            <div className="p-4 md:p-6 pb-24">
+              <ColleagueAccounts
+                 accounts={colleagueAccounts}
+                 setAccounts={setColleagueAccounts}
+                 lang={lang}
+              />
+            </div>
           )}
 
           {activeTab === "colleagues" && (

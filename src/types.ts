@@ -194,6 +194,23 @@ export interface GiftCode {
   durationDays?: number;
 }
 
+export interface TicketMessage {
+  sender: "user" | "admin";
+  message: string;
+  date: string;
+}
+
+export interface Ticket {
+  id: string; // unique tracking number
+  userId: number;
+  username: string;
+  subject: string;
+  status: "open" | "answered" | "closed";
+  messages: TicketMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ColleaguePackage {
   id: string;
   title: string;
@@ -248,21 +265,5 @@ export interface PromoCode {
   durationDays?: number;
 }
 
-export interface TicketMessage {
-  sender: "user" | "admin";
-  message: string;
-  date: string;
-}
-
-export interface Ticket {
-  id: string; // unique tracking number
-  userId: number;
-  username: string;
-  subject: string;
-  status: "open" | "answered" | "closed";
-  messages: TicketMessage[];
-  createdAt: string;
-  updatedAt: string;
-}
 
 

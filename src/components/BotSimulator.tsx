@@ -523,7 +523,7 @@ export default function BotSimulator({
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
         const cats = new Set<string>();
-        plans.forEach(p => cats.add(p.category || "Standard"));
+        plans.forEach(p => cats.add(p.category || (lang === "fa" ? "سایر" : "Others")));
         const definedCats = planCategories || [];
         
         const inlineCats: any[] = [];
@@ -806,7 +806,7 @@ export default function BotSimulator({
 
     if (action.startsWith("plcat_")) {
       const catName = action.replace("plcat_", "");
-      const filteredPlans = plans.filter(p => (p.category || "Standard").toLowerCase() === catName.toLowerCase());
+      const filteredPlans = plans.filter(p => (p.category || (lang === "fa" ? "سایر" : "Others")).toLowerCase() === catName.toLowerCase());
       
       const inlinePlans: any[] = filteredPlans.map(p => ({
         text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
@@ -890,7 +890,7 @@ export default function BotSimulator({
             `👇 <b>جهت کپی کردن، روی هر لینک ضربه بزنید یا لمس کنید:</b>\n\n` +
             vlinks.map(l => `<code>${l}</code>`).join("\n\n") +
             `\n\n💡 این لینک‌ها را کپی کرده و مستقیماً در نرم‌افزارهای V2ray خود وارد نمایید.`
-          : `⚡ <b>Your Standard VLESS Configs:</b>\n\n` +
+          : `⚡ <b>Your Configs:</b>\n\n` +
             `👤 Service: <code>${name}</code>\n\n` +
             `👇 <b>Tap any config to copy:</b>\n\n` +
             vlinks.map(l => `<code>${l}</code>`).join("\n\n") +

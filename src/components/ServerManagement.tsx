@@ -788,33 +788,47 @@ export default function ServerManagement({
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {planCategories.map(cat => (
-            <div key={cat.id} className="group relative bg-[#1c253b] border border-gray-800 p-3 rounded-xl hover:border-purple-500/50 transition-all">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{cat.emoji}</span>
-                <span className="text-xs font-bold text-gray-200">{cat.name}</span>
+            <div key={cat.id} className="bg-[#1c253b] border border-gray-800 p-4 rounded-xl hover:border-purple-500/50 transition-all flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{cat.emoji}</span>
+                <span className="text-sm font-bold text-white">{cat.name}</span>
               </div>
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setEditingCategoryId(cat.id);
                     setCatName(cat.name);
                     setCatEmoji(cat.emoji || "⚡️");
+                    setIsAddingCat(false);
                   }}
-                  className="p-1 bg-indigo-500/20 text-indigo-400 rounded hover:bg-indigo-500/30"
+                  className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors"
+                  title={lang === "fa" ? "ویرایش" : "Edit"}
                 >
-                  <Edit className="w-3 h-3" />
+                  <Edit className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => handleDeleteCategory(cat.id)}
-                  className="p-1 bg-rose-500/20 text-rose-400 rounded hover:bg-rose-500/30"
+                  onClick={() => {
+                    if (window.confirm(lang === "fa" ? "آیا از حذف این دسته‌بندی اطمینان دارید؟" : "Are you sure you want to delete this category?")) {
+                      handleDeleteCategory(cat.id);
+                    }
+                  }}
+                  className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
+                  title={lang === "fa" ? "حذف" : "Delete"}
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           ))}
+          {planCategories.length === 0 && (
+            <div className="col-span-full py-8 text-center bg-[#1c253b]/50 border border-dashed border-gray-800 rounded-xl">
+              <p className="text-xs text-gray-500">
+                {lang === "fa" ? "هنوز هیچ دسته‌بندی ایجاد نشده است." : "No categories created yet."}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

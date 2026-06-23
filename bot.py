@@ -1743,7 +1743,7 @@ def buy_cmd(message):
         # Legacy fallback: derive from plans
         seen_cats = set()
         for p in db_plans:
-            cat = p.get("category", "Standard")
+            cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
             if cat not in seen_cats:
                 categories.append(cat)
                 seen_cats.add(cat)
@@ -3299,9 +3299,9 @@ def callback_handler(call):
                 }
             else:
                 plan_specs = {
-                    "std_30g": {"id": "std_30g", "name": "Standard 30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
-                    "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
-                    "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
+                    "std_30g": {"id": "std_30g", "name": "30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
+                    "vip_70g": {"id": "vip_70g", "name": "Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
+                    "ult_150g": {"id": "ult_150g", "name": "VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
                 }
                 spec = plan_specs.get(plan_id)
                 
@@ -3342,9 +3342,9 @@ def callback_handler(call):
                 }
             else:
                 plan_specs = {
-                    "std_30g": {"id": "std_30g", "name": "Standard 30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
-                    "vip_70g": {"id": "vip_70g", "name": "VIP Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
-                    "ult_150g": {"id": "ult_150g", "name": "Unlimited VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
+                    "std_30g": {"id": "std_30g", "name": "30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
+                    "vip_70g": {"id": "vip_70g", "name": "Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
+                    "ult_150g": {"id": "ult_150g", "name": "VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
                 }
                 spec = plan_specs.get(plan_id)
                 
@@ -3550,11 +3550,16 @@ def callback_handler(call):
         process_col_renew_payment(message, acc_id, package)
         return
 
-    if call.data.startswith("col_"):
+    if call.data.startswith("col_") and not call.data.startswith("col_pay:"):
         bot.answer_callback_query(call.id)
         parts = call.data.split("_")
         action = parts[1]
-        acc_id = parts[2]
+        
+        try:
+            acc_id = parts[2]
+        except IndexError:
+            bot.edit_message_text("❌ دیتای ناقص.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
         
         db = read_db_json()
         accounts = db.get("colleague_accounts", [])
@@ -3960,7 +3965,7 @@ def callback_handler(call):
         
         plans_data = []
         for dp in db_plans:
-            cat = dp.get("category", "Standard")
+            cat = dp.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
             # Case insensitive comparison for robustness
             if cat.lower() == category_name.lower():
                 plans_data.append({
@@ -3975,10 +3980,6 @@ def callback_handler(call):
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
         display_cat = category_name
-        # Add basic mapping for common ones if desired, otherwise use as provided
-        if category_name.lower() == "standard": display_cat = "Standard"
-        elif category_name.lower() == "vip": display_cat = "Vip"
-        elif "voip" in category_name.lower(): display_cat = "Unlimited VoIp"
             
         message_body = (
             f"⚡️ <b>پلن‌های بخش {display_cat} - {nickname}</b>\n\n"

@@ -142,15 +142,7 @@ function readJsonDb(): DbSchema {
         users: [],
         transactions: [],
         subscription_keys: [],
-        vpn_plans: [
-          { id: "std_1m_30g", name: "یک‌ماهه ۳۰ گیگابایت", durationDays: 30, trafficGb: 30, price: 60000, category: "Standard" },
-          { id: "std_1m_50g", name: "یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 90000, category: "Standard" },
-          { id: "std_1m_100g", name: "یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 150000, category: "Standard" },
-          { id: "vip_1m_50g", name: "وی‌آی‌پی یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 110000, category: "Vip" },
-          { id: "vip_1m_100g", name: "وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 180000, category: "Vip" },
-          { id: "vip_3m_200g", name: "وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت", durationDays: 90, trafficGb: 200, price: 320000, category: "Vip" },
-          { id: "unl_1m_unlimit", name: "یک‌ماهه نامحدود", durationDays: 30, trafficGb: 0, price: 250000, category: "Unlimited" }
-        ],
+        vpn_plans: [],
         colleague_packages: [],
         colleague_accounts: [],
         colleague_categories: [],
@@ -159,11 +151,7 @@ function readJsonDb(): DbSchema {
         gift_codes: [],
         promo_codes: [],
         tickets: [],
-        plan_categories: [
-          { id: "1", name: "Standard", emoji: "⚡️" },
-          { id: "2", name: "Vip", emoji: "⭐️" },
-          { id: "3", name: "Unlimited", emoji: "🚀" }
-        ],
+        plan_categories: [],
         settings: {
           panel_config: JSON.stringify({
             botToken: process.env.BOT_TOKEN || "",
@@ -219,25 +207,13 @@ function readJsonDb(): DbSchema {
 
     // Seed vpn_plans ONLY if the database was just created from scratch
     if (db.isNewInstall && (!db.vpn_plans || db.vpn_plans.length === 0)) {
-      db.vpn_plans = [
-        { id: "std_1m_30g", name: "یک‌ماهه ۳۰ گیگابایت", durationDays: 30, trafficGb: 30, price: 60000, category: "Standard" },
-        { id: "std_1m_50g", name: "یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 90000, category: "Standard" },
-        { id: "std_1m_100g", name: "یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 150000, category: "Standard" },
-        { id: "vip_1m_50g", name: "وی‌آی‌پی یک‌ماهه ۵۰ گیگابایت", durationDays: 30, trafficGb: 50, price: 110000, category: "Vip" },
-        { id: "vip_1m_100g", name: "وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت", durationDays: 30, trafficGb: 100, price: 180000, category: "Vip" },
-        { id: "vip_3m_200g", name: "وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت", durationDays: 90, trafficGb: 200, price: 320000, category: "Vip" },
-        { id: "unl_1m_unlimit", name: "یک‌ماهه نامحدود", durationDays: 30, trafficGb: 0, price: 250000, category: "Unlimited" }
-      ];
+      db.vpn_plans = [];
       modified = true;
     }
 
     // Seed plan_categories ONLY if the database was just created from scratch
     if (db.isNewInstall && (!db.plan_categories || db.plan_categories.length === 0)) {
-      db.plan_categories = [
-        { id: "1", name: "Standard", emoji: "⚡️" },
-        { id: "2", name: "Vip", emoji: "⭐️" },
-        { id: "3", name: "Unlimited", emoji: "🚀" }
-      ];
+      db.plan_categories = [];
       modified = true;
     }
 
