@@ -866,11 +866,11 @@ export default function BotSimulator({
       let serverId = "";
       let catName = action.replace("plcat_", "");
       
-      // Extract serverId if it exists (plcat_SERVERID_CATEGORY)
-      if (catName.includes("_")) {
+      // Extract serverId if it exists (plcat_srv_xxxxxx_CATEGORY)
+      if (catName.startsWith("srv_")) {
         const parts = catName.split("_");
-        serverId = parts[0];
-        catName = parts.slice(1).join("_");
+        serverId = parts[0] + "_" + parts[1];
+        catName = parts.slice(2).join("_");
       }
       
       const filteredPlans = plans.filter(p => (p.category || (lang === "fa" ? "سایر" : "Others")).toLowerCase() === catName.toLowerCase());
@@ -1280,14 +1280,15 @@ export default function BotSimulator({
     }
 
     if (action.startsWith("buy_")) {
-      const parts = action.replace("buy_", "").split("_");
+      const stripped = action.replace("buy_", "");
       let serverId = "";
       let planId = "";
-      if (parts.length > 1) {
-        serverId = parts[0];
-        planId = parts.slice(1).join("_");
+      if (stripped.startsWith("srv_")) {
+        const parts = stripped.split("_");
+        serverId = parts[0] + "_" + parts[1];
+        planId = parts.slice(2).join("_");
       } else {
-        planId = parts[0];
+        planId = stripped;
       }
       
       const matchedPlan = plans.find(p => p.id === planId);

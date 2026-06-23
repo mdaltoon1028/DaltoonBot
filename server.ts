@@ -1609,7 +1609,8 @@ async function addVpnClientApi(
   trafficGb: number,
   durationDays: number,
   settings: any,
-  clientUuid?: string
+  clientUuid?: string,
+  serverId?: string
 ): Promise<{ success: boolean; clientUuid?: string; subLink?: string; error?: string }> {
   try {
     // Check locally first
@@ -1627,8 +1628,14 @@ async function addVpnClientApi(
       return { success: false, error: "تنظیمات اتصال به پنل کامل نیست یا سرور فعالی وجود ندارد." };
     }
     
-    // Pick a random server for load balancing
-    const server = activeServers[Math.floor(Math.random() * activeServers.length)];
+    // Pick a random server for load balancing, or use specific serverId if provided
+    let server = activeServers[Math.floor(Math.random() * activeServers.length)];
+    if (serverId) {
+      const matchingServer = activeServers.find((s: any) => s.id === serverId);
+      if (matchingServer) {
+        server = matchingServer;
+      }
+    }
 
     const cleanedUrl = normalizeXuiUrl(server.panelUrl);
     const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
@@ -2477,7 +2484,7 @@ app.post("/api/transactions/approve", async (req, res) => {
             const planTraffic = Number(plan.trafficGb) || 30;
             const planDuration = Number(plan.durationDays) || 30;
 
-            const vpnResult = await addVpnClientApi(clientName, planTraffic, planDuration, settings);
+            const vpnResult = await addVpnClientApi(clientName, planTraffic, planDuration, settings, undefined, tx.serverId);
             if (vpnResult.success && vpnResult.subLink) {
               const subLink = vpnResult.subLink;
               messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🔗 لینک اشتراک:\n<code>${subLink}</code>\n\n⚠️ لینک خود را در کلاینت خود وارد کنید.`;
@@ -2501,7 +2508,8 @@ app.post("/api/transactions/approve", async (req, res) => {
                 trafficLimitGb: planTraffic,
                 trafficUsedGb: 0,
                 createdAtMs: Date.now(),
-                status: "active"
+                status: "active",
+                serverId: tx.serverId
               });
 
               if (!db.logs) db.logs = [];

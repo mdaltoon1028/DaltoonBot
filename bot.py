@@ -1178,20 +1178,21 @@ def pop_user_pending_charge(tg_id):
         return amount
     return None
 
-def set_user_pending_purchase(tg_id, plan_id, client_name):
+def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["pendingPurchasePlanId"] = plan_id
         user["pendingPurchaseClientName"] = client_name
+        user["pendingPurchaseServerId"] = server_id
         write_db_json(db)
 
 def get_user_pending_purchase(tg_id):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
-        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName")
-    return None, None
+        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName"), user.get("pendingPurchaseServerId")
+    return None, None, None
 
 def clear_user_pending_purchase(tg_id):
     db = read_db_json()
@@ -1199,6 +1200,7 @@ def clear_user_pending_purchase(tg_id):
     if user:
         user.pop("pendingPurchasePlanId", None)
         user.pop("pendingPurchaseClientName", None)
+        user.pop("pendingPurchaseServerId", None)
         write_db_json(db)
 
 def to_persian_digits(s):
@@ -2458,7 +2460,7 @@ def process_purchase_username_manual(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         return
 
-    set_user_pending_purchase(tg_id, plan_id, username_input)
+    set_user_pending_purchase(tg_id, plan_id, username_input, spec.get("server_id"))
     
     # User request: Ask for discount code after entering name
     markup = types.InlineKeyboardMarkup()
@@ -2492,7 +2494,7 @@ def handle_buy_pay(call):
         return
 
     # User pending data
-    pending_plan, pending_client = get_user_pending_purchase(tg_id)
+    pending_plan, pending_client, pending_server_id = get_user_pending_purchase(tg_id)
 
     spec = {
         "id": db_plan["id"],
@@ -2500,7 +2502,8 @@ def handle_buy_pay(call):
         "price": db_plan["price"],
         "traffic": db_plan.get("trafficGb", 30),
         "duration": db_plan.get("durationDays", 30),
-        "price_original": db_plan["price"]
+        "price_original": db_plan["price"],
+        "server_id": pending_server_id
     }
     
     if promo_code != "none":
@@ -4097,15 +4100,19 @@ def callback_handler(call):
     if call.data.startswith("plcat_"):
         bot.answer_callback_query(call.id)
         
-        parts = call.data.replace("plcat_", "").split("_", 1)
+        data_stripped = call.data.replace("plcat_", "")
         server_id = ""
         category_name = ""
         
-        if len(parts) == 2 and parts[0].startswith("srv"):
-            server_id = parts[0]
-            category_name = parts[1]
+        if data_stripped.startswith("srv_"):
+            parts = data_stripped.split("_", 2)
+            if len(parts) == 3:
+                server_id = f"{parts[0]}_{parts[1]}"
+                category_name = parts[2]
+            else:
+                category_name = data_stripped
         else:
-            category_name = call.data.replace("plcat_", "")
+            category_name = data_stripped
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
@@ -4162,14 +4169,19 @@ def callback_handler(call):
     if call.data.startswith("buy_"):
         bot.answer_callback_query(call.id)
         
-        parts = call.data.replace("buy_", "").split("_", 1)
+        data_stripped = call.data.replace("buy_", "")
         server_id = ""
         plan_id = ""
-        if len(parts) == 2 and parts[0].startswith("srv"):
-            server_id = parts[0]
-            plan_id = parts[1]
+        
+        if data_stripped.startswith("srv_"):
+            parts = data_stripped.split("_", 2)
+            if len(parts) == 3:
+                server_id = f"{parts[0]}_{parts[1]}"
+                plan_id = parts[2]
+            else:
+                plan_id = data_stripped
         else:
-            plan_id = call.data.replace("buy_", "")
+            plan_id = data_stripped
             
         tg_id = call.fromuser.id if hasattr(call, "fromuser") else call.from_user.id
         
@@ -5744,7 +5756,7 @@ def handle_receipt_upload(message):
          return
 
     # Check for pending purchase
-    pending_plan_id, pending_username = get_user_pending_purchase(tg_id)
+    pending_plan_id, pending_username, pending_server_id = get_user_pending_purchase(tg_id)
 
     # Look up selected amount or fallback to regex extraction or default
     extracted_amount = 0
@@ -5821,6 +5833,7 @@ def handle_receipt_upload(message):
             if pending_plan_id:
                 new_tx["planId"] = pending_plan_id
                 new_tx["clientName"] = pending_username
+                new_tx["serverId"] = pending_server_id
                 new_tx["type"] = "PLAN_PURCHASE"
             
             db["transactions"].insert(0, new_tx)
