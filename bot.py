@@ -74,11 +74,14 @@ def write_db_json(data):
         print("[JSON Database Write Warning] Refusing to write empty or error-state database to avoid data loss.")
         return False
     try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
+        tmp_file = DB_FILE + ".tmp"
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
+        os.replace(tmp_file, DB_FILE)
         return True
     except Exception as e:
         print(f"[JSON Database Write Error] {e}")
+        return False
         return False
 
 def normalize_xui_url(url):
@@ -2314,15 +2317,15 @@ def handle_main_menu_callback(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         vless_links = get_client_vless_links(free_username, client_uuid, sub_link)
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
             f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
             f"👤 نام کاربری تست: <code>{free_username}</code>\n"
             f"⏳ اعتبار: ۱ روز\n"
             f"💬 حجم: ۱۰۰ مگابایت\n\n"
-            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
+            f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
         )
         
         try:
@@ -2640,7 +2643,7 @@ def handle_buy_pay(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -2648,8 +2651,8 @@ def handle_buy_pay(call):
             f"👤 شناسه: <code>{username_input}</code>\n"
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"💬 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n\n"
-            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
+            f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
@@ -2954,7 +2957,7 @@ def process_purchase_username(message, plan_id, spec):
         )
         
         vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -2963,8 +2966,8 @@ def process_purchase_username(message, plan_id, spec):
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"💬 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n"
             f"💳 هزینه کسر شده: {price_charged_display}\n\n"
-            f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
+            f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
         )
         
         # Build markup with copy button at the top, and append custom menu keys
@@ -4897,15 +4900,15 @@ def process_col_create_days(message, acc, name, gb):
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
     vless_links = get_client_vless_links(full_name, client_uuid, sub_link)
-    links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else "⚠️ خطا در تولید لینک‌های هوشمند."
+    links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
     text_msg = (
         f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
         f"👤 <b>نام:</b> {full_name}\n"
         f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
         f"⏳ <b>اعتبار:</b> {days} روز\n\n"
-        f"👇 جهت کپی کردن لینک اشتراک، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
+        f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
     )
     
     # Build markup with copy button at the top, and append custom menu keys

@@ -368,7 +368,7 @@ export default function SettingsPanel({
         </p>
 
         <div className="space-y-3">
-          <div className="relative group">
+          <div className="flex flex-col gap-2">
             <textarea
               ref={broadcastAreaRef}
               rows={3}
@@ -377,7 +377,7 @@ export default function SettingsPanel({
               value={broadcastText}
               onChange={(e) => setBroadcastText(e.target.value)}
             />
-            <div className="absolute right-2 bottom-2 flex gap-1">
+            <div className="flex justify-end gap-1" dir="ltr">
               <button
                 type="button"
                 onClick={() => applyFormat("bold")}

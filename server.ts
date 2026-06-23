@@ -284,7 +284,9 @@ function readJsonDb(): DbSchema {
 // Function to write back data
 function writeJsonDb(data: DbSchema) {
   try {
-    fs.writeFileSync(dbJsonPath, JSON.stringify(data, null, 2), "utf8");
+    const tmpPath = dbJsonPath + ".tmp";
+    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
+    fs.renameSync(tmpPath, dbJsonPath);
   } catch (err) {
     console.error("[Database] Write error to JSON store:", err);
   }
@@ -3080,7 +3082,24 @@ app.post("/api/transactions/approve", async (req, res) => {
               );
               if (vpnResult.success && vpnResult.subLink) {
                 const subLink = vpnResult.subLink;
-                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🔗 لینک اشتراک:\n<code>${subLink}</code>\n\n⚠️ لینک خود را در کلاینت خود وارد کنید.`;
+                
+                let vlessLinks: string[] = [];
+                try {
+                  const fetchRef = globalThis.fetch || fetch;
+                  const res = await fetchRef(subLink);
+                  if (res.ok) {
+                    const text = await res.text();
+                    const decoded = Buffer.from(text, 'base64').toString('utf-8');
+                    vlessLinks = decoded.split('\n').filter(l => l.trim().length > 0 && l.startsWith('vless://'));
+                  }
+                } catch(e) {}
+
+                let linksDisplay = `<code>${subLink}</code>`;
+                if (vlessLinks.length > 0) {
+                    linksDisplay = vlessLinks.map(l => `<code>${l}</code>`).join("\n\n");
+                }
+
+                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksDisplay}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
 
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId =
@@ -3178,14 +3197,9 @@ app.post("/api/transactions/approve", async (req, res) => {
             let qrUrl: string | null = null;
             if (
               tx.type === "PLAN_PURCHASE" &&
-              typeof messageTextForNotif === "string" &&
-              messageTextForNotif.includes("✅ <b>کانفیگ شما آماده شد!</b>")
+              tx._generatedSubLink
             ) {
-              // extract the sublink safely, or we could have just passed it down
-              const match = messageTextForNotif.match(/<code>([^<]+)<\/code>/);
-              if (match && match[1]) {
-                qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(match[1])}`;
-              }
+              qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(tx._generatedSubLink)}`;
             }
 
             const messageText = messageTextForNotif;
