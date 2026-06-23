@@ -221,6 +221,12 @@ export interface ColleagueAccount {
   status: "active" | "expired" | "suspended";
 }
 
+export interface ColleagueCategory {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
 export interface BotActionLog {
   id: string;
   date: string;

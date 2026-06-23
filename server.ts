@@ -127,6 +127,7 @@ interface DbSchema {
   tickets?: any[];
   colleague_packages?: any[];
   colleague_accounts?: any[];
+  colleague_categories?: any[];
   logs?: any[];
   plan_categories?: any[];
   settings: Record<string, string>;
@@ -152,6 +153,7 @@ function readJsonDb(): DbSchema {
         ],
         colleague_packages: [],
         colleague_accounts: [],
+        colleague_categories: [],
         inbounds: [],
         custom_buttons: [],
         gift_codes: [],
@@ -812,6 +814,36 @@ app.post("/api/colleague-packages/delete", (req, res) => {
   db.colleague_packages = db.colleague_packages.filter(p => p.id !== req.body.id);
   writeJsonDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
+});
+
+// --- Colleague Category Endpoints ---
+app.get("/api/colleague-categories", (req, res) => {
+  const db = readJsonDb();
+  res.json(db.colleague_categories || []);
+});
+
+app.post("/api/colleague-categories/save", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_categories) db.colleague_categories = [];
+  const { id, name, emoji } = req.body;
+  if (!name) return res.status(400).json({ error: "Missing name" });
+  
+  const existingIdx = db.colleague_categories.findIndex(c => c.id === id);
+  if (existingIdx !== -1) {
+    db.colleague_categories[existingIdx] = { id, name, emoji: emoji || "📁" };
+  } else {
+    db.colleague_categories.push({ id, name, emoji: emoji || "📁" });
+  }
+  writeJsonDb(db);
+  res.json({ success: true, colleagueCategories: db.colleague_categories });
+});
+
+app.post("/api/colleague-categories/delete", (req, res) => {
+  const db = readJsonDb();
+  if (!db.colleague_categories) db.colleague_categories = [];
+  db.colleague_categories = db.colleague_categories.filter(c => c.id !== req.body.id);
+  writeJsonDb(db);
+  res.json({ success: true, colleagueCategories: db.colleague_categories });
 });
 
 app.post("/api/colleague-accounts/delete", (req, res) => {

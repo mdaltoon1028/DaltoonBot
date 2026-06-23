@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { ColleaguePackage, ColleagueAccount, PlanCategory } from "../types";
-import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity } from "lucide-react";
+import { ColleaguePackage, ColleagueAccount, ColleagueCategory, PlanCategory } from "../types";
+import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity, Layers, Smile } from "lucide-react";
 
 interface Props {
   packages: ColleaguePackage[];
@@ -9,10 +9,21 @@ interface Props {
   setAccounts: (a: ColleagueAccount[]) => void;
   lang: string;
   planCategories?: PlanCategory[];
+  colleagueCategories?: ColleagueCategory[];
+  setColleagueCategories?: (c: ColleagueCategory[]) => void;
 }
 
-export default function ColleaguesManagement({ packages, accounts, setPackages, setAccounts, lang, planCategories = [] }: Props) {
-  const [activeTab, setActiveTab] = useState<"packages" | "accounts">("packages");
+export default function ColleaguesManagement({ 
+  packages, 
+  accounts, 
+  setPackages, 
+  setAccounts, 
+  lang, 
+  planCategories = [], 
+  colleagueCategories = [], 
+  setColleagueCategories 
+}: Props) {
+  const [activeTab, setActiveTab] = useState<"packages" | "accounts" | "categories">("packages");
   const [loading, setLoading] = useState(false);
 
   const [localToast, setLocalToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -75,6 +86,12 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
   const [pCategory, setPCategory] = useState("");
   const [pDesc, setPDesc] = useState("");
 
+  // Category Form
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [catEditingId, setCatEditingId] = useState<string | null>(null);
+  const [catName, setCatName] = useState("");
+  const [catEmoji, setCatEmoji] = useState("📁");
+
   // Account Form
   const [editAccountId, setEditAccountId] = useState<string | null>(null);
   const [aTraffic, setATraffic] = useState("");
@@ -87,6 +104,60 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
     setPTraffic("");
     setPCategory("");
     setPDesc("");
+  };
+
+  const saveCategory = async () => {
+    if (!catName.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/colleague-categories/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          id: catEditingId || Math.random().toString(36).substring(2, 9), 
+          name: catName, 
+          emoji: catEmoji 
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setColleagueCategories?.(data.colleagueCategories);
+        showToast(lang === "fa" ? "دسته همکار ذخیره شد." : "Category saved.", "success");
+        setShowAddCategory(false);
+        setCatName("");
+        setCatEmoji("📁");
+        setCatEditingId(null);
+      }
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    setConfirmAction({
+      message: lang === "fa" ? "آیا از حذف این دسته‌بندی اطمینان دارید؟" : "Are you sure you want to delete this category?",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/colleague-categories/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setColleagueCategories?.(data.colleagueCategories);
+            showToast(lang === "fa" ? "دسته حذف شد." : "Category deleted.", "success");
+          }
+        } catch (err: any) {
+          showToast(err.message, "error");
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const savePackage = async () => {
@@ -249,24 +320,99 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex border-b border-white/10 pb-2">
+    <div className="space-y-6" dir={lang === "fa" ? "rtl" : "ltr"}>
+      {/* Tabs */}
+      <div className="flex gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl w-fit">
         <button
-          className={`px-4 py-2 text-sm font-bold border-b-2 transition ${activeTab === "packages" ? "border-indigo-400 text-indigo-400" : "border-transparent text-gray-400 hover:text-white"}`}
           onClick={() => setActiveTab("packages")}
+          className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "packages" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
         >
           {lang === "fa" ? "بسته‌های همکاران" : "Colleague Packages"}
         </button>
         <button
-          className={`px-4 py-2 text-sm font-bold border-b-2 transition ${activeTab === "accounts" ? "border-indigo-400 text-indigo-400" : "border-transparent text-gray-400 hover:text-white"}`}
           onClick={() => setActiveTab("accounts")}
+          className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "accounts" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
         >
           {lang === "fa" ? "حساب‌های صادر شده" : "Issued Accounts"}
         </button>
       </div>
 
       {activeTab === "packages" && (
-        <div className="space-y-4">
+        <div className="space-y-6 animate-in fade-in duration-500">
+          {/* Integrated Category Management */}
+          <div className="bg-slate-900/40 rounded-2xl p-5 border border-slate-800 backdrop-blur-sm">
+             <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-3">
+                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                   <Layers className="text-indigo-400 w-4 h-4" />
+                 </div>
+                 <h4 className="text-white font-bold text-sm">{lang === "fa" ? "مدیریت دسته‌بندی‌ها" : "Categories"}</h4>
+               </div>
+               <button 
+                 onClick={() => {
+                   setCatEditingId(null);
+                   setCatName("");
+                   setCatEmoji("📁");
+                   setShowAddCategory(!showAddCategory);
+                 }}
+                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600 hover:text-white text-[11px] font-bold transition-all"
+               >
+                 {showAddCategory ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                 {lang === "fa" ? "تعریف دسته" : "Add Category"}
+               </button>
+             </div>
+
+             {showAddCategory && (
+               <div className="mb-4 p-4 bg-slate-950/40 rounded-xl border border-slate-800 animate-in zoom-in-95 duration-200">
+                 <div className="flex flex-wrap gap-4 items-end">
+                   <div className="flex-1 min-w-[200px]">
+                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1"> {lang === "fa" ? "نام دسته‌بندی" : "Name"} </label>
+                     <input 
+                       type="text" 
+                       value={catName} 
+                       onChange={e => setCatName(e.target.value)}
+                       className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500/50 outline-none"
+                     />
+                   </div>
+                   <div className="w-32">
+                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1"> {lang === "fa" ? "ایموجی" : "Emoji"} </label>
+                     <div className="flex gap-1.5">
+                       <input 
+                         type="text" 
+                         value={catEmoji} 
+                         onChange={e => setCatEmoji(e.target.value)}
+                         className="w-10 bg-slate-900 border border-slate-800 rounded-lg py-2 text-center text-sm"
+                       />
+                       <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg overflow-x-auto">
+                        {['📁', '⭐', '🚀', '💎'].map(em => (
+                          <button key={em} onClick={() => setCatEmoji(em)} className={`w-6 h-6 flex items-center justify-center rounded text-xs hover:bg-white/5 ${catEmoji === em ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>{em}</button>
+                        ))}
+                       </div>
+                     </div>
+                   </div>
+                   <div className="flex gap-2">
+                     <button onClick={saveCategory} disabled={loading} className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-50">
+                       {loading ? "..." : (lang === "fa" ? "ذخیره" : "Save")}
+                     </button>
+                   </div>
+                 </div>
+               </div>
+             )}
+
+             <div className="flex flex-wrap gap-2">
+               {colleagueCategories.map(cat => (
+                 <div key={cat.id} className="group flex items-center gap-2 bg-slate-950/60 pl-1 pr-2.5 py-1 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors">
+                    <div className="w-5 h-5 flex items-center justify-center bg-indigo-500/10 rounded text-[10px]">{cat.emoji}</div>
+                    <span className="text-[10px] font-bold text-slate-300">{cat.name}</span>
+                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity gap-1 mr-1">
+                      <button onClick={() => {setCatName(cat.name); setCatEmoji(cat.emoji); setCatEditingId(cat.id); setShowAddCategory(true);}} className="p-0.5 hover:text-indigo-400"><Pencil className="w-2.5 h-2.5" /></button>
+                      <button onClick={() => deleteCategory(cat.id)} className="p-0.5 hover:text-rose-400"><Trash className="w-2.5 h-2.5" /></button>
+                    </div>
+                 </div>
+               ))}
+             </div>
+          </div>
+
           <div className="flex justify-end">
             <button
               onClick={() => setShowAddPackage(true)}
@@ -302,8 +448,11 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
                      >
                        <option value="">{lang === "fa" ? "بدون دسته‌بندی" : "No Category"}</option>
+                       {colleagueCategories.map(cat => (
+                         <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
+                       ))}
                        {planCategories.map(cat => (
-                         <option key={cat.id} value={cat.name}>{cat.name}</option>
+                         <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name} (Global)</option>
                        ))}
                      </select>
                      <input 
@@ -369,7 +518,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
                   {p.category && (
                     <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
-                      {planCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
+                      {colleagueCategories.find(c => c.name === p.category)?.emoji || planCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
                     </span>
                   )}
                 </div>

@@ -273,6 +273,11 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
+  const [colleagueCategories, setColleagueCategories] = useState<any[]>(() => {
+    const cached = localStorage.getItem("daltoon_colleague_categories");
+    return cached ? JSON.parse(cached) : [];
+  });
+
   const [logs, setLogs] = useState<any[]>(() => {
     const cached = localStorage.getItem("daltoon_logs");
     return cached ? JSON.parse(cached) : [];
@@ -485,6 +490,10 @@ export default function App() {
   }, [colleagueAccounts]);
 
   useEffect(() => {
+    localStorage.setItem("daltoon_colleague_categories", JSON.stringify(colleagueCategories));
+  }, [colleagueCategories]);
+
+  useEffect(() => {
     localStorage.setItem("daltoon_logs", JSON.stringify(logs));
   }, [logs]);
 
@@ -513,6 +522,7 @@ export default function App() {
         if (json.tickets) updateIfChanged(setTickets, tickets, json.tickets);
         if (json.colleaguePackages) updateIfChanged(setColleaguePackages, colleaguePackages, json.colleaguePackages);
         if (json.colleagueAccounts) updateIfChanged(setColleagueAccounts, colleagueAccounts, json.colleagueAccounts);
+        if (json.colleagueCategories) updateIfChanged(setColleagueCategories, colleagueCategories, json.colleagueCategories);
         if (json.logs) updateIfChanged(setLogs, logs, json.logs);
         
         if (json.settings && 'botToken' in json.settings) {
@@ -1261,6 +1271,8 @@ export default function App() {
                  setAccounts={setColleagueAccounts}
                  lang={lang}
                  planCategories={planCategories}
+                 colleagueCategories={colleagueCategories}
+                 setColleagueCategories={setColleagueCategories}
               />
             </div>
           )}

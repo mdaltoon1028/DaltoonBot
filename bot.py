@@ -1886,6 +1886,8 @@ def handle_main_menu_callback(call):
 
     elif action == "mm_btnColleagues":
         packages = db.get("colleague_packages", [])
+        col_cats = db.get("colleague_categories", [])
+        cat_dict = {c['name']: c for c in col_cats}
         
         # Build beautifully categorized and simplified description text
         text = "✨ <b>سرویس‌های ویژه و عمده همکاران</b>\n\n"
@@ -1898,11 +1900,13 @@ def handle_main_menu_callback(call):
                 if c not in cats: cats[c] = []
                 cats[c].append(p)
             
-            # Sort categories (Plans first)
+            # Sort categories
             sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
             
             for cat_name in sorted_cat_names:
-                text += f"📂 <b>بخشه {cat_name}:</b>\n"
+                cat_info = cat_dict.get(cat_name)
+                emoji = cat_info.get('emoji', '📂') if cat_info else '📂'
+                text += f"{emoji} <b>{cat_name}:</b>\n"
                 for p in cats[cat_name]:
                     text += f"▫️ {p['title']} ┃ <code>{p['trafficGb']}G</code>\n"
                 text += "\n"
@@ -1925,7 +1929,9 @@ def handle_main_menu_callback(call):
             for cat_name in sorted_cat_names:
                 # Add a header button/indicator if multiple categories
                 if len(cats) > 1:
-                    markup.add(types.InlineKeyboardButton(f"--- {cat_name} ---", callback_data="none"))
+                    cat_info = cat_dict.get(cat_name)
+                    emoji = cat_info.get('emoji', '') if cat_info else ''
+                    markup.add(types.InlineKeyboardButton(f"--- {emoji} {cat_name} ---", callback_data="none"))
                 
                 for p in cats[cat_name]:
                     btn_text = f"✨ {p['title']} ┃ {int(p['price']):,} ت"
@@ -3820,17 +3826,21 @@ def callback_handler(call):
             user = get_user_data(tg_id)
             bal = user.get("walletBalance", 0)
             if not is_privileged and bal < package["price"]:
-                bot.send_message(tg_id, "❌ موجودی ناکافی است. ابتدا از منوی پشتیبانی اقدام به شارژ کیف پول کنید.", reply_markup=get_custom_keyboard())
+                bot.send_message(tg_id, "❌ موجودی کیف پول شما برای این خرید کافی نیست.", reply_markup=get_custom_keyboard())
                 return
             
             # process wallet pay
-            if not is_privileged:
-                update_user_balance(tg_id, bal - package["price"])
-                log_transaction(tg_id, package["price"], f"{action}_colleague_package", f"کسر شارژ برای بسته همکار", "out")
-                if package["price"] > 0:
-                    process_referral_on_purchase(user, package["price"])
-                    
-            finalize_colleague_purchase(tg_id, req, package, call.message)
+            try:
+                if not is_privileged:
+                    update_user_balance(tg_id, bal - package["price"])
+                    log_transaction(tg_id, package["price"], f"{action}_colleague_package", f"کسر شارژ برای بسته همکار", "out")
+                    if package["price"] > 0:
+                        process_referral_on_purchase(user, package["price"])
+                
+                finalize_colleague_purchase(tg_id, req, package, call.message)
+            except Exception as e:
+                print(f"[ERROR] Colleague Payment Exception: {e}")
+                bot.send_message(tg_id, f"❌ خطای سیستمی در پردازش نهایی: {e}")
 
         elif method == "card":
             # initiate card payment
@@ -4903,81 +4913,98 @@ def process_col_renew_payment(message, acc_id, package):
 
 def finalize_colleague_purchase(tg_id, req, package, message=None):
     print(f"[DEBUG] finalize_colleague_purchase for tg_id={tg_id}, package={package['title']}")
-    action = req.get("action", "buy")
-    
-    db = read_db_json()
-    
-    if action == "buy":
+    try:
         import random
         import string
         import uuid
         from datetime import datetime
         
-        prefix_text = req.get("prefix", "")
-        token = req.get("token", "")
-        username = "C" + "".join(random.choices(string.digits, k=5))
-        password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+        action = req.get("action", "buy")
+        db = read_db_json()
         
-        if not db.get("colleague_accounts"):
-            db["colleague_accounts"] = []
+        if action == "buy":
+            prefix_text = req.get("prefix", "")
+            token = req.get("token", "")
+            username = "C" + "".join(random.choices(string.digits, k=5))
+            password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
             
-        new_acc = {
-            "id": str(uuid.uuid4()),
-            "userId": tg_id,
-            "username": username,
-            "password": password,
-            "packageId": package["id"],
-            "packageTitle": package["title"],
-            "createdAt": datetime.now().strftime("%Y-%m-%d"),
-            "trafficGb": package["trafficGb"],
-            "usedTrafficGb": 0,
-            "prefix": prefix_text,
-            "recoveryToken": token,
-            "status": "active"
-        }
-        
-        db["colleague_accounts"].append(new_acc)
-        write_db_json(db)
-        
-        # We need username for log if available
-        tg_user = message.chat.username if message else str(tg_id)
-        log_action(tg_id, tg_user, "buy_colleague_package", f"بسته همکار '{package['title']}' را خریداری کرد. (پسوند: {prefix_text})")
-        
-        bot.send_message(
-            tg_id,
-            f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\nپسوند تنظیم شده: {prefix_text}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.",
-            parse_mode="HTML",
-            reply_markup=get_custom_keyboard()
-        )
-        if message:
-            show_colleague_panel_msg(message, new_acc)
+            if not db.get("colleague_accounts"):
+                db["colleague_accounts"] = []
+                
+            new_acc = {
+                "id": str(uuid.uuid4()),
+                "userId": tg_id,
+                "username": username,
+                "password": password,
+                "packageId": package["id"],
+                "packageTitle": package["title"],
+                "createdAt": datetime.now().strftime("%Y-%m-%d"),
+                "trafficGb": package["trafficGb"],
+                "usedTrafficGb": 0,
+                "prefix": prefix_text,
+                "recoveryToken": token,
+                "status": "active"
+            }
             
-    elif action == "renew":
-        acc_id = req.get("acc_id")
-        accounts = db.get("colleague_accounts", [])
-        acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
-        if acc_idx is not None:
-            acc = accounts[acc_idx]
-            acc["trafficGb"] = acc.get("trafficGb", 0) + package["trafficGb"]
-            acc["packageTitle"] = package["title"]
-            accounts[acc_idx] = acc
-            db["colleague_accounts"] = accounts
+            db["colleague_accounts"].append(new_acc)
             write_db_json(db)
             
-            tg_user = message.chat.username if message else str(tg_id)
-            log_action(tg_id, tg_user, "renew_colleague_package", f"بسته همکار تمدید شد. افزایش حجم: {package['trafficGb']} GB")
+            tg_user = ""
+            try:
+                # message can be Message or CallbackQuery message
+                if hasattr(message, 'chat') and hasattr(message.chat, 'username'):
+                    tg_user = message.chat.username or str(tg_id)
+                else:
+                    tg_user = str(tg_id)
+            except: tg_user = str(tg_id)
+            
+            log_action(tg_id, tg_user, "buy_colleague_package", f"بسته همکار '{package['title']}' را خریداری کرد. (پسوند: {prefix_text})")
             
             bot.send_message(
                 tg_id,
-                f"✅ <b>تمدید با موفقیت انجام شد!</b>\n\nحجم اضافه شده: {package['trafficGb']} گیگابایت\nلیست بسته تمدیدی: {package['title']}",
-                parse_mode="HTML",
-                reply_markup=get_custom_keyboard()
+                f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\n"
+                f"بسته خریداری شده: {package['title']}\n"
+                f"پسوند تنظیم شده: {prefix_text}\n\n"
+                f"اطلاعات ورود شما:\n"
+                f"👤 <b>یوزرنیم:</b> <code>{username}</code>\n"
+                f"🔑 <b>رمز عبور:</b> <code>{password}</code>\n\n"
+                f"جهت ورود به پنل، حساب خود را از طریق منوی همکاران انتخاب کنید.",
+                parse_mode="HTML"
             )
             if message:
-                show_colleague_panel_msg(message, acc)
+                show_colleague_panel_msg(message, new_acc)
                 
-    # clear request
-    global pending_col_requests
+        elif action == "renew":
+            acc_id = req.get("acc_id")
+            accounts = db.get("colleague_accounts", [])
+            acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
+            if acc_idx is not None:
+                acc = accounts[acc_idx]
+                acc["trafficGb"] = acc.get("trafficGb", 0) + package["trafficGb"]
+                acc["packageTitle"] = package["title"]
+                accounts[acc_idx] = acc
+                db["colleague_accounts"] = accounts
+                write_db_json(db)
+                
+                tg_user = str(tg_id)
+                log_action(tg_id, tg_user, "renew_colleague_package", f"بسته همکار تمدید شد. افزایش حجم: {package['trafficGb']} GB")
+                
+                bot.send_message(
+                    tg_id,
+                    f"✅ <b>تمدید با موفقیت انجام شد!</b>\n\nحجم اضافه شده: {package['trafficGb']} گیگابایت\nنام پلن: {package['title']}",
+                    parse_mode="HTML"
+                )
+                if message:
+                    show_colleague_panel_msg(message, acc)
+                    
+        # clear request
+        global pending_col_requests
+        if 'pending_col_requests' in globals() and tg_id in pending_col_requests:
+            del pending_col_requests[tg_id]
+            
+    except Exception as e:
+        print(f"[ERROR] finalize_colleague_purchase crash: {e}")
+        bot.send_message(tg_id, f"❌ متاسفانه خطایی در فعال‌سازی نهایی رخ داد: {e}")
     if 'pending_col_requests' in globals() and tg_id in pending_col_requests:
         del pending_col_requests[tg_id]
 
