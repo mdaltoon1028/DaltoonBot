@@ -2743,11 +2743,11 @@ app.post("/api/broadcast", async (req, res) => {
 
     const db = readJsonDb();
     const settings = getSystemSettings(db);
-    const botToken = settings.botToken;
+    const botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
     const users = db.users || [];
     let count = 0;
 
-    if (botToken) {
+    if (botToken && botToken !== "DUMMY_TOKEN") {
       for (const u of users) {
         if (u.userId) {
           try {
@@ -2781,14 +2781,19 @@ app.post("/api/broadcast", async (req, res) => {
               payload.text = text;
             }
 
-            await fetch(apiUrl, {
+            const res = await fetch(apiUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
               body: JSON.stringify(payload),
             });
-            count++;
+            const data = await res.json();
+            if (data.ok) {
+              count++;
+            } else {
+               console.error(`[Broadcast] Telegram API error for user ${u.userId}:`, data);
+            }
             // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling
             await new Promise((resolve) => setTimeout(resolve, 50));
           } catch (e: any) {
@@ -2800,6 +2805,7 @@ app.post("/api/broadcast", async (req, res) => {
         }
       }
     } else {
+      console.warn("[Broadcast] No valid bot token found! Faking count.");
       count = users.length;
     }
 
