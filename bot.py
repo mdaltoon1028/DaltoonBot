@@ -2522,8 +2522,22 @@ def handle_buy_pay(call):
         
         if not sub_link:
             if not cfg.get("SIMULATOR_MODE"):
-                bot.send_message(tg_id, "❌ متأسفانه خطایی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ وجود ندارد (v4).\n\n⚠️ لطفاً موضوع را به پشتیبانی اطلاع دهید. مبلغ کسر شده طی ۲۴ ساعت آینده به کیف پول شما بازگردانده خواهد شد (یا توسط ادمین دستی تایید می‌شود).", parse_mode="HTML")
-                # Optional: Refund wallet automatically here or wait for admin
+                # Refund user wallet immediately if they were charged
+                if not is_privileged:
+                    fresh_db = read_db_json()
+                    fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
+                    current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
+                    refunded_bal = current_bal + float(spec["price"])
+                    update_user_balance(tg_id, refunded_bal)
+                    log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید", f"برگشت مبلغ {spec['price']:,} تومان به دلیل خطای اتصال x-ui.")
+                
+                refund_message = (
+                    "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
+                    "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ در این لحظه وجود ندارد.\n\n"
+                    f"💰 <b>مبلغ {spec['price']:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
+                    "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید."
+                )
+                bot.send_message(tg_id, refund_message, parse_mode="HTML")
                 return
             
             # Simulator mode - allow mock links

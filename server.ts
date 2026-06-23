@@ -1705,7 +1705,7 @@ async function addVpnClientApi(
         totalGB: totalBytes,
         expiryTime: expiryTimeMs,
         enable: true,
-        tgId: "",
+        tgId: 0,
         subId: xuiSubId
       },
       inboundIds: inboundIds
@@ -1953,36 +1953,17 @@ async function resetVpnClientUuidApi(clientEmail: string) {
     // Set new UUID and Sub ID inside the cloned client schema
     targetClient.id = newUuid;
     targetClient.subId = newSubId;
+    targetClient.tgId = typeof targetClient.tgId === 'number' ? targetClient.tgId : (parseInt(targetClient.tgId) || 0);
 
-    // 1. Try typical modern client ID change (Sanaei Update Client Endpoint)
-    const updateUrl = `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`;
-    try {
-      const updateRes = await xuiFetch(updateUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          id: parentInboundId,
-          settings: JSON.stringify({ clients: [targetClient] })
-        })
-      }, 8000);
-      
-      if (updateRes && updateRes.ok) {
-         const updateJson = await updateRes.json().catch(() => null);
-         if (updateJson && updateJson.success) {
-            console.log(`[resetVpnClientUuidApi] Successfully updated client ID on panel for email: ${clientEmail}`);
-            return { success: true, clientUuid: newUuid, subLink };
-         }
-      }
-    } catch (e) {
-      console.warn(`[resetVpnClientUuidApi] Modern update Client threw error, trying older fallback:`, e);
-    }
-    
-    // 2. Fallback: Recreate the client manually via deletion then addition inside inbound
-    console.log(`[resetVpnClientUuidApi] updateClient failed. Executing delete-add client fallback on panel for ${clientEmail}...`);
+    // 1. Recreate the client manually via deletion then addition inside inbound (the only way that changes UUID on panel)
+    console.log(`[resetVpnClientUuidApi] Recreating client to change UUID and Sub ID on panel for email: ${clientEmail}`);
     try {
       // Step A: Delete client using ID match
       const deleteUrl = `${cleanedUrl}/panel/api/inbounds/${parentInboundId}/delClient/${oldUuid}`;
-      await xuiFetch(deleteUrl, { method: "POST", headers }, 8000).catch(() => {});
+      const delRes = await xuiFetch(deleteUrl, { method: "POST", headers }, 8000).catch(() => null);
+      if (delRes) {
+        console.log(`[resetVpnClientUuidApi] Sent delete client request for old UUID: ${oldUuid}`);
+      }
 
       // Step B: Add client with updated UUID and sub ID to the same inbound
       const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
@@ -2001,10 +1982,38 @@ async function resetVpnClientUuidApi(clientEmail: string) {
         if (addJson && addJson.success) {
           console.log(`[resetVpnClientUuidApi] Successfully recreated client ${clientEmail} with new UUID/subId on inbound ${parentInboundId}`);
           return { success: true, clientUuid: newUuid, subLink };
+        } else {
+          console.warn(`[resetVpnClientUuidApi] Panel rejected client addition during reset:`, addJson);
         }
+      } else {
+        console.warn(`[resetVpnClientUuidApi] Panel HTTP error ${addRes ? addRes.status : 'None'} during add-client recreation`);
       }
     } catch (err: any) {
-      console.error(`[resetVpnClientUuidApi] Delete-add fallback error: ${err.message}`);
+      console.error(`[resetVpnClientUuidApi] Error during client recreation process: ${err.message}`);
+    }
+
+    // 2. Fallback: If delete-add failed, try typical modern client ID change (just in case delete failed and we have to modify the existing one)
+    console.log(`[resetVpnClientUuidApi] Delete-add failed. Trying updateClient as last-resort...`);
+    const updateUrl = `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`;
+    try {
+      const updateRes = await xuiFetch(updateUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          id: parentInboundId,
+          settings: JSON.stringify({ clients: [targetClient] })
+        })
+      }, 8000);
+      
+      if (updateRes && updateRes.ok) {
+         const updateJson = await updateRes.json().catch(() => null);
+         if (updateJson && updateJson.success) {
+            console.log(`[resetVpnClientUuidApi] Fallback updateClient succeed for: ${clientEmail}`);
+            return { success: true, clientUuid: newUuid, subLink };
+         }
+      }
+    } catch (e) {
+      console.warn(`[resetVpnClientUuidApi] Fallback updateClient failed:`, e);
     }
 
     // 3. Absolute fallback: Return local success anyway so the database is updated and they can try later
