@@ -1256,12 +1256,10 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
         writeJsonDb(db);
         res.json({ success: true, key });
       } else {
-        res
-          .status(500)
-          .json({
-            success: false,
-            error: resetResult.error || "Failed to reset UUID",
-          });
+        res.status(500).json({
+          success: false,
+          error: resetResult.error || "Failed to reset UUID",
+        });
       }
     } else {
       res
@@ -1286,13 +1284,11 @@ app.post("/api/subscription-keys/transfer-ownership", async (req, res) => {
     );
 
     if (!targetUser) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            "کاربر مقصد در سیستم یافت نشد. دوست شما باید حداقل یکبار دکمه /start را در ربات زده باشد.",
-        });
+      return res.status(400).json({
+        success: false,
+        error:
+          "کاربر مقصد در سیستم یافت نشد. دوست شما باید حداقل یکبار دکمه /start را در ربات زده باشد.",
+      });
     }
 
     const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
@@ -1474,12 +1470,10 @@ app.post("/api/ai/chat", async (req, res) => {
 
     const ai = getAiClient();
     if (!ai || !(ai as any).apiKey) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Gemini API Key is not configured. Please set it in Settings -> Bot Configuration -> Gemini API Key to enable AI features.",
-        });
+      return res.status(400).json({
+        error:
+          "Gemini API Key is not configured. Please set it in Settings -> Bot Configuration -> Gemini API Key to enable AI features.",
+      });
     }
 
     const dbData = readJsonDb();
@@ -2692,12 +2686,10 @@ app.post("/api/broadcast", async (req, res) => {
   try {
     const { text, attachment, serverUrl } = req.body;
     if (!text && !attachment) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "متن پیام یا رسانه برای ارسال الزامی است.",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "متن پیام یا رسانه برای ارسال الزامی است.",
+      });
     }
 
     // Process attachment if provided
@@ -2743,7 +2735,9 @@ app.post("/api/broadcast", async (req, res) => {
 
     const db = readJsonDb();
     const settings = getSystemSettings(db);
-    const botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
+    let botToken =
+      settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
+    if (botToken) botToken = botToken.trim();
     const users = db.users || [];
     let count = 0;
 
@@ -2781,19 +2775,59 @@ app.post("/api/broadcast", async (req, res) => {
               payload.text = text;
             }
 
-            const res = await fetch(apiUrl, {
+            const postData = JSON.stringify(payload);
+            const urlObj = new URL(apiUrl);
+            const https = require("https");
+
+            const options = {
+              hostname: urlObj.hostname,
+              port: 443,
+              path: urlObj.pathname + urlObj.search,
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(postData),
               },
-              body: JSON.stringify(payload),
+            };
+
+            await new Promise((resolve, reject) => {
+              const reqNotify = https.request(options, (resNotify: any) => {
+                let responseBody = "";
+                resNotify.on("data", (chunk: any) => {
+                  responseBody += chunk;
+                });
+                resNotify.on("end", () => {
+                  try {
+                    const data = JSON.parse(responseBody);
+                    if (data.ok) {
+                      count++;
+                    } else {
+                      console.error(
+                        `[Broadcast] Telegram API error for user ${u.userId}:`,
+                        data,
+                      );
+                    }
+                  } catch (e) {
+                    console.error(
+                      `[Broadcast] Telegram API parse error for user ${u.userId}:`,
+                      e,
+                    );
+                  }
+                  resolve(null);
+                });
+              });
+
+              reqNotify.on("error", (e: any) => {
+                console.error(
+                  `[Broadcast] HTTPS request error for user ${u.userId}:`,
+                  e,
+                );
+                resolve(null);
+              });
+
+              reqNotify.write(postData);
+              reqNotify.end();
             });
-            const data = await res.json();
-            if (data.ok) {
-              count++;
-            } else {
-               console.error(`[Broadcast] Telegram API error for user ${u.userId}:`, data);
-            }
             // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling
             await new Promise((resolve) => setTimeout(resolve, 50));
           } catch (e: any) {
@@ -3088,21 +3122,29 @@ app.post("/api/transactions/approve", async (req, res) => {
               );
               if (vpnResult.success && vpnResult.subLink) {
                 const subLink = vpnResult.subLink;
-                
+
                 let vlessLinks: string[] = [];
                 try {
                   const fetchRef = globalThis.fetch || fetch;
                   const res = await fetchRef(subLink);
                   if (res.ok) {
                     const text = await res.text();
-                    const decoded = Buffer.from(text, 'base64').toString('utf-8');
-                    vlessLinks = decoded.split('\n').filter(l => l.trim().length > 0 && l.startsWith('vless://'));
+                    const decoded = Buffer.from(text, "base64").toString(
+                      "utf-8",
+                    );
+                    vlessLinks = decoded
+                      .split("\n")
+                      .filter(
+                        (l) => l.trim().length > 0 && l.startsWith("vless://"),
+                      );
                   }
-                } catch(e) {}
+                } catch (e) {}
 
                 let linksDisplay = `<code>${subLink}</code>`;
                 if (vlessLinks.length > 0) {
-                    linksDisplay = vlessLinks.map(l => `<code>${l}</code>`).join("\n\n");
+                  linksDisplay = vlessLinks
+                    .map((l) => `<code>${l}</code>`)
+                    .join("\n\n");
                 }
 
                 messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksDisplay}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
@@ -3201,10 +3243,7 @@ app.post("/api/transactions/approve", async (req, res) => {
 
             // Check if there is a newly generated subLink to attach a QR code
             let qrUrl: string | null = null;
-            if (
-              tx.type === "PLAN_PURCHASE" &&
-              tx._generatedSubLink
-            ) {
+            if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
               qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(tx._generatedSubLink)}`;
             }
 
@@ -3416,12 +3455,10 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
     const settings = getSystemSettings(db);
 
     if (!settings.panelConnectionActive) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "اتصال به پنل ۳x-ui در تنظیمات غیرفعال است.",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "اتصال به پنل ۳x-ui در تنظیمات غیرفعال است.",
+      });
     }
 
     const durationDays = Number(expiryDays) || 30;
@@ -3478,14 +3515,12 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
         users: db.users,
       });
     } else {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            "خطا در برقراری ارتباط با ۳x-ui: " +
-            (vpnResult.error || "خطای نامشخص"),
-        });
+      return res.status(400).json({
+        success: false,
+        error:
+          "خطا در برقراری ارتباط با ۳x-ui: " +
+          (vpnResult.error || "خطای نامشخص"),
+      });
     }
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -3850,24 +3885,20 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
         subLink = apiResult.subLink;
         clientUuid = apiResult.clientUuid || "";
       } else {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "ساخت کلاینت در پنل ۳x-ui با خطا مواجه شد: " +
-              (apiResult.error || "خطای نامشخص"),
-          });
+        return res.status(400).json({
+          success: false,
+          error:
+            "ساخت کلاینت در پنل ۳x-ui با خطا مواجه شد: " +
+            (apiResult.error || "خطای نامشخص"),
+        });
       }
     } else {
       if (!plan.configStock || plan.configStock.length === 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "این پلن در حال حاضر فاقد کانفیگ در انبار است. ابتدا انبار آن را در بخش مدیریت سرور شارژ کنید.",
-          });
+        return res.status(400).json({
+          success: false,
+          error:
+            "این پلن در حال حاضر فاقد کانفیگ در انبار است. ابتدا انبار آن را در بخش مدیریت سرور شارژ کنید.",
+        });
       }
       subLink = plan.configStock.shift() || "";
     }
@@ -4018,12 +4049,10 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
         parsed = backupData;
       }
     } catch (e) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "فرمت فایل بکاپ معتبر نیست (باید JSON باشد).",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "فرمت فایل بکاپ معتبر نیست (باید JSON باشد).",
+      });
     }
 
     if (typeof parsed !== "object" || parsed === null) {
