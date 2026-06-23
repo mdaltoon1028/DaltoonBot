@@ -213,7 +213,10 @@ export interface ColleagueAccount {
   trafficGb: number;
   usedTrafficGb?: number;
   realUsedTrafficGb?: number;
+  deletedTrafficGb?: number;
+  deletedRealTrafficGb?: number;
   prefix: string;
+  recoveryToken?: string;
   status: "active" | "expired" | "suspended";
 }
 

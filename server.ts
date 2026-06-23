@@ -1043,25 +1043,24 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
     const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
     if (subIdx >= 0) {
       const key = db.subscription_keys[subIdx];
-      // Generate a brand new client Name identifier / UUID simulation
-      const newUuid = Math.random().toString(36).substring(2, 12) + "-" + Math.random().toString(36).substring(2, 10);
+      const clientName = key.clientName || key.clientEmail;
       
-      // Let's replace the link token
-      if (key.subLink) {
-        // e.g. vless://uuid@host:port... or https://host/sub/clientEmail
-        if (key.subLink.includes("://")) {
-          // Replace matching part before host
-          key.subLink = key.subLink.replace(/:\/\/[^@]+@/, `://${newUuid}@`);
-        } else {
-          // Normal HTTP sub link, append an updated revision parameter or randomize route Email
-          const randEmail = "rev_" + Math.random().toString(36).substring(2, 8);
-          key.subLink = key.subLink.substring(0, key.subLink.lastIndexOf("/") + 1) + randEmail;
-        }
+      if (!clientName) {
+        return res.status(400).json({ success: false, error: "Client Name not found for this key" });
       }
+
+      const resetResult = await resetVpnClientUuidApi(clientName);
       
-      db.subscription_keys[subIdx] = key;
-      writeJsonDb(db);
-      res.json({ success: true, key });
+      if (resetResult.success) {
+        key.clientUuid = resetResult.clientUuid;
+        key.subLink = resetResult.subLink;
+        
+        db.subscription_keys[subIdx] = key;
+        writeJsonDb(db);
+        res.json({ success: true, key });
+      } else {
+        res.status(500).json({ success: false, error: resetResult.error || "Failed to reset UUID on panel" });
+      }
     } else {
       res.status(404).json({ success: false, error: "Subscription entry not found." });
     }
@@ -1860,6 +1859,68 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
   }
 }
 
+// 2.5 Change/Reset client UUID and Subscription ID on XUI Panel
+async function resetVpnClientUuidApi(clientEmail: string) {
+  try {
+    const db = readJsonDb();
+    const settings = getSystemSettings(db);
+    const crypto = await import("crypto");
+    
+    if (!settings.panelConnectionActive || !settings.baseUrl) return { success: false, error: "XUI disconnected" };
+
+    const cleanedUrl = normalizeXuiUrl(settings.baseUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, settings.panelUsername, settings.panelPassword);
+    if (!loginResult.success || !loginResult.cookie) return { success: false, error: "Login failed" };
+
+    const headers: Record<string, string> = {
+      "Cookie": loginResult.cookie,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
+    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+    // First fetch current client
+    const getUrl = `${cleanedUrl}/panel/api/clients/get/${clientEmail}`;
+    const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
+    
+    if (getRes && getRes.ok) {
+      const getJson = await getRes.json();
+      if (getJson.success && getJson.obj) {
+        const client = getJson.obj;
+        
+        // Generate new UUID and subId
+        const newUuid = crypto.randomUUID();
+        const newSubId = crypto.randomBytes(8).toString('hex');
+        
+        client.id = newUuid;
+        client.subId = newSubId;
+        
+        const updateUrl = `${cleanedUrl}/panel/api/clients/update/${clientEmail}`;
+        const updateRes = await xuiFetch(updateUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(client)
+        }, 5000);
+        
+        if (updateRes && updateRes.ok) {
+           const updateJson = await updateRes.json();
+           if (updateJson.success) {
+              const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
+                ? normalizeXuiUrl(settings.subUrl) 
+                : cleanedUrl;
+              const subLink = `${subBase}/sub/${newSubId}`;
+              return { success: true, clientUuid: newUuid, subLink };
+           }
+        }
+      }
+    }
+    return { success: false, error: "Panel UUID reset failed" };
+  } catch (e: any) {
+    console.error("[resetVpnClientUuidApi] helper crash:", e);
+    return { success: false, error: "Exception during reset: " + e.message };
+  }
+}
+
 // 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
@@ -2189,7 +2250,60 @@ app.post("/api/transactions/approve", async (req, res) => {
       let messageTextForNotif = "";
       
       if (tx.type === "PLAN_PURCHASE") {
-        const db_plans: any[] = db.vpn_plans || [];
+        if (tx.planId && (tx.planId.startsWith("COL_BUY:") || tx.planId.startsWith("COL_RENEW:"))) {
+            // Colleague package fulfillment
+            const isBuy = tx.planId.startsWith("COL_BUY:");
+            const packageId = tx.planId.split(":")[1];
+            
+            const db_packages: any[] = db.colleague_packages || [];
+            const pkg = db_packages.find(p => p.id === packageId);
+            
+            if (pkg) {
+                if (isBuy) {
+                    const parts = (tx.clientName || "").split("||");
+                    const prefix = parts[0] || "";
+                    const token = parts[1] || "";
+                    
+                    const username = "C" + Math.floor(Math.random() * 90000 + 10000).toString();
+                    const password = Math.random().toString(36).substring(2, 10);
+                    
+                    const newAcc = {
+                        id: Math.random().toString(36).substring(2, 15),
+                        userId: Number(tx.userId),
+                        username: username,
+                        password: password,
+                        packageId: pkg.id,
+                        packageTitle: pkg.title,
+                        createdAt: new Date().toISOString().split("T")[0],
+                        trafficGb: pkg.trafficGb,
+                        usedTrafficGb: 0,
+                        prefix: prefix,
+                        recoveryToken: token,
+                        status: "active"
+                    };
+                    
+                    if (!db.colleague_accounts) db.colleague_accounts = [];
+                    db.colleague_accounts.push(newAcc);
+                    
+                    messageTextForNotif = `✅ <b>خرید بسته همکار با موفقیت انجام شد!</b> (تایید فیش)\n\nبسته خریداری شده: ${pkg.title}\nپسوند تنظیم شده: ${prefix}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>${username}</code>\n🔑 <b>رمز عبور:</b> <code>${password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.`;
+                } else {
+                    const accId = tx.clientName;
+                    const accIndex = (db.colleague_accounts || []).findIndex((a: any) => a.id === accId);
+                    if (accIndex !== -1) {
+                        const acc = db.colleague_accounts[accIndex];
+                        acc.trafficGb = (acc.trafficGb || 0) + pkg.trafficGb;
+                        acc.packageTitle = pkg.title;
+                        
+                        messageTextForNotif = `✅ <b>تمدید حساب همکار با موفقیت انجام شد!</b> (تایید فیش)\n\nحجم اضافه شده: ${pkg.trafficGb} گیگابایت\nلیست بسته تمدیدی: ${pkg.title}`;
+                    } else {
+                        messageTextForNotif = `❌ خطا: حساب همکار برای تمدید یافت نشد.`;
+                    }
+                }
+            } else {
+                messageTextForNotif = `❌ خطا: بسته همکار یافت نشد.`;
+            }
+        } else {
+            const db_plans: any[] = db.vpn_plans || [];
         // Hardcoded Fallback Plans (Must match bot.py)
         const fallback_plans = [
           {id: "std_30g", name: "Standard 30GB - 30 Days", price: 45000, trafficGb: 30, durationDays: 30, category: "Standard"},
@@ -2264,6 +2378,7 @@ app.post("/api/transactions/approve", async (req, res) => {
           }
         } else {
              messageTextForNotif = `❌ خطا: پلان مورد نظر یافت نشد. با پشتیبانی هماهنگ کنید.`;
+        }
         }
       } else {
         if (user) {
@@ -2553,9 +2668,20 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
     const db = readJsonDb();
     
     const keyToDelete = db.subscription_keys.find((k: any) => k.id === id);
-    if (keyToDelete && keyToDelete.clientName) {
-      // Attempt to delete from X-UI Panel using our helper
-      await deleteVpnClientApi(keyToDelete.clientName);
+    if (keyToDelete) {
+      if (keyToDelete.clientName) {
+        // Attempt to delete from X-UI Panel using our helper
+        await deleteVpnClientApi(keyToDelete.clientName);
+      }
+      
+      // If this key belongs to a colleague account and has been used
+      if (keyToDelete.colleagueAccountId && Number(keyToDelete.trafficUsedGb || 0) >= 0.001) {
+        const colAcc = db.colleague_accounts?.find((a: any) => a.id === keyToDelete.colleagueAccountId);
+        if (colAcc) {
+            colAcc.deletedTrafficGb = (colAcc.deletedTrafficGb || 0) + Number(keyToDelete.trafficLimitGb || 0);
+            colAcc.deletedRealTrafficGb = (colAcc.deletedRealTrafficGb || 0) + Number(keyToDelete.trafficUsedGb || 0);
+        }
+      }
     }
     
     db.subscription_keys = db.subscription_keys.filter(k => k.id !== id);
@@ -3517,12 +3643,15 @@ async function autoSyncTrafficUsage() {
         const totalUsed = colKeys.reduce((sum: number, k: any) => sum + (k.trafficLimitGb || 0), 0);
         const totalRealUsed = colKeys.reduce((sum: number, k: any) => sum + (k.trafficUsedGb || 0), 0);
         
-        if (Math.abs((colAcc.usedTrafficGb || 0) - totalUsed) > 0.01) {
-            colAcc.usedTrafficGb = Number(totalUsed.toFixed(2));
+        const finalUsed = totalUsed + (colAcc.deletedTrafficGb || 0);
+        const finalRealUsed = totalRealUsed + (colAcc.deletedRealTrafficGb || 0);
+        
+        if (Math.abs((colAcc.usedTrafficGb || 0) - finalUsed) > 0.01) {
+            colAcc.usedTrafficGb = Number(finalUsed.toFixed(2));
             updatedCount++;
         }
-        if (Math.abs((colAcc.realUsedTrafficGb || 0) - totalRealUsed) > 0.01) {
-            colAcc.realUsedTrafficGb = Number(totalRealUsed.toFixed(2));
+        if (Math.abs((colAcc.realUsedTrafficGb || 0) - finalRealUsed) > 0.01) {
+            colAcc.realUsedTrafficGb = Number(finalRealUsed.toFixed(2));
             updatedCount++;
         }
       }

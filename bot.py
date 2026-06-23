@@ -507,6 +507,21 @@ def send_purchase_success_note_if_any(chat_id, only_media=True):
     except Exception as e:
         print(f"[Purchase Success Note] Error sending attachment/text: {e}")
 
+def reset_vpn_client_uuid_api(subscription_id):
+    """ Call our server's internal endpoint to reset UUID and SubId in XUI and DB """
+    import requests
+    try:
+        response = requests.post(
+            "http://127.0.0.1:3000/api/subscription-keys/regenerate-uuid",
+            json={"id": subscription_id},
+            timeout=30
+        )
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        print(f"[reset_vpn_client_uuid_api Error] {e}")
+    return {"success": False, "error": "Internal server error"}
+
 def get_client_vless_links(client_name, client_uuid, sub_link=None):
     """
     Fetch raw standard VLESS links for a specific client from the Sanaei 3x-ui panel.
@@ -1602,6 +1617,31 @@ def verify_mandatory_join_and_warn(chat_id, user_id):
 # --- Bot Command Handlers ---
 
 
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def process_pre_checkout_query(pre_checkout_query):
+    bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+@bot.message_handler(content_types=['successful_payment'])
+def process_successful_payment(message):
+    payment_info = message.successful_payment
+    payload = payment_info.invoice_payload
+    
+    if payload.startswith("col_stars:"):
+        parts = payload.split(":")
+        tg_id = int(parts[1])
+        package_id = parts[2]
+        action = parts[3]
+        
+        global pending_col_requests
+        if 'pending_col_requests' in globals() and tg_id in pending_col_requests:
+            req = pending_col_requests[tg_id]
+            db = read_db_json()
+            package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
+            if package:
+                finalize_colleague_purchase(tg_id, req, package, message)
+        else:
+            bot.send_message(tg_id, "✅ پرداخت شما موفقیت آمیز بود، اما اطلاعات درخواست همکار در حافظه یافت نشد. لطفاً با پشتیبانی تماس بگیرید.")
+
 @bot.message_handler(commands=['start', 'help'])
 def start_cmd(message):
     print(f"[DEBUG] Received /start from {message.from_user.id} (@{message.from_user.username})")
@@ -1863,6 +1903,7 @@ def handle_main_menu_callback(call):
                 markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
                 
         markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
+        markup.row(types.InlineKeyboardButton("🔑 بازیابی رمز همکار (با توکن)", callback_data="recover_colleague_token"))
         markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
         
         bot.edit_message_text(
@@ -2897,6 +2938,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}"),
                 types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"mysub_toggle_{target_sub_id}")
             )
+            markup.row(types.InlineKeyboardButton("🔄 تغییر لینک (Reset UUID)", callback_data=f"mysub_resetuuid_{target_sub_id}")) # NEW
             markup.row(
                 types.InlineKeyboardButton("🔙 بازگشت به لیست اشتراک‌ها", callback_data="mm_btnMySubs")
             )
@@ -2955,6 +2997,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 حذف کلید اشتراک", callback_data=f"mysub_del_{target_sub_id}"),
                 types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"mysub_toggle_{target_sub_id}")
             )
+            markup.row(types.InlineKeyboardButton("🔄 تغییر لینک (Reset UUID)", callback_data=f"mysub_resetuuid_{target_sub_id}")) # NEW
             markup.row(
                 types.InlineKeyboardButton("🔙 بازگشت به لیست اشتراک‌ها", callback_data="mm_btnMySubs")
             )
@@ -3112,6 +3155,37 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
             )
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif sub_action == "resetuuid":
+            text = (
+                f"🔄 <b>درخواست تغییر لینک و UUID سرویس!</b>\n\n"
+                f"آیا مطمئن هستید که می‌خواهید لینک اتصال سرویس <code>{client_name}</code> را تغییر دهید؟\n\n"
+                f"⚠️ <b>توجه:</b> با انجام این کار، لینک و کانفیگ‌های قبلی شما <b>برای همیشه غیرفعال</b> شده و باید لینک جدید را در نرم‌افزار خود جایگزین کنید."
+            )
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("✅ بله، لینک جدید صادر کن", callback_data=f"mysub_resetconfirm_{target_sub_id}"),
+                types.InlineKeyboardButton("❌ خیر، انصراف", callback_data=f"mysub_manage_{target_sub_id}")
+            )
+            edit_or_reply_message(call, text, reply_markup=markup)
+            return
+
+        elif sub_action == "resetconfirm":
+            bot.answer_callback_query(call.id, "🔄 در حال تولید لینک جدید...")
+            res = reset_vpn_client_uuid_api(target_sub_id)
+            if res.get("success"):
+                new_link = res.get("key", {}).get("subLink")
+                bot.edit_message_text(f"✅ لینک شما با موفقیت تغییر کرد.\n\n🔗 لینک جدید:\n<code>{new_link}</code>\n\n⚠️ لطفاً این لینک را در نرم‌افزار خود جایگزین لینک قبلی کنید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+                
+                # Show back button after 2 seconds
+                import time
+                time.sleep(2)
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"))
+                bot.edit_message_text(f"✅ لینک شما با موفقیت تغییر کرد.\n\n🔗 لینک جدید:\n<code>{new_link}</code>\n\n⚠️ لطفاً این لینک را در نرم‌افزار خود جایگزین لینک قبلی کنید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            else:
+                bot.answer_callback_query(call.id, f"❌ خطا: {res.get('error')}", show_alert=True)
             return
 
         elif sub_action == "renew":
@@ -3360,6 +3434,27 @@ def callback_handler(call):
             
         return
 
+    if call.data.startswith("colrenew_"):
+        bot.answer_callback_query(call.id)
+        parts = call.data.split("_")
+        acc_id = parts[1]
+        package_id = parts[2]
+        
+        db = read_db_json()
+        package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
+        accounts = db.get("colleague_accounts", [])
+        acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
+        
+        if not package or acc_idx is None:
+            bot.send_message(tg_id, "❌ بسته یا حساب همکار یافت نشد.", reply_markup=get_custom_keyboard())
+            return
+            
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        message = call.message
+        message.chat.id = tg_id
+        process_col_renew_payment(message, acc_id, package)
+        return
+
     if call.data.startswith("col_"):
         bot.answer_callback_query(call.id)
         parts = call.data.split("_")
@@ -3382,6 +3477,10 @@ def callback_handler(call):
             bot.delete_message(call.message.chat.id, call.message.message_id)
             msg = bot.send_message(call.message.chat.id, "🔍 <b>بخشی از نام کاربری مورد نظر را وارد کنید:</b>\n(برای انصراف کلمه «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
             bot.register_next_step_handler(msg, process_col_search_user, acc)
+
+        elif action == "chpass":
+            msg = bot.send_message(call.message.chat.id, "👤 <b>نام کاربری (یوزرنیم) جدید خود را وارد کنید:</b>\n(برای انصراف کلمه «انصراف» را بفرستید)", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+            bot.register_next_step_handler(msg, process_colleague_change_password_user, acc_id)
 
         elif action == "lusers":
             keys = db.get("subscription_keys", [])
@@ -3417,6 +3516,22 @@ def callback_handler(call):
             
         elif action == "panel":
             show_colleague_panel(call.message, acc)
+            
+        elif action == "renew":
+            packages = db.get("colleague_packages", [])
+            if not packages:
+                bot.send_message(call.message.chat.id, "❌ هیچ بسته‌ای برای تمدید همکار تعریف نشده است.", reply_markup=get_custom_keyboard())
+                return
+            
+            text = "🔄 <b>تمدید سرویس همکار</b>\n\nلطفاً یکی از بسته‌های زیر را برای تمدید انتخاب کنید:"
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for p in packages:
+                btn_text = f"✨ {p['title']} ┃ {p['trafficGb']:,} گیگ ┃ {int(p['price']):,} تومان"
+                markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"colrenew_{acc_id}_{p['id']}"))
+                
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"col_panel_{acc['id']}"))
+            
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             
         return
 
@@ -3455,6 +3570,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}"),
                 types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"colu_toggle_{acc_id}_{sub_id}")
             )
+            markup.row(types.InlineKeyboardButton("🔄 تغییر لینک (Reset)", callback_data=f"colu_resetuuid_{acc_id}_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
             
@@ -3496,6 +3612,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}"),
                 types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"colu_toggle_{acc_id}_{sub_id}")
             )
+            markup.row(types.InlineKeyboardButton("🔄 تغییر لینک (Reset)", callback_data=f"colu_resetuuid_{acc_id}_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
 
@@ -3514,13 +3631,51 @@ def callback_handler(call):
             )
             bot.edit_message_text(f"⚠️ آیا از حذف کاربر <b>{sub.get('clientName', 'نامشخص')}</b> اطمینان دارید؟\nاین عملیات غیرقابل بازگشت است و هزینه بازگشت داده نخواهد شد.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             
+        elif action == "resetuuid":
+            markup = types.InlineKeyboardMarkup()
+            markup.row(
+                types.InlineKeyboardButton("✅ بله، تغییر بده", callback_data=f"colu_resetuuidyes_{acc_id}_{sub_id}"),
+                types.InlineKeyboardButton("❌ خیر، انصراف", callback_data=f"colu_view_{acc_id}_{sub_id}")
+            )
+            text = (
+                f"⚠️ <b>هشدار تغییر لینک کاربر {sub.get('clientName', 'نامشخص')}</b>\n\n"
+                "با انجام این عملیات، <b>لینک سابسکریپشن قبلی کاربر غیرفعال می‌شود</b> و لینک جدیدی صادر خواهد شد.\n"
+                "آیا مطمئن هستید؟"
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            
+        elif action == "resetuuidyes":
+            bot.answer_callback_query(call.id, "🔄 در حال تغییر لینک...")
+            res = reset_vpn_client_uuid_api(sub_id)
+            if res.get("success"):
+                bot.edit_message_text(f"✅ لینک کاربر با موفقیت تغییر یافت.\n\n🔗 لینک جدید:\n<code>{res.get('key', {}).get('subLink')}</code>", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+                # Wait 2 seconds and back to view
+                import time
+                time.sleep(2)
+                call.data = f"colu_view_{acc_id}_{sub_id}"
+                # Recurse or just tell user to click back
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت کاربر", callback_data=f"colu_view_{acc_id}_{sub_id}"))
+                bot.edit_message_text(f"✅ لینک کاربر با موفقیت تغییر یافت.\n\n🔗 لینک جدید:\n<code>{res.get('key', {}).get('subLink')}</code>", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            else:
+                bot.answer_callback_query(call.id, f"❌ خطا: {res.get('error')}", show_alert=True)
+
         elif action == "delyes":
             import threading
             def _bg_del():
                 delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"))
             threading.Thread(target=_bg_del).start()
             
-            acc["usedTrafficGb"] = max(0, acc.get("usedTrafficGb", 0) - sub.get("trafficLimitGb", 0))
+            # Sub is being deleted. If it was already used, permanently add to deleted list so colleague loses balance.
+            if float(sub.get("trafficUsedGb", 0)) >= 0.001:
+                acc["deletedTrafficGb"] = acc.get("deletedTrafficGb", 0) + float(sub.get("trafficLimitGb", 0))
+                acc["deletedRealTrafficGb"] = acc.get("deletedRealTrafficGb", 0) + float(sub.get("trafficUsedGb", 0))
+            
+            # Note: usedTrafficGb will be immediately re-calculated by cron sync anyway, but we update locally to refresh panel view
+            alive_keys = [k for i, k in enumerate(keys) if i != sub_idx and k.get("colleagueAccountId") == acc_id]
+            total_used = sum(float(k.get("trafficLimitGb", 0)) for k in alive_keys) + float(acc.get("deletedTrafficGb", 0))
+            acc["usedTrafficGb"] = total_used
+            
             accounts = [a if a["id"] != acc_id else acc for a in accounts]
             db["colleague_accounts"] = accounts
             
@@ -3547,6 +3702,18 @@ def callback_handler(call):
             reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(call.message, process_colleague_login_username)
+        return
+
+    if call.data == "recover_colleague_token":
+        bot.answer_callback_query(call.id)
+        msg = bot.edit_message_text(
+            "🔑 <b>بازیابی رمز ورود همکار</b>\n\nلطفاً <b>توکن بازیابی</b> اکانت خود را بفرستید:\n(برای انصراف کلمه «انصراف» را بفرستید)",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_colleague_recover_token)
         return
 
     if call.data.startswith("buy_colleague_"):
@@ -3591,6 +3758,94 @@ def callback_handler(call):
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
         
+    if call.data.startswith("col_pay:"):
+        bot.answer_callback_query(call.id)
+        method = call.data.split(":")[1]
+        
+        global pending_col_requests
+        if 'pending_col_requests' not in globals() or tg_id not in pending_col_requests:
+            bot.send_message(tg_id, "❌ درخواست پرداخت شما منقضی شده یا یافت نشد.", reply_markup=get_custom_keyboard())
+            return
+            
+        req = pending_col_requests.get(tg_id)
+        if not req: return
+        package_id = req["package_id"]
+        action = req.get("action", "buy")
+        
+        db = read_db_json()
+        package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
+        if not package:
+            bot.send_message(tg_id, "❌ بسته مورد نظر یافت نشد.", reply_markup=get_custom_keyboard())
+            if tg_id in pending_col_requests: del pending_col_requests[tg_id]
+            return
+            
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if method == "wallet":
+            user = get_user_data(tg_id)
+            bal = user.get("walletBalance", 0)
+            if not is_privileged and bal < package["price"]:
+                bot.send_message(tg_id, "❌ موجودی ناکافی است. ابتدا از منوی پشتیبانی اقدام به شارژ کیف پول کنید.", reply_markup=get_custom_keyboard())
+                return
+            
+            # process wallet pay
+            if not is_privileged:
+                update_user_balance(tg_id, bal - package["price"])
+                log_transaction(tg_id, package["price"], f"{action}_colleague_package", f"کسر شارژ برای بسته همکار", "out")
+                if package["price"] > 0:
+                    process_referral_on_purchase(user, package["price"])
+                    
+            finalize_colleague_purchase(tg_id, req, package, call.message)
+
+        elif method == "card":
+            # initiate card payment
+            amount = package["price"]
+            
+            # Use pending purchase with prefix
+            payload_str = f"{req.get('prefix')}||{req.get('token')}" if action == "buy" else f"{req.get('acc_id')}"
+            plan_code = f"COL_BUY:{package_id}" if action == "buy" else f"COL_RENEW:{package_id}"
+            
+            # Using set_user_pending_purchase allows the bot's photo upload handler to mark this tx as PLAN_PURCHASE
+            set_user_pending_purchase(tg_id, plan_code, payload_str)
+            
+            text = (
+                f"💳 <b>سفارش حساب همکار - مبلغ {int(amount):,} تومان:</b>\n\n"
+                f"لطفاً مبلغ فوق را به کارت زیر واریز نمایید:\n\n"
+                f"📥 شماره کارت ۱۶ رقمی:\n"
+                f"<code>{cfg.get('CARD_NUMBER', '')}</code>\n"
+                f"👤 به نام: <b>{cfg.get('CARD_HOLDER', '')}</b>\n\n"
+                f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b>."
+            )
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
+
+        elif method == "stars":
+            # telegram stars
+            try:
+                amount_irr = package["price"]
+                rate = float(cfg.get("GATEWAY_STARS_RATE", 1000))
+                stars_amount = max(1, int(amount_irr / rate))
+                
+                prices = [types.LabeledPrice(label=f"{package['title']}", amount=stars_amount)]
+                
+                payload = f"col_stars:{tg_id}:{package_id}:{action}"
+                
+                bot.send_invoice(
+                    call.message.chat.id,
+                    title="خرید بسته همکار",
+                    description=package['title'],
+                    invoice_payload=payload,
+                    provider_token="",  # Telegram Stars doesn't need token
+                    currency="XTR",
+                    prices=prices
+                )
+            except Exception as e:
+                print(f"[Stars Error] {e}")
+                bot.send_message(call.message.chat.id, "❌ خطا در ایجاد فاکتور تلگرام استارز.")
+        return
+
     if call.data.startswith("plcat_"):
         bot.answer_callback_query(call.id)
         category_name = call.data.split("_", 1)[1]
@@ -4152,6 +4407,7 @@ def show_colleague_panel_msg(message, acc):
     markup.row(types.InlineKeyboardButton("➕ ساخت کاربر جدید", callback_data=f"col_cuser_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("👥 لیست کاربران و مصرف", callback_data=f"col_lusers_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("🔍 سرچ کاربر", callback_data=f"col_suser_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🔄 تمدید سرویس", callback_data=f"col_renew_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("🔙 خروج", callback_data="btn_back_home"))
     
     bot.send_message(
@@ -4165,6 +4421,7 @@ def show_colleague_panel(message, acc):
     markup.row(types.InlineKeyboardButton("➕ ساخت کاربر جدید", callback_data=f"col_cuser_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("👥 لیست کاربران و مصرف", callback_data=f"col_lusers_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("🔍 سرچ کاربر", callback_data=f"col_suser_{acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🔄 تمدید سرویس", callback_data=f"col_renew_{acc['id']}"))
     markup.row(types.InlineKeyboardButton("🔙 خروج", callback_data="btn_back_home"))
     
     bot.edit_message_text(
@@ -4245,8 +4502,8 @@ def process_col_create_gb(message, acc, name):
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
-    if gb < 30:
-        msg = bot.send_message(message.chat.id, "⚠️ حداقل حجم انتخابی برای کاربر جدید باید ۳۰ گیگابایت به بالا باشد. لطفا حجم دیگری وارد کنید:")
+    if gb < 20:
+        msg = bot.send_message(message.chat.id, "⚠️ حداقل حجم انتخابی برای کاربر جدید باید ۲۰ گیگابایت به بالا باشد. لطفا حجم دیگری وارد کنید:")
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
@@ -4496,37 +4753,135 @@ def process_colleague_prefix(message, package):
         msg = bot.send_message(message.chat.id, "❌ پیشوند (Prefix) فقط باید شامل حروف و اعداد انگلیسی باشد (بین ۲ تا ۱۰ کاراکتر).\n\nمجدداً وارد کنید:")
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
-        
-    global active_purchases
-    if tg_id in active_purchases:
-        bot.send_message(message.chat.id, "⚠️ <b>یک درخواست خرید همکار در حال حاضر برای شما در حال پردازش است. لطفا شکیبا باشید...</b>", parse_mode="HTML")
+
+    msg = bot.send_message(
+        message.chat.id,
+        "🔐 <b>لطفاً یک توکن (بازیابی) برای خودتان تعریف کنید:</b>\n"
+        "(مثلاً یک اسم و عدد مثل <code>Ali123</code>. این توکن برای زمان فراموشی رمز ورود پنل همکار استفاده خواهد شد)\n"
+        "(برای انصراف کلمه «انصراف» را بفرستید)",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    bot.register_next_step_handler(msg, process_colleague_pkg_token, package, text)
+    
+def process_colleague_pkg_token(message, package, prefix_text):
+    tg_id = message.from_user.id
+    token = message.text.strip() if message.text else ""
+
+    if token == "/start" or "انصراف" in token or "بازگشت" in token or "منصرف" in token:
+        bot.send_message(message.chat.id, "❌ خرید لغو شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
         return
+
+    import re
+    if not re.match("^[A-Za-z0-9_]{3,30}$", token):
+        msg = bot.send_message(message.chat.id, "❌ توکن فقط باید شامل حروف انگلیسی و اعداد (بدون فاصله) و حداقل ۳ حرف باشد.\n\nلطفاً دوباره وارد کنید:", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_colleague_pkg_token, package, prefix_text)
+        return
+
+    db = read_db_json()
+    if any(a.get("recoveryToken") == token for a in db.get("colleague_accounts", [])):
+        msg = bot.send_message(message.chat.id, "❌ این توکن قبلاً توسط شخص دیگری ثبت شده است! لطفاً یک توکن اختصاصی دیگر وارد کنید:", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_colleague_pkg_token, package, prefix_text)
+        return
+
+    # Show payment methods
+    global pending_col_requests
+    if 'pending_col_requests' not in globals():
+        global pending_col_requests
+        pending_col_requests = {}
         
-    active_purchases.add(tg_id)
-    try:
-        db = read_db_json()
-        user = get_user_data(tg_id)
-        bal = user.get("walletBalance", 0)
-        
-        cfg = get_config()
-        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
-        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
-        is_privileged = is_owner or is_admin
-        
-        if not is_privileged and bal < package["price"]:
-            bot.send_message(message.chat.id, "❌ موجودی ناکافی است.", reply_markup=get_custom_keyboard())
-            return
+    pending_col_requests[tg_id] = {
+        "package_id": package["id"],
+        "prefix": prefix_text,
+        "token": token,
+        "action": "buy"
+    }
+    
+    cfg = get_config()
+    price_text = f"{int(package['price']):,} تومان"
+    
+    text_response = (
+        f"✅ <b>اطلاعات ثبت شد.</b>\n\n"
+        f"🛒 <b>خرید بسته همکار: {package['title']}</b>\n"
+        f"👤 پسوند کانفیگ‌ها: <code>{prefix_text}</code>\n"
+        f"💰 مبلغ نهایی: <b>{price_text}</b>\n\n"
+        f"💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
+    )
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
+    
+    if is_privileged:
+        markup.add(types.InlineKeyboardButton("🎁 تایید مستقیم (ایجاد حساب ادمین)", callback_data=f"col_pay:wallet"))
+    else:
+        markup.add(types.InlineKeyboardButton("💳 پرداخت از موجودی کیف پول", callback_data=f"col_pay:wallet"))
+        markup.add(types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"col_pay:card"))
+        if cfg.get("GATEWAY_STARS_STATUS"):
+            markup.add(types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"col_pay:stars"))
             
-        if not is_privileged:
-            update_user_balance(tg_id, bal - package["price"])
-            if package["price"] > 0:
-                process_referral_on_purchase(user, package["price"])
+    # Allow crypto? User only asked for Wallet, Card, Stars. Let's stick to those.
+    markup.add(types.InlineKeyboardButton("❌ لغو خرید", callback_data="mm_btnColleagues"))
+    
+    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
+
+def process_col_renew_payment(message, acc_id, package):
+    tg_id = message.chat.id
+    global pending_col_requests
+    if 'pending_col_requests' not in globals():
+        global pending_col_requests
+        pending_col_requests = {}
         
+    pending_col_requests[tg_id] = {
+        "package_id": package["id"],
+        "acc_id": acc_id,
+        "action": "renew"
+    }
+    
+    cfg = get_config()
+    price_text = f"{int(package['price']):,} تومان"
+    
+    text_response = (
+        f"✅ <b>درخواست تمدید ثبت شد.</b>\n\n"
+        f"🔄 <b>تمدید بسته همکار: {package['title']}</b>\n"
+        f"💰 مبلغ نهایی: <b>{price_text}</b>\n\n"
+        f"💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
+    )
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
+    
+    if is_privileged:
+        markup.add(types.InlineKeyboardButton("🎁 تایید مستقیم (تمدید ادمین)", callback_data=f"col_pay:wallet"))
+    else:
+        markup.add(types.InlineKeyboardButton("💳 پرداخت از موجودی کیف پول", callback_data=f"col_pay:wallet"))
+        markup.add(types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"col_pay:card"))
+        if cfg.get("GATEWAY_STARS_STATUS"):
+            markup.add(types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"col_pay:stars"))
+            
+    markup.add(types.InlineKeyboardButton("❌ لغو تمدید", callback_data=f"col_panel_{acc_id}"))
+    
+    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
+
+def finalize_colleague_purchase(tg_id, req, package, message=None):
+    action = req.get("action", "buy")
+    
+    db = read_db_json()
+    
+    if action == "buy":
         import random
         import string
         import uuid
         from datetime import datetime
         
+        prefix_text = req.get("prefix", "")
+        token = req.get("token", "")
         username = "C" + "".join(random.choices(string.digits, k=5))
         password = "".join(random.choices(string.ascii_letters + string.digits, k=8))
         
@@ -4543,30 +4898,57 @@ def process_colleague_prefix(message, package):
             "createdAt": datetime.now().strftime("%Y-%m-%d"),
             "trafficGb": package["trafficGb"],
             "usedTrafficGb": 0,
-            "prefix": text,
+            "prefix": prefix_text,
+            "recoveryToken": token,
             "status": "active"
         }
         
         db["colleague_accounts"].append(new_acc)
         write_db_json(db)
         
-        log_action(
-            tg_id, 
-            message.from_user.username or str(tg_id), 
-            "buy_colleague_package", 
-            f"بسته همکار '{package['title']}' را با هزینه {package['price']} تومان خریداری کرد. (پسوند: {text})"
-        )
+        # We need username for log if available
+        tg_user = message.chat.username if message else str(tg_id)
+        log_action(tg_id, tg_user, "buy_colleague_package", f"بسته همکار '{package['title']}' را خریداری کرد. (پسوند: {prefix_text})")
         
         bot.send_message(
             tg_id,
-            f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\nپسوند تنظیم شده: {text}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.",
+            f"✅ <b>خرید بسته همکار با موفقیت انجام شد!</b>\n\nبسته خریداری شده: {package['title']}\nپسوند تنظیم شده: {prefix_text}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>{username}</code>\n🔑 <b>رمز عبور:</b> <code>{password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.",
             parse_mode="HTML",
             reply_markup=get_custom_keyboard()
         )
-        
-        show_colleague_panel_msg(message, new_acc)
-    finally:
-        active_purchases.discard(tg_id)
+        if message:
+            show_colleague_panel_msg(message, new_acc)
+            
+    elif action == "renew":
+        acc_id = req.get("acc_id")
+        accounts = db.get("colleague_accounts", [])
+        acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
+        if acc_idx is not None:
+            acc = accounts[acc_idx]
+            acc["trafficGb"] = acc.get("trafficGb", 0) + package["trafficGb"]
+            acc["packageTitle"] = package["title"]
+            accounts[acc_idx] = acc
+            db["colleague_accounts"] = accounts
+            write_db_json(db)
+            
+            tg_user = message.chat.username if message else str(tg_id)
+            log_action(tg_id, tg_user, "renew_colleague_package", f"بسته همکار تمدید شد. افزایش حجم: {package['trafficGb']} GB")
+            
+            bot.send_message(
+                tg_id,
+                f"✅ <b>تمدید با موفقیت انجام شد!</b>\n\nحجم اضافه شده: {package['trafficGb']} گیگابایت\nلیست بسته تمدیدی: {package['title']}",
+                parse_mode="HTML",
+                reply_markup=get_custom_keyboard()
+            )
+            if message:
+                show_colleague_panel_msg(message, acc)
+                
+    # clear request
+    global pending_col_requests
+    if 'pending_col_requests' in globals() and tg_id in pending_col_requests:
+        del pending_col_requests[tg_id]
+
+# Define col_pay callback handler logic later
 
 def process_colleague_login_password(message, acc):
     tg_id = message.from_user.id
@@ -5203,6 +5585,67 @@ def handle_receipt_upload(message):
     except Exception as e:
         print(f"[Error Processing Telegram Receipt] {e}")
         bot.reply_to(message, "❌ خطای بسته‌های تصویر یا فایل. لطفا مطمئن شوید حجم فیش مناسب است.", reply_markup=get_custom_keyboard())
+
+def process_colleague_recover_token(message):
+    token = message.text.strip() if message.text else ""
+    if token in ["انصراف", "بازگشت", "/start"] or "منصرف" in token:
+        bot.send_message(message.chat.id, "عملیات بازیابی حساب همکار لغو شد.", reply_markup=get_custom_keyboard())
+        return
+
+    db = read_db_json()
+    accounts = db.get("colleague_accounts", [])
+    
+    # search for token in colleague accounts
+    found_acc = next((a for a in accounts if a.get("recoveryToken") == token), None)
+    
+    if not found_acc:
+        msg = bot.send_message(message.chat.id, "❌ توکن نامعتبر است یا کاربری با این توکن بازیابی یافت نشد.\n\nلطفاً دوباره توکن خود را در صورت داشتن حساب همکار وارد کنید:", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_colleague_recover_token)
+        return
+        
+    text_msg = (
+        f"✅ <b>حساب همکار شما با موفقیت بازیابی شد:</b>\n\n"
+        f"👤 <b>نام کاربری:</b> <code>{found_acc['username']}</code>\n"
+        f"🔑 <b>رمز عبور:</b> <code>{found_acc['password']}</code>\n"
+        f"بسته همکار: {found_acc.get('packageTitle', '')}\n\n"
+        f"لطفاً مجدداً از منوی «بسته ویژه همکاران» اقدام به ورود پنل کنید."
+    )
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.row(types.InlineKeyboardButton("🔑 تغییر نام‌کاربری و رمز عبور", callback_data=f"col_chpass_{found_acc['id']}"))
+    markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
+    
+    bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=markup)
+
+def process_colleague_change_password_user(message, acc_id):
+    new_user = message.text.strip() if message.text else ""
+    if new_user in ["انصراف", "بازگشت", "/start"] or "منصرف" in new_user:
+        bot.send_message(message.chat.id, "عملیات تغییر مشخصات لغو شد.", reply_markup=get_custom_keyboard())
+        return
+        
+    msg = bot.send_message(message.chat.id, f"یوزرنیم جدید <code>{new_user}</code> تنظیم شد.\n\n🔑 لطفاً <b>پسورد جدید</b> خود را ارسال کنید:", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+    bot.register_next_step_handler(msg, process_colleague_change_password_pass, acc_id, new_user)
+
+def process_colleague_change_password_pass(message, acc_id, new_user):
+    new_pass = message.text.strip() if message.text else ""
+    if new_pass in ["انصراف", "بازگشت", "/start"] or "منصرف" in new_pass:
+        bot.send_message(message.chat.id, "عملیات تغییر مشخصات لغو شد.", reply_markup=get_custom_keyboard())
+        return
+        
+    db = read_db_json()
+    accounts = db.get("colleague_accounts", [])
+    acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
+    
+    if acc_idx is None:
+        bot.send_message(message.chat.id, "❌ حساب همکار یافت نشد.")
+        return
+        
+    accounts[acc_idx]["username"] = new_user
+    accounts[acc_idx]["password"] = new_pass
+    db["colleague_accounts"] = accounts
+    write_db_json(db)
+    
+    bot.send_message(message.chat.id, f"✅ <b>مشخصات حساب شما تغییر کرد:</b>\n\n👤 <b>یوزرنیم جدید:</b> <code>{new_user}</code>\n🔑 <b>رمز عبور جدید:</b> <code>{new_pass}</code>\n\nجهت ورود به پنل از منوی همکاران استفاده کنید.", parse_mode="HTML", reply_markup=get_custom_keyboard())
 
 # Initialize JSON DB on startup
 if __name__ == "__main__":

@@ -362,6 +362,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مخاطب (آیدی)" : "User ID"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پکیج" : "Package"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پیشوند" : "Prefix"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "توکن بازیابی" : "Recovery Token"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "یوزرنیم" : "Username"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "رمز" : "Password"}</th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "کل حجم" : "Total Traffic"}</th>
@@ -377,6 +378,20 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <td className="px-4 py-3 text-sm text-gray-300 font-mono">{acc.userId || '-'}</td>
                   <td className="px-4 py-3 text-sm text-white font-bold">{acc.packageTitle}</td>
                   <td className="px-4 py-3 text-sm text-gray-300">{acc.prefix || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-300 font-mono">
+                    {acc.recoveryToken ? (
+                      <div className="flex items-center gap-1.5 justify-start">
+                        <span>{acc.recoveryToken}</span>
+                        <button
+                          onClick={() => copyToClipboard(acc.recoveryToken, lang === "fa" ? "توکن بازیابی" : "Recovery Token")}
+                          className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
+                          title={lang === "fa" ? "کپی توکن" : "Copy Token"}
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-indigo-300 font-mono">
                     <div className="flex items-center gap-1.5 justify-start">
                       <span>{acc.username}</span>
@@ -445,7 +460,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
               ))}
               {accounts.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="text-center py-8 text-gray-500">
+                  <td colSpan={11} className="text-center py-8 text-gray-500">
                     {lang === "fa" ? "هیچ حسابی صادر نشده است." : "No accounts found."}
                   </td>
                 </tr>
