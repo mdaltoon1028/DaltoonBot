@@ -327,10 +327,32 @@ except ImportError:
     pass
 
 # --- Sanaei 3x-ui Admin API Helpers ---
-def login_xui():
+def login_xui(server_id=None):
     """ Authenticate session with Sanaei X-UI administrator credentials supporting classic & CSRF-enabled panels """
     cfg = get_config()
-    base_url = cfg['XUI_URL']
+    db = read_db_json()
+    settings = db.get("settings", {})
+    
+    servers = settings.get("servers", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if s.get("id") == server_id), None)
+    
+    if not server and servers:
+        # Fallback to first active server
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
+
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+        user = server.get("panelUsername", "")
+        pwd = server.get("panelPassword", "")
+    else:
+        # Legacy fallback
+        base_url = cfg.get('XUI_URL', '')
+        user = cfg.get('XUI_USER', '')
+        pwd = cfg.get('XUI_PASS', '')
+
     if not base_url:
         print("[Sanaei X-UI API] Panel XUI_URL is empty.")
         return False
@@ -354,8 +376,8 @@ def login_xui():
         # 2. Login POST request
         login_url = f"{base_url}/login"
         login_data = {
-            "username": cfg['XUI_USER'],
-            "password": cfg['XUI_PASS']
+            "username": user,
+            "password": pwd
         }
 
         headers = {
@@ -684,18 +706,32 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
 
     return links
 
-def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None):
+def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None, server_id=None):
     """
     Creates a new client in the X-UI panel.
     Adds the user to all active inbounds specified in the settings.
     """
     import random, string, time, json, os, uuid, re
     cfg = get_config()
-    base_url = cfg.get("XUI_URL", "")
+    db = read_db_json()
+    settings = db.get("settings", {})
+    servers = settings.get("servers", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if s.get("id") == server_id), None)
+    if not server and servers:
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
+        
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+    else:
+        base_url = cfg.get("XUI_URL", "")
+        
     if not base_url: return None, None
     if base_url.endswith("/"): base_url = base_url[:-1]
 
-    if not login_xui():
+    if not login_xui(server_id):
         print("[Sanaei API Error] Skipping user creation - login failed.")
         return None, None
 
@@ -723,18 +759,22 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     }
 
     # Determine inbound IDs
-    db = read_db_json()
     inbound_ids = []
     
-    settings_str = db.get("settings", {}).get("panel_config")
-    if settings_str:
-        try:
-            panel_cfg = json.loads(settings_str)
-            active_ids = panel_cfg.get("activeInboundIds", [])
-            if active_ids and isinstance(active_ids, list):
-                inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
-        except Exception as e:
-            print(f"[API] Error resolving inbound IDs: {e}")
+    if server:
+        active_ids = server.get("activeInboundIds", [])
+        if active_ids and isinstance(active_ids, list):
+            inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+    else:
+        settings_str = settings.get("panel_config")
+        if settings_str:
+            try:
+                panel_cfg = json.loads(settings_str)
+                active_ids = panel_cfg.get("activeInboundIds", [])
+                if active_ids and isinstance(active_ids, list):
+                    inbound_ids = [int(i) for i in active_ids if str(i).isdigit() or isinstance(i, int)]
+            except Exception as e:
+                print(f"[API] Error resolving inbound IDs: {e}")
 
     # Fetch available IDs to ensure validity (Avoid hanging on dead IDs)
     valid_ids = []
@@ -1438,7 +1478,7 @@ def log_action(tg_id, username, action, details):
     db["logs"].append(log)
     write_db_json(db)
 
-def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name="", client_uuid=""):
+def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name="", client_uuid="", server_id=None):
     db = read_db_json()
     new_sub = {
         "id": key_id,
@@ -1452,7 +1492,8 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
         "trafficLimitGb": float(limit_gb),
         "trafficUsedGb": 0.0,
         "createdAtMs": int(time.time() * 1000),
-        "status": "active"
+        "status": "active",
+        "serverId": server_id
     }
     db["subscription_keys"].append(new_sub)
     
@@ -1724,7 +1765,26 @@ def buy_cmd(message):
     cfg = get_config()
     nickname = cfg.get("BOT_NICKNAME", "دالتون")
     db = read_db_json()
+    settings = db.get("settings", {})
     
+    servers = settings.get("servers", [])
+    active_servers = [s for s in servers if s.get("status") == "active"]
+    
+    if active_servers:
+        message_body = (
+            f"🌐 <b>انتخاب سرور جهت خرید کانفیگ:</b>\n\n"
+            "لطفاً ابتدا سرور مورد نظر خود را از لیست زیر انتخاب کنید:"
+        )
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for srv in active_servers:
+            markup.add(types.InlineKeyboardButton(f"🌐 {srv.get('name')}", callback_data=f"srvsel_{srv.get('id')}"))
+            
+        markup.row(
+            types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")
+        )
+        bot.send_message(message.chat.id, message_body, parse_mode="HTML", reply_markup=markup)
+        return
+
     message_body = (
         f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
         "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
@@ -1733,8 +1793,6 @@ def buy_cmd(message):
 
     db_plans = db.get("vpn_plans", [])
     db_categories = db.get("plan_categories", [])
-    
-    settings = db.get("settings", {})
     # Extract categories and their emojis
     categories = []
     category_map = {}
@@ -2518,7 +2576,8 @@ def handle_buy_pay(call):
         
         # API creation
         cfg = get_config()
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        server_id = spec.get("server_id")
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], server_id=server_id)
         
         if not sub_link:
             if not cfg.get("SIMULATOR_MODE"):
@@ -2561,7 +2620,8 @@ def handle_buy_pay(call):
             expire_date=expire_date, 
             limit_gb=spec['traffic'],
             client_name=username_input,
-            client_uuid=client_uuid
+            client_uuid=client_uuid,
+            server_id=spec.get("server_id")
         )
         clear_user_pending_purchase(tg_id)
         
@@ -2844,7 +2904,8 @@ def process_purchase_username(message, plan_id, spec):
             process_referral_on_purchase(user, spec['price'])
 
         # Add client to X-UI panel
-        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'])
+        server_id = spec.get("server_id")
+        client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], server_id=server_id)
         if not sub_link:
             # Fallback simulated dynamic link
             client_uuid = str(uuid.uuid4())
@@ -2865,7 +2926,8 @@ def process_purchase_username(message, plan_id, spec):
             expire_date=expire_date, 
             limit_gb=spec['traffic'],
             client_name=username_input,
-            client_uuid=client_uuid
+            client_uuid=client_uuid,
+            server_id=spec.get("server_id")
         )
 
         success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "").strip()
@@ -3976,9 +4038,74 @@ def callback_handler(call):
                 bot.send_message(call.message.chat.id, "❌ خطا در ایجاد فاکتور تلگرام استارز.")
         return
 
+    if call.data.startswith("srvsel_"):
+        bot.answer_callback_query(call.id)
+        server_id = call.data.split("_", 1)[1]
+        
+        db = read_db_json()
+        cfg = get_config()
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        
+        message_body = (
+            f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
+            "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
+            "💡 با انتخاب هر دسته‌بندی، طرح‌های فعال آن بخش به همراه قیمت و جزئیات خدمت شما نمایش داده می‌شوند."
+        )
+
+        db_plans = db.get("vpn_plans", [])
+        db_categories = db.get("plan_categories", [])
+        
+        categories = []
+        category_map = {}
+        
+        if db_categories:
+            for c in db_categories:
+                cat_name = c.get("name")
+                if cat_name:
+                    categories.append(cat_name)
+                    category_map[cat_name] = c.get("emoji", "⚡️")
+        else:
+            seen_cats = set()
+            for p in db_plans:
+                cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
+                if cat not in seen_cats:
+                    categories.append(cat)
+                    seen_cats.add(cat)
+
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for cat in categories:
+            has_plans = any(p.get("category") == cat for p in db_plans)
+            if not has_plans:
+                continue
+                
+            emoji = category_map.get(cat)
+            if not emoji:
+                emoji = "⚡️"
+                if "vip" in cat.lower(): emoji = "⭐️"
+                elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
+                elif "premium" in cat.lower(): emoji = "💎"
+            
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{server_id}_{cat}"))
+        
+        markup.row(
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="mm_btnBuyNew"),
+            types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
+        )
+        edit_or_reply_message(call, message_body, markup)
+        return
+
     if call.data.startswith("plcat_"):
         bot.answer_callback_query(call.id)
-        category_name = call.data.split("_", 1)[1]
+        
+        parts = call.data.replace("plcat_", "").split("_", 1)
+        server_id = ""
+        category_name = ""
+        
+        if len(parts) == 2 and parts[0].startswith("srv"):
+            server_id = parts[0]
+            category_name = parts[1]
+        else:
+            category_name = call.data.replace("plcat_", "")
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
@@ -4015,10 +4142,11 @@ def callback_handler(call):
                 clean_name = clean_name[5:]
                 
             btn_text = f"⚡️ {clean_name} ┃ {p['price']:,} تومان"
-            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_{p['id']}"))
+            call_action = f"buy_{server_id}_{p['id']}" if server_id else f"buy_{p['id']}"
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data=call_action))
             
         markup.row(
-            types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data="mm_btnBuyNew"),
+            types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data=f"srvsel_{server_id}" if server_id else "mm_btnBuyNew"),
             types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
         )
         
@@ -4033,8 +4161,17 @@ def callback_handler(call):
         
     if call.data.startswith("buy_"):
         bot.answer_callback_query(call.id)
-        plan_id = call.data[4:]
-        tg_id = call.from_user.id
+        
+        parts = call.data.replace("buy_", "").split("_", 1)
+        server_id = ""
+        plan_id = ""
+        if len(parts) == 2 and parts[0].startswith("srv"):
+            server_id = parts[0]
+            plan_id = parts[1]
+        else:
+            plan_id = call.data.replace("buy_", "")
+            
+        tg_id = call.fromuser.id if hasattr(call, "fromuser") else call.from_user.id
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])
@@ -4061,6 +4198,10 @@ def callback_handler(call):
         if not spec:
             bot.send_message(call.message.chat.id, "❌ متاسفانه مشخصات این طرح یافت نشد.")
             return
+
+        # inject server_id into spec
+        if server_id:
+            spec["server_id"] = server_id
 
         user = get_user_data(tg_id)
         if not user:

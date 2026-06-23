@@ -459,7 +459,8 @@ export default function BotSimulator({
           expireDate,
           trafficLimitGb: selectedPlanToBuy.trafficGb,
           trafficUsedGb: 0,
-          status: "active" as const
+          status: "active" as const,
+          serverId: (selectedPlanToBuy as any)._serverId
         };
 
         // Update simulated states
@@ -522,34 +523,57 @@ export default function BotSimulator({
     }
 
     if (text === (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") || text.includes("خرید") || text.includes("Buy") || text.includes("Plan")) {
-        const cats = new Set<string>();
-        plans.forEach(p => cats.add(p.category || (lang === "fa" ? "سایر" : "Others")));
-        const definedCats = planCategories || [];
+        const activeServers = (settings?.servers || []).filter((s: any) => s.status === 'active');
         
-        const inlineCats: any[] = [];
-        definedCats.forEach(c => {
-          if (plans.some(p => p.category?.toLowerCase() === c.name.toLowerCase())) {
-            inlineCats.push({ text: `${c.emoji || "⚡"} ${c.name}`, action: `plcat_${c.name}` });
-            cats.delete(c.name);
-          }
-        });
-        cats.forEach(c => {
-          inlineCats.push({ text: `⚡ ${c}`, action: `plcat_${c}` });
-        });
+        if (activeServers.length > 0) {
+          const inlineServers = activeServers.map((s: any) => ([
+            { text: `🌐 ${s.name}`, action: `srvsel_${s.id}` }
+          ]));
+          
+          inlineServers.push([
+            { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+            { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+          ]);
+          
+          addBotReply(
+            lang === "fa" 
+              ? "🌐 لطفا سرور مورد نظر خود را انتخاب کنید:" 
+              : "🌐 Please select your preferred server:",
+            800,
+            undefined,
+            inlineServers
+          );
+        } else {
+          // Fallback to categories directly if no servers
+          const cats = new Set<string>();
+          plans.forEach(p => cats.add(p.category || (lang === "fa" ? "سایر" : "Others")));
+          const definedCats = planCategories || [];
+          
+          const inlineCats: any[] = [];
+          definedCats.forEach(c => {
+            if (plans.some(p => p.category?.toLowerCase() === c.name.toLowerCase())) {
+              inlineCats.push({ text: `${c.emoji || "⚡"} ${c.name}`, action: `plcat_${c.name}` });
+              cats.delete(c.name);
+            }
+          });
+          cats.forEach(c => {
+            inlineCats.push({ text: `⚡ ${c}`, action: `plcat_${c}` });
+          });
 
-        inlineCats.push([
-          { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
-          { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
-        ]);
+          inlineCats.push([
+            { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+            { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+          ]);
 
-        addBotReply(
-          lang === "fa" 
-            ? "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:" 
-            : "Please select one of the following categories to view plans:",
-          800,
-          undefined,
-          inlineCats
-        );
+          addBotReply(
+            lang === "fa" 
+              ? "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:" 
+              : "Please select one of the following categories to view plans:",
+            800,
+            undefined,
+            inlineCats
+          );
+        }
     } 
     else if (text === (settings?.btnTextProfile || "👤 حساب کاربری") || text.includes("👤") || text.includes("حساب") || text.includes("Account")) {
       const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
@@ -804,17 +828,60 @@ export default function BotSimulator({
       return;
     }
 
+    if (action.startsWith("srvsel_")) {
+      const serverId = action.replace("srvsel_", "");
+      
+      const cats = new Set<string>();
+      plans.forEach(p => cats.add(p.category || (lang === "fa" ? "سایر" : "Others")));
+      const definedCats = planCategories || [];
+      
+      const inlineCats: any[] = [];
+      definedCats.forEach(c => {
+        if (plans.some(p => p.category?.toLowerCase() === c.name.toLowerCase())) {
+          inlineCats.push({ text: `${c.emoji || "⚡"} ${c.name}`, action: `plcat_${serverId}_${c.name}` });
+          cats.delete(c.name);
+        }
+      });
+      cats.forEach(c => {
+        inlineCats.push({ text: `⚡ ${c}`, action: `plcat_${serverId}_${c}` });
+      });
+
+      inlineCats.push([
+        { text: lang === "fa" ? "🔙 بازگشت به لیست سرورها" : "🔙 Back to Servers", action: (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") },
+        { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
+      ]);
+
+      addBotReply(
+        lang === "fa" 
+          ? "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:" 
+          : "Please select one of the following categories to view plans:",
+        800,
+        undefined,
+        inlineCats
+      );
+      return;
+    }
+
     if (action.startsWith("plcat_")) {
-      const catName = action.replace("plcat_", "");
+      let serverId = "";
+      let catName = action.replace("plcat_", "");
+      
+      // Extract serverId if it exists (plcat_SERVERID_CATEGORY)
+      if (catName.includes("_")) {
+        const parts = catName.split("_");
+        serverId = parts[0];
+        catName = parts.slice(1).join("_");
+      }
+      
       const filteredPlans = plans.filter(p => (p.category || (lang === "fa" ? "سایر" : "Others")).toLowerCase() === catName.toLowerCase());
       
       const inlinePlans: any[] = filteredPlans.map(p => ({
         text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
-        action: `buy_${p.id}`
+        action: serverId ? `buy_${serverId}_${p.id}` : `buy_${p.id}`
       }));
       
       inlinePlans.push([
-        { text: lang === "fa" ? "🔙 بازگشت به دسته‌بندی‌ها" : "🔙 Back to Categories", action: (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") },
+        { text: lang === "fa" ? "🔙 بازگشت به دسته‌بندی‌ها" : "🔙 Back to Categories", action: serverId ? `srvsel_${serverId}` : (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") },
         { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
       ]);
       
@@ -1213,11 +1280,24 @@ export default function BotSimulator({
     }
 
     if (action.startsWith("buy_")) {
-      const planId = action.substring(4);
+      const parts = action.replace("buy_", "").split("_");
+      let serverId = "";
+      let planId = "";
+      if (parts.length > 1) {
+        serverId = parts[0];
+        planId = parts.slice(1).join("_");
+      } else {
+        planId = parts[0];
+      }
+      
       const matchedPlan = plans.find(p => p.id === planId);
       if (matchedPlan) {
         setSelectedPlanToBuy(matchedPlan);
         setPurchaseStep("confirm_plan");
+        // Store the selected server id in a data attribute or global state if we needed it to construct the link.
+        // For simulation, we'll append it to the plan object temporarily for reference
+        (matchedPlan as any)._serverId = serverId;
+        
         const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
         const hasEnough = isUserAdminOrOwner || (currentUser.walletBalance >= matchedPlan.price);
         

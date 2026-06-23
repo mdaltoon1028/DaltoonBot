@@ -10,7 +10,7 @@ interface MultiServerConfigProps {
 }
 
 export default function MultiServerConfig({ settings, onSaveSettings, lang }: MultiServerConfigProps) {
-  const [servers, setServers] = useState<ServerConfig[]>(settings.servers || []);
+  const [servers, setServers] = useState<ServerConfig[]>(Array.isArray(settings.servers) ? settings.servers : []);
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
@@ -46,7 +46,7 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
     setSubUrl(s.subUrl || "");
     setPanelUsername(s.panelUsername);
     setPanelPassword(s.panelPassword);
-    setCheckedInboundIds(s.activeInboundIds || []);
+    setCheckedInboundIds(Array.isArray(s.activeInboundIds) ? s.activeInboundIds : []);
     setInbounds([]); // We don't have the old list, need to re-test to fetch them or just let them stay as ids.
     setTestStatus({ type: "idle", message: "" });
     setEditingIndex(index);
@@ -278,34 +278,63 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
 
       {/* List of Servers */}
       {!showForm && servers.length > 0 && (
-        <div className="space-y-3">
-          {servers.map((srv, index) => (
-            <div key={srv.id} className="bg-[#13192e] border border-gray-800 p-4 rounded-xl flex items-center justify-between hover:border-indigo-500/30 transition">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                  <Server className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">{srv.name}</h4>
-                  <p className="text-xs text-gray-500 font-mono">{srv.panelUrl}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => startEdit(index)}
-                  className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg transition"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(index)}
-                  className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto border border-gray-800 rounded-xl">
+          <table className="w-full text-sm text-right">
+            <thead className="bg-[#13192e] text-gray-300 border-b border-gray-800">
+              <tr>
+                <th className="py-4 px-6 font-medium whitespace-nowrap">{lang === "fa" ? "نام سرور" : "Server Name"}</th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap">{lang === "fa" ? "آدرس پنل" : "Panel URL"}</th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap">{lang === "fa" ? "کانفیگ‌ها" : "Configs"}</th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">{lang === "fa" ? "وضعیت اتصال" : "Connection Status"}</th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">{lang === "fa" ? "عملیات" : "Actions"}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {servers.map((srv, index) => (
+                <tr key={srv.id} className="bg-[#0c1020] hover:bg-[#13192e] transition-colors">
+                  <td className="py-4 px-6 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                        <Server className="w-4 h-4" />
+                      </div>
+                      <span className="font-bold text-white">{srv.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-6 whitespace-nowrap">
+                    <span className="font-mono text-xs text-gray-400">{srv.panelUrl}</span>
+                  </td>
+                  <td className="py-4 px-6 whitespace-nowrap">
+                    <span className="text-gray-300">
+                      {srv.activeInboundIds?.length || 0} {lang === "fa" ? "اینباند" : "Inbounds"}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 whitespace-nowrap text-center">
+                    <span className="inline-flex items-center justify-center px-2.5 py-1 text-xs rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      {lang === "fa" ? "متصل" : "Connected"}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 whitespace-nowrap">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => startEdit(index)}
+                        className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg transition"
+                        title={lang === "fa" ? "ویرایش" : "Edit"}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(index)}
+                        className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition"
+                        title={lang === "fa" ? "حذف" : "Delete"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
       {!showForm && servers.length === 0 && (

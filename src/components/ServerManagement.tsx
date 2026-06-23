@@ -248,7 +248,7 @@ export default function ServerManagement({
               {lang === "fa" ? "تعداد سرورهای فعال" : "Active Servers"}
             </span>
             <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">
-              {(settings.servers || []).filter(s => s.status !== 'inactive').length}
+              {(Array.isArray(settings.servers) ? settings.servers : []).filter(s => s.status !== 'inactive').length}
             </h3>
             <p className="text-[11px] text-emerald-400/80 font-sans">
               {lang === "fa" ? "سرورهای متصل جهت ارائه اشتراک" : "Connected servers for subscriptions"}
