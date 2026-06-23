@@ -894,6 +894,10 @@ export default function App() {
     }).catch(err => console.warn("Failed syncing added VPN sub config key:", err));
   };
 
+  const updateSubscriptionKey = (keyId: string, updatedFields: Partial<SubscriptionKey>) => {
+    setKeys(prev => prev.map(k => k.id === keyId ? { ...k, ...updatedFields } : k));
+  };
+
   const handleResetData = async () => {
     try {
       await fetch("/api/database/reset", { method: "POST" });
@@ -1227,6 +1231,7 @@ export default function App() {
               openSimulatedChat={handleOpenSimulatedChat}
               lang={lang}
               settings={settings}
+              updateSubscriptionKey={updateSubscriptionKey}
             />
           )}
 

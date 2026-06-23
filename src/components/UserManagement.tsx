@@ -22,7 +22,8 @@ import {
   Settings,
   RefreshCw,
   Sparkles,
-  QrCode
+  QrCode,
+  RotateCcw
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -38,6 +39,7 @@ interface UserManagementProps {
   openSimulatedChat: (userId: number) => void;
   lang: Language;
   settings?: PanelSettings;
+  updateSubscriptionKey?: (keyId: string, updatedFields: Partial<SubscriptionKey>) => void;
 }
 
 export default function UserManagement({
@@ -52,7 +54,8 @@ export default function UserManagement({
   addNewSubscriptionKey,
   openSimulatedChat,
   lang,
-  settings
+  settings,
+  updateSubscriptionKey
 }: UserManagementProps) {
   const t = translations[lang];
   const [searchTerm, setSearchTerm] = useState("");
@@ -96,6 +99,55 @@ export default function UserManagement({
 
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [activeQrKey, setActiveQrKey] = useState<SubscriptionKey | null>(null);
+
+  const [localToast, setLocalToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setLocalToast({ message, type });
+    setTimeout(() => setLocalToast(null), 4000);
+  };
+
+  const [regeneratingKeyId, setRegeneratingKeyId] = useState<string | null>(null);
+
+  const handleRegenerateUuid = (keyId: string) => {
+    if (regeneratingKeyId) return;
+    setRegeneratingKeyId(keyId);
+    
+    showToast(lang === "fa" ? "در حال بازنشانی لینک کاربر..." : "Resetting user link...", "success");
+
+    fetch("/api/subscription-keys/regenerate-uuid", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: keyId })
+    })
+    .then(res => {
+      if (!res.ok) {
+        return res.json().then(data => {
+          throw new Error(data.error || `HTTP error ${res.status}`);
+        }).catch(() => {
+          throw new Error(`HTTP error ${res.status}`);
+        });
+      }
+      return res.json();
+    })
+    .then(data => {
+      setRegeneratingKeyId(null);
+      if (data.success && data.key) {
+        if (updateSubscriptionKey) {
+          updateSubscriptionKey(keyId, {
+            clientUuid: data.key.clientUuid,
+            subLink: data.key.subLink
+          });
+        }
+        showToast(lang === "fa" ? "لینک و آیدی با موفقیت تغییر کرد! 🎉" : "Link & UUID regenerated successfully! 🎉", "success");
+      } else {
+        showToast(data.error || (lang === "fa" ? "خطا در تغییر لینک" : "Error resetting link"), "error");
+      }
+    })
+    .catch(err => {
+      setRegeneratingKeyId(null);
+      showToast(err.message || (lang === "fa" ? "خطا در ارتباط با سرور" : "Failed to communicate with server"), "error");
+    });
+  };
 
   const handleManualConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -645,6 +697,17 @@ export default function UserManagement({
                     </button>
 
                     <button
+                      type="button"
+                      onClick={() => handleRegenerateUuid(key.id)}
+                      disabled={regeneratingKeyId === key.id}
+                      className="px-2 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/40 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                      title={lang === "fa" ? "تغییر لینک و آیدی (UUID/subId)" : "Reset SubLink and UUID"}
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 text-rose-400 ${regeneratingKeyId === key.id ? 'animate-spin' : ''}`} />
+                      <span>{lang === "fa" ? "تغییر لینک" : "New Link"}</span>
+                    </button>
+
+                    <button
                       onClick={() => toggleSubscriptionKey(key.id)}
                       className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
                         key.status === "active"
@@ -977,6 +1040,16 @@ export default function UserManagement({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification Container */}
+      {localToast && (
+        <div className="fixed bottom-5 left-5 z-50 bg-[#0f1424] border border-slate-800 text-sm shadow-2xl rounded-xl p-3 flex items-center gap-2.5 animate-slide-in font-sans animate-fade-in">
+          <div className={`p-1.5 rounded-full ${localToast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            {localToast.type === 'success' ? <Check className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+          </div>
+          <p className="font-sans text-gray-200">{localToast.message}</p>
         </div>
       )}
     </div>

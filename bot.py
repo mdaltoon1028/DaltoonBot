@@ -524,6 +524,12 @@ def reset_vpn_client_uuid_api(subscription_id):
             else:
                 return {"success": False, "error": data.get("error", "خطای سرور")}
         else:
+            try:
+                data = response.json()
+                if data and isinstance(data, dict) and data.get("error"):
+                    return {"success": False, "error": data.get("error")}
+            except Exception:
+                pass
             return {"success": False, "error": f"Server error (HTTP {response.status_code})"}
             
     except requests.exceptions.Timeout:
