@@ -221,9 +221,6 @@ export default function ServerManagement({
     }
   };
 
-  // Get count of currently checked inbounds
-  const checkedInboundCount = checkedInboundIds.length;
-
   return (
     <div className="space-y-6">
       {/* Sleek Header cards displaying plan statistics */}
