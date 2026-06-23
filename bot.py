@@ -248,7 +248,10 @@ def get_config():
         if "supportText" in panel_cfg:
             config["SUPPORT_TEXT"] = panel_cfg["supportText"]
         if "hideSupport" in panel_cfg:
-            config["HIDE_SUPPORT"] = config["HIDE_SUPPORT"] or bool(panel_cfg["hideSupport"])
+            config["HIDE_SUPPORT"] = bool(panel_cfg["hideSupport"])
+            
+        config["SERVERS"] = panel_cfg.get("servers", [])
+        
         if "hideBuy" in panel_cfg:
             config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
         if "hideProfile" in panel_cfg:
@@ -330,10 +333,8 @@ except ImportError:
 def login_xui(server_id=None):
     """ Authenticate session with Sanaei X-UI administrator credentials supporting classic & CSRF-enabled panels """
     cfg = get_config()
-    db = read_db_json()
-    settings = db.get("settings", {})
     
-    servers = settings.get("servers", [])
+    servers = cfg.get("SERVERS", [])
     
     server = None
     if server_id:
@@ -715,7 +716,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     cfg = get_config()
     db = read_db_json()
     settings = db.get("settings", {})
-    servers = settings.get("servers", [])
+    servers = cfg.get("SERVERS", [])
     
     server = None
     if server_id:
@@ -1765,9 +1766,8 @@ def buy_cmd(message):
     cfg = get_config()
     nickname = cfg.get("BOT_NICKNAME", "دالتون")
     db = read_db_json()
-    settings = db.get("settings", {})
     
-    servers = settings.get("servers", [])
+    servers = cfg.get("SERVERS", [])
     active_servers = [s for s in servers if s.get("status") == "active"]
     
     if active_servers:
