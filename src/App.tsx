@@ -1260,6 +1260,7 @@ export default function App() {
                  setPackages={setColleaguePackages}
                  setAccounts={setColleagueAccounts}
                  lang={lang}
+                 planCategories={planCategories}
               />
             </div>
           )}

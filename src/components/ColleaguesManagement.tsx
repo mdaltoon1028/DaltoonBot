@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { ColleaguePackage, ColleagueAccount } from "../types";
-import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X } from "lucide-react";
+import { ColleaguePackage, ColleagueAccount, PlanCategory } from "../types";
+import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity } from "lucide-react";
 
 interface Props {
   packages: ColleaguePackage[];
@@ -8,9 +8,10 @@ interface Props {
   setPackages: (p: ColleaguePackage[]) => void;
   setAccounts: (a: ColleagueAccount[]) => void;
   lang: string;
+  planCategories?: PlanCategory[];
 }
 
-export default function ColleaguesManagement({ packages, accounts, setPackages, setAccounts, lang }: Props) {
+export default function ColleaguesManagement({ packages, accounts, setPackages, setAccounts, lang, planCategories = [] }: Props) {
   const [activeTab, setActiveTab] = useState<"packages" | "accounts">("packages");
   const [loading, setLoading] = useState(false);
 
@@ -71,6 +72,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [pTraffic, setPTraffic] = useState("");
+  const [pCategory, setPCategory] = useState("");
   const [pDesc, setPDesc] = useState("");
 
   // Account Form
@@ -83,6 +85,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
     setPTitle("");
     setPPrice("");
     setPTraffic("");
+    setPCategory("");
     setPDesc("");
   };
 
@@ -98,6 +101,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
           title: pTitle,
           price: Number(pPrice),
           trafficGb: Number(pTraffic),
+          category: pCategory,
           description: pDesc
         })
       });
@@ -289,6 +293,28 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "حجم (گیگابایت)" : "Traffic (GB)"}</label>
                   <input type="number" value={pTraffic} onChange={e => setPTraffic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
                 </div>
+                <div>
+                   <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "دسته‌بندی" : "Category"}</label>
+                   <div className="flex gap-2">
+                     <select 
+                       value={pCategory} 
+                       onChange={e => setPCategory(e.target.value)}
+                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                     >
+                       <option value="">{lang === "fa" ? "بدون دسته‌بندی" : "No Category"}</option>
+                       {planCategories.map(cat => (
+                         <option key={cat.id} value={cat.name}>{cat.name}</option>
+                       ))}
+                     </select>
+                     <input 
+                       type="text" 
+                       placeholder={lang === "fa" ? "دستی..." : "Manual..."}
+                       value={pCategory}
+                       onChange={e => setPCategory(e.target.value)}
+                       className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-white text-xs"
+                     />
+                   </div>
+                </div>
                 <div className="md:col-span-2 lg:col-span-3">
                   <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "توضیحات پکیج (نمایش به کاربر)" : "Description"}</label>
                   <textarea value={pDesc} onChange={e => setPDesc(e.target.value)} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
@@ -329,6 +355,7 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                     setPTitle(p.title);
                     setPPrice(String(p.price));
                     setPTraffic(String(p.trafficGb));
+                    setPCategory(p.category || "");
                     setPDesc(p.description || "");
                     setShowAddPackage(true);
                   }}
@@ -337,9 +364,14 @@ export default function ColleaguesManagement({ packages, accounts, setPackages, 
                   {lang === "fa" ? "ویرایش" : "Edit"}
                 </button>
                 <h4 className="text-white font-bold text-lg pr-4">{p.title}</h4>
-                <div className="flex gap-4 mt-2 text-sm text-gray-300">
-                  <span>💰 {p.price.toLocaleString()} تومان</span>
-                  <span>🗄️ {p.trafficGb} گیگابایت</span>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-300">
+                  <span className="text-indigo-400 font-bold whitespace-nowrap">💰 {p.price.toLocaleString()} تومان</span>
+                  <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
+                  {p.category && (
+                    <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
+                      {planCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">{p.description}</p>
               </div>

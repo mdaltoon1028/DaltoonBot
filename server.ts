@@ -791,16 +791,16 @@ app.post("/api/gift-codes/delete", (req, res) => {
 app.post("/api/colleague-packages/save", (req, res) => {
   const db = readJsonDb();
   if (!db.colleague_packages) db.colleague_packages = [];
-  const { id, title, price, trafficGb, description } = req.body;
+  const { id, title, price, trafficGb, category, description } = req.body;
   if (!id || !title || price === undefined || trafficGb === undefined) {
     return res.status(400).json({ error: "Missing fields" });
   }
 
   const existingIdx = db.colleague_packages.findIndex(p => p.id === id);
   if (existingIdx !== -1) {
-    db.colleague_packages[existingIdx] = { id, title, price: Number(price), trafficGb: Number(trafficGb), description };
+    db.colleague_packages[existingIdx] = { id, title, price: Number(price), trafficGb: Number(trafficGb), category, description };
   } else {
-    db.colleague_packages.push({ id, title, price: Number(price), trafficGb: Number(trafficGb), description });
+    db.colleague_packages.push({ id, title, price: Number(price), trafficGb: Number(trafficGb), category, description });
   }
   writeJsonDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
@@ -1879,42 +1879,68 @@ async function resetVpnClientUuidApi(clientEmail: string) {
     };
     if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
 
-    // First fetch current client
-    const getUrl = `${cleanedUrl}/panel/api/clients/get/${clientEmail}`;
-    const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
+    // First find the client's current settings from list
+    const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 8000);
+    if (!listRes.ok) return { success: false, error: "Failed to fetch inbounds" };
     
-    if (getRes && getRes.ok) {
-      const getJson = await getRes.json();
-      if (getJson.success && getJson.obj) {
-        const client = getJson.obj;
-        
-        // Generate new UUID and subId
-        const newUuid = crypto.randomUUID();
-        const newSubId = crypto.randomBytes(8).toString('hex');
-        
-        client.id = newUuid;
-        client.subId = newSubId;
-        
-        const updateUrl = `${cleanedUrl}/panel/api/clients/update/${clientEmail}`;
-        const updateRes = await xuiFetch(updateUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(client)
-        }, 5000);
-        
-        if (updateRes && updateRes.ok) {
-           const updateJson = await updateRes.json();
-           if (updateJson.success) {
-              const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
-                ? normalizeXuiUrl(settings.subUrl) 
-                : cleanedUrl;
-              const subLink = `${subBase}/sub/${newSubId}`;
-              return { success: true, clientUuid: newUuid, subLink };
-           }
+    const listJson = await listRes.json();
+    if (!listJson.success || !Array.isArray(listJson.obj)) return { success: false, error: "Invalid inbounds list" };
+
+    let targetClient: any = null;
+    let oldUuid: string | null = null;
+    let parentInboundId: number | null = null;
+
+    for (const inb of listJson.obj) {
+      if (!inb.settings) continue;
+      try {
+        const inbSettings = typeof inb.settings === "string" ? JSON.parse(inb.settings) : inb.settings;
+        if (Array.isArray(inbSettings.clients)) {
+          const client = inbSettings.clients.find((c: any) => c.email === clientEmail);
+          if (client) {
+            targetClient = { ...client };
+            oldUuid = client.id;
+            parentInboundId = inb.id;
+            break;
+          }
         }
-      }
+      } catch (e) {}
     }
-    return { success: false, error: "Panel UUID reset failed" };
+
+    if (!targetClient || !oldUuid) {
+      return { success: false, error: "Client not found on panel" };
+    }
+
+    // Generate new UUID and subId
+    const newUuid = crypto.randomUUID();
+    const newSubId = crypto.randomBytes(8).toString('hex');
+    
+    targetClient.id = newUuid;
+    targetClient.subId = newSubId;
+
+    // Sanaei Update Client Endpoint
+    const updateUrl = `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`;
+    const updateRes = await xuiFetch(updateUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        id: parentInboundId,
+        settings: JSON.stringify({ clients: [targetClient] })
+      })
+    }, 8000);
+    
+    if (updateRes && updateRes.ok) {
+       const updateJson = await updateRes.json();
+       if (updateJson.success) {
+          const subBase = settings.subUrl && settings.subUrl.trim() !== "" 
+            ? normalizeXuiUrl(settings.subUrl) 
+            : cleanedUrl;
+          const subLink = `${subBase}/sub/${newSubId}`;
+          return { success: true, clientUuid: newUuid, subLink };
+       }
+       return { success: false, error: updateJson.msg || "Panel rejected update" };
+    }
+    
+    return { success: false, error: "Failed to communicate with panel update" };
   } catch (e: any) {
     console.error("[resetVpnClientUuidApi] helper crash:", e);
     return { success: false, error: "Exception during reset: " + e.message };

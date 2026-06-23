@@ -511,16 +511,26 @@ def reset_vpn_client_uuid_api(subscription_id):
     """ Call our server's internal endpoint to reset UUID and SubId in XUI and DB """
     import requests
     try:
-        response = requests.post(
-            "http://127.0.0.1:3000/api/subscription-keys/regenerate-uuid",
-            json={"id": subscription_id},
-            timeout=30
-        )
+        url = "http://127.0.0.1:3000/api/subscription-keys/regenerate-uuid"
+        payload = {"id": str(subscription_id)}
+        print(f"[DEBUG] Calling regenerate-uuid for sub_id: {subscription_id}")
+        
+        response = requests.post(url, json=payload, timeout=40)
+        
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            if data.get("success"):
+                return data
+            else:
+                return {"success": False, "error": data.get("error", "خطای سرور")}
+        else:
+            return {"success": False, "error": f"Server error (HTTP {response.status_code})"}
+            
+    except requests.exceptions.Timeout:
+        return {"success": False, "error": "درخواست با وقفه مواجه شد (Timeout). لطفاً مجدداً تلاش کنید."}
     except Exception as e:
         print(f"[reset_vpn_client_uuid_api Error] {e}")
-    return {"success": False, "error": "Internal server error"}
+        return {"success": False, "error": f"خطای سیستمی: {str(e)}"}
 
 def get_client_vless_links(client_name, client_uuid, sub_link=None):
     """
@@ -1877,30 +1887,49 @@ def handle_main_menu_callback(call):
     elif action == "mm_btnColleagues":
         packages = db.get("colleague_packages", [])
         
-        # Build beautiful detailed description text
-        packages_list_text = ""
-        if packages:
-            for p in packages:
-                packages_list_text += f"📦 <b>بسته همکار {p['title']}</b>\n"
-                packages_list_text += f"   ├ 💾 حجم کل: <code>{p['trafficGb']:,} گیگابایت</code> ┃ ♾ بدون محدودیت زمانی\n"
-                packages_list_text += f"   └ 💰 قیمت: <code>{int(p['price']):,} تومان</code>\n\n"
-                
-        text = (
-            "✨ <b>سرویس‌های ویژه و عمده همکاران</b>\n\n"
-            "همکاران گرامی، با تهیه بسته‌های حجمی نامحدود زیر می‌توانید کانفیگ‌های اختصاصی کلاینت‌های خود را با نازل‌ترین قیمت ایجاد و مدیریت نمایید:\n\n"
-            f"{packages_list_text}"
-            "👇 جهت خرید بسته و فعال‌سازی پنل همکار، یکی از طرح‌های زیر را انتخاب کنید:"
-        )
+        # Build beautifully categorized and simplified description text
+        text = "✨ <b>سرویس‌های ویژه و عمده همکاران</b>\n\n"
         
-        if not packages:
+        if packages:
+            # Group by category
+            cats = {}
+            for p in packages:
+                c = p.get('category') or "سایر"
+                if c not in cats: cats[c] = []
+                cats[c].append(p)
+            
+            # Sort categories (Plans first)
+            sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
+            
+            for cat_name in sorted_cat_names:
+                text += f"📂 <b>بخشه {cat_name}:</b>\n"
+                for p in cats[cat_name]:
+                    text += f"▫️ {p['title']} ┃ <code>{p['trafficGb']}G</code>\n"
+                text += "\n"
+                
+            text += "👇 جهت خرید بسته و فعال‌سازی پنل همکار، طرح مورد نظر را انتخاب کنید:"
+        else:
             text = "✨ <b>سرویس های ویژه همکاران</b>\n\nهیچ بسته فعالی در حال حاضر وجود ندارد. لطفاً در صورت داشتن حساب وارد شوید:"
 
         markup = types.InlineKeyboardMarkup()
         if packages:
+            # Group by category for buttons too
+            cats = {}
             for p in packages:
-                # Beautiful, short and compact button that never gets trimmed or cut off on mobile devices
-                btn_text = f"✨ {p['title']} ┃ {p['trafficGb']:,} گیگ ┃ {int(p['price']):,} تومان"
-                markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
+                c = p.get('category') or "سایر"
+                if c not in cats: cats[c] = []
+                cats[c].append(p)
+            
+            sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
+            
+            for cat_name in sorted_cat_names:
+                # Add a header button/indicator if multiple categories
+                if len(cats) > 1:
+                    markup.add(types.InlineKeyboardButton(f"--- {cat_name} ---", callback_data="none"))
+                
+                for p in cats[cat_name]:
+                    btn_text = f"✨ {p['title']} ┃ {int(p['price']):,} ت"
+                    markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
                 
         markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
         markup.row(types.InlineKeyboardButton("🔑 بازیابی رمز همکار (با توکن)", callback_data="recover_colleague_token"))
@@ -3172,20 +3201,23 @@ def callback_handler(call):
             return
 
         elif sub_action == "resetconfirm":
-            bot.answer_callback_query(call.id, "🔄 در حال تولید لینک جدید...")
+            print(f"[DEBUG] resetconfirm triggered for sub_id: {target_sub_id}")
+            try:
+                bot.edit_message_text("🔄 <b>در حال پردازش...</b>\nلطفاً چند لحظه تبریک کنید، در حال تغییر آیدی‌ها و تولید لینک جدید هستیم.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+            except: pass
+            
             res = reset_vpn_client_uuid_api(target_sub_id)
+            print(f"[DEBUG] reset_vpn_client_uuid_api result: {res}")
             if res.get("success"):
                 new_link = res.get("key", {}).get("subLink")
-                bot.edit_message_text(f"✅ لینک شما با موفقیت تغییر کرد.\n\n🔗 لینک جدید:\n<code>{new_link}</code>\n\n⚠️ لطفاً این لینک را در نرم‌افزار خود جایگزین لینک قبلی کنید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
-                
-                # Show back button after 2 seconds
-                import time
-                time.sleep(2)
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"))
-                bot.edit_message_text(f"✅ لینک شما با موفقیت تغییر کرد.\n\n🔗 لینک جدید:\n<code>{new_link}</code>\n\n⚠️ لطفاً این لینک را در نرم‌افزار خود جایگزین لینک قبلی کنید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+                bot.edit_message_text(f"✅ <b>لینک و UUID شما با موفقیت تغییر کرد.</b>\n\n🔗 لینک جدید سابسکریپشن:\n<code>{new_link}</code>\n\n⚠️ <b>توجه:</b> لینک قبلی شما دیگر کار نمی‌کند. لطفاً لینک بالا را کپی کرده و در نرم‌افزار خود جایگزین کنید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             else:
-                bot.answer_callback_query(call.id, f"❌ خطا: {res.get('error')}", show_alert=True)
+                err_msg = res.get("error", "خطای نامشخص")
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"mysub_manage_{target_sub_id}"))
+                bot.edit_message_text(f"❌ <b>خطا در انجام عملیات:</b>\n{err_msg}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             return
 
         elif sub_action == "renew":
@@ -3645,20 +3677,20 @@ def callback_handler(call):
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             
         elif action == "resetuuidyes":
-            bot.answer_callback_query(call.id, "🔄 در حال تغییر لینک...")
+            try:
+                bot.edit_message_text("🔄 <b>در حال تغییر لینک...</b>\nلطفاً منتظر بمانید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+            except: pass
+            
             res = reset_vpn_client_uuid_api(sub_id)
             if res.get("success"):
-                bot.edit_message_text(f"✅ لینک کاربر با موفقیت تغییر یافت.\n\n🔗 لینک جدید:\n<code>{res.get('key', {}).get('subLink')}</code>", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
-                # Wait 2 seconds and back to view
-                import time
-                time.sleep(2)
-                call.data = f"colu_view_{acc_id}_{sub_id}"
-                # Recurse or just tell user to click back
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت کاربر", callback_data=f"colu_view_{acc_id}_{sub_id}"))
-                bot.edit_message_text(f"✅ لینک کاربر با موفقیت تغییر یافت.\n\n🔗 لینک جدید:\n<code>{res.get('key', {}).get('subLink')}</code>", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+                bot.edit_message_text(f"✅ <b>لینک کاربر با موفقیت تغییر یافت.</b>\n\n🔗 لینک جدید:\n<code>{res.get('key', {}).get('subLink')}</code>", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             else:
-                bot.answer_callback_query(call.id, f"❌ خطا: {res.get('error')}", show_alert=True)
+                err_msg = res.get("error", "خطای نامشخص")
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"colu_view_{acc_id}_{sub_id}"))
+                bot.edit_message_text(f"❌ <b>خطا:</b>\n{err_msg}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
 
         elif action == "delyes":
             import threading
@@ -4757,7 +4789,7 @@ def process_colleague_prefix(message, package):
     msg = bot.send_message(
         message.chat.id,
         "🔐 <b>لطفاً یک توکن (بازیابی) برای خودتان تعریف کنید:</b>\n"
-        "(مثلاً یک اسم و عدد مثل <code>Ali123</code>. این توکن برای زمان فراموشی رمز ورود پنل همکار استفاده خواهد شد)\n"
+        "(مثلاً یک اسم و عدد مثل <code>Daltoon123</code>. این توکن برای زمان فراموشی رمز ورود پنل همکار استفاده خواهد شد)\n"
         "(برای انصراف کلمه «انصراف» را بفرستید)",
         parse_mode="HTML",
         reply_markup=get_cancel_keyboard()
@@ -4870,6 +4902,7 @@ def process_col_renew_payment(message, acc_id, package):
     bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
 
 def finalize_colleague_purchase(tg_id, req, package, message=None):
+    print(f"[DEBUG] finalize_colleague_purchase for tg_id={tg_id}, package={package['title']}")
     action = req.get("action", "buy")
     
     db = read_db_json()

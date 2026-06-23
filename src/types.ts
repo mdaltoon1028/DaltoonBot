@@ -200,6 +200,7 @@ export interface ColleaguePackage {
   price: number;
   trafficGb: number;
   description: string;
+  category?: string;
 }
 
 export interface ColleagueAccount {
