@@ -2330,11 +2330,13 @@ def handle_main_menu_callback(call):
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
             markup = types.InlineKeyboardMarkup(row_width=1)
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+            markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
         except:
             markup = types.InlineKeyboardMarkup(row_width=1)
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+            markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
             
@@ -2652,6 +2654,7 @@ def handle_buy_pay(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
         markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
+        markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
         markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
         
         try:
@@ -2968,6 +2971,7 @@ def process_purchase_username(message, plan_id, spec):
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
         markup.row(types.InlineKeyboardButton("🔗 پنل مدیریت (لینک‌های کانفیگ)", callback_data=f"mysub_manage_{sub_id}"))
+        markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
         
         from_kbd = get_custom_keyboard()
         if from_kbd and hasattr(from_kbd, 'keyboard'):
@@ -3065,6 +3069,7 @@ def callback_handler(call):
                     markup.row(vless_btn)
                 
                 markup.add(
+                    types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"),
                     types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                     types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
                 )
@@ -3213,6 +3218,7 @@ def callback_handler(call):
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
                 types.InlineKeyboardButton("🔗 لینک‌های vless", callback_data=f"mysub_vless_{target_sub_id}"),
+                types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"),
                 types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"),
                 types.InlineKeyboardButton("🔙 بازگشت به اشتراک‌های من", callback_data="mm_btnMySubs"),
                 types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
