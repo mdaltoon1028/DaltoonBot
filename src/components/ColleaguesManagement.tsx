@@ -404,9 +404,9 @@ export default function ColleaguesManagement({
                  <div key={cat.id} className="group flex items-center gap-2 bg-slate-950/60 pl-1 pr-2.5 py-1 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors">
                     <div className="w-5 h-5 flex items-center justify-center bg-indigo-500/10 rounded text-[10px]">{cat.emoji}</div>
                     <span className="text-[10px] font-bold text-slate-300">{cat.name}</span>
-                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity gap-1 mr-1">
-                      <button onClick={() => {setCatName(cat.name); setCatEmoji(cat.emoji); setCatEditingId(cat.id); setShowAddCategory(true);}} className="p-0.5 hover:text-indigo-400"><Pencil className="w-2.5 h-2.5" /></button>
-                      <button onClick={() => deleteCategory(cat.id)} className="p-0.5 hover:text-rose-400"><Trash className="w-2.5 h-2.5" /></button>
+                    <div className="flex opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity gap-2 mr-1">
+                      <button onClick={() => {setCatName(cat.name); setCatEmoji(cat.emoji); setCatEditingId(cat.id); setShowAddCategory(true);}} className="p-1 hover:text-indigo-400 bg-slate-800 rounded shadow-sm"><Pencil className="w-3 h-3" /></button>
+                      <button onClick={() => deleteCategory(cat.id)} className="p-1 hover:text-rose-400 bg-slate-800 rounded shadow-sm"><Trash className="w-3 h-3" /></button>
                     </div>
                  </div>
                ))}

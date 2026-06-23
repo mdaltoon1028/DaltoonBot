@@ -1887,10 +1887,67 @@ def handle_main_menu_callback(call):
     elif action == "mm_btnColleagues":
         packages = db.get("colleague_packages", [])
         col_cats = db.get("colleague_categories", [])
-        cat_dict = {c['name']: c for c in col_cats}
         
-        # Build beautifully categorized and simplified description text
+        # Build text
         text = "✨ <b>سرویس‌های ویژه و عمده همکاران</b>\n\n"
+        
+        if not packages:
+            text += "هیچ بسته فعالی در حال حاضر وجود ندارد. لطفاً در صورت داشتن حساب وارد شوید:"
+            markup = types.InlineKeyboardMarkup()
+            markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
+            bot.edit_message_text(text, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        # Group by category
+        cats = {}
+        for p in packages:
+            c = p.get('category') or "سایر"
+            if c not in cats: cats[c] = []
+            cats[c].append(p)
+        
+        sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
+        
+        text += "📁 لطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:"
+        
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        for cat_name in sorted_cat_names:
+            cat_info = next((c for c in col_cats if c['name'] == cat_name), None)
+            emoji = cat_info.get('emoji', '📁') if cat_info else '📁'
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat_name}", callback_data=f"mm_colcat:{cat_name}"))
+            
+        markup.row(types.InlineKeyboardButton("🔑 ورود به حساب همکار", callback_data="login_colleague"))
+        markup.row(types.InlineKeyboardButton("🔑 بازیابی رمز همکار (با توکن)", callback_data="recover_colleague_token"))
+        markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data="btn_back_home"))
+        
+        bot.edit_message_text(text, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
+        return
+
+    elif action.startswith("mm_colcat:"):
+        cat_name = action.replace("mm_colcat:", "")
+        packages = db.get("colleague_packages", [])
+        col_cats = db.get("colleague_categories", [])
+        cat_info = next((c for c in col_cats if c['name'] == cat_name), None)
+        emoji = cat_info.get('emoji', '📁') if cat_info else '📁'
+        
+        cat_packages = [p for p in packages if (p.get('category') or "سایر") == cat_name]
+        
+        text = f"{emoji} <b>بسته‌های دسته‌بندی: {cat_name}</b>\n\n"
+        for p in cat_packages:
+            text += f"▫️ {p['title']} ┃ <code>{p['trafficGb']}G</code>\n"
+        text += "\n👇 بسته مورد نظر را جهت خرید انتخاب کنید:"
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for p in cat_packages:
+            btn_text = f"✨ {p['title']} ┃ {int(p['price']):,} ت"
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_colleague_{p['id']}"))
+            
+        markup.row(types.InlineKeyboardButton("🔙 بازگشت به دسته‌ها", callback_data="mm_btnColleagues"))
+        
+        bot.edit_message_text(text, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
+        return
+
+    elif action == "mm_btn_DUMMY_":
         
         if packages:
             # Group by category
@@ -3726,6 +3783,10 @@ def callback_handler(call):
             
         return
 
+    if call.data.startswith("mm_colcat:"):
+        handle_main_menu_callback(call)
+        return
+
     if call.data.startswith("mm_"):
         handle_main_menu_callback(call)
         return
@@ -3823,6 +3884,8 @@ def callback_handler(call):
         is_privileged = is_owner or is_admin
         
         if method == "wallet":
+            bot.answer_callback_query(call.id, "در حال پردازش...")
+            bot.edit_message_text("⏳ در حال ایجاد حساب و نهایی‌سازی... لطفاً کمی منتظر بمانید.", chat_id=call.message.chat.id, message_id=call.message.message_id)
             user = get_user_data(tg_id)
             bal = user.get("walletBalance", 0)
             if not is_privileged and bal < package["price"]:
@@ -4544,8 +4607,8 @@ def process_col_create_gb(message, acc, name):
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
-    if gb < 20:
-        msg = bot.send_message(message.chat.id, "⚠️ حداقل حجم انتخابی برای کاربر جدید باید ۲۰ گیگابایت به بالا باشد. لطفا حجم دیگری وارد کنید:")
+    if gb < 1:
+        msg = bot.send_message(message.chat.id, "⚠️ حداقل حجم انتخابی برای کاربر جدید باید 1 گیگابایت به بالا باشد. لطفا حجم دیگری وارد کنید:")
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
