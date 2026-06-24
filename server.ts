@@ -1652,6 +1652,8 @@ app.post("/api/ai/chat", async (req, res) => {
     
     if (errMsg.includes("API key not valid")) {
       errMsg = "کلید API ثبت شده نامعتبر است. لطفاً به مدیریت اطلاع دهید.";
+    } else if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
+      errMsg = "محدودیت استفاده از کلید API هوش مصنوعی به پایان رسیده است (Quota Exceeded). لطفاً به مدیریت اطلاع دهید.";
     }
 
     res.status(500).json({ error: errMsg });
@@ -1756,6 +1758,8 @@ app.post("/api/ai/test-key", async (req, res) => {
       errMsg = "کلید API وارد شده نامعتبر است. لطفاً کلید صحیح را وارد کنید.";
     } else if (errMsg.includes("fetch failed")) {
       errMsg = "خطا در برقراری ارتباط با سرور هوش مصنوعی (Network Error).";
+    } else if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
+      errMsg = "محدودیت استفاده از این کلید به پایان رسیده است (Quota Exceeded). لطفاً کلید دیگری وارد کنید.";
     }
 
     res.status(500).json({ error: errMsg });

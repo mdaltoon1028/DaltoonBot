@@ -4795,7 +4795,12 @@ def process_ai_support(message):
             msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
             bot.register_next_step_handler(msg, process_ai_support)
         else:
-            msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}): {response.text}. دوباره بپرسید:", reply_markup=get_cancel_keyboard())
+            try:
+                err_data = response.json()
+                err_text = err_data.get("error", response.text)
+            except Exception:
+                err_text = response.text
+            msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}):\n{err_text}\n\nدوباره بپرسید:", reply_markup=get_cancel_keyboard())
             bot.register_next_step_handler(msg, process_ai_support)
     except Exception as e:
         try:
@@ -4829,7 +4834,12 @@ def process_ai_general(message):
             msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
             bot.register_next_step_handler(msg, process_ai_general)
         else:
-            msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}): {response.text}. دوباره بپرسید:", reply_markup=get_cancel_keyboard())
+            try:
+                err_data = response.json()
+                err_text = err_data.get("error", response.text)
+            except Exception:
+                err_text = response.text
+            msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}):\n{err_text}\n\nدوباره بپرسید:", reply_markup=get_cancel_keyboard())
             bot.register_next_step_handler(msg, process_ai_general)
     except Exception as e:
         try:
