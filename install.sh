@@ -43,6 +43,14 @@ for dir in "/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/
         echo -e "${GREEN}Backing up bot database from $dir/Daltoon_Bot.json...${NC}"
         cp "$dir/Daltoon_Bot.json" "$BACKUP_DIR/Daltoon_Bot.json"
         break
+    elif [ -f "$dir/database.json" ] && [ -s "$dir/database.json" ]; then
+        echo -e "${GREEN}Migrating legacy database.json from $dir to Daltoon_Bot.json...${NC}"
+        cp "$dir/database.json" "$BACKUP_DIR/Daltoon_Bot.json"
+        break
+    elif [ -f "$dir/db.json" ] && [ -s "$dir/db.json" ]; then
+        echo -e "${GREEN}Migrating legacy db.json from $dir to Daltoon_Bot.json...${NC}"
+        cp "$dir/db.json" "$BACKUP_DIR/Daltoon_Bot.json"
+        break
     elif [ -f "$dir/bot_database.json" ] && [ -s "$dir/bot_database.json" ]; then
         echo -e "${GREEN}Migrating legacy bot_database.json from $dir to Daltoon_Bot.json...${NC}"
         cp "$dir/bot_database.json" "$BACKUP_DIR/Daltoon_Bot.json"
@@ -210,13 +218,21 @@ else
     const fs = require('fs');
     const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
     let db = {};
+    let parseError = false;
     if (fs.existsSync(dbPath)) {
       try { 
         const content = fs.readFileSync(dbPath, 'utf8');
         if (content && content.trim()) {
           db = JSON.parse(content) || {};
         }
-      } catch(e){}
+      } catch(e){
+        console.error("CRITICAL: Failed to parse existing database JSON. Aborting configuration write to prevent data loss!");
+        parseError = true;
+      }
+    }
+    
+    if (parseError) {
+      process.exit(1);
     }
     
     // Ensure standard keys are preserved/created to avoid any data loss or blank UI

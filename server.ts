@@ -292,7 +292,7 @@ function readJsonDb(): DbSchema {
 
     return db;
   } catch (err) {
-    console.error("[Database] Read error, returning empty dataset:", err);
+    console.error("[Database] Read error, preventing data wipe! Returning in-memory empty dataset but skipping writes:", err);
     return {
       users: [],
       transactions: [],
@@ -306,12 +306,17 @@ function readJsonDb(): DbSchema {
       tickets: [],
       colleague_packages: [],
       colleague_accounts: [],
-    };
+      _isReadError: true // Flag to prevent writeJsonDb from overwriting
+    } as unknown as DbSchema;
   }
 }
 
 // Function to write back data
 function writeJsonDb(data: DbSchema) {
+  if ((data as any)._isReadError) {
+    console.error("[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data.");
+    return;
+  }
   try {
     const tmpPath = dbJsonPath + ".tmp";
     fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
