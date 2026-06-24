@@ -1535,10 +1535,15 @@ app.post("/api/ai/chat", async (req, res) => {
     let lastError = null;
 
     // Load available API keys
-    const geminiApiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
-    const customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || "";
+    let geminiApiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
+    let customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || "";
     const aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
     const aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
+
+    // Fallback to process.env if not set in DB
+    if (!geminiApiKey || geminiApiKey.trim() === "") {
+      geminiApiKey = process.env.GEMINI_API_KEY || "";
+    }
 
     // Determine credentials and endpoints based on type
     let apiKeyToUse = "";
@@ -1553,14 +1558,31 @@ app.post("/api/ai/chat", async (req, res) => {
       apiKeyToUse = (customAiApiKey && customAiApiKey.trim() !== "") ? customAiApiKey.trim() : (geminiApiKey && geminiApiKey.trim() !== "") ? geminiApiKey.trim() : "";
     }
 
+    // Clean API Key (Remove Bearer prefix if present and trim)
+    if (apiKeyToUse) {
+      apiKeyToUse = apiKeyToUse.trim();
+      if (apiKeyToUse.toLowerCase().startsWith("bearer ")) {
+        apiKeyToUse = apiKeyToUse.substring(7).trim();
+      }
+    }
+
     // Intelligent auto-detection for AwanLLM API Keys (starts with AQ or 4Q)
-    const isAwanKey = apiKeyToUse && (apiKeyToUse.trim().toUpperCase().startsWith("AQ") || apiKeyToUse.trim().toUpperCase().startsWith("4Q"));
+    const trimmedKey = apiKeyToUse ? apiKeyToUse.trim() : "";
+    const isAwanKey = trimmedKey.toUpperCase().startsWith("AQ") || trimmedKey.toUpperCase().startsWith("4Q");
+    const isGeminiKey = trimmedKey.startsWith("AIza");
+
     if (isAwanKey) {
       if (!baseUrlToUse || baseUrlToUse === "") {
         baseUrlToUse = "https://api.awanllm.com/v1";
       }
       if (!modelNameToUse || modelNameToUse === "" || modelNameToUse === "gpt-4o-mini") {
         modelNameToUse = "Meta-Llama-3-8B-Instruct";
+      }
+    } else if (isGeminiKey) {
+      // If it's explicitly a Gemini key, ensure we don't accidentally use a custom baseUrl
+      // unless the user explicitly provided one in the settings (not auto-detected)
+      if (!aiBaseUrl) {
+        baseUrlToUse = "";
       }
     }
 
@@ -1607,7 +1629,7 @@ app.post("/api/ai/chat", async (req, res) => {
 
       const modelsToTry = [mainModel];
       // Try exactly one fast, modern fallback to prevent slow sequentially blocked timeouts
-      const fallbackModel = isAwanUrl ? "Meta-Llama-3-8B-Instruct" : (isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini");
+      const fallbackModel = isAwanUrl ? "Awan-1-7b-chat" : (isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini");
       if (mainModel !== fallbackModel) {
         modelsToTry.push(fallbackModel);
       }
@@ -1616,6 +1638,7 @@ app.post("/api/ai/chat", async (req, res) => {
       for (const model of modelsToTry) {
         try {
           console.log(`[AI Chat] Trying OpenAI Compatible model: ${model} on ${completionUrl}`);
+          
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 seconds request timeout
 
@@ -1640,6 +1663,7 @@ app.post("/api/ai/chat", async (req, res) => {
 
           if (!response.ok) {
             const errText = await response.text();
+            console.error(`[AI Chat Error] Status: ${response.status}, Text: ${errText}`);
             // Check for immediate auth/key invalid issues to skip fallbacks immediately
             if (response.status === 401 || response.status === 403 || errText.includes("API key") || errText.includes("invalid") || errText.includes("API_KEY_INVALID")) {
               throw new Error(`AUTH_ERROR: ${errText}`);
