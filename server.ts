@@ -1553,16 +1553,8 @@ app.post("/api/ai/chat", async (req, res) => {
       apiKeyToUse = (customAiApiKey && customAiApiKey.trim() !== "") ? customAiApiKey.trim() : (geminiApiKey && geminiApiKey.trim() !== "") ? geminiApiKey.trim() : "";
     }
 
-    // Intelligent auto-detection for AwanLLM API Keys (starts with AQ or 4Q)
-    const isAwanKey = apiKeyToUse && (apiKeyToUse.trim().toUpperCase().startsWith("AQ") || apiKeyToUse.trim().toUpperCase().startsWith("4Q"));
-    if (isAwanKey) {
-      if (!baseUrlToUse || baseUrlToUse === "") {
-        baseUrlToUse = "https://api.awanllm.com/v1";
-      }
-      if (!modelNameToUse || modelNameToUse === "" || modelNameToUse === "gpt-4o-mini") {
-        modelNameToUse = "Meta-Llama-3-8B-Instruct";
-      }
-    }
+    // We treat all keys as Gemini API keys by default unless an explicit custom baseUrl is provided.
+    // If the user specifies AwanLLM or custom baseUrl explicitly, we will route to it.
 
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
@@ -1594,6 +1586,7 @@ app.post("/api/ai/chat", async (req, res) => {
       }
 
       // Check for decommissioned Groq models and automatically swap to modern active models
+      const isAwanUrl = trimmedUrl.toLowerCase().includes("awan");
       let mainModel = modelNameToUse;
       const isGroq = trimmedUrl.toLowerCase().includes("groq");
       if (isGroq) {
@@ -1601,12 +1594,12 @@ app.post("/api/ai/chat", async (req, res) => {
           mainModel = "llama-3.3-70b-versatile";
         }
       } else if (!mainModel) {
-        mainModel = isAwanKey ? "Meta-Llama-3-8B-Instruct" : "gpt-4o-mini";
+        mainModel = isAwanUrl ? "Meta-Llama-3-8B-Instruct" : "gpt-4o-mini";
       }
 
       const modelsToTry = [mainModel];
       // Try exactly one fast, modern fallback to prevent slow sequentially blocked timeouts
-      const fallbackModel = isAwanKey ? "Meta-Llama-3-8B-Instruct" : (isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini");
+      const fallbackModel = isAwanUrl ? "Meta-Llama-3-8B-Instruct" : (isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini");
       if (mainModel !== fallbackModel) {
         modelsToTry.push(fallbackModel);
       }
@@ -1682,10 +1675,13 @@ app.post("/api/ai/chat", async (req, res) => {
         apiKey: apiKeyToUse.trim(),
       });
 
-      let mainModel = modelNameToUse || "gemini-1.5-flash";
+      let mainModel = modelNameToUse || "gemini-2.5-flash";
       const modelsToTry = [mainModel];
-      if (mainModel !== "gemini-1.5-flash") {
-        modelsToTry.push("gemini-1.5-flash");
+      const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+      for (const m of fallbackModels) {
+        if (!modelsToTry.includes(m)) {
+          modelsToTry.push(m);
+        }
       }
 
       for (const modelName of modelsToTry) {
@@ -1745,18 +1741,6 @@ app.post("/api/ai/test-key", async (req, res) => {
     }
 
     const trimmedKey = apiKey.trim();
-    const isAwanKey = trimmedKey.toUpperCase().startsWith("AQ") || trimmedKey.toUpperCase().startsWith("4Q");
-
-    if (isAwanKey) {
-      type = "custom";
-      if (!baseUrl || baseUrl.trim() === "") {
-        baseUrl = "https://api.awanllm.com/v1";
-      }
-      if (!modelName || modelName.trim() === "" || modelName.trim() === "gpt-4o-mini") {
-        modelName = "Meta-Llama-3-8B-Instruct";
-      }
-    }
-
     const isCustom = type === "custom" || (baseUrl && baseUrl.trim() !== "");
 
     if (isCustom) {
@@ -1799,20 +1783,43 @@ app.post("/api/ai/test-key", async (req, res) => {
         apiKey: trimmedKey,
       });
 
-      const modelToUse = type === "custom" && modelName && modelName.trim() !== "" ? modelName.trim() : "gemini-1.5-flash";
+      let mainModel = type === "custom" && modelName && modelName.trim() !== "" ? modelName.trim() : "gemini-2.5-flash";
+      const modelsToTry = [mainModel];
+      const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+      for (const m of fallbackModels) {
+        if (!modelsToTry.includes(m)) {
+          modelsToTry.push(m);
+        }
+      }
 
-      const response = await ai.models.generateContent({
-        model: modelToUse,
-        contents: "سلام",
-        config: {
-          maxOutputTokens: 5,
-        },
-      });
+      let testSuccess = false;
+      let lastTestError = null;
 
-      if (response && response.text) {
+      for (const model of modelsToTry) {
+        try {
+          console.log(`[AI Key Test] Trying direct Gemini model: ${model}`);
+          const response = await ai.models.generateContent({
+            model: model,
+            contents: "سلام",
+            config: {
+              maxOutputTokens: 5,
+            },
+          });
+
+          if (response && response.text) {
+            testSuccess = true;
+            break;
+          }
+        } catch (err: any) {
+          console.warn(`[AI Key Test] Direct Gemini model ${model} failed:`, err?.message || err);
+          lastTestError = err;
+        }
+      }
+
+      if (testSuccess) {
         return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
       } else {
-        throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
+        throw lastTestError || new Error("پاسخ دریافتی از جیمینای خالی بود.");
       }
     }
   } catch (err: any) {
