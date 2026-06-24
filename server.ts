@@ -1503,51 +1503,52 @@ app.post("/api/ai/chat", async (req, res) => {
     }
 
     const dbData = readJsonDb();
-
-    // Clean settings to remove sensitive information before sharing context
-    const safeSettings = { ...dbData.settings };
-    delete safeSettings.panelPassword;
-    delete safeSettings.panelUsername;
-    delete safeSettings.botToken;
-    delete safeSettings.dashboardPassword;
-
-    // Convert panel_config string to parsed object
-    let safePanelConfig: any = {};
-    if (safeSettings.panel_config) {
-      try {
-        const parsed = JSON.parse(safeSettings.panel_config);
-        delete parsed.panelPassword;
-        delete parsed.panelUsername;
-        delete parsed.botToken;
-        delete parsed.dashboardPassword;
-        safePanelConfig = parsed;
-      } catch (e) {
-        // ignore JSON issue
-      }
-    }
-    safeSettings.panel_config = JSON.stringify(safePanelConfig);
+    const systemSettings = getSystemSettings(dbData);
 
     const activeUsersCount = (dbData.users || []).filter(
       (u: any) => u.status === "active",
     ).length;
 
-    let geminiApiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
+    let geminiApiKey = systemSettings.geminiApiKey || "";
 
     // Fallback to process.env if not set in DB
     if (!geminiApiKey || geminiApiKey.trim() === "") {
       geminiApiKey = process.env.GEMINI_API_KEY || "";
     }
 
-    if (!geminiApiKey || geminiApiKey.trim() === "") {
+    let customAiApiKey = systemSettings.customAiApiKey || "";
+    let aiBaseUrl = systemSettings.aiBaseUrl || "";
+    let aiModelName = systemSettings.aiModelName || "";
+
+    // Determine target key and parameters
+    let apiKeyToUse = "";
+    let finalBaseUrl = "";
+    let finalModelName = "";
+
+    if (isSupport) {
+      // Support assistant defaults to geminiApiKey
+      apiKeyToUse = geminiApiKey.trim();
+    } else {
+      // General AI defaults to customAiApiKey, falls back to geminiApiKey
+      apiKeyToUse = customAiApiKey && customAiApiKey.trim() !== "" ? customAiApiKey.trim() : geminiApiKey.trim();
+      finalBaseUrl = aiBaseUrl ? aiBaseUrl.trim() : "";
+      finalModelName = aiModelName ? aiModelName.trim() : "";
+    }
+
+    if (!apiKeyToUse || apiKeyToUse.trim() === "") {
       return res.status(400).json({
-        error: "کلید API جیمینای در تنظیمات ثبت نشده است. لطفاً ابتدا در داشبورد کلید Gemini را برای دستیار هوشمند وارد کنید."
+        error: "کلید API برای هوش مصنوعی ثبت نشده است. لطفاً ابتدا در تنظیمات داشبورد کلید معتبر را وارد کنید."
       });
     }
+
+    // Auto-detect direct Google Gemini key vs custom/OpenAI-compatible key
+    // Native Google Gemini keys must start with 'AIzaSy'
+    const isDirectGemini = apiKeyToUse.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === "");
 
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
     if (isSupport) {
-      systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام به نام "${safePanelConfig.botNickname || "دالتون بات"}" (Daltoon Bot) هستید. 
+      systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام به نام "${systemSettings.botNickname || "دالتون بات"}" (Daltoon Bot) هستید. 
 شما باید به سوالات مرتبط با خدمات و خرید از ربات پاسخ دهید.
 
 مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، شارژ ولت، رفع مشکل درگاه، قطعی یا خرید دارد، او را راهنمایی کنید که از منوی اصلی ربات از دکمه «🎫 ثبت تیکت پشتیبانی» استفاده کند.
@@ -1555,26 +1556,19 @@ app.post("/api/ai/chat", async (req, res) => {
 اطلاعات فعلی سیستم:
 - تعرفه ها: ${JSON.stringify(dbData.vpn_plans || [])}
 - تعداد کاربران: ${activeUsersCount}
-- راهنما: ${safeSettings.supportText || safePanelConfig.supportText || ""}`;
+- راهنما: ${systemSettings.supportText || ""}`;
     } else {
       systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.`;
     }
 
-    let customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || "";
-    let aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
-    let aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
-
-    // If no custom key is provided for general, we can fall back to the gemini API key
-    let apiKeyToUse = customAiApiKey && customAiApiKey.trim() !== "" ? customAiApiKey.trim() : geminiApiKey.trim();
-
-    if (isSupport) {
-      // Support assistant always uses Gemini Key
-      console.log(`[AI Chat Support] Making direct Google Gemini API call`);
+    if (isDirectGemini) {
+      // Direct Google Gemini API call
+      console.log(`[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`);
       const ai = new GoogleGenAI({
-        apiKey: geminiApiKey.trim(),
+        apiKey: apiKeyToUse,
       });
 
-      const modelName = "gemini-2.5-flash";
+      const modelName = finalModelName || "gemini-2.5-flash";
       const response = await ai.models.generateContent({
         model: modelName,
         contents: message,
@@ -1590,79 +1584,53 @@ app.post("/api/ai/chat", async (req, res) => {
         throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
       }
     } else {
-      // General AI: can use custom OpenAI-compatible endpoint or direct Gemini
-      // Auto-detect AwanLLM key if no base URL is set
-      let finalBaseUrl = aiBaseUrl ? aiBaseUrl.trim() : "";
-      let finalModelName = aiModelName ? aiModelName.trim() : "";
-      if (apiKeyToUse.startsWith("AQ") && !finalBaseUrl) {
+      // OpenAI-compatible / Custom endpoint routing (e.g. AwanLLM, DeepSeek, etc.)
+      if (!finalBaseUrl) {
+        // Auto-detect/default to AwanLLM base URL for non-Gemini keys
         finalBaseUrl = "https://api.awanllm.com/v1";
         if (!finalModelName) {
           finalModelName = "Meta-Llama-3-8B-Instruct";
         }
       }
 
-      if (finalBaseUrl && finalBaseUrl !== "") {
-        const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
-        const completionUrl = `${trimmedUrl}/chat/completions`;
-        const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
+      const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
+      const completionUrl = `${trimmedUrl}/chat/completions`;
+      const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
 
-        console.log(`[AI Chat General] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse}`);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+      console.log(`[AI Chat Custom] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse} (isSupport: ${isSupport})`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-        const response = await fetch(completionUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKeyToUse}`
-          },
-          body: JSON.stringify({
-            model: modelToUse,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: message }
-            ],
-            temperature: 0.7
-          }),
-          signal: controller.signal
-        });
+      const response = await fetch(completionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKeyToUse}`
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message }
+          ],
+          temperature: 0.7
+        }),
+        signal: controller.signal
+      });
 
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`خطای سرویس‌دهنده هوش مصنوعی (کد ${response.status}): ${errText}`);
-        }
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`خطای سرویس‌دهنده هوش مصنوعی (کد ${response.status}): ${errText}`);
+      }
 
-        const resData: any = await response.json();
-        const responseText = resData.choices?.[0]?.message?.content || "";
-        if (responseText) {
-          return res.json({ response: responseText });
-        } else {
-          throw new Error("پاسخ دریافتی از سرور هوش مصنوعی خالی بود.");
-        }
+      const resData: any = await response.json();
+      const responseText = resData.choices?.[0]?.message?.content || "";
+      if (responseText) {
+        return res.json({ response: responseText });
       } else {
-        // Fallback to Gemini
-        console.log(`[AI Chat General] Making direct Google Gemini API call`);
-        const ai = new GoogleGenAI({
-          apiKey: apiKeyToUse,
-        });
-
-        const modelName = finalModelName || "gemini-2.5-flash";
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: message,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7,
-          },
-        });
-
-        if (response && response.text) {
-          return res.json({ response: response.text });
-        } else {
-          throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
-        }
+        throw new Error("پاسخ دریافتی از سرور هوش مصنوعی خالی بود.");
       }
     }
   } catch (error: any) {
@@ -1681,20 +1649,43 @@ app.post("/api/ai/test-key", async (req, res) => {
     }
 
     const trimmedKey = apiKey.trim();
-    const isCustom = type === "custom" || (baseUrl && baseUrl.trim() !== "");
-
-    // Auto-detect AwanLLM key if no base URL is set
     let finalBaseUrl = baseUrl ? baseUrl.trim() : "";
     let finalModelName = modelName ? modelName.trim() : "";
-    if (trimmedKey.startsWith("AQ") && !finalBaseUrl) {
-      finalBaseUrl = "https://api.awanllm.com/v1";
-      if (!finalModelName) {
-        finalModelName = "Meta-Llama-3-8B-Instruct";
-      }
-    }
 
-    if (isCustom || (finalBaseUrl && finalBaseUrl !== "")) {
-      // Test OpenAI-compatible key
+    // Auto-detect if it is a native Google Gemini API key (Google keys always start with AIzaSy)
+    const isDirectGemini = trimmedKey.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === "");
+
+    if (isDirectGemini) {
+      // Test direct Gemini Key
+      console.log(`[AI Key Test] Testing direct Gemini API key`);
+      const ai = new GoogleGenAI({
+        apiKey: trimmedKey,
+      });
+
+      const model = finalModelName || "gemini-2.5-flash";
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: "سلام",
+        config: {
+          maxOutputTokens: 5,
+        },
+      });
+
+      if (response && response.text) {
+        return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
+      } else {
+        throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
+      }
+    } else {
+      // Test OpenAI-compatible / Custom API key (e.g. AwanLLM, DeepSeek, etc.)
+      if (!finalBaseUrl) {
+        // Auto-detect/default to AwanLLM base URL for custom/OpenAI-compatible keys
+        finalBaseUrl = "https://api.awanllm.com/v1";
+        if (!finalModelName) {
+          finalModelName = "Meta-Llama-3-8B-Instruct";
+        }
+      }
+
       const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
       const completionUrl = `${trimmedUrl}/chat/completions`;
       const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
@@ -1726,27 +1717,6 @@ app.post("/api/ai/test-key", async (req, res) => {
       }
 
       return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API معتبر است." });
-    } else {
-      // Test direct Gemini Key
-      console.log(`[AI Key Test] Testing direct Gemini API key`);
-      const ai = new GoogleGenAI({
-        apiKey: trimmedKey,
-      });
-
-      const model = "gemini-2.5-flash";
-      const response = await ai.models.generateContent({
-        model: model,
-        contents: "سلام",
-        config: {
-          maxOutputTokens: 5,
-        },
-      });
-
-      if (response && response.text) {
-        return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
-      } else {
-        throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
-      }
     }
   } catch (err: any) {
     console.error("[AI Key Test Error]:", err);
