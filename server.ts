@@ -1617,7 +1617,7 @@ app.post("/api/ai/chat", async (req, res) => {
         try {
           console.log(`[AI Chat] Trying OpenAI Compatible model: ${model} on ${completionUrl}`);
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds request timeout
+          const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 seconds request timeout
 
           const response = await fetch(completionUrl, {
             method: "POST",
@@ -1774,7 +1774,7 @@ app.post("/api/ai/test-key", async (req, res) => {
       console.log(`[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
 
       const response = await fetch(completionUrl, {
         method: "POST",
@@ -1828,7 +1828,11 @@ app.post("/api/ai/test-key", async (req, res) => {
     }
   } catch (err: any) {
     console.error("[AI Key Test Error]:", err);
-    res.status(500).json({ error: err.message || "بررسی کلید API با خطا مواجه شد." });
+    let errMsg = err.message || "بررسی کلید API با خطا مواجه شد.";
+    if (err.name === "AbortError" || errMsg.includes("aborted") || errMsg.includes("timeout")) {
+      errMsg = "زمان اتصال به سرور هوش مصنوعی به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور هوش مصنوعی یا عدم پاسخگویی مناسب فیلترشکن/اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
+    }
+    res.status(500).json({ error: errMsg });
   }
 });
 
