@@ -6,6 +6,10 @@ import { spawn, ChildProcess, exec, execSync } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import dns from "dns";
+
+// Prefer IPv4 DNS resolution first to fix native fetch failing on self-hosted VPS servers (especially with dual-stack domain names like AwanLLM)
+dns.setDefaultResultOrder("ipv4first");
 
 // Explicit absolute dotenv loads for absolute correctness across nested builds
 dotenv.config();
@@ -1550,7 +1554,7 @@ app.post("/api/ai/chat", async (req, res) => {
     }
 
     // Intelligent auto-detection for AwanLLM API Keys (starts with AQ or 4Q)
-    const isAwanKey = apiKeyToUse && apiKeyToUse.trim().toUpperCase().startsWith("AQ");
+    const isAwanKey = apiKeyToUse && (apiKeyToUse.trim().toUpperCase().startsWith("AQ") || apiKeyToUse.trim().toUpperCase().startsWith("4Q"));
     if (isAwanKey) {
       if (!baseUrlToUse || baseUrlToUse === "") {
         baseUrlToUse = "https://api.awanllm.com/v1";
@@ -1741,7 +1745,7 @@ app.post("/api/ai/test-key", async (req, res) => {
     }
 
     const trimmedKey = apiKey.trim();
-    const isAwanKey = trimmedKey.toUpperCase().startsWith("AQ");
+    const isAwanKey = trimmedKey.toUpperCase().startsWith("AQ") || trimmedKey.toUpperCase().startsWith("4Q");
 
     if (isAwanKey) {
       type = "custom";

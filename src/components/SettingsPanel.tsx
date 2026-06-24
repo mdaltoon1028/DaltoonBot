@@ -898,7 +898,7 @@ export default function SettingsPanel({
               <div
                 className={`p-2.5 rounded-lg border text-[10px] font-medium flex items-center gap-2 ${
                   geminiApiKey
-                    ? geminiApiKey.trim().toUpperCase().startsWith("AQ")
+                    ? (geminiApiKey.trim().toUpperCase().startsWith("AQ") || geminiApiKey.trim().toUpperCase().startsWith("4Q"))
                       ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
                       : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                     : "bg-rose-500/10 border-rose-500/20 text-rose-400"
@@ -907,14 +907,14 @@ export default function SettingsPanel({
                 <div
                   className={`w-2 h-2 rounded-full ${
                     geminiApiKey
-                      ? geminiApiKey.trim().toUpperCase().startsWith("AQ")
+                      ? (geminiApiKey.trim().toUpperCase().startsWith("AQ") || geminiApiKey.trim().toUpperCase().startsWith("4Q"))
                         ? "bg-purple-500 animate-pulse"
                         : "bg-emerald-500 animate-pulse"
                       : "bg-rose-500"
                   }`}
                 ></div>
                 {geminiApiKey
-                  ? geminiApiKey.trim().toUpperCase().startsWith("AQ")
+                  ? (geminiApiKey.trim().toUpperCase().startsWith("AQ") || geminiApiKey.trim().toUpperCase().startsWith("4Q"))
                     ? lang === "fa"
                       ? "کلید API آوان ال‌ال‌ام (AwanLLM) شناسایی شد."
                       : "AwanLLM API Key detected."
