@@ -8,14 +8,14 @@ export const translations = {
     portLabel: "PORT",
     localCache: "Local Database Cache",
     resetBtn: "Refresh Data",
-    footerText: "© 2026 Daltoon Store. Premium services, secure encryption, and fast configurations.",
+    footerText: "© 2026 Daltoon Bot. Premium services, secure encryption, and fast configurations.",
     craftedWith: "Securely optimized for maximum system uptime.",
     
     // Tabs
     tabOverview: "Overview Dashboard",
     tabUsers: "Bot Users & Wallets",
     tabApprovals: "Manual Approvals",
-    tabSimulator: "V2Ray Bot Emulator",
+    tabSimulator: "Daltoon Bot Emulator",
     tabServers: "Server Management",
     tabColleagues: "Partner Special Services",
     tabSettings: "Bot Settings",
@@ -138,8 +138,8 @@ export const translations = {
     parametersFlushed: "Parameters flushed successfully!",
     btnSaveConfig: "Save Configuration",
 
-    // V2ray Bot Emulator
-    botEmulatorTitle: "V2Ray Bot Mock Emulator",
+    // Daltoon Bot Emulator
+    botEmulatorTitle: "Daltoon Bot Mock Emulator",
     botEmulatorDesc: "Interact with the chatbot to test the user flows, wallets, order checkout and manual transactions.",
     selectUserPersona: "Select Simulated User Persona",
     howToTestTitle: "How to test Card Approvals:",

@@ -955,6 +955,118 @@ export default function SettingsPanel({
 
 
 
+      {/* Dedicated AI Configuration Card */}
+      <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-lg overflow-hidden relative group">
+        <div className="absolute top-0 right-0 w-24 h-24 bg-purple-600/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:bg-purple-600/10 transition-colors"></div>
+
+        <h3 className="font-display font-medium text-lg text-white flex items-center justify-between gap-2 relative">
+          <div className="flex items-center gap-2">
+            <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
+            <span>
+              {lang === "fa"
+                ? "🧠 تنظیمات پیشرفته هوش مصنوعی (AI)"
+                : "🧠 Advanced AI Configuration"}
+            </span>
+          </div>
+        </h3>
+
+        <p className="text-xs text-gray-400 leading-relaxed max-w-2xl relative">
+          {lang === "fa"
+            ? "شما می‌توانید از انواع مدل‌های هوش مصنوعی (نظیر جیمینای، دیپ‌سیک یا سایر مدل‌های سازگار با OpenAI مانند AwanLLM) استفاده کنید. دستیار هوشمند به کلید جیمینای متصل می‌ماند تا هیچ تداخلی ایجاد نشود."
+            : "You can configure any AI model/provider (e.g. Gemini, DeepSeek, AwanLLM or other OpenAI-compatible APIs). The Support Assistant will remain linked to your Gemini Key to prevent any conflicts."}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+              {lang === "fa"
+                ? "کلید API (API Key):"
+                : "API Key:"}
+            </label>
+            <input
+              type="text"
+              placeholder={lang === "fa" ? "کلید API مربوط به مدل انتخابی شما" : "Your API Key"}
+              className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              value={customAiApiKey}
+              onChange={(e) => setCustomAiApiKey(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+              {lang === "fa"
+                ? "آدرس پایه API (Base URL - اختیاری):"
+                : "API Base URL (Optional):"}
+            </label>
+            <input
+              type="text"
+              placeholder="https://api.awanllm.com/v1"
+              className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              value={aiBaseUrl}
+              onChange={(e) => setAiBaseUrl(e.target.value)}
+            />
+            <span className="text-[10px] text-gray-500 mt-1 block font-sans">
+              {lang === "fa"
+                ? "اگر کلید AwanLLM (با شروع AQ) وارد کنید، نیازی به این آدرس نیست و سیستم خودکار آن را شناسایی می‌کند."
+                : "If you enter an AwanLLM key (starting with AQ), the base URL is auto-configured."}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+              {lang === "fa"
+                ? "نام مدل (Model Name - اختیاری):"
+                : "Model Name (Optional):"}
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. gemini-2.5-flash, deepseek-chat, Meta-Llama-3-8B-Instruct"
+              className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              value={aiModelName}
+              onChange={(e) => setAiModelName(e.target.value)}
+            />
+            <span className="text-[10px] text-gray-500 mt-1 block font-sans">
+              {lang === "fa"
+                ? "مثال‌ها: gemini-2.5-flash (پیش‌فرض جیمینای)، Meta-Llama-3-8B-Instruct (برای AwanLLM)"
+                : "Examples: gemini-2.5-flash (default Gemini), Meta-Llama-3-8B-Instruct (for AwanLLM)"}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2 mt-2">
+            <button
+              type="button"
+              onClick={handleTestCustomKey}
+              disabled={testingCustom}
+              className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600 disabled:bg-purple-600/10 text-purple-400 hover:text-white border border-purple-500/30 hover:border-purple-500 rounded-lg text-xs font-semibold transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {testingCustom ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              {lang === "fa" ? "🔍 بررسی و تست اتصال کلید هوش مصنوعی" : "🔍 Test AI API Key Connection"}
+            </button>
+
+            {customTestResult && (
+              <div
+                className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed max-w-full overflow-hidden ${
+                  customTestResult.success
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                    : "bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                }`}
+              >
+                <div className="flex items-start gap-1.5 font-semibold flex-wrap break-all break-words max-w-full">
+                  <span className="shrink-0">{customTestResult.success ? "🟢" : "🔴"}</span>
+                  <span className="break-all break-words whitespace-pre-wrap flex-1 min-w-0">{customTestResult.message}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+
+
       <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-sm">
         <h3 className="font-display font-medium text-lg text-white flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">

@@ -1227,11 +1227,11 @@ app.post("/api/tickets/close", (req, res) => {
       // Notify the user on Telegram of ticket closure
       const settings = getSystemSettings(db);
       if (settings.botToken && ticket.userId) {
-        const nickname = settings.botNickname || "دالتون";
+        const nickname = settings.botNickname || "دالتون بات";
         const notifyMsg =
           `🔒 <b>تیکت شما بسته شد!</b>\n\n` +
           `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n\n` +
-          `💬 تیکت شما توسط پشتیبانی فنی ${nickname} استور بررسی و بسته شد.\n` +
+          `💬 تیکت شما توسط پشتیبانی فنی ${nickname} بررسی و بسته شد.\n` +
           `اگر همچنان نیاز به راهنمایی بیشتری دارید، می‌توانید تیکت جدیدی در ربات ثبت فرمایید.`;
         sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(
           (err) => {
@@ -1547,7 +1547,7 @@ app.post("/api/ai/chat", async (req, res) => {
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
     if (isSupport) {
-      systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام V2ray به نام "${safePanelConfig.botNickname || "دالتون"} Servers" هستید. 
+      systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام به نام "${safePanelConfig.botNickname || "دالتون بات"}" (Daltoon Bot) هستید. 
 شما باید به سوالات مرتبط با خدمات و خرید از ربات پاسخ دهید.
 
 مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، شارژ ولت، رفع مشکل درگاه، قطعی یا خرید دارد، او را راهنمایی کنید که از منوی اصلی ربات از دکمه «🎫 ثبت تیکت پشتیبانی» استفاده کند.
@@ -1560,25 +1560,110 @@ app.post("/api/ai/chat", async (req, res) => {
       systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.`;
     }
 
-    console.log(`[AI Chat Gemini] Making direct Google Gemini API call`);
-    const ai = new GoogleGenAI({
-      apiKey: geminiApiKey.trim(),
-    });
+    let customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || "";
+    let aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
+    let aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
 
-    const modelName = "gemini-2.5-flash";
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: message,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.7,
-      },
-    });
+    // If no custom key is provided for general, we can fall back to the gemini API key
+    let apiKeyToUse = customAiApiKey && customAiApiKey.trim() !== "" ? customAiApiKey.trim() : geminiApiKey.trim();
 
-    if (response && response.text) {
-      res.json({ response: response.text });
+    if (isSupport) {
+      // Support assistant always uses Gemini Key
+      console.log(`[AI Chat Support] Making direct Google Gemini API call`);
+      const ai = new GoogleGenAI({
+        apiKey: geminiApiKey.trim(),
+      });
+
+      const modelName = "gemini-2.5-flash";
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: message,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+        },
+      });
+
+      if (response && response.text) {
+        return res.json({ response: response.text });
+      } else {
+        throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
+      }
     } else {
-      throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
+      // General AI: can use custom OpenAI-compatible endpoint or direct Gemini
+      // Auto-detect AwanLLM key if no base URL is set
+      let finalBaseUrl = aiBaseUrl ? aiBaseUrl.trim() : "";
+      let finalModelName = aiModelName ? aiModelName.trim() : "";
+      if (apiKeyToUse.startsWith("AQ") && !finalBaseUrl) {
+        finalBaseUrl = "https://api.awanllm.com/v1";
+        if (!finalModelName) {
+          finalModelName = "Meta-Llama-3-8B-Instruct";
+        }
+      }
+
+      if (finalBaseUrl && finalBaseUrl !== "") {
+        const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
+        const completionUrl = `${trimmedUrl}/chat/completions`;
+        const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
+
+        console.log(`[AI Chat General] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+        const response = await fetch(completionUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKeyToUse}`
+          },
+          body: JSON.stringify({
+            model: modelToUse,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: message }
+            ],
+            temperature: 0.7
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`خطای سرویس‌دهنده هوش مصنوعی (کد ${response.status}): ${errText}`);
+        }
+
+        const resData: any = await response.json();
+        const responseText = resData.choices?.[0]?.message?.content || "";
+        if (responseText) {
+          return res.json({ response: responseText });
+        } else {
+          throw new Error("پاسخ دریافتی از سرور هوش مصنوعی خالی بود.");
+        }
+      } else {
+        // Fallback to Gemini
+        console.log(`[AI Chat General] Making direct Google Gemini API call`);
+        const ai = new GoogleGenAI({
+          apiKey: apiKeyToUse,
+        });
+
+        const modelName = finalModelName || "gemini-2.5-flash";
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: message,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.7,
+          },
+        });
+
+        if (response && response.text) {
+          return res.json({ response: response.text });
+        } else {
+          throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
+        }
+      }
     }
   } catch (error: any) {
     console.error("[AI Chat API Error]:", error);
@@ -1590,37 +1675,84 @@ app.post("/api/ai/chat", async (req, res) => {
 
 app.post("/api/ai/test-key", async (req, res) => {
   try {
-    let { apiKey } = req.body;
+    let { apiKey, baseUrl, modelName, type } = req.body;
     if (!apiKey || apiKey.trim() === "") {
-      return res.status(400).json({ error: "لطفاً ابتدا کلید API جیمینای را وارد کنید." });
+      return res.status(400).json({ error: "لطفاً ابتدا کلید API را وارد کنید." });
     }
 
     const trimmedKey = apiKey.trim();
+    const isCustom = type === "custom" || (baseUrl && baseUrl.trim() !== "");
 
-    console.log(`[AI Key Test] Testing direct Gemini API key`);
-    const ai = new GoogleGenAI({
-      apiKey: trimmedKey,
-    });
+    // Auto-detect AwanLLM key if no base URL is set
+    let finalBaseUrl = baseUrl ? baseUrl.trim() : "";
+    let finalModelName = modelName ? modelName.trim() : "";
+    if (trimmedKey.startsWith("AQ") && !finalBaseUrl) {
+      finalBaseUrl = "https://api.awanllm.com/v1";
+      if (!finalModelName) {
+        finalModelName = "Meta-Llama-3-8B-Instruct";
+      }
+    }
 
-    const model = "gemini-2.5-flash";
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: "سلام",
-      config: {
-        maxOutputTokens: 5,
-      },
-    });
+    if (isCustom || (finalBaseUrl && finalBaseUrl !== "")) {
+      // Test OpenAI-compatible key
+      const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
+      const completionUrl = `${trimmedUrl}/chat/completions`;
+      const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
 
-    if (response && response.text) {
-      return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
+      console.log(`[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
+
+      const response = await fetch(completionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${trimmedKey}`
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          messages: [{ role: "user", content: "سلام" }],
+          max_tokens: 5
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`خطای سرور سرویس‌دهنده (کد ${response.status}): ${errText}`);
+      }
+
+      return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API معتبر است." });
     } else {
-      throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
+      // Test direct Gemini Key
+      console.log(`[AI Key Test] Testing direct Gemini API key`);
+      const ai = new GoogleGenAI({
+        apiKey: trimmedKey,
+      });
+
+      const model = "gemini-2.5-flash";
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: "سلام",
+        config: {
+          maxOutputTokens: 5,
+        },
+      });
+
+      if (response && response.text) {
+        return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
+      } else {
+        throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
+      }
     }
   } catch (err: any) {
     console.error("[AI Key Test Error]:", err);
     let errMsg = err.message || "بررسی کلید API با خطا مواجه شد.";
     if (err.name === "AbortError" || errMsg.includes("aborted") || errMsg.includes("timeout")) {
-      errMsg = "زمان اتصال به سرور جیمینای به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور یا اختلالات اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
+      errMsg = "زمان اتصال به سرور هوش مصنوعی به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور هوش مصنوعی یا عدم پاسخگویی مناسب فیلترشکن/اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
     }
     res.status(500).json({ error: errMsg });
   }
@@ -1740,7 +1872,7 @@ app.post("/api/settings", async (req, res) => {
     // Notify newly appointed admins via Telegram Bot
     const botToken = payload.botToken || prevSettings.botToken;
     const botNickname =
-      payload.botNickname || prevSettings.botNickname || "دالتون";
+      payload.botNickname || prevSettings.botNickname || "دالتون بات";
     if (botToken && addedAdmins.length > 0) {
       for (const adm of addedAdmins) {
         try {
@@ -1752,14 +1884,14 @@ app.post("/api/settings", async (req, res) => {
             `👑 <b>انتصاب شایسته شما به عنوان مدیریت سیستم</b>\n\n` +
             `کاربر گرامی <b>@${adm.username || "کاربر"}</b> (شناسه: <code>${adm.userId}</code>)؛\n` +
             `با سلام و احترام،\n\n` +
-            `بدین‌وسیله به اطلاع می‌رساند دسترسی مدیریتی شما به عنوان <b>${roleText}</b> در ربات ${botNickname} استور با موفقیت فعال گردید.\n\n` +
+            `بدین‌وسیله به اطلاع می‌رساند دسترسی مدیریتی شما به عنوان <b>${roleText}</b> در ربات ${botNickname} با موفقیت فعال گردید.\n\n` +
             `🛡️ <b>برخی از مزایا و وظایف سطح دسترسی ادمین:</b>\n` +
             `🔹 <b>بررسی و تایید واریزی‌ها:</b> دسترسی به لیست فیش‌های ارسالی کاربران در بخش «تایید تراکنش‌ها» جهت شارژ خودکار کیف پول.\n` +
             `🔹 <b>مدیریت اعضا:</b> امکان ویرایش، افزایش و یا کاهش موجودی کاربران، مسدودسازی و رفع مسدودیت اعضا.\n` +
             `🔹 <b>پلان‌های ادمین:</b> استفاده رایگان از پلان‌ها بدون کسر موجودی جهت بررسی و کنترل کیفی سرورها.\n` +
             `🔹 <b>اعلان‌های هوشمند:</b> رصد و دریافت فوری اطلاعات فیش‌های ارسالی اعضا به محض بارگذاری در ربات.\n\n` +
             `<i>مفتخریم که در تیم توسعه و مدیریت ${botNickname} حضور دارید. با آرزوی موفقیت و همکاری مستمر.</i>\n\n` +
-            `✨ <b>تیم پشتیبانی و فنی ${botNickname} استور</b>`;
+            `✨ <b>تیم پشتیبانی و فنی ${botNickname}</b>`;
 
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: "POST",

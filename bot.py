@@ -1778,7 +1778,7 @@ def start_cmd(message):
 
     cfg = get_config()
     custom_welcome = cfg.get("WELCOME_TEXT")
-    bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+    bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
     
     user_balance = int(user.get('walletBalance') or 0) if user else 0
     formatted_balance = f"{user_balance:,}"
@@ -2284,7 +2284,7 @@ def handle_main_menu_callback(call):
         )
         
         cfg = get_config()
-        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
         
         guides_main_text = (
             f"<b>💡 بخش راهنما و آموزش‌های اتصال {bot_nickname}</b>\n\n"
@@ -4522,7 +4522,7 @@ def callback_handler(call):
         markup.add(types.InlineKeyboardButton("🔙 بازگشت به منوی آموزش‌ها", callback_data="mm_btnGuides"))
         
         cfg = get_config()
-        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
         
         crypto_text = (
             "🪙 <b>آموزش پرداخت با ارز دیجیتال (تتر / ترون / لایت‌کوین و...)</b>\n\n"
@@ -4721,7 +4721,7 @@ def callback_handler(call):
         custom_welcome = cfg.get("WELCOME_TEXT")
         tg_id = call.from_user.id
         user = get_user_data(tg_id)
-        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون استور")
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
         
         if custom_welcome and user:
             formatted_balance = f"{int(user.get('walletBalance') or 0):,}"
