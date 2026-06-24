@@ -1206,39 +1206,6 @@ export default function BotButtonsPanel({
           </p>
 
           <div className="space-y-4 pt-2">
-            {/* Telegram Channel and Support Handle config block */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-800/60 pb-4 mb-2">
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa"
-                    ? "📢 آیدی کانال تلگرام (مثال: @example_channel)"
-                    : "📢 Telegram Channel ID (e.g., @example_channel)"}
-                </label>
-                <input
-                  type="text"
-                  placeholder="@example_channel"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={tgChannel}
-                  onChange={(e) => setTgChannel(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa"
-                    ? "👤 آیدی پشتیبان فنی تلگرام (مثال: @example_owner)"
-                    : "👤 Technical Support Handle (e.g., @example_owner)"}
-                </label>
-                <input
-                  type="text"
-                  placeholder="@example_owner"
-                  className="w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                  value={supportHandle}
-                  onChange={(e) => setSupportHandle(e.target.value)}
-                />
-              </div>
-            </div>
-
             {/* Welcome text */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">

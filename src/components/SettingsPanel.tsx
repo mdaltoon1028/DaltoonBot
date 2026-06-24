@@ -1126,6 +1126,36 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa"
+                  ? "📢 آیدی کانال تلگرام (مثال: @example_channel)"
+                  : "📢 Telegram Channel ID (e.g., @example_channel)"}
+              </label>
+              <input
+                type="text"
+                placeholder="@example_channel"
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={tgChannel}
+                onChange={(e) => setTgChannel(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa"
+                  ? "👤 آیدی پشتیبان فنی تلگرام (مثال: @example_owner)"
+                  : "👤 Technical Support Handle (e.g., @example_owner)"}
+              </label>
+              <input
+                type="text"
+                placeholder="@example_owner"
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                value={supportHandle}
+                onChange={(e) => setSupportHandle(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
                 {t.webhookStatusLabel}
               </label>
               <div className="flex items-center gap-2 bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-emerald-400 font-semibold font-mono">

@@ -333,8 +333,11 @@ except ImportError:
     pass
 
 # --- Sanaei 3x-ui Admin API Helpers ---
-def login_xui(server_id=None):
+_last_login_times = {}
+
+def login_xui(server_id=None, force=False):
     """ Authenticate session with Sanaei X-UI administrator credentials supporting classic & CSRF-enabled panels """
+    global _last_login_times
     cfg = get_config()
     
     servers = cfg.get("SERVERS", [])
@@ -351,11 +354,13 @@ def login_xui(server_id=None):
         base_url = normalize_xui_url(server.get("panelUrl", ""))
         user = server.get("panelUsername", "")
         pwd = server.get("panelPassword", "")
+        cache_key = f"server_{server.get('id')}"
     else:
         # Legacy fallback
         base_url = cfg.get('XUI_URL', '')
         user = cfg.get('XUI_USER', '')
         pwd = cfg.get('XUI_PASS', '')
+        cache_key = "legacy"
 
     if not base_url:
         print("[Sanaei X-UI API] Panel XUI_URL is empty.")
@@ -363,6 +368,11 @@ def login_xui(server_id=None):
 
     if base_url.endswith("/"):
         base_url = base_url[:-1]
+
+    # Caching check: if last login was within 10 minutes (600s), reuse the session
+    now = time.time()
+    if not force and (now - _last_login_times.get(cache_key, 0) < 600):
+        return True
 
     try:
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
@@ -417,6 +427,7 @@ def login_xui(server_id=None):
 
         if res_json.get("success"):
             print("[Sanaei X-UI API] Authenticated successfully with the panel.")
+            _last_login_times[cache_key] = now
             return True
         else:
             print(f"[Sanaei X-UI API] Login rejected: {response.text}")
@@ -2702,6 +2713,8 @@ def handle_discount_decision(call):
         bot.answer_callback_query(call.id, "خطا در یافتن طرح.")
         return
 
+    # Keep track of server_id in spec if possible
+    _, _, pending_server_id = get_user_pending_purchase(tg_id)
     spec = {
         "id": db_plan["id"],
         "name": db_plan["name"],
@@ -2709,6 +2722,8 @@ def handle_discount_decision(call):
         "traffic": db_plan.get("trafficGb", 30),
         "duration": db_plan.get("durationDays", 30)
     }
+    if pending_server_id:
+        spec["server_id"] = pending_server_id
 
     if decision == "yes":
         bot.answer_callback_query(call.id)
@@ -2802,12 +2817,28 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
     tg_id = message.chat.id if hasattr(message, 'chat') else message.from_user.id
     cfg = get_config()
     
+    # Intelligent Server Name Detection
+    server_id = spec.get("server_id")
+    if not server_id:
+        _, _, pending_server_id = get_user_pending_purchase(tg_id)
+        server_id = pending_server_id
+        
+    server_line = ""
+    if server_id:
+        servers = cfg.get("SERVERS", [])
+        server_obj = next((s for s in servers if s.get("id") == server_id), None)
+        if server_obj:
+            server_name = server_obj.get("name", "")
+            if server_name:
+                server_line = f"🖥️ <b>سرور: <u>{server_name}</u></b>\n\n"
+
     price_text = f"{spec.get('price', 0):,} تومان"
     if spec.get("applied_promo"):
         price_text = f"<s>{spec.get('price_original', spec.get('price', 0)):,}</s> ➡️ <b>{spec.get('price', 0):,} تومان</b> (بر حسب تخفیف)"
         
     text_response = (
         f"✅ <b>اطلاعات ثبت شد.</b>\n\n"
+        f"{server_line}"
         f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n"
         f"👤 نام کاربری: <code>{username_input}</code>\n"
         f"💰 مبلغ نهایی: <b>{price_text}</b>\n\n"
