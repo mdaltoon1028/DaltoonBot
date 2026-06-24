@@ -187,6 +187,7 @@ def get_config():
         config["BTN_REFERRAL"] = panel_cfg.get("btnTextReferral", "👥 زیرمجموعه گیری")
         config["BTN_COLLEAGUES"] = panel_cfg.get("btnTextColleagues", "بسته ویژه همکاران")
         config["BTN_AI_CHAT"] = panel_cfg.get("btnTextAiChat", "🤖 چت با ربات")
+        config["BTN_AI"] = panel_cfg.get("btnTextAi", "🧠 هوش مصنوعی")
         config["BTN_WALLET"] = panel_cfg.get("btnTextWallet", "شارژ کیف پول 💳")
         config["BTN_TICKET_SUPPORT"] = panel_cfg.get("btnTextTicketSupport", "🎫 تیکت به پشتیبانی")
         config["WALLET_CHARGE_AMOUNTS"] = panel_cfg.get("walletChargeAmounts", [200000, 300000, 400000, 500000, 1000000])
@@ -209,12 +210,13 @@ def get_config():
         else:
             config["HIDE_AI_CHAT"] = False # Visible by default for new installs
         if "hideBtnTicketSupport" in panel_cfg: config["HIDE_TICKET_SUPPORT"] = bool(panel_cfg["hideBtnTicketSupport"])
+        config["HIDE_AI"] = bool(panel_cfg.get("hideBtnAi", True))
         config["HIDE_WALLET"] = panel_cfg.get("hideBtnWallet", False) # or fallback to older hideWallet
         if "hideWallet" in panel_cfg and "hideBtnWallet" not in panel_cfg:
             config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
 
         config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
-            "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
+            "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnAi", "btnInstantSupport", "btnFeedback", "btnReferral"
         ])
 
         if panel_cfg.get("botToken"):
@@ -250,7 +252,7 @@ def get_config():
             config["WELCOME_TEXT"] = panel_cfg["welcomeText"]
         if "supportText" in panel_cfg:
             config["SUPPORT_TEXT"] = panel_cfg["supportText"]
-        if "hideSupport" in panel_cfg:
+        if "hideSupport" in panel_cfg and "hideBtnSupport" not in panel_cfg:
             config["HIDE_SUPPORT"] = bool(panel_cfg["hideSupport"])
             
         config["SERVERS"] = panel_cfg.get("servers", [])
@@ -1474,6 +1476,27 @@ def update_user_balance(tg_id, new_balance):
         user["walletBalance"] = max(0.0, float(new_balance))
         write_db_json(db)
 
+def log_transaction(tg_id, amount, action, details, flow_type="out"):
+    import time
+    db = read_db_json()
+    if "transactions" not in db:
+        db["transactions"] = []
+    user = next((u for u in db.get("users", []) if u.get("userId") == tg_id), None)
+    username = user.get("username", str(tg_id)) if user else str(tg_id)
+    tx_id = f"TX-COL-{int(time.time())}"
+    new_tx = {
+        "id": tx_id,
+        "userId": int(tg_id),
+        "username": username,
+        "amount": int(amount),
+        "receiptImage": "",
+        "status": "approved",
+        "date": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+        "description": f"{details} ({action})"
+    }
+    db["transactions"].insert(0, new_tx)
+    write_db_json(db)
+
 def log_action(tg_id, username, action, details):
     import uuid
     from datetime import datetime
@@ -1538,6 +1561,7 @@ def get_custom_keyboard():
     if "btnReferral" not in order: order.append("btnReferral")
     if "btnColleagues" not in order: order.append("btnColleagues")
     if "btnAiChat" not in order: order.append("btnAiChat")
+    if "btnAi" not in order: order.append("btnAi")
     if "btnTicketSupport" not in order: order.append("btnTicketSupport")
 
     for key in order:
@@ -1546,6 +1570,7 @@ def get_custom_keyboard():
         elif key == "btnGuides" and not cfg.get("HIDE_GUIDES", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
         elif key == "btnColleagues" and not cfg.get("HIDE_COLLEAGUES", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"), callback_data="mm_btnColleagues"))
         elif key == "btnAiChat" and not cfg.get("HIDE_AI_CHAT", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"), callback_data="mm_btnAiChat"))
+        elif key == "btnAi" and not cfg.get("HIDE_AI", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_AI", "🧠 هوش مصنوعی"), callback_data="mm_btnAi"))
         elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری"), callback_data="mm_btnProfile"))
         elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "شارژ کیف پول 💳"), callback_data="mm_btnWallet"))
         elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی"), callback_data="mm_btnSupport"))
@@ -1722,6 +1747,15 @@ def start_cmd(message):
     tg_id = message.from_user.id
     username = message.from_user.username
     
+    try:
+        bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    except Exception:
+        pass
+    try:
+        clear_user_pending_purchase(tg_id)
+    except Exception:
+        pass
+        
     parts = message.text.split()
     referral_id = None
     if len(parts) > 1 and parts[1].isdigit():
@@ -1771,6 +1805,16 @@ def start_cmd(message):
 def buy_cmd(message):
     tg_id = message.from_user.id
     username = message.from_user.username
+    
+    try:
+        bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    except Exception:
+        pass
+    try:
+        clear_user_pending_purchase(tg_id)
+    except Exception:
+        pass
+        
     register_tg_user(tg_id, username)
     user = get_user_data(tg_id)
     if user and user.get('status') == 'banned':
@@ -1939,6 +1983,15 @@ def handle_main_menu_callback(call):
     message = call.message
     bot.answer_callback_query(call.id)
     
+    try:
+        bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
+    except Exception:
+        pass
+    try:
+        clear_user_pending_purchase(tg_id)
+    except Exception:
+        pass
+        
     cfg = get_config()
     db = read_db_json()
     user = get_user_data(tg_id)
@@ -1952,6 +2005,14 @@ def handle_main_menu_callback(call):
             reply_markup=get_cancel_keyboard()
         )
         bot.register_next_step_handler(message, process_ai_chat)
+        return
+
+    elif action == "mm_btnAi":
+        bot.send_message(
+            message.chat.id,
+            "🧠 <b>بخش هوش مصنوعی</b>\n\nاین بخش در حال توسعه است و به زودی راه‌اندازی خواهد شد.",
+            parse_mode="HTML"
+        )
         return
 
     elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
@@ -5070,6 +5131,12 @@ def process_colleague_prefix(message, package):
     import re
     if not re.match("^[A-Za-z0-9_]{2,10}$", text):
         msg = bot.send_message(message.chat.id, "❌ پیشوند (Prefix) فقط باید شامل حروف و اعداد انگلیسی باشد (بین ۲ تا ۱۰ کاراکتر).\n\nمجدداً وارد کنید:")
+        bot.register_next_step_handler(msg, process_colleague_prefix, package)
+        return
+
+    db = read_db_json()
+    if any(a.get("prefix") and a.get("prefix").lower() == text.lower() for a in db.get("colleague_accounts", [])):
+        msg = bot.send_message(message.chat.id, "❌ این پیشوند (Prefix) قبلاً توسط شخص دیگری ثبت شده است! لطفا یک پیشوند دیگر وارد کنید:", reply_markup=get_cancel_keyboard())
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
 

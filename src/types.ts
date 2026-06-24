@@ -21,6 +21,8 @@ export interface PanelSettings {
   activeInboundIds: number[]; // Deprecated
   ownerId: number;
   geminiApiKey?: string;
+  aiBaseUrl?: string;
+  aiModelName?: string;
   cardNumber?: string;
   cardHolder?: string;
   bankName?: string;
@@ -57,6 +59,8 @@ export interface PanelSettings {
   hideBtnColleagues?: boolean;
   btnTextAiChat?: string;
   hideBtnAiChat?: boolean;
+  btnTextAi?: string;
+  hideBtnAi?: boolean;
   botTelegramHandle?: string;
   referralRewardAmount?: number;
   referralRewardPercent?: number; // Kept as invite percent

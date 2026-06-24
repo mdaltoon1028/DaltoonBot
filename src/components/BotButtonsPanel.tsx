@@ -145,6 +145,13 @@ export default function BotButtonsPanel({
     settings.hideBtnAiChat !== undefined ? settings.hideBtnAiChat : true,
   ); // default hidden
 
+  const [btnTextAi, setBtnTextAi] = useState(
+    settings.btnTextAi || "🧠 هوش مصنوعی",
+  );
+  const [hideBtnAi, setHideBtnAi] = useState(
+    settings.hideBtnAi !== undefined ? settings.hideBtnAi : true,
+  );
+
   const [keyboardLayout, setKeyboardLayout] = useState<
     "horizontal" | "vertical" | "stepped"
   >(settings.keyboardLayout || "stepped");
@@ -197,6 +204,7 @@ export default function BotButtonsPanel({
     "btnTicketSupport",
     "btnFreeTest",
     "btnAiChat",
+    "btnAi",
     "btnInstantSupport",
     "btnFeedback",
     "btnReferral",
@@ -409,6 +417,7 @@ export default function BotButtonsPanel({
       btnTextWallet,
       btnTextColleagues,
       btnTextAiChat,
+      btnTextAi,
       isFreeTestActive,
       freeTestDisabledMessage,
       hideBtnBuyNew,
@@ -424,6 +433,7 @@ export default function BotButtonsPanel({
       hideBtnWallet,
       hideBtnColleagues,
       hideBtnAiChat,
+      hideBtnAi,
       keyboardLayout,
       mainButtonsOrder,
       walletChargeAmounts,
@@ -639,6 +649,16 @@ export default function BotButtonsPanel({
                     setter: setBtnTextAiChat,
                     disabled: hideBtnAiChat,
                     toggleDisabled: () => setHideBtnAiChat(!hideBtnAiChat),
+                  },
+                  btnAi: {
+                    label:
+                      lang === "fa"
+                        ? "عنوان دکمه هوش مصنوعی"
+                        : "AI Button Label",
+                    value: btnTextAi,
+                    setter: setBtnTextAi,
+                    disabled: hideBtnAi,
+                    toggleDisabled: () => setHideBtnAi(!hideBtnAi),
                   },
                   btnColleagues: {
                     label:
@@ -1470,6 +1490,7 @@ export default function BotButtonsPanel({
                     btnTextWallet,
                     btnTextColleagues,
                     btnTextAiChat,
+                    btnTextAi,
                     hideBtnBuyNew,
                     hideBtnMySubs,
                     hideBtnGuides,
@@ -1483,6 +1504,7 @@ export default function BotButtonsPanel({
                     hideBtnWallet,
                     hideBtnColleagues,
                     hideBtnAiChat,
+                    hideBtnAi,
                     keyboardLayout,
                     mainButtonsOrder,
                     walletChargeAmounts,
@@ -1566,6 +1588,7 @@ export default function BotButtonsPanel({
                     btnTextWallet,
                     btnTextColleagues,
                     btnTextAiChat,
+                    btnTextAi,
                     isFreeTestActive: false,
                     freeTestDisabledMessage: tempFreeTestMessage,
                     hideBtnBuyNew,
@@ -1581,6 +1604,7 @@ export default function BotButtonsPanel({
                     hideBtnWallet,
                     hideBtnColleagues,
                     hideBtnAiChat,
+                    hideBtnAi,
                     keyboardLayout,
                     mainButtonsOrder,
                     walletChargeAmounts,
@@ -1703,6 +1727,7 @@ export default function BotButtonsPanel({
                     btnTextWallet,
                     btnTextColleagues,
                     btnTextAiChat,
+                    btnTextAi,
                     isFreeTestActive,
                     freeTestDisabledMessage,
                     hideBtnBuyNew,
@@ -1718,6 +1743,7 @@ export default function BotButtonsPanel({
                     hideBtnWallet,
                     hideBtnColleagues,
                     hideBtnAiChat,
+                    hideBtnAi,
                     keyboardLayout,
                     mainButtonsOrder,
                     walletChargeAmounts: tempChargeAmounts,

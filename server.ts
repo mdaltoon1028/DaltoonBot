@@ -1550,32 +1550,77 @@ app.post("/api/ai/chat", async (req, res) => {
 
     let responseText = "";
     let lastError = null;
-    const modelsToTry = [
-      "gemini-3.5-flash",
-      "gemini-flash-latest",
-      "gemini-3.1-flash-lite",
-    ];
 
-    for (const modelName of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: message,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7,
-          },
-        });
-        if (response && response.text) {
-          responseText = response.text;
-          break;
+    const aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
+    const aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
+    const apiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
+
+    if (aiBaseUrl && aiBaseUrl.trim() !== "") {
+      const trimmedUrl = aiBaseUrl.trim().replace(/\/$/, "");
+      const completionUrl = `${trimmedUrl}/chat/completions`;
+      const model = aiModelName && aiModelName.trim() !== "" ? aiModelName.trim() : "gpt-4o";
+      
+      console.log(`[AI Chat] Routing via OpenAI Compatible API: ${completionUrl} with model ${model}`);
+      
+      const response = await fetch(completionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`OpenAI Provider error: ${response.status} - ${errText}`);
+      }
+
+      const resData: any = await response.json();
+      responseText = resData.choices?.[0]?.message?.content || "";
+      if (!responseText) {
+        throw new Error("Empty response from AI provider.");
+      }
+    } else {
+      const modelsToTry = [];
+      if (aiModelName && aiModelName.trim() !== "") {
+        modelsToTry.push(aiModelName.trim());
+      }
+      modelsToTry.push(
+        "gemini-2.5-flash",
+        "gemini-3.5-flash",
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite",
+      );
+
+      for (const modelName of modelsToTry) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: message,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.7,
+            },
+          });
+          if (response && response.text) {
+            responseText = response.text;
+            break;
+          }
+        } catch (err: any) {
+          console.warn(
+            `[AI Chat] Iteration fail (${modelName}):`,
+            err?.message || err,
+          );
+          lastError = err;
         }
-      } catch (err: any) {
-        console.warn(
-          `[AI Chat] Iteration fail (${modelName}):`,
-          err?.message || err,
-        );
-        lastError = err;
       }
     }
 
