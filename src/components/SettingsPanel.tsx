@@ -928,16 +928,16 @@ export default function SettingsPanel({
 
               {geminiTestResult && (
                 <div
-                  className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed ${
+                  className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed max-w-full overflow-hidden ${
                     geminiTestResult.success
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                       : "bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
                   }`}
                 >
-                  <p className="flex items-center gap-1.5 font-semibold">
-                    <span>{geminiTestResult.success ? "🟢" : "🔴"}</span>
-                    <span>{geminiTestResult.message}</span>
-                  </p>
+                  <div className="flex items-start gap-1.5 font-semibold flex-wrap break-all break-words max-w-full">
+                    <span className="shrink-0">{geminiTestResult.success ? "🟢" : "🔴"}</span>
+                    <span className="break-all break-words whitespace-pre-wrap flex-1 min-w-0">{geminiTestResult.message}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1039,16 +1039,16 @@ export default function SettingsPanel({
 
             {customTestResult && (
               <div
-                className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed ${
+                className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed max-w-full overflow-hidden ${
                   customTestResult.success
                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                     : "bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
                 }`}
               >
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <span>{customTestResult.success ? "🟢" : "🔴"}</span>
-                  <span>{customTestResult.message}</span>
-                </p>
+                <div className="flex items-start gap-1.5 font-semibold flex-wrap break-all break-words max-w-full">
+                  <span className="shrink-0">{customTestResult.success ? "🟢" : "🔴"}</span>
+                  <span className="break-all break-words whitespace-pre-wrap flex-1 min-w-0">{customTestResult.message}</span>
+                </div>
               </div>
             )}
           </div>
