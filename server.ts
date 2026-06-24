@@ -2717,7 +2717,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
 // BROADCAST ENDPOINT
 app.post("/api/broadcast", async (req, res) => {
   try {
-    const { text, attachment, serverUrl } = req.body;
+    const { text, attachment, serverUrl, captionPosition } = req.body;
     if (!text && !attachment) {
       return res.status(400).json({
         success: false,
@@ -2727,6 +2727,7 @@ app.post("/api/broadcast", async (req, res) => {
 
     // Process attachment if provided
     let fileUrl = "";
+    let attachmentBuffer: Buffer | null = null;
     if (attachment && attachment.fileData) {
       try {
         const uploadsDir = path.join(process.cwd(), "uploads");
@@ -2739,7 +2740,7 @@ app.post("/api/broadcast", async (req, res) => {
           base64Data = base64Data.split(";base64,").pop() || "";
         }
 
-        const buffer = Buffer.from(base64Data, "base64");
+        attachmentBuffer = Buffer.from(base64Data, "base64");
         const ext =
           path.extname(attachment.fileName) ||
           (attachment.fileType === "image"
@@ -2752,7 +2753,7 @@ app.post("/api/broadcast", async (req, res) => {
         const uniqueFileName = `broadcast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
         const filePath = path.join(uploadsDir, uniqueFileName);
 
-        fs.writeFileSync(filePath, buffer);
+        fs.writeFileSync(filePath, attachmentBuffer);
 
         const originUrl =
           serverUrl ||
@@ -2780,29 +2781,49 @@ app.post("/api/broadcast", async (req, res) => {
           try {
             // Determine API method and payload based on attachment presence and type
             let apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+            let useFormData = false;
+            let formData: any = null;
             let payload: any = {
               chat_id: u.userId,
               parse_mode: "HTML",
             };
 
-            if (fileUrl) {
-              const fileType = attachment?.fileType || "file";
+            if (attachmentBuffer && attachment) {
+              useFormData = true;
+              formData = new FormData();
+              formData.append("chat_id", u.userId.toString());
+              formData.append("parse_mode", "HTML");
+              if (text) {
+                formData.append("caption", text);
+              }
+              if (captionPosition === "above") {
+                formData.append("show_caption_above_media", "true");
+              }
+
+              const fileType = attachment.fileType || "file";
+              const mimeType = attachment.fileType === "image"
+                ? "image/jpeg"
+                : attachment.fileType === "video"
+                  ? "video/mp4"
+                  : attachment.fileType === "voice"
+                    ? "audio/ogg"
+                    : "application/octet-stream";
+
+              const blob = new Blob([attachmentBuffer], { type: mimeType });
+              const filename = attachment.fileName || (fileType === "image" ? "photo.jpg" : fileType === "video" ? "video.mp4" : fileType === "voice" ? "voice.ogg" : "file.bin");
+
               if (fileType === "image") {
                 apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
-                payload.photo = fileUrl;
-                payload.caption = text || "";
+                formData.append("photo", blob, filename);
               } else if (fileType === "video") {
                 apiUrl = `https://api.telegram.org/bot${botToken}/sendVideo`;
-                payload.video = fileUrl;
-                payload.caption = text || "";
+                formData.append("video", blob, filename);
               } else if (fileType === "voice") {
                 apiUrl = `https://api.telegram.org/bot${botToken}/sendVoice`;
-                payload.voice = fileUrl;
-                payload.caption = text || "";
+                formData.append("voice", blob, filename);
               } else {
                 apiUrl = `https://api.telegram.org/bot${botToken}/sendDocument`;
-                payload.document = fileUrl;
-                payload.caption = text || "";
+                formData.append("document", blob, filename);
               }
             } else {
               payload.text = text;
@@ -2815,10 +2836,10 @@ app.post("/api/broadcast", async (req, res) => {
               console.log(`[Broadcast] Sending to user ${u.userId} via Telegram API...`);
               const response = await fetch(apiUrl, {
                 method: "POST",
-                headers: {
+                headers: useFormData ? undefined : {
                   "Content-Type": "application/json"
                 },
-                body: JSON.stringify(payload),
+                body: useFormData ? formData : JSON.stringify(payload),
                 signal: controller.signal
               });
               clearTimeout(timeoutId);

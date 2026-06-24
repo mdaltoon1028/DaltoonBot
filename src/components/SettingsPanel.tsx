@@ -86,6 +86,7 @@ export default function SettingsPanel({
     fileName: string;
     fileType: "image" | "video" | "voice" | "file";
   } | null>(null);
+  const [captionPosition, setCaptionPosition] = useState<"below" | "above">("below");
   const [activeUploadType, setActiveUploadType] = useState<
     "image" | "video" | "voice" | "file"
   >("file");
@@ -264,6 +265,7 @@ export default function SettingsPanel({
         body: JSON.stringify({
           text: broadcastText.trim(),
           attachment: activeAttachment,
+          captionPosition,
           serverUrl: window.location.origin,
         }),
       });
@@ -664,6 +666,39 @@ export default function SettingsPanel({
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            </div>
+          )}
+
+          {/* Caption Position Selection */}
+          {activeAttachment && (
+            <div className="p-3.5 rounded-xl bg-[#111827] border border-indigo-500/10 text-xs animate-fadeIn mt-2 space-y-2.5" dir="rtl">
+              <span className="text-gray-400 font-medium block">
+                {lang === "fa" ? "موقعیت نمایش متن همراه رسانه:" : "Text position relative to media:"}
+              </span>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white transition">
+                  <input
+                    type="radio"
+                    name="captionPosition"
+                    value="below"
+                    checked={captionPosition === "below"}
+                    onChange={() => setCaptionPosition("below")}
+                    className="accent-indigo-500 w-4 h-4"
+                  />
+                  <span>{lang === "fa" ? "زیر رسانه (پیش‌فرض)" : "Below media (default)"}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white transition">
+                  <input
+                    type="radio"
+                    name="captionPosition"
+                    value="above"
+                    checked={captionPosition === "above"}
+                    onChange={() => setCaptionPosition("above")}
+                    className="accent-indigo-500 w-4 h-4"
+                  />
+                  <span>{lang === "fa" ? "بالای رسانه" : "Above media"}</span>
+                </label>
+              </div>
             </div>
           )}
 
