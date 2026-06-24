@@ -1996,23 +1996,23 @@ def handle_main_menu_callback(call):
     db = read_db_json()
     user = get_user_data(tg_id)
     
-    if action == "mm_btnAiChat":
-        msg = bot.edit_message_text(
-            "🤖 <b>چت هوشمند فعال شد!</b>\n\nسوال خود را بپرسید تا با استفاده از هوش‌مصنوعی پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
-            chat_id=message.chat.id,
-            message_id=message.message_id,
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard()
-        )
+    if action == "mm_btnAiChat" or action == "mm_btnAi":
+        try:
+            msg = bot.edit_message_text(
+                "🤖 <b>چت هوشمند فعال شد!</b>\n\nسوال خود را بپرسید تا با استفاده از هوش‌مصنوعی پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+                chat_id=message.chat.id,
+                message_id=message.message_id,
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
+            )
+        except Exception:
+            msg = bot.send_message(
+                message.chat.id,
+                "🤖 <b>چت هوشمند فعال شد!</b>\n\nسوال خود را بپرسید تا با استفاده از هوش‌مصنوعی پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
+            )
         bot.register_next_step_handler(message, process_ai_chat)
-        return
-
-    elif action == "mm_btnAi":
-        bot.send_message(
-            message.chat.id,
-            "🧠 <b>بخش هوش مصنوعی</b>\n\nاین بخش در حال توسعه است و به زودی راه‌اندازی خواهد شد.",
-            parse_mode="HTML"
-        )
         return
 
     elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
@@ -3008,6 +3008,25 @@ def process_purchase_username(message, plan_id, spec):
         server_id = spec.get("server_id")
         client_uuid, sub_link = add_vpn_client_api(username_input, spec['traffic'], spec['duration'], server_id=server_id)
         if not sub_link:
+            if not cfg.get("SIMULATOR_MODE"):
+                # Refund user wallet immediately if they were charged
+                if not is_privileged:
+                    fresh_db = read_db_json()
+                    fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
+                    current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
+                    refunded_bal = current_bal + float(spec["price"])
+                    update_user_balance(tg_id, refunded_bal)
+                    log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید", f"برگشت مبلغ {spec['price']:,} تومان به دلیل خطای اتصال x-ui.")
+                
+                refund_message = (
+                    "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
+                    "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ در این لحظه وجود ندارد.\n\n"
+                    f"💰 <b>مبلغ {spec['price']:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
+                    "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید."
+                )
+                bot.send_message(tg_id, refund_message, parse_mode="HTML")
+                return
+
             # Fallback simulated dynamic link
             client_uuid = str(uuid.uuid4())
             import random, string
@@ -4927,10 +4946,6 @@ def process_col_create_days(message, acc, name, gb):
         show_colleague_panel_msg(message, live_acc)
         return
         
-    live_acc["usedTrafficGb"] = used + gb
-    accounts[acc_idx] = live_acc
-    db["colleague_accounts"] = accounts
-        
     import uuid
     import time
     from datetime import datetime
@@ -4939,15 +4954,30 @@ def process_col_create_days(message, acc, name, gb):
     
     client_uuid, sub_link = add_vpn_client_api(full_name, gb, days)
     
+    cfg = get_config()
     if not sub_link:
-        # Fallback similar to normal purchase
+        if not cfg.get("SIMULATOR_MODE"):
+            bot.send_message(
+                message.chat.id,
+                "❌ <b>خطا در ساخت کانفیگ همکار!</b>\n\n"
+                "متأسفانه امکان اتصال به پنل x-ui و ایجاد این اکانت در این لحظه وجود ندارد.\n\n"
+                "⚠️ <b>هیچ ترافیکی از حساب همکار شما کسر نشد.</b>\n\n"
+                "لطفاً وضعیت سرور را بررسی کرده یا مجدداً تلاش کنید.",
+                parse_mode="HTML",
+                reply_markup=get_custom_keyboard()
+            )
+            show_colleague_panel_msg(message, live_acc)
+            return
+            
         import random, string
         client_uuid = str(uuid.uuid4())
         fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-        
-        cfg = get_config()
         cfg_url = cfg.get("SUB_URL", "http://localhost:3000")
         sub_link = f"{cfg_url}/sub/{fallback_sub_id}"
+
+    live_acc["usedTrafficGb"] = used + gb
+    accounts[acc_idx] = live_acc
+    db["colleague_accounts"] = accounts
 
     expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
     sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
