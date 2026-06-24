@@ -125,13 +125,6 @@ function getServerPort(): number {
         let pc = dbData.settings.panel_config;
         if (typeof pc === "string") pc = JSON.parse(pc);
         if (pc.serverPort && !isNaN(Number(pc.serverPort))) {
-          // Inside AI Studio Sandbox, port is strictly controlled by proxy/infra
-          if (
-            process.env.NODE_ENV !== "production" &&
-            process.env.PORT === "3000"
-          ) {
-            return 3000; // Force 3000 in sandbox to prevent proxy breakage
-          }
           return Number(pc.serverPort);
         }
       }

@@ -241,6 +241,11 @@ def get_config():
             "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnAi", "btnInstantSupport", "btnFeedback", "btnReferral"
         ])
 
+        if panel_cfg.get("serverPort"):
+            config["SERVER_PORT"] = int(panel_cfg["serverPort"])
+        else:
+            config["SERVER_PORT"] = 3000
+
         if panel_cfg.get("botToken"):
             config["BOT_TOKEN"] = panel_cfg["botToken"]
         if panel_cfg.get("botNickname"):
@@ -572,7 +577,9 @@ def reset_vpn_client_uuid_api(subscription_id):
     """ Call our server's internal endpoint to reset UUID and SubId in XUI and DB """
     import requests
     try:
-        url = "http://127.0.0.1:3000/api/subscription-keys/regenerate-uuid"
+        cfg = get_config()
+        port = cfg.get("SERVER_PORT", 3000)
+        url = f"http://127.0.0.1:{port}/api/subscription-keys/regenerate-uuid"
         payload = {"id": str(subscription_id)}
         print(f"[DEBUG] Calling regenerate-uuid for sub_id: {subscription_id}")
         
@@ -4806,7 +4813,9 @@ def process_ai_support(message):
     
     try:
         import requests
-        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text, "type": "support"}, timeout=200)
+        cfg = get_config()
+        port = cfg.get("SERVER_PORT", 3000)
+        response = requests.post(f"http://127.0.0.1:{port}/api/ai/chat", json={"userId": tg_id, "message": text, "type": "support"}, timeout=200)
         try:
             bot.delete_message(message.chat.id, typing_msg.message_id)
         except Exception:
@@ -4845,7 +4854,9 @@ def process_ai_general(message):
     
     try:
         import requests
-        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text, "type": "general"}, timeout=200)
+        cfg = get_config()
+        port = cfg.get("SERVER_PORT", 3000)
+        response = requests.post(f"http://127.0.0.1:{port}/api/ai/chat", json={"userId": tg_id, "message": text, "type": "general"}, timeout=200)
         try:
             bot.delete_message(message.chat.id, typing_msg.message_id)
         except Exception:
@@ -5063,7 +5074,8 @@ def process_col_create_days(message, acc, name, gb):
         import random, string
         client_uuid = str(uuid.uuid4())
         fallback_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-        cfg_url = cfg.get("SUB_URL", "http://localhost:3000")
+        port = cfg.get("SERVER_PORT", 3000)
+        cfg_url = cfg.get("SUB_URL", f"http://localhost:{port}")
         sub_link = f"{cfg_url}/sub/{fallback_sub_id}"
 
     live_acc["usedTrafficGb"] = used + gb
