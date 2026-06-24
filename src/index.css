@@ -182,3 +182,252 @@ tr:hover {
   animation: pulseGlow 10s infinite ease-in-out;
 }
 
+/* =========================================
+   LIGHT THEME OVERRIDES
+   ========================================= */
+body.light {
+  background-color: #f3f4f6 !important;
+  color: #1f2937 !important;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.02) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.02) 0%, transparent 40%) !important;
+}
+
+body.light .pulse-glow-bg {
+  display: none !important;
+}
+
+/* Map white texts to dark colors */
+body.light .text-white,
+body.light .text-gray-100,
+body.light .text-gray-200 {
+  color: #111827 !important;
+}
+
+/* Preserve white text on dark background buttons, links, and force classes */
+body.light button .text-white,
+body.light button.text-white,
+body.light a.text-white,
+body.light .bg-indigo-500 .text-white,
+body.light .bg-indigo-600 .text-white,
+body.light .bg-purple-500 .text-white,
+body.light .bg-purple-600 .text-white,
+body.light .bg-rose-500 .text-white,
+body.light .bg-rose-600 .text-white,
+body.light .bg-emerald-500 .text-white,
+body.light .bg-emerald-600 .text-white,
+body.light .bg-gradient-to-r .text-white,
+body.light .bg-gradient-to-r,
+body.light .text-white-force {
+  color: #ffffff !important;
+}
+
+/* Map gradient and transparent clip-text headers to dark purple-indigo gradient */
+body.light .bg-clip-text,
+body.light .text-transparent {
+  background-image: linear-gradient(to right, #6d28d9, #4f46e5, #312e81) !important;
+  color: transparent !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+/* Map muted text to clear darker grays */
+body.light .text-gray-300,
+body.light .text-gray-400 {
+  color: #374151 !important;
+}
+
+body.light .text-gray-500 {
+  color: #4b5563 !important;
+}
+
+body.light .text-indigo-400,
+body.light .text-purple-400 {
+  color: #6d28d9 !important;
+}
+
+/* Glass panel background remapping for Light mode */
+body.light .bg-\[\#0b0f19\], 
+body.light .bg-\[\#0c0f1c\], 
+body.light .bg-\[\#111827\], 
+body.light .bg-\[\#0f1424\], 
+body.light .bg-\[\#0f1626\],
+body.light .bg-\[\#161c2a\],
+body.light .bg-\[\#141b2c\],
+body.light .bg-\[\#111625\],
+body.light .bg-\[\#0f172a\],
+body.light .bg-\[\#0b101d\],
+body.light .bg-\[\#13192e\],
+body.light .bg-\[\#181f2a\],
+body.light .bg-\[\#0a0e17\],
+body.light .bg-slate-900, 
+body.light .bg-slate-950, 
+body.light .bg-gray-900,
+body.light .glass-panel {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Inner elements / Secondary backgrounds remapping */
+body.light .bg-\[\#1f2937\], 
+body.light .bg-\[\#1a2234\],
+body.light .bg-[#161c2a],
+body.light .bg-[#141b2c],
+body.light .bg-slate-800,
+body.light .bg-gray-800 {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Inbound toggle lists */
+body.light .bg-slate-950\/40 {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Hover panels in lists */
+body.light .glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+  box-shadow: 0 10px 30px rgba(139, 92, 246, 0.05) !important;
+}
+
+/* Form and controls borders */
+body.light .border-\[\#1f2937\], 
+body.light .border-slate-800, 
+body.light .border-gray-700,
+body.light .border-slate-700,
+body.light .border-gray-800,
+body.light .border-\[\#374151\],
+body.light .divide-\[\#1f2937\] > *,
+body.light .divide-slate-800 > *,
+body.light .divide-gray-700 > * {
+  border-color: rgba(0, 0, 0, 0.07) !important;
+}
+
+/* Modern inputs override */
+body.light input, 
+body.light select, 
+body.light textarea {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.09) !important;
+  color: #111827 !important;
+}
+
+body.light input:focus, 
+body.light select:focus, 
+body.light textarea:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.12) !important;
+}
+
+/* Active tabs and nav buttons */
+body.light .bg-black\/40 {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light .bg-black\/60 {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light .bg-black\/20 {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light .bg-black\/10 {
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+
+body.light .text-purple-200 {
+  color: #4c1d95 !important;
+}
+
+body.light .bg-purple-600\/15 {
+  background: rgba(139, 92, 246, 0.08) !important;
+}
+
+body.light .border-purple-500 {
+  border-color: #8b5cf6 !important;
+}
+
+body.light .bg-white\/5 {
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+body.light .bg-white\/10 {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+body.light .hover\:bg-white\/10:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light .hover\:bg-white\/5:hover {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light .text-amber-400 {
+  color: #b45309 !important;
+}
+
+body.light .bg-amber-500\/20 {
+  background: rgba(245, 158, 11, 0.09) !important;
+}
+
+body.light .bg-rose-500\/20 {
+  background: rgba(244, 63, 94, 0.09) !important;
+}
+
+body.light .bg-rose-500\/5 {
+  background: rgba(244, 63, 94, 0.03) !important;
+}
+
+body.light .border-rose-500\/10 {
+  border-color: rgba(244, 63, 94, 0.12) !important;
+}
+
+body.light .text-rose-400 {
+  color: #be123c !important;
+}
+
+body.light .text-emerald-400 {
+  color: #047857 !important;
+}
+
+body.light .bg-emerald-500\/10 {
+  background: rgba(16, 185, 129, 0.08) !important;
+}
+
+/* Modals remapping */
+body.light .bg-\[\#111827\].shadow-2xl,
+body.light .bg-\[\#0f1424\].shadow-2xl,
+body.light .modal,
+body.light div[role="dialog"] {
+  background: #ffffff !important;
+  border: 1px solid rgba(139, 92, 246, 0.15) !important;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Tables row hover remapping */
+body.light tr:hover {
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+
+/* Scrollbar override for light mode */
+body.light ::-webkit-scrollbar-track {
+  background: #f3f4f6 !important;
+}
+
+body.light ::-webkit-scrollbar-thumb {
+  background: #d1d5db !important;
+  border: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+body.light ::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af !important;
+}
+

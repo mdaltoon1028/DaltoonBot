@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { InboundInfo, Transaction } from "../types";
 import { Language, translations } from "../locales";
 import SystemResourceMonitor from "./SystemResourceMonitor";
+import SystemHealthAssessment from "./SystemHealthAssessment";
 import { 
   Activity, 
   Cpu, 
@@ -161,6 +162,9 @@ export default function DashboardOverview({
             </label>
           </div>
       </div>
+
+      {/* Detailed System Health Evaluation Card */}
+      <SystemHealthAssessment lang={lang} />
 
       {/* Compact System Resource Monitoring Bar */}
       <div className="pt-4 border-t border-[#1f2937]">

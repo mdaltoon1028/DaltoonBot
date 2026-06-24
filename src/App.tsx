@@ -19,7 +19,9 @@ import {
   Tag,
   MessageSquare,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sun,
+  Moon
 } from "lucide-react";
 
 // Types & Data
@@ -349,6 +351,20 @@ export default function App() {
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [isNewInstall, setIsNewInstall] = useState<boolean | null>(null);
+
+  const [isLightMode, setIsLightMode] = useState<boolean>(() => {
+    return localStorage.getItem("theme") === "light";
+  });
+
+  useEffect(() => {
+    if (isLightMode) {
+      document.body.classList.add("light");
+      localStorage.setItem("theme", "light");
+    } else {
+      document.body.classList.remove("light");
+      localStorage.setItem("theme", "dark");
+    }
+  }, [isLightMode]);
 
   useEffect(() => {
     if (isAuthenticated && settings) {
@@ -1155,23 +1171,6 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setActiveTab("logs")}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
-                activeTab === "logs" 
-                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
-                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Clock className={`w-4 h-4 transition-colors duration-300 ${activeTab === "logs" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
-                <span>{lang === "fa" ? "وضعیت سیستم" : "System Status"}</span>
-              </div>
-              {activeTab === "logs" && (
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
-              )}
-            </button>
-
-            <button
               onClick={() => setActiveTab("settings")}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                 activeTab === "settings" 
@@ -1244,6 +1243,19 @@ export default function App() {
 
           {/* Sync / State actions Panel */}
           <div className="flex items-center gap-3 flex-1 justify-end">
+            {/* Theme Toggle Button */}
+            <button
+              onClick={() => setIsLightMode(!isLightMode)}
+              className="p-2.5 text-gray-400 hover:text-white transition cursor-pointer bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 flex items-center justify-center shadow-sm"
+              title={lang === "fa" ? (isLightMode ? "تم تاریک" : "تم روشن") : (isLightMode ? "Dark Mode" : "Light Mode")}
+            >
+              {isLightMode ? (
+                <Moon className="w-4 h-4 text-purple-600 drop-shadow-[0_0_8px_rgba(109,40,217,0.4)]" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+              )}
+            </button>
+
             {/* Language Selection Buttons */}
             <div className="flex items-center p-1 bg-black/60 border border-white/5 rounded-xl text-xs flex-shrink-0">
               <button
@@ -1444,10 +1456,6 @@ export default function App() {
               onDeleteTicket={handleDeleteTicket}
               lang={lang}
             />
-          )}
-
-          {activeTab === "logs" && (
-            <BotLogs logs={logs} lang={lang} />
           )}
 
           {activeTab === "settings" && (
