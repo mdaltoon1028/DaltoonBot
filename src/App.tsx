@@ -351,12 +351,20 @@ export default function App() {
   const [isNewInstall, setIsNewInstall] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated && settings && isNewInstall === true) {
-      if (!settings.botToken || settings.botToken.trim() === "" || settings.botToken === "DUMMY_TOKEN") {
+    if (isAuthenticated && settings) {
+      const isMissingConfig = !settings.botToken || 
+                             settings.botToken.trim() === "" || 
+                             settings.botToken === "DUMMY_TOKEN" ||
+                             !settings.botNickname ||
+                             settings.botNickname.trim() === "" ||
+                             settings.botNickname === "Daltoon" ||
+                             !settings.ownerId ||
+                             Number(settings.ownerId) === 0;
+      if (isMissingConfig || isNewInstall === true) {
         setShowSetupModal(true);
       }
     }
-  }, [isAuthenticated, settings?.botToken, isNewInstall]);
+  }, [isAuthenticated, settings, isNewInstall]);
 
   useEffect(() => {
     fetch("/api/system/check-update")

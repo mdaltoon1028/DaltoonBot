@@ -155,6 +155,7 @@ interface DbSchema {
   logs?: any[];
   plan_categories?: any[];
   settings: Record<string, string>;
+  link_tokens?: Record<string, string>;
 }
 
 // Function to read JSON Database, seeding with default templates if not found
@@ -181,6 +182,7 @@ function readJsonDb(): DbSchema {
         settings: {
           panel_config: JSON.stringify({
             botToken: process.env.BOT_TOKEN || "",
+            botNickname: "",
             baseUrl: "",
             panelUrl: "",
             panelUsername: "",
@@ -194,11 +196,34 @@ function readJsonDb(): DbSchema {
             supportText: "",
             btnTextGuides: "",
             guidesText: "",
-            hideSupport: false,
-            hideBuy: false,
-            hideProfile: false,
-            hideWallet: false,
-            hideBtnWallet: false,
+            // Disable features by default
+            hideSupport: true,
+            hideBuy: true,
+            hideProfile: true,
+            hideWallet: true,
+            // Disable all individual bot buttons by default
+            hideBtnBuyNew: true,
+            hideBtnMySubs: true,
+            hideBtnGuides: true,
+            hideBtnProfile: true,
+            hideBtnSupport: true,
+            hideBtnTicketSupport: true,
+            hideBtnFreeTest: true,
+            hideBtnInstantSupport: true,
+            hideBtnFeedback: true,
+            hideBtnWallet: true,
+            hideBtnReferral: true,
+            hideBtnColleagues: true,
+            hideBtnAiChat: true,
+            // Turn off all checkmarks by default
+            gatewayStarsStatus: false,
+            autoWarningConfigBtn: false,
+            autoWarningNoConnectionBtn: false,
+            autoWarningFirstConnectionBtn: false,
+            mandatoryJoinActive: false,
+            // Automatic backup turned on by default, set to hourly
+            autoBackupEnabled: true,
+            autoBackupInterval: "hourly",
             btnTextWallet: "شارژ کیف پول 💳",
             walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
             dashboardUsername: process.env.DASHBOARD_USERNAME || "admin",
@@ -206,7 +231,7 @@ function readJsonDb(): DbSchema {
             serverPort: process.env.DASHBOARD_PORT
               ? parseInt(process.env.DASHBOARD_PORT, 10)
               : 3000,
-            panelConnectionActive: true,
+            panelConnectionActive: false,
             autoRefreshInterval: 0,
             admins: [],
           }),
@@ -849,7 +874,15 @@ app.get("/api/data", async (req, res) => {
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
       settings,
-      isNewInstall: db.isNewInstall,
+      isNewInstall: db.isNewInstall || 
+                    !settings.botToken || 
+                    settings.botToken.trim() === "" || 
+                    settings.botToken === "DUMMY_TOKEN" ||
+                    !settings.botNickname ||
+                    settings.botNickname.trim() === "" ||
+                    settings.botNickname === "Daltoon" ||
+                    !settings.ownerId ||
+                    Number(settings.ownerId) === 0,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -2775,59 +2808,38 @@ app.post("/api/broadcast", async (req, res) => {
               payload.text = text;
             }
 
-            const postData = JSON.stringify(payload);
-            const urlObj = new URL(apiUrl);
-            const https = require("https");
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout per user
 
-            const options = {
-              hostname: urlObj.hostname,
-              port: 443,
-              path: urlObj.pathname + urlObj.search,
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Content-Length": Buffer.byteLength(postData),
-              },
-            };
-
-            await new Promise((resolve, reject) => {
-              const reqNotify = https.request(options, (resNotify: any) => {
-                let responseBody = "";
-                resNotify.on("data", (chunk: any) => {
-                  responseBody += chunk;
-                });
-                resNotify.on("end", () => {
-                  try {
-                    const data = JSON.parse(responseBody);
-                    if (data.ok) {
-                      count++;
-                    } else {
-                      console.error(
-                        `[Broadcast] Telegram API error for user ${u.userId}:`,
-                        data,
-                      );
-                    }
-                  } catch (e) {
-                    console.error(
-                      `[Broadcast] Telegram API parse error for user ${u.userId}:`,
-                      e,
-                    );
-                  }
-                  resolve(null);
-                });
+            try {
+              console.log(`[Broadcast] Sending to user ${u.userId} via Telegram API...`);
+              const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
               });
+              clearTimeout(timeoutId);
 
-              reqNotify.on("error", (e: any) => {
+              const data = await response.json() as any;
+              if (data && data.ok) {
+                count++;
+                console.log(`[Broadcast] Successfully sent to user ${u.userId}`);
+              } else {
                 console.error(
-                  `[Broadcast] HTTPS request error for user ${u.userId}:`,
-                  e,
+                  `[Broadcast] Telegram API error for user ${u.userId}:`,
+                  data
                 );
-                resolve(null);
-              });
-
-              reqNotify.write(postData);
-              reqNotify.end();
-            });
+              }
+            } catch (err: any) {
+              clearTimeout(timeoutId);
+              console.error(
+                `[Broadcast] Network/Timeout error sending to user ${u.userId}:`,
+                err.message || err
+              );
+            }
             // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling
             await new Promise((resolve) => setTimeout(resolve, 50));
           } catch (e: any) {
@@ -4777,8 +4789,20 @@ async function autoSyncTrafficUsage() {
                 inline_keyboard: [
                   [
                     {
-                      text: "🔗 لینک اشتراک",
+                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)",
                       callback_data: `vless_link_${k.id}`,
+                    },
+                  ],
+                  [
+                    {
+                      text: "🔗 لینک های تکی",
+                      callback_data: `mysub_vless_${k.id}`,
+                    },
+                  ],
+                  [
+                    {
+                      text: "💡 آموزش ها",
+                      callback_data: "mm_btnGuides",
                     },
                   ],
                   [

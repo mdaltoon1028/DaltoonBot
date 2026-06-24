@@ -1761,7 +1761,7 @@ def start_cmd(message):
         )
     # Ensure client's cached reply keyboard is restricted to '🔙 بازگشت به منوی اصلی' only
     try:
-        bot.send_message(message.chat.id, f"🔄 منوی ربات {bot_nickname} به‌روزرسانی شد.", reply_markup=get_main_reply_keyboard())
+        bot.send_message(message.chat.id, "\u200b", reply_markup=get_main_reply_keyboard())
     except Exception as e:
         print(f"Error resetting reply markup: {e}")
         
