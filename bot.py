@@ -25,25 +25,47 @@ def get_db_path():
     """
     possible_files = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"]
     
-    def file_has_data(path):
+    def get_file_score(path):
         try:
-            if not os.path.exists(path): return False
-            if os.path.getsize(path) < 10: return False
+            if not os.path.exists(path): return -1
+            size = os.path.getsize(path)
+            if size < 5: return -1
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                if data.get("users") or data.get("vpn_plans") or data.get("transactions"):
-                    return True
+                score = 0
+                
+                users = data.get("users")
+                if isinstance(users, list) and len(users) > 0:
+                    score += len(users) * 10
+                    
+                transactions = data.get("transactions")
+                if isinstance(transactions, list) and len(transactions) > 0:
+                    score += len(transactions) * 10
+                    
                 settings = data.get("settings", {})
-                if settings.get("BOT_TOKEN") or settings.get("panel_config"):
-                    return True
-            return False
-        except: return False
+                if settings.get("BOT_TOKEN") or settings.get("botToken") or settings.get("panel_config"):
+                    score += 100
+                    
+                if score > 0:
+                    return (score * 1000000) + size
+                return -1
+        except: return -1
+
+    best_file = ""
+    best_score = -1
 
     for f in possible_files:
         root_path = os.path.join(SCRIPT_DIR, f)
         parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
-        if file_has_data(root_path): return root_path
-        if file_has_data(parent_path): return parent_path
+        
+        for p in [root_path, parent_path]:
+            score = get_file_score(p)
+            if score > best_score:
+                best_score = score
+                best_file = p
+                
+    if best_score > -1 and best_file:
+        return best_file
     
     for f in possible_files:
         root_path = os.path.join(SCRIPT_DIR, f)

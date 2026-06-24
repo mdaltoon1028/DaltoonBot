@@ -38,16 +38,20 @@ const dbJsonPath = (() => {
   ];
 
   // Helper inspect file for actual registered data
-  const fileHasData = (filePath: string): boolean => {
+  const getFileScore = (filePath: string): number => {
     try {
-      if (!fs.existsSync(filePath)) return false;
+      if (!fs.existsSync(filePath)) return -1;
+      const stat = fs.statSync(filePath);
       const content = fs.readFileSync(filePath, "utf8").trim();
-      if (!content) return false;
+      if (!content || content === "{}" || content === "[]") return -1;
       const parsed = JSON.parse(content);
-      // If it contains users, transactions, or has a valid botToken in settings
-      if (Array.isArray(parsed.users) && parsed.users.length > 0) return true;
+
+      let score = 0;
+      if (Array.isArray(parsed.users) && parsed.users.length > 0)
+        score += parsed.users.length * 10;
       if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0)
-        return true;
+        score += parsed.transactions.length * 10;
+
       if (parsed.settings && parsed.settings.panel_config) {
         try {
           const config =
@@ -59,25 +63,40 @@ const dbJsonPath = (() => {
             config.botToken !== "DUMMY_TOKEN" &&
             config.botToken.trim() !== ""
           ) {
-            return true;
+            score += 100;
           }
         } catch (err) {}
       }
-      return false;
+
+      if (score > 0) {
+        return score * 1000000 + stat.size;
+      }
+      return -1;
     } catch (e) {
-      return false;
+      return -1;
     }
   };
 
-  // 1. Search for a file that actually contains data
+  let bestFile = "";
+  let bestScore = -1;
+
+  // 1. Search for a file that actually contains the most data
   for (const f of possibleFiles) {
     const rootPath = path.resolve(process.cwd(), f);
     const scriptPath = path.resolve(_dirname, f);
     const parentPath = path.resolve(_dirname, "..", f);
 
-    if (fileHasData(rootPath)) return rootPath;
-    if (fileHasData(scriptPath)) return scriptPath;
-    if (fileHasData(parentPath)) return parentPath;
+    for (const p of [rootPath, scriptPath, parentPath]) {
+      const score = getFileScore(p);
+      if (score > bestScore) {
+        bestScore = score;
+        bestFile = p;
+      }
+    }
+  }
+
+  if (bestScore > -1 && bestFile) {
+    return bestFile;
   }
 
   // 2. If no data found, fall back to the first one that exists at all
@@ -292,7 +311,10 @@ function readJsonDb(): DbSchema {
 
     return db;
   } catch (err) {
-    console.error("[Database] Read error, preventing data wipe! Returning in-memory empty dataset but skipping writes:", err);
+    console.error(
+      "[Database] Read error, preventing data wipe! Returning in-memory empty dataset but skipping writes:",
+      err,
+    );
     return {
       users: [],
       transactions: [],
@@ -306,7 +328,7 @@ function readJsonDb(): DbSchema {
       tickets: [],
       colleague_packages: [],
       colleague_accounts: [],
-      _isReadError: true // Flag to prevent writeJsonDb from overwriting
+      _isReadError: true, // Flag to prevent writeJsonDb from overwriting
     } as unknown as DbSchema;
   }
 }
@@ -314,7 +336,9 @@ function readJsonDb(): DbSchema {
 // Function to write back data
 function writeJsonDb(data: DbSchema) {
   if ((data as any)._isReadError) {
-    console.error("[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data.");
+    console.error(
+      "[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data.",
+    );
     return;
   }
   try {
@@ -356,15 +380,36 @@ function getSystemSettings(db?: any) {
     bankName: "",
     welcomeText: "",
     supportText: "",
-    hideSupport: false,
-    hideBuy: false,
-    hideProfile: false,
-    hideWallet: false,
-    hideBtnWallet: false,
+    hideSupport: true,
+    hideBuy: true,
+    hideProfile: true,
+    hideWallet: true,
+    hideBtnBuyNew: true,
+    hideBtnMySubs: true,
+    hideBtnGuides: true,
+    hideBtnProfile: true,
+    hideBtnSupport: true,
+    hideBtnTicketSupport: true,
+    hideBtnFreeTest: true,
+    hideBtnInstantSupport: true,
+    hideBtnFeedback: true,
+    hideBtnWallet: true,
+    hideBtnReferral: true,
+    hideBtnColleagues: true,
+    hideBtnAiChat: true,
+    gatewayStarsStatus: false,
+    autoWarningConfigBtn: false,
+    autoWarningNoConnectionBtn: false,
+    autoWarningFirstConnectionBtn: false,
+    mandatoryJoinActive: false,
+    autoBackupEnabled: true,
+    autoBackupInterval: "hourly",
     btnTextWallet: "شارژ کیف پول 💳",
     walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
-    dashboardUsername: process.env.PANEL_USER || "Daltoon",
-    dashboardPassword: process.env.PANEL_PASS || "Daltoon10",
+    dashboardUsername:
+      process.env.DASHBOARD_USERNAME || process.env.PANEL_USER || "Daltoon",
+    dashboardPassword:
+      process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS || "Daltoon10",
     serverPort: 3000,
     admins: [],
     panelConnectionActive: false,
@@ -883,15 +928,16 @@ app.get("/api/data", async (req, res) => {
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
       settings,
-      isNewInstall: db.isNewInstall || 
-                    !settings.botToken || 
-                    settings.botToken.trim() === "" || 
-                    settings.botToken === "DUMMY_TOKEN" ||
-                    !settings.botNickname ||
-                    settings.botNickname.trim() === "" ||
-                    settings.botNickname === "Daltoon" ||
-                    !settings.ownerId ||
-                    Number(settings.ownerId) === 0,
+      isNewInstall:
+        db.isNewInstall ||
+        !settings.botToken ||
+        settings.botToken.trim() === "" ||
+        settings.botToken === "DUMMY_TOKEN" ||
+        !settings.botNickname ||
+        settings.botNickname.trim() === "" ||
+        settings.botNickname === "Daltoon" ||
+        !settings.ownerId ||
+        Number(settings.ownerId) === 0,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -1535,7 +1581,8 @@ app.post("/api/ai/chat", async (req, res) => {
       apiKeyToUse = geminiApiKey.trim();
       if (!apiKeyToUse || apiKeyToUse.trim() === "") {
         return res.status(400).json({
-          error: "کلید API جیمینای ثبت نشده است. لطفاً ابتدا در تنظیمات داشبورد کلید معتبر را وارد کنید."
+          error:
+            "کلید API جیمینای ثبت نشده است. لطفاً ابتدا در تنظیمات داشبورد کلید معتبر را وارد کنید.",
         });
       }
     } else {
@@ -1543,16 +1590,20 @@ app.post("/api/ai/chat", async (req, res) => {
       apiKeyToUse = customAiApiKey.trim();
       finalBaseUrl = aiBaseUrl ? aiBaseUrl.trim() : "";
       finalModelName = aiModelName ? aiModelName.trim() : "";
-      
+
       if (!apiKeyToUse || apiKeyToUse.trim() === "") {
         return res.status(400).json({
-          error: "کلید API هوش مصنوعی عمومی تنظیم نشده است. لطفاً تنظیمات را بررسی کنید."
+          error:
+            "کلید API هوش مصنوعی عمومی تنظیم نشده است. لطفاً تنظیمات را بررسی کنید.",
         });
       }
     }
 
     // Support Assistant uses Gemini, General AI uses the custom API key (or auto-detects if Custom API key happens to be Gemini)
-    const isDirectGemini = isSupport ? true : (apiKeyToUse.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === ""));
+    const isDirectGemini = isSupport
+      ? true
+      : apiKeyToUse.startsWith("AIzaSy") &&
+        (!finalBaseUrl || finalBaseUrl === "");
 
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
@@ -1572,7 +1623,9 @@ app.post("/api/ai/chat", async (req, res) => {
 
     if (isDirectGemini) {
       // Direct Google Gemini API call
-      console.log(`[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`);
+      console.log(
+        `[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`,
+      );
       const ai = new GoogleGenAI({
         apiKey: apiKeyToUse,
       });
@@ -1604,9 +1657,14 @@ app.post("/api/ai/chat", async (req, res) => {
 
       const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
       const completionUrl = `${trimmedUrl}/chat/completions`;
-      const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
+      const modelToUse =
+        finalModelName && finalModelName.trim() !== ""
+          ? finalModelName.trim()
+          : "gpt-4o-mini";
 
-      console.log(`[AI Chat Custom] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse} (isSupport: ${isSupport})`);
+      console.log(
+        `[AI Chat Custom] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse} (isSupport: ${isSupport})`,
+      );
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
@@ -1614,24 +1672,26 @@ app.post("/api/ai/chat", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKeyToUse}`
+          Authorization: `Bearer ${apiKeyToUse}`,
         },
         body: JSON.stringify({
           model: modelToUse,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: message }
+            { role: "user", content: message },
           ],
-          temperature: 0.7
+          temperature: 0.7,
         }),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`خطای سرویس‌دهنده هوش مصنوعی (کد ${response.status}): ${errText}`);
+        throw new Error(
+          `خطای سرویس‌دهنده هوش مصنوعی (کد ${response.status}): ${errText}`,
+        );
       }
 
       const resData: any = await response.json();
@@ -1645,7 +1705,7 @@ app.post("/api/ai/chat", async (req, res) => {
   } catch (error: any) {
     console.error("[AI Chat API Error]:", error);
     let errMsg = error.message || "Failed to generate AI response.";
-    
+
     if (errMsg.startsWith("{")) {
       try {
         const parsed = JSON.parse(errMsg);
@@ -1654,11 +1714,16 @@ app.post("/api/ai/chat", async (req, res) => {
         }
       } catch (e) {}
     }
-    
+
     if (errMsg.includes("API key not valid")) {
       errMsg = "کلید API ثبت شده نامعتبر است. لطفاً به مدیریت اطلاع دهید.";
-    } else if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
-      errMsg = "محدودیت استفاده از کلید API هوش مصنوعی به پایان رسیده است (Quota Exceeded). لطفاً به مدیریت اطلاع دهید.";
+    } else if (
+      errMsg.toLowerCase().includes("quota") ||
+      errMsg.toLowerCase().includes("rate limit") ||
+      errMsg.includes("429")
+    ) {
+      errMsg =
+        "محدودیت استفاده از کلید API هوش مصنوعی به پایان رسیده است (Quota Exceeded). لطفاً به مدیریت اطلاع دهید.";
     }
 
     res.status(500).json({ error: errMsg });
@@ -1669,7 +1734,9 @@ app.post("/api/ai/test-key", async (req, res) => {
   try {
     let { apiKey, baseUrl, modelName, type } = req.body;
     if (!apiKey || apiKey.trim() === "") {
-      return res.status(400).json({ error: "لطفاً ابتدا کلید API را وارد کنید." });
+      return res
+        .status(400)
+        .json({ error: "لطفاً ابتدا کلید API را وارد کنید." });
     }
 
     const trimmedKey = apiKey.trim();
@@ -1678,7 +1745,11 @@ app.post("/api/ai/test-key", async (req, res) => {
 
     // If type is explicitly 'gemini', test as Google Gemini.
     // Otherwise, auto-detect (useful if type is custom but they put a gemini key without base url)
-    const isDirectGemini = type === "gemini" ? true : (trimmedKey.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === ""));
+    const isDirectGemini =
+      type === "gemini"
+        ? true
+        : trimmedKey.startsWith("AIzaSy") &&
+          (!finalBaseUrl || finalBaseUrl === "");
 
     if (isDirectGemini) {
       // Test direct Gemini Key
@@ -1697,7 +1768,10 @@ app.post("/api/ai/test-key", async (req, res) => {
       });
 
       if (response && response.text) {
-        return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
+        return res.json({
+          success: true,
+          message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است.",
+        });
       } else {
         throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
       }
@@ -1713,10 +1787,15 @@ app.post("/api/ai/test-key", async (req, res) => {
 
       const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
       const completionUrl = `${trimmedUrl}/chat/completions`;
-      const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
+      const modelToUse =
+        finalModelName && finalModelName.trim() !== ""
+          ? finalModelName.trim()
+          : "gpt-4o-mini";
 
-      console.log(`[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`);
-      
+      console.log(
+        `[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`,
+      );
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
 
@@ -1724,29 +1803,34 @@ app.post("/api/ai/test-key", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${trimmedKey}`
+          Authorization: `Bearer ${trimmedKey}`,
         },
         body: JSON.stringify({
           model: modelToUse,
           messages: [{ role: "user", content: "سلام" }],
-          max_tokens: 5
+          max_tokens: 5,
         }),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`خطای سرور سرویس‌دهنده (کد ${response.status}): ${errText}`);
+        throw new Error(
+          `خطای سرور سرویس‌دهنده (کد ${response.status}): ${errText}`,
+        );
       }
 
-      return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API معتبر است." });
+      return res.json({
+        success: true,
+        message: "اتصال با موفقیت برقرار شد! کلید API معتبر است.",
+      });
     }
   } catch (err: any) {
     console.error("[AI Key Test Error]:", err);
     let errMsg = err.message || "بررسی کلید API با خطا مواجه شد.";
-    
+
     // Parse GoogleGenAI JSON error messages to be user-friendly
     if (errMsg.startsWith("{")) {
       try {
@@ -1757,14 +1841,24 @@ app.post("/api/ai/test-key", async (req, res) => {
       } catch (e) {}
     }
 
-    if (err.name === "AbortError" || errMsg.includes("aborted") || errMsg.includes("timeout")) {
-      errMsg = "زمان اتصال به سرور هوش مصنوعی به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور هوش مصنوعی یا عدم پاسخگویی مناسب فیلترشکن/اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
+    if (
+      err.name === "AbortError" ||
+      errMsg.includes("aborted") ||
+      errMsg.includes("timeout")
+    ) {
+      errMsg =
+        "زمان اتصال به سرور هوش مصنوعی به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور هوش مصنوعی یا عدم پاسخگویی مناسب فیلترشکن/اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
     } else if (errMsg.includes("API key not valid")) {
       errMsg = "کلید API وارد شده نامعتبر است. لطفاً کلید صحیح را وارد کنید.";
     } else if (errMsg.includes("fetch failed")) {
       errMsg = "خطا در برقراری ارتباط با سرور هوش مصنوعی (Network Error).";
-    } else if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
-      errMsg = "محدودیت استفاده از این کلید به پایان رسیده است (Quota Exceeded). لطفاً کلید دیگری وارد کنید.";
+    } else if (
+      errMsg.toLowerCase().includes("quota") ||
+      errMsg.toLowerCase().includes("rate limit") ||
+      errMsg.includes("429")
+    ) {
+      errMsg =
+        "محدودیت استفاده از این کلید به پایان رسیده است (Quota Exceeded). لطفاً کلید دیگری وارد کنید.";
     }
 
     res.status(500).json({ error: errMsg });
@@ -2975,16 +3069,25 @@ app.post("/api/broadcast", async (req, res) => {
               }
 
               const fileType = attachment.fileType || "file";
-              const mimeType = attachment.fileType === "image"
-                ? "image/jpeg"
-                : attachment.fileType === "video"
-                  ? "video/mp4"
-                  : attachment.fileType === "voice"
-                    ? "audio/ogg"
-                    : "application/octet-stream";
+              const mimeType =
+                attachment.fileType === "image"
+                  ? "image/jpeg"
+                  : attachment.fileType === "video"
+                    ? "video/mp4"
+                    : attachment.fileType === "voice"
+                      ? "audio/ogg"
+                      : "application/octet-stream";
 
               const blob = new Blob([attachmentBuffer], { type: mimeType });
-              const filename = attachment.fileName || (fileType === "image" ? "photo.jpg" : fileType === "video" ? "video.mp4" : fileType === "voice" ? "voice.ogg" : "file.bin");
+              const filename =
+                attachment.fileName ||
+                (fileType === "image"
+                  ? "photo.jpg"
+                  : fileType === "video"
+                    ? "video.mp4"
+                    : fileType === "voice"
+                      ? "voice.ogg"
+                      : "file.bin");
 
               if (fileType === "image") {
                 apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
@@ -3007,32 +3110,38 @@ app.post("/api/broadcast", async (req, res) => {
             const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout per user
 
             try {
-              console.log(`[Broadcast] Sending to user ${u.userId} via Telegram API...`);
+              console.log(
+                `[Broadcast] Sending to user ${u.userId} via Telegram API...`,
+              );
               const response = await fetch(apiUrl, {
                 method: "POST",
-                headers: useFormData ? undefined : {
-                  "Content-Type": "application/json"
-                },
+                headers: useFormData
+                  ? undefined
+                  : {
+                      "Content-Type": "application/json",
+                    },
                 body: useFormData ? formData : JSON.stringify(payload),
-                signal: controller.signal
+                signal: controller.signal,
               });
               clearTimeout(timeoutId);
 
-              const data = await response.json() as any;
+              const data = (await response.json()) as any;
               if (data && data.ok) {
                 count++;
-                console.log(`[Broadcast] Successfully sent to user ${u.userId}`);
+                console.log(
+                  `[Broadcast] Successfully sent to user ${u.userId}`,
+                );
               } else {
                 console.error(
                   `[Broadcast] Telegram API error for user ${u.userId}:`,
-                  data
+                  data,
                 );
               }
             } catch (err: any) {
               clearTimeout(timeoutId);
               console.error(
                 `[Broadcast] Network/Timeout error sending to user ${u.userId}:`,
-                err.message || err
+                err.message || err,
               );
             }
             // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling
@@ -4429,7 +4538,7 @@ app.get("/api/system/version", (req, res) => {
 app.get("/api/system/status", (req, res) => {
   try {
     const os = require("os");
-    
+
     // CPU load calculation using load average or synthetic load representation
     const cpus = os.cpus();
     const loadAvg = os.loadavg()[0];
@@ -4446,7 +4555,7 @@ app.get("/api/system/status", (req, res) => {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
     const memoryUsage = Math.round((usedMem / totalMem) * 100) || 10;
-    
+
     const totalMemGB = (totalMem / (1024 * 1024 * 1024)).toFixed(1) + "GB";
     const usedMemGB = (usedMem / (1024 * 1024 * 1024)).toFixed(1) + "GB";
 
@@ -4477,7 +4586,7 @@ app.get("/api/system/status", (req, res) => {
       cpu: { usage: cpuUsage },
       memory: { usage: memoryUsage, total: totalMemGB, used: usedMemGB },
       disk: { usage: diskUsage, total: diskTotal, used: diskUsed },
-      uptime: uptimeStr
+      uptime: uptimeStr,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

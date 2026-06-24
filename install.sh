@@ -39,22 +39,25 @@ mkdir -p "$BACKUP_DIR"
 
 # Backup databases if they exist anywhere to verify persistence
 for dir in "/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/DaltoonBot"; do
+    if [ -f "$dir/.env" ] && [ -s "$dir/.env" ]; then
+        echo -e "${GREEN}Backing up .env configuration from $dir...${NC}"
+        cp "$dir/.env" "$BACKUP_DIR/.env_backup"
+    fi
     if [ -f "$dir/Daltoon_Bot.json" ] && [ -s "$dir/Daltoon_Bot.json" ]; then
         echo -e "${GREEN}Backing up bot database from $dir/Daltoon_Bot.json...${NC}"
         cp "$dir/Daltoon_Bot.json" "$BACKUP_DIR/Daltoon_Bot.json"
-        break
-    elif [ -f "$dir/database.json" ] && [ -s "$dir/database.json" ]; then
-        echo -e "${GREEN}Migrating legacy database.json from $dir to Daltoon_Bot.json...${NC}"
-        cp "$dir/database.json" "$BACKUP_DIR/Daltoon_Bot.json"
-        break
-    elif [ -f "$dir/db.json" ] && [ -s "$dir/db.json" ]; then
-        echo -e "${GREEN}Migrating legacy db.json from $dir to Daltoon_Bot.json...${NC}"
-        cp "$dir/db.json" "$BACKUP_DIR/Daltoon_Bot.json"
-        break
-    elif [ -f "$dir/bot_database.json" ] && [ -s "$dir/bot_database.json" ]; then
-        echo -e "${GREEN}Migrating legacy bot_database.json from $dir to Daltoon_Bot.json...${NC}"
-        cp "$dir/bot_database.json" "$BACKUP_DIR/Daltoon_Bot.json"
-        break
+    fi
+    if [ -f "$dir/database.json" ] && [ -s "$dir/database.json" ]; then
+        echo -e "${GREEN}Backing up legacy database.json from $dir...${NC}"
+        cp "$dir/database.json" "$BACKUP_DIR/database.json"
+    fi
+    if [ -f "$dir/db.json" ] && [ -s "$dir/db.json" ]; then
+        echo -e "${GREEN}Backing up legacy db.json from $dir...${NC}"
+        cp "$dir/db.json" "$BACKUP_DIR/db.json"
+    fi
+    if [ -f "$dir/bot_database.json" ] && [ -s "$dir/bot_database.json" ]; then
+        echo -e "${GREEN}Backing up legacy bot_database.json from $dir...${NC}"
+        cp "$dir/bot_database.json" "$BACKUP_DIR/bot_database.json"
     fi
 done
 
@@ -95,13 +98,28 @@ else
 fi
 
 # Restore databases if backups exist to both current dir & opt-store targets
+if [ -f "$BACKUP_DIR/.env_backup" ]; then
+    echo -e "${GREEN}Restoring .env configuration from backup...${NC}"
+    cp "$BACKUP_DIR/.env_backup" ".env" 2>/dev/null
+    cp "$BACKUP_DIR/.env_backup" "/opt/daltoon-store/.env" 2>/dev/null
+fi
 if [ -f "$BACKUP_DIR/database.json" ]; then
-    echo -e "${GREEN}Restoring server database from backup...${NC}"
+    echo -e "${GREEN}Restoring database.json from backup...${NC}"
     cp "$BACKUP_DIR/database.json" "database.json" 2>/dev/null
     cp "$BACKUP_DIR/database.json" "/opt/daltoon-store/database.json" 2>/dev/null
 fi
+if [ -f "$BACKUP_DIR/db.json" ]; then
+    echo -e "${GREEN}Restoring db.json from backup...${NC}"
+    cp "$BACKUP_DIR/db.json" "db.json" 2>/dev/null
+    cp "$BACKUP_DIR/db.json" "/opt/daltoon-store/db.json" 2>/dev/null
+fi
+if [ -f "$BACKUP_DIR/bot_database.json" ]; then
+    echo -e "${GREEN}Restoring bot_database.json from backup...${NC}"
+    cp "$BACKUP_DIR/bot_database.json" "bot_database.json" 2>/dev/null
+    cp "$BACKUP_DIR/bot_database.json" "/opt/daltoon-store/bot_database.json" 2>/dev/null
+fi
 if [ -f "$BACKUP_DIR/Daltoon_Bot.json" ]; then
-    echo -e "${GREEN}Restoring bot database from backup...${NC}"
+    echo -e "${GREEN}Restoring Daltoon_Bot.json from backup...${NC}"
     cp "$BACKUP_DIR/Daltoon_Bot.json" "Daltoon_Bot.json" 2>/dev/null
     cp "$BACKUP_DIR/Daltoon_Bot.json" "/opt/daltoon-store/Daltoon_Bot.json" 2>/dev/null
 fi
@@ -140,26 +158,50 @@ if (fs.existsSync('$INSTALL_DIR/.env')) {
 }
 
 const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
+
+function getScore(p) {
+  try {
+    if (!fs.existsSync(p)) return -1;
+    const stat = fs.statSync(p);
+    const content = fs.readFileSync(p, 'utf8').trim();
+    if (!content || content === '{}' || content === '[]') return -1;
+    const parsed = JSON.parse(content);
+    let score = 0;
+    if (Array.isArray(parsed.users) && parsed.users.length > 0) score += parsed.users.length * 10;
+    if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) score += parsed.transactions.length * 10;
+    if (parsed.settings && parsed.settings.panel_config) {
+      const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+      if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
+      if (pc.dashboardUsername) score += 50;
+    }
+    return score > 0 ? (score * 1000000) + stat.size : -1;
+  } catch(e) { return -1; }
+}
+
+let bestFile = null;
+let bestScore = -1;
 for (const p of dbPaths) {
-  if (fs.existsSync(p)) {
-    try { 
-      const parsed = JSON.parse(fs.readFileSync(p, 'utf8')); 
-      if (parsed && parsed.settings) {
-        if (parsed.settings.dashboardUsername && parsed.settings.dashboardPassword) {
+  const score = getScore(p);
+  if (score > bestScore) { bestScore = score; bestFile = p; }
+}
+
+if (bestFile) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(bestFile, 'utf8'));
+    if (parsed.settings) {
+      if (parsed.settings.dashboardUsername && parsed.settings.dashboardPassword) {
+        foundConfig = true;
+      }
+      if (parsed.settings.panel_config) {
+        const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+        if (pc && pc.dashboardUsername && pc.dashboardPassword) {
           foundConfig = true;
-          break;
-        }
-        if (parsed.settings.panel_config) {
-          const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
-          if (pc && pc.dashboardUsername && pc.dashboardPassword) {
-            foundConfig = true;
-            break;
-          }
         }
       }
-    } catch(e){}
-  }
+    }
+  } catch(e){}
 }
+
 console.log(foundConfig ? 'true' : 'false');
 " | tr -d '\n')
 
@@ -170,9 +212,9 @@ if [ "$ALREADY_CONFIGURED" = "true" ]; then
       let port = 3000;
       try {
         if (fs.existsSync('$INSTALL_DIR/.env')) {
-          const envLines = fs.readFileSync('$INSTALL_DIR/.env', 'utf8').split('\\n');
+          const envLines = fs.readFileSync('$INSTALL_DIR/.env', 'utf8').split('\n');
           for (const line of envLines) {
-            if (line.startsWith('PANEL_PORT=') || line.startsWith('DASHBOARD_PORT=')) {
+            if (line.startsWith('PANEL_PORT=') || line.startsWith('DASHBOARD_PORT=') || line.startsWith('PORT=')) {
               const envPort = parseInt(line.split('=')[1].trim());
               if (!isNaN(envPort)) {
                 port = envPort;
@@ -180,21 +222,44 @@ if [ "$ALREADY_CONFIGURED" = "true" ]; then
             }
           }
         }
+        
         const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
+        
+        function getScore(p) {
+          try {
+            if (!fs.existsSync(p)) return -1;
+            const stat = fs.statSync(p);
+            const content = fs.readFileSync(p, 'utf8').trim();
+            if (!content || content === '{}' || content === '[]') return -1;
+            const parsed = JSON.parse(content);
+            let score = 0;
+            if (Array.isArray(parsed.users) && parsed.users.length > 0) score += parsed.users.length * 10;
+            if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) score += parsed.transactions.length * 10;
+            if (parsed.settings && parsed.settings.panel_config) {
+              const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+              if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
+              if (pc.serverPort) score += 50;
+            }
+            return score > 0 ? (score * 1000000) + stat.size : -1;
+          } catch(e) { return -1; }
+        }
+
+        let bestFile = null;
+        let bestScore = -1;
         for (const p of dbPaths) {
-          if (fs.existsSync(p)) {
-            const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
-            if (parsed && parsed.settings) {
-              if (parsed.settings.serverPort) {
-                port = parsed.settings.serverPort;
-                break;
-              }
-              if (parsed.settings.panel_config) {
-                const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
-                if (pc && pc.serverPort) {
-                  port = pc.serverPort;
-                  break;
-                }
+          const score = getScore(p);
+          if (score > bestScore) { bestScore = score; bestFile = p; }
+        }
+
+        if (bestFile) {
+          const parsed = JSON.parse(fs.readFileSync(bestFile, 'utf8'));
+          if (parsed && parsed.settings) {
+            if (parsed.settings.serverPort) {
+              port = parsed.settings.serverPort;
+            } else if (parsed.settings.panel_config) {
+              const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+              if (pc && pc.serverPort) {
+                port = pc.serverPort;
               }
             }
           }
@@ -239,25 +304,9 @@ else
     if (!db.users) db.users = [];
     if (!db.transactions) db.transactions = [];
     if (!db.subscription_keys) db.subscription_keys = [];
-    if (!db.vpn_plans || db.vpn_plans.length === 0) {
-      db.vpn_plans = [
-        { id: 'std_1m_30g', name: 'یک‌ماهه ۳۰ گیگابایت', durationDays: 30, trafficGb: 30, price: 60000, category: 'Standard' },
-        { id: 'std_1m_50g', name: 'یک‌ماهه ۵۰ گیگابایت', durationDays: 30, trafficGb: 50, price: 90000, category: 'Standard' },
-        { id: 'std_1m_100g', name: 'یک‌ماهه ۱۰۰ گیگابایت', durationDays: 30, trafficGb: 100, price: 150000, category: 'Standard' },
-        { id: 'vip_1m_50g', name: 'وی‌آی‌پی یک‌ماهه ۵۰ گیگابایت', durationDays: 30, trafficGb: 50, price: 110000, category: 'Vip' },
-        { id: 'vip_1m_100g', name: 'وی‌آی‌پی یک‌ماهه ۱۰۰ گیگابایت', durationDays: 30, trafficGb: 100, price: 180000, category: 'Vip' },
-        { id: 'vip_3m_200g', name: 'وی‌آی‌پی سه‌ماهه ۲۰۰ گیگابایت', durationDays: 90, trafficGb: 200, price: 320000, category: 'Vip' },
-        { id: 'unl_1m_unlimit', name: 'یک‌ماهه نامحدود', durationDays: 30, trafficGb: 0, price: 250000, category: 'Unlimited' }
-      ];
-    }
+    if (!db.vpn_plans) db.vpn_plans = [];
     if (!db.custom_buttons) db.custom_buttons = [];
-    if (!db.plan_categories || db.plan_categories.length === 0) {
-      db.plan_categories = [
-        { id: '1', name: 'Standard', emoji: '⚡️' },
-        { id: '2', name: 'Vip', emoji: '⭐️' },
-        { id: '3', name: 'Unlimited', emoji: '🚀' }
-      ];
-    }
+    if (!db.plan_categories) db.plan_categories = [];
     
     if (!db.settings) db.settings = {};
     
@@ -281,6 +330,19 @@ else
     db.settings.dashboardPassword = '$DASH_PASS';
     db.settings.serverPort = parseInt('$DASH_PORT');
     db.settings.panel_config = JSON.stringify(newConfig);
+    if (!db.users) db.users = [];
+    if (!db.transactions) db.transactions = [];
+    if (!db.subscription_keys) db.subscription_keys = [];
+    if (!db.vpn_plans) db.vpn_plans = [];
+    if (!db.colleague_packages) db.colleague_packages = [];
+    if (!db.colleague_accounts) db.colleague_accounts = [];
+    if (!db.colleague_categories) db.colleague_categories = [];
+    if (!db.inbounds) db.inbounds = [];
+    if (!db.custom_buttons) db.custom_buttons = [];
+    if (!db.gift_codes) db.gift_codes = [];
+    if (!db.promo_codes) db.promo_codes = [];
+    if (!db.tickets) db.tickets = [];
+    if (!db.plan_categories) db.plan_categories = [];
     
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
     "
