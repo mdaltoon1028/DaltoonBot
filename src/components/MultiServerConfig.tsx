@@ -1,7 +1,19 @@
 import React, { useState } from "react";
 import { ServerConfig, PanelSettings, InboundInfo } from "../types";
 import { Language } from "../locales";
-import { Cpu, RefreshCw, X, Check, Activity, ChevronDown, ChevronUp, Save, Server, Trash2, Edit } from "lucide-react";
+import {
+  Cpu,
+  RefreshCw,
+  X,
+  Check,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  Save,
+  Server,
+  Trash2,
+  Edit,
+} from "lucide-react";
 
 interface MultiServerConfigProps {
   settings: PanelSettings;
@@ -9,10 +21,42 @@ interface MultiServerConfigProps {
   lang: Language;
 }
 
-export default function MultiServerConfig({ settings, onSaveSettings, lang }: MultiServerConfigProps) {
-  const [servers, setServers] = useState<ServerConfig[]>(Array.isArray(settings.servers) ? settings.servers : []);
+export default function MultiServerConfig({
+  settings,
+  onSaveSettings,
+  lang,
+}: MultiServerConfigProps) {
+  const [servers, setServers] = useState<ServerConfig[]>(
+    Array.isArray(settings.servers) ? settings.servers : [],
+  );
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newServers = [...servers];
+    const draggedItem = newServers[draggedIndex];
+    newServers.splice(draggedIndex, 1);
+    newServers.splice(index, 0, draggedItem);
+
+    setServers(newServers);
+    onSaveSettings({ ...settings, servers: newServers });
+    setDraggedIndex(null);
+  };
 
   // Form State
   const [name, setName] = useState("");
@@ -21,7 +65,10 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
   const [panelUsername, setPanelUsername] = useState("");
   const [panelPassword, setPanelPassword] = useState("");
 
-  const [testStatus, setTestStatus] = useState<{ type: "success" | "error" | "loading" | "idle"; message: string }>({ type: "idle", message: "" });
+  const [testStatus, setTestStatus] = useState<{
+    type: "success" | "error" | "loading" | "idle";
+    message: string;
+  }>({ type: "idle", message: "" });
   const [inbounds, setInbounds] = useState<InboundInfo[]>([]);
   const [checkedInboundIds, setCheckedInboundIds] = useState<number[]>([]);
   const [showInbounds, setShowInbounds] = useState(true);
@@ -46,7 +93,9 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
     setSubUrl(s.subUrl || "");
     setPanelUsername(s.panelUsername);
     setPanelPassword(s.panelPassword);
-    setCheckedInboundIds(Array.isArray(s.activeInboundIds) ? s.activeInboundIds : []);
+    setCheckedInboundIds(
+      Array.isArray(s.activeInboundIds) ? s.activeInboundIds : [],
+    );
     setInbounds([]); // We don't have the old list, need to re-test to fetch them or just let them stay as ids.
     setTestStatus({ type: "idle", message: "" });
     setEditingIndex(index);
@@ -62,18 +111,25 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
 
   const handleTestConnection = async () => {
     if (!name.trim()) {
-      setTestStatus({ type: "error", message: lang === "fa" ? "نام سرور الزامی است." : "Server name is required." });
+      setTestStatus({
+        type: "error",
+        message:
+          lang === "fa" ? "نام سرور الزامی است." : "Server name is required.",
+      });
       return;
     }
-    setTestStatus({ 
-      type: "loading", 
-      message: lang === "fa" ? "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها..." : "Connecting to panel and retrieving inbounds..." 
+    setTestStatus({
+      type: "loading",
+      message:
+        lang === "fa"
+          ? "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها..."
+          : "Connecting to panel and retrieving inbounds...",
     });
     try {
       const response = await fetch("/api/xui/test-connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl, panelUsername, panelPassword })
+        body: JSON.stringify({ baseUrl, panelUsername, panelPassword }),
       });
       const data = await response.json();
       if (data.success) {
@@ -88,7 +144,10 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
         setTestStatus({ type: "error", message: data.error });
       }
     } catch (err: any) {
-      setTestStatus({ type: "error", message: lang === "fa" ? "خطا در اتصال به سرور." : "Connection failed." });
+      setTestStatus({
+        type: "error",
+        message: lang === "fa" ? "خطا در اتصال به سرور." : "Connection failed.",
+      });
     }
   };
 
@@ -96,14 +155,17 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
     if (!name.trim() || !baseUrl.trim()) return;
 
     const newServer: ServerConfig = {
-      id: editingIndex !== null ? servers[editingIndex].id : "srv_" + Math.random().toString(36).substring(2, 8),
+      id:
+        editingIndex !== null
+          ? servers[editingIndex].id
+          : "srv_" + Math.random().toString(36).substring(2, 8),
       name,
       panelUrl: baseUrl,
       subUrl,
       panelUsername,
       panelPassword,
       activeInboundIds: checkedInboundIds,
-      status: "active"
+      status: "active",
     };
 
     let newServers = [...servers];
@@ -112,7 +174,7 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
     } else {
       newServers.push(newServer);
     }
-    
+
     setServers(newServers);
     onSaveSettings({ ...settings, servers: newServers });
     setShowForm(false);
@@ -127,10 +189,12 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
           </div>
           <div>
             <h3 className="font-display font-bold text-lg text-white">
-              {lang === "fa" ? "🔌 مدیریت سرورهای X-UI" : "🔌 X-UI Servers Management"}
+              {lang === "fa"
+                ? "🔌 مدیریت سرورهای X-UI"
+                : "🔌 X-UI Servers Management"}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              {lang === "fa" 
+              {lang === "fa"
                 ? "پنل‌های خود را برای ساخت خودکار اشتراک‌ها اضافه کنید."
                 : "Manage your X-UI panels for automated subscription delivery."}
             </p>
@@ -150,11 +214,18 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
         <div className="space-y-4 animate-fade-in bg-[#13192e]/50 p-4 rounded-xl border border-indigo-500/10">
           <div className="flex justify-between items-center mb-2">
             <h4 className="text-sm font-bold text-white">
-              {editingIndex !== null 
-                ? (lang === "fa" ? "ویرایش سرور" : "Edit Server") 
-                : (lang === "fa" ? "افزودن اتصال جدید" : "Add New Connection")}
+              {editingIndex !== null
+                ? lang === "fa"
+                  ? "ویرایش سرور"
+                  : "Edit Server"
+                : lang === "fa"
+                  ? "افزودن اتصال جدید"
+                  : "Add New Connection"}
             </h4>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white">
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-gray-400 hover:text-white"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -168,7 +239,7 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
                 className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
                 placeholder={lang === "fa" ? "مثلا: آلمان ۱" : "e.g. Germany 1"}
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="md:col-span-2">
@@ -180,19 +251,21 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
                 className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
                 placeholder="http://ip:port"
                 value={baseUrl}
-                onChange={e => setBaseUrl(e.target.value)}
+                onChange={(e) => setBaseUrl(e.target.value)}
               />
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "لینک سابسکریپشن (اختیاری)" : "Subscription URL (Optional)"}
+                {lang === "fa"
+                  ? "لینک سابسکریپشن (اختیاری)"
+                  : "Subscription URL (Optional)"}
               </label>
               <input
                 type="text"
                 className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
                 placeholder="https://sub.example.com"
                 value={subUrl}
-                onChange={e => setSubUrl(e.target.value)}
+                onChange={(e) => setSubUrl(e.target.value)}
               />
             </div>
             <div>
@@ -203,7 +276,7 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
                 type="text"
                 className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
                 value={panelUsername}
-                onChange={e => setPanelUsername(e.target.value)}
+                onChange={(e) => setPanelUsername(e.target.value)}
               />
             </div>
             <div>
@@ -214,7 +287,7 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
                 type="password"
                 className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
                 value={panelPassword}
-                onChange={e => setPanelPassword(e.target.value)}
+                onChange={(e) => setPanelPassword(e.target.value)}
               />
             </div>
           </div>
@@ -224,39 +297,60 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
               onClick={handleTestConnection}
               className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs transition-all shadow-md flex items-center justify-center gap-2"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`} />
-              {lang === "fa" ? "تست اتصال و دریافت اینباندها" : "Test Connection & Fetch Inbounds"}
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`}
+              />
+              {lang === "fa"
+                ? "تست اتصال و دریافت اینباندها"
+                : "Test Connection & Fetch Inbounds"}
             </button>
           </div>
 
           {testStatus.type !== "idle" && (
-            <div className={`p-3 rounded-lg text-xs font-medium ${
-              testStatus.type === "success" ? "bg-emerald-500/10 text-emerald-400" :
-              testStatus.type === "loading" ? "bg-indigo-500/10 text-indigo-400 animate-pulse" :
-              "bg-rose-500/10 text-rose-400"
-            }`}>
+            <div
+              className={`p-3 rounded-lg text-xs font-medium ${
+                testStatus.type === "success"
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : testStatus.type === "loading"
+                    ? "bg-indigo-500/10 text-indigo-400 animate-pulse"
+                    : "bg-rose-500/10 text-rose-400"
+              }`}
+            >
               {testStatus.message}
             </div>
           )}
 
           {inbounds.length > 0 && (
             <div className="border border-indigo-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
-              <h4 className="text-xs font-bold text-gray-200 mb-3">{lang === "fa" ? "اینباندهای مجاز برای ساخت اکانت:" : "Allowed Inbounds:"}</h4>
+              <h4 className="text-xs font-bold text-gray-200 mb-3">
+                {lang === "fa"
+                  ? "اینباندهای مجاز برای ساخت اکانت:"
+                  : "Allowed Inbounds:"}
+              </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-1">
-                {inbounds.map(ib => (
-                  <label key={ib.id} className="flex items-start gap-2 p-2 rounded-lg border border-gray-800 hover:border-indigo-500/50 cursor-pointer bg-[#111827]">
+                {inbounds.map((ib) => (
+                  <label
+                    key={ib.id}
+                    className="flex items-start gap-2 p-2 rounded-lg border border-gray-800 hover:border-indigo-500/50 cursor-pointer bg-[#111827]"
+                  >
                     <input
                       type="checkbox"
                       className="mt-1"
                       checked={checkedInboundIds.includes(ib.id)}
-                      onChange={e => {
-                        if (e.target.checked) setCheckedInboundIds(prev => [...prev, ib.id]);
-                        else setCheckedInboundIds(prev => prev.filter(id => id !== ib.id));
+                      onChange={(e) => {
+                        if (e.target.checked)
+                          setCheckedInboundIds((prev) => [...prev, ib.id]);
+                        else
+                          setCheckedInboundIds((prev) =>
+                            prev.filter((id) => id !== ib.id),
+                          );
                       }}
                     />
                     <div className="text-xs text-gray-300">
                       <div className="font-bold text-white">{ib.remark}</div>
-                      <div>{ib.protocol} | Port: {ib.port}</div>
+                      <div>
+                        {ib.protocol} | Port: {ib.port}
+                      </div>
                     </div>
                   </label>
                 ))}
@@ -282,30 +376,58 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
           <table className="w-full text-sm text-right">
             <thead className="bg-[#13192e] text-gray-300 border-b border-gray-800">
               <tr>
-                <th className="py-4 px-6 font-medium whitespace-nowrap">{lang === "fa" ? "نام سرور" : "Server Name"}</th>
-                <th className="py-4 px-6 font-medium whitespace-nowrap">{lang === "fa" ? "آدرس پنل" : "Panel URL"}</th>
-                <th className="py-4 px-6 font-medium whitespace-nowrap">{lang === "fa" ? "کانفیگ‌ها" : "Configs"}</th>
-                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">{lang === "fa" ? "وضعیت اتصال" : "Connection Status"}</th>
-                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">{lang === "fa" ? "عملیات" : "Actions"}</th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap">
+                  {lang === "fa" ? "نام سرور" : "Server Name"}
+                </th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap">
+                  {lang === "fa" ? "آدرس پنل" : "Panel URL"}
+                </th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap">
+                  {lang === "fa" ? "کانفیگ‌ها" : "Configs"}
+                </th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
+                  {lang === "fa" ? "وضعیت اتصال" : "Connection Status"}
+                </th>
+                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
+                  {lang === "fa" ? "عملیات" : "Actions"}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {servers.map((srv, index) => (
-                <tr key={srv.id} className="bg-[#0c1020] hover:bg-[#13192e] transition-colors">
+                <tr
+                  key={srv.id}
+                  className={`bg-[#0c1020] hover:bg-[#13192e] transition-colors ${draggedIndex === index ? "opacity-50 border-2 border-indigo-500" : ""}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={() => setDraggedIndex(null)}
+                >
                   <td className="py-4 px-6 whitespace-nowrap">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                      <div
+                        className="w-8 h-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400 cursor-move"
+                        title={
+                          lang === "fa"
+                            ? "برای جابجایی بکشید"
+                            : "Drag to reorder"
+                        }
+                      >
                         <Server className="w-4 h-4" />
                       </div>
                       <span className="font-bold text-white">{srv.name}</span>
                     </div>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap">
-                    <span className="font-mono text-xs text-gray-400">{srv.panelUrl}</span>
+                    <span className="font-mono text-xs text-gray-400">
+                      {srv.panelUrl}
+                    </span>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap">
                     <span className="text-gray-300">
-                      {srv.activeInboundIds?.length || 0} {lang === "fa" ? "اینباند" : "Inbounds"}
+                      {srv.activeInboundIds?.length || 0}{" "}
+                      {lang === "fa" ? "اینباند" : "Inbounds"}
                     </span>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap text-center">
@@ -339,7 +461,11 @@ export default function MultiServerConfig({ settings, onSaveSettings, lang }: Mu
       )}
       {!showForm && servers.length === 0 && (
         <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl">
-          <p className="text-gray-500 text-sm">{lang === "fa" ? "هیچ سروری اضافه نشده است." : "No servers added yet."}</p>
+          <p className="text-gray-500 text-sm">
+            {lang === "fa"
+              ? "هیچ سروری اضافه نشده است."
+              : "No servers added yet."}
+          </p>
         </div>
       )}
     </div>
