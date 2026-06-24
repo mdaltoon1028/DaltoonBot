@@ -1553,8 +1553,16 @@ app.post("/api/ai/chat", async (req, res) => {
       apiKeyToUse = (customAiApiKey && customAiApiKey.trim() !== "") ? customAiApiKey.trim() : (geminiApiKey && geminiApiKey.trim() !== "") ? geminiApiKey.trim() : "";
     }
 
-    // We treat all keys as Gemini API keys by default unless an explicit custom baseUrl is provided.
-    // If the user specifies AwanLLM or custom baseUrl explicitly, we will route to it.
+    // Intelligent auto-detection for AwanLLM API Keys (starts with AQ or 4Q)
+    const isAwanKey = apiKeyToUse && (apiKeyToUse.trim().toUpperCase().startsWith("AQ") || apiKeyToUse.trim().toUpperCase().startsWith("4Q"));
+    if (isAwanKey) {
+      if (!baseUrlToUse || baseUrlToUse === "") {
+        baseUrlToUse = "https://api.awanllm.com/v1";
+      }
+      if (!modelNameToUse || modelNameToUse === "" || modelNameToUse === "gpt-4o-mini") {
+        modelNameToUse = "Meta-Llama-3-8B-Instruct";
+      }
+    }
 
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
@@ -1741,6 +1749,18 @@ app.post("/api/ai/test-key", async (req, res) => {
     }
 
     const trimmedKey = apiKey.trim();
+    const isAwanKey = trimmedKey.toUpperCase().startsWith("AQ") || trimmedKey.toUpperCase().startsWith("4Q");
+
+    if (isAwanKey) {
+      type = "custom";
+      if (!baseUrl || baseUrl.trim() === "") {
+        baseUrl = "https://api.awanllm.com/v1";
+      }
+      if (!modelName || modelName.trim() === "" || modelName.trim() === "gpt-4o-mini") {
+        modelName = "Meta-Llama-3-8B-Instruct";
+      }
+    }
+
     const isCustom = type === "custom" || (baseUrl && baseUrl.trim() !== "");
 
     if (isCustom) {
