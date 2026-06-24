@@ -68,6 +68,69 @@ export default function SettingsPanel({
     settings.simulatorMode || false,
   );
 
+  const [testingGemini, setTestingGemini] = useState(false);
+  const [geminiTestResult, setGeminiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [testingCustom, setTestingCustom] = useState(false);
+  const [customTestResult, setCustomTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestGeminiKey = async () => {
+    if (!geminiApiKey || geminiApiKey.trim() === "") {
+      setGeminiTestResult({ success: false, message: lang === "fa" ? "لطفاً ابتدا کلید API جیمینای را وارد کنید." : "Please enter the Gemini API Key first." });
+      return;
+    }
+    setTestingGemini(true);
+    setGeminiTestResult(null);
+    try {
+      const response = await fetch("/api/ai/test-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: geminiApiKey, type: "gemini" })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setGeminiTestResult({ success: true, message: data.message || "کلید معتبر است!" });
+      } else {
+        setGeminiTestResult({ success: false, message: data.error || "کلید نامعتبر است." });
+      }
+    } catch (err: any) {
+      setGeminiTestResult({ success: false, message: err.message || "خطا در برقراری ارتباط با سرور." });
+    } finally {
+      setTestingGemini(false);
+    }
+  };
+
+  const handleTestCustomKey = async () => {
+    if (!customAiApiKey || customAiApiKey.trim() === "") {
+      setCustomTestResult({ success: false, message: lang === "fa" ? "لطفاً ابتدا کلید API هوش مصنوعی را وارد کنید." : "Please enter the AI API Key first." });
+      return;
+    }
+    setTestingCustom(true);
+    setCustomTestResult(null);
+    try {
+      const response = await fetch("/api/ai/test-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: customAiApiKey,
+          baseUrl: aiBaseUrl,
+          modelName: aiModelName,
+          type: "custom"
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setCustomTestResult({ success: true, message: data.message || "کلید معتبر است!" });
+      } else {
+        setCustomTestResult({ success: false, message: data.error || "کلید نامعتبر است." });
+      }
+    } catch (err: any) {
+      setCustomTestResult({ success: false, message: err.message || "خطا در برقراری ارتباط با سرور." });
+    } finally {
+      setTestingCustom(false);
+    }
+  };
+
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(
     settings.purchaseSuccessNote || "",
   );
@@ -840,12 +903,43 @@ export default function SettingsPanel({
                 ></div>
                 {geminiApiKey
                   ? lang === "fa"
-                    ? "کلید API جیمینای معتبر شناسایی شد."
+                    ? "کلید API جیمینای شناسایی شد."
                     : "Gemini API Key is configured."
                   : lang === "fa"
                     ? "خطا: کلید API ربات (Gemini) ست نشده است."
                     : "Missing Gemini API Secret Key."}
               </div>
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2 mt-2">
+              <button
+                type="button"
+                onClick={handleTestGeminiKey}
+                disabled={testingGemini}
+                className="px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600 disabled:bg-indigo-600/10 text-indigo-400 hover:text-white border border-indigo-500/30 hover:border-indigo-500 rounded-lg text-xs font-semibold transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {testingGemini ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                {lang === "fa" ? "🔍 بررسی و تست اتصال کلید جیمینای" : "🔍 Test Gemini API Key Connection"}
+              </button>
+
+              {geminiTestResult && (
+                <div
+                  className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed ${
+                    geminiTestResult.success
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                      : "bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                  }`}
+                >
+                  <p className="flex items-center gap-1.5 font-semibold">
+                    <span>{geminiTestResult.success ? "🟢" : "🔴"}</span>
+                    <span>{geminiTestResult.message}</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -926,6 +1020,37 @@ export default function SettingsPanel({
                 ? "مثال‌ها: gemini-2.5-flash (پیش‌فرض)، deepseek-chat (دیپ‌سیک)، llama-3.3-70b-versatile (برای Groq)"
                 : "Examples: gemini-2.5-flash (default), deepseek-chat (DeepSeek), llama-3.3-70b-versatile (for Groq)"}
             </span>
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2 mt-2">
+            <button
+              type="button"
+              onClick={handleTestCustomKey}
+              disabled={testingCustom}
+              className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600 disabled:bg-purple-600/10 text-purple-400 hover:text-white border border-purple-500/30 hover:border-purple-500 rounded-lg text-xs font-semibold transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {testingCustom ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              {lang === "fa" ? "🔍 بررسی و تست اتصال کلید هوش مصنوعی عمومی" : "🔍 Test Custom AI API Key Connection"}
+            </button>
+
+            {customTestResult && (
+              <div
+                className={`p-3 rounded-lg border text-xs font-medium animate-fadeIn mt-2 leading-relaxed ${
+                  customTestResult.success
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                    : "bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                }`}
+              >
+                <p className="flex items-center gap-1.5 font-semibold">
+                  <span>{customTestResult.success ? "🟢" : "🔴"}</span>
+                  <span>{customTestResult.message}</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1238,21 +1363,7 @@ export default function SettingsPanel({
               </p>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {t.geminiApiKeyLabel}
-              </label>
-              <input
-                type="text"
-                placeholder="AIzaSy..."
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                value={geminiApiKey}
-                onChange={(e) => setGeminiApiKey(e.target.value)}
-              />
-              <span className="text-[10px] text-gray-400 mt-1 block">
-                {t.geminiApiKeyDesc}
-              </span>
-            </div>
+
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">

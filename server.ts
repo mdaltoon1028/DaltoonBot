@@ -1535,17 +1535,29 @@ app.post("/api/ai/chat", async (req, res) => {
     let responseText = "";
     let lastError = null;
 
-    if (isSupport) {
-      // 1. SMART SUPPORT ASSISTANT (دستیار هوشمند)
-      // This is the bot support assistant. It MUST always use Gemini directly.
-      const geminiApiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
-      if (!geminiApiKey || geminiApiKey.trim() === "") {
-        return res.status(400).json({
-          error: "کلید API جیمینای در تنظیمات ثبت نشده است. لطفاً ابتدا در داشبورد کلید Gemini را برای دستیار هوشمند وارد کنید."
-        });
-      }
+    // Load available API keys
+    const geminiApiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
+    const customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || "";
+    const aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
+    const aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
 
-      const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام V2ray به نام "${safePanelConfig.botNickname || "دالتون"} Servers" هستید. 
+    // Determine credentials and endpoints based on type
+    let apiKeyToUse = "";
+    let baseUrlToUse = aiBaseUrl ? aiBaseUrl.trim() : "";
+    let modelNameToUse = aiModelName ? aiModelName.trim() : "";
+
+    if (isSupport) {
+      // Support Assistant prefers Gemini Key, then falls back to Custom AI Key
+      apiKeyToUse = (geminiApiKey && geminiApiKey.trim() !== "") ? geminiApiKey.trim() : (customAiApiKey && customAiApiKey.trim() !== "") ? customAiApiKey.trim() : "";
+    } else {
+      // General AI prefers Custom AI Key, then falls back to Gemini Key
+      apiKeyToUse = (customAiApiKey && customAiApiKey.trim() !== "") ? customAiApiKey.trim() : (geminiApiKey && geminiApiKey.trim() !== "") ? geminiApiKey.trim() : "";
+    }
+
+    // Prepare system instruction prompt based on bot identity or general purpose
+    let systemPrompt = "";
+    if (isSupport) {
+      systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام V2ray به نام "${safePanelConfig.botNickname || "دالتون"} Servers" هستید. 
 شما باید به سوالات مرتبط با خدمات و خرید از ربات پاسخ دهید.
 
 مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، شارژ ولت، رفع مشکل درگاه، قطعی یا خرید دارد، او را راهنمایی کنید که از منوی اصلی ربات از دکمه «🎫 ثبت تیکت پشتیبانی» استفاده کند.
@@ -1554,9 +1566,110 @@ app.post("/api/ai/chat", async (req, res) => {
 - تعرفه ها: ${JSON.stringify(dbData.vpn_plans || [])}
 - تعداد کاربران: ${activeUsersCount}
 - راهنما: ${safeSettings.supportText || safePanelConfig.supportText || ""}`;
+    } else {
+      systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.`;
+    }
+
+    // ROUTING PATH 1: OpenAI-compatible API endpoint (e.g. Groq, OpenAI, DeepSeek)
+    if (baseUrlToUse && baseUrlToUse !== "") {
+      const trimmedUrl = baseUrlToUse.replace(/\/$/, "");
+      const completionUrl = `${trimmedUrl}/chat/completions`;
+
+      if (!apiKeyToUse || apiKeyToUse.trim() === "") {
+        return res.status(400).json({
+          error: isSupport 
+            ? "کلید API برای دستیار هوشمند ثبت نشده است. لطفا در تنظیمات کلید معتبر را وارد کنید." 
+            : "کلید API هوش مصنوعی در تنظیمات پیشرفته ثبت نشده است."
+        });
+      }
+
+      // Check for decommissioned Groq models and automatically swap to modern active models
+      let mainModel = modelNameToUse;
+      const isGroq = trimmedUrl.toLowerCase().includes("groq");
+      if (isGroq) {
+        if (!mainModel || mainModel === "mixtral-8x7b-32768" || mainModel.includes("mixtral") || mainModel.includes("8x7b")) {
+          mainModel = "llama-3.3-70b-versatile";
+        }
+      } else if (!mainModel) {
+        mainModel = "gpt-4o-mini";
+      }
+
+      const modelsToTry = [mainModel];
+      // Try exactly one fast, modern fallback to prevent slow sequentially blocked timeouts
+      const fallbackModel = isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini";
+      if (mainModel !== fallbackModel) {
+        modelsToTry.push(fallbackModel);
+      }
+
+      let success = false;
+      for (const model of modelsToTry) {
+        try {
+          console.log(`[AI Chat] Trying OpenAI Compatible model: ${model} on ${completionUrl}`);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds request timeout
+
+          const response = await fetch(completionUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKeyToUse.trim()}`
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: message }
+              ],
+              temperature: 0.7
+            }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errText = await response.text();
+            // Check for immediate auth/key invalid issues to skip fallbacks immediately
+            if (response.status === 401 || response.status === 403 || errText.includes("API key") || errText.includes("invalid") || errText.includes("API_KEY_INVALID")) {
+              throw new Error(`AUTH_ERROR: ${errText}`);
+            }
+            throw new Error(`Status ${response.status} - ${errText}`);
+          }
+
+          const resData: any = await response.json();
+          responseText = resData.choices?.[0]?.message?.content || "";
+          if (responseText) {
+            success = true;
+            console.log(`[AI Chat] Successfully got response with model: ${model}`);
+            break;
+          } else {
+            throw new Error("Empty response from AI provider.");
+          }
+        } catch (err: any) {
+          console.warn(`[AI Chat] OpenAI compatible fail with model ${model}:`, err?.message || err);
+          lastError = err;
+
+          // Break early if we know it's a credentials error
+          if (err?.message && (err.message.includes("AUTH_ERROR") || err.message.includes("API key not valid") || err.message.includes("key is invalid") || err.message.includes("401") || err.message.includes("403"))) {
+            break;
+          }
+        }
+      }
+
+      if (!success) {
+        throw lastError || new Error("Failed to get response from custom AI provider.");
+      }
+    } 
+    // ROUTING PATH 2: Direct Google Gemini API call
+    else {
+      if (!apiKeyToUse || apiKeyToUse.trim() === "") {
+        return res.status(400).json({
+          error: "کلید API جیمینای در تنظیمات ثبت نشده است. لطفاً ابتدا در داشبورد کلید Gemini را برای دستیار هوشمند وارد کنید."
+        });
+      }
 
       const ai = new GoogleGenAI({
-        apiKey: geminiApiKey.trim(),
+        apiKey: apiKeyToUse.trim(),
         httpOptions: {
           headers: {
             "User-Agent": "aistudio-build",
@@ -1564,15 +1677,15 @@ app.post("/api/ai/chat", async (req, res) => {
         },
       });
 
-      const modelsToTry = [
-        "gemini-2.5-flash",
-        "gemini-3.5-flash",
-        "gemini-flash-latest",
-        "gemini-3.1-flash-lite",
-      ];
+      let mainModel = modelNameToUse || "gemini-2.5-flash";
+      const modelsToTry = [mainModel];
+      if (mainModel !== "gemini-2.5-flash") {
+        modelsToTry.push("gemini-2.5-flash");
+      }
 
       for (const modelName of modelsToTry) {
         try {
+          console.log(`[AI Chat Gemini] Trying direct model: ${modelName}`);
           const response = await ai.models.generateContent({
             model: modelName,
             contents: message,
@@ -1587,133 +1700,15 @@ app.post("/api/ai/chat", async (req, res) => {
           }
         } catch (err: any) {
           console.warn(
-            `[AI Chat Support] Iteration fail (${modelName}):`,
+            `[AI Chat Gemini] Iteration fail (${modelName}):`,
             err?.message || err,
           );
           lastError = err;
-        }
-      }
-    } else {
-      // 2. GENERAL AI PLAYGROUND (هوش مصنوعی عمومی)
-      // This uses customAiApiKey, aiBaseUrl, and aiModelName.
-      const customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
-      const aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
-      const aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
 
-      if (!customAiApiKey || customAiApiKey.trim() === "") {
-        return res.status(400).json({
-          error: "کلید API هوش مصنوعی در تنظیمات پیشرفته ثبت نشده است. لطفاً ابتدا در داشبورد کلید API را وارد کنید."
-        });
-      }
-
-      const systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.`;
-
-      if (aiBaseUrl && aiBaseUrl.trim() !== "") {
-        const trimmedUrl = aiBaseUrl.trim().replace(/\/$/, "");
-        const completionUrl = `${trimmedUrl}/chat/completions`;
-        
-        const modelsToTry = [];
-        const userModel = aiModelName && aiModelName.trim() !== "" ? aiModelName.trim() : "";
-        if (userModel) {
-          modelsToTry.push(userModel);
-        }
-        
-        const isGroq = trimmedUrl.toLowerCase().includes("groq");
-        if (isGroq) {
-          if (userModel !== "llama-3.3-70b-specdec") modelsToTry.push("llama-3.3-70b-specdec");
-          if (userModel !== "llama-3.3-70b-versatile") modelsToTry.push("llama-3.3-70b-versatile");
-          if (userModel !== "llama-3.1-8b-instant") modelsToTry.push("llama-3.1-8b-instant");
-          if (userModel !== "gemma2-9b-it") modelsToTry.push("gemma2-9b-it");
-        } else {
-          if (userModel !== "gpt-4o") modelsToTry.push("gpt-4o");
-          if (userModel !== "gpt-4o-mini") modelsToTry.push("gpt-4o-mini");
-          if (userModel !== "gpt-3.5-turbo") modelsToTry.push("gpt-3.5-turbo");
-        }
-        
-        let success = false;
-        for (const model of modelsToTry) {
-          try {
-            console.log(`[AI Chat General] Trying OpenAI Compatible model: ${model} on ${completionUrl}`);
-            const response = await fetch(completionUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${customAiApiKey}`
-              },
-              body: JSON.stringify({
-                model: model,
-                messages: [
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: message }
-                ],
-                temperature: 0.7
-              })
-            });
-
-            if (!response.ok) {
-              const errText = await response.text();
-              throw new Error(`Status ${response.status} - ${errText}`);
-            }
-
-            const resData: any = await response.json();
-            responseText = resData.choices?.[0]?.message?.content || "";
-            if (responseText) {
-              success = true;
-              console.log(`[AI Chat General] Successfully got response with model: ${model}`);
-              break;
-            } else {
-              throw new Error("Empty response from AI provider.");
-            }
-          } catch (err: any) {
-            console.warn(`[AI Chat General] OpenAI compatible fail with model ${model}:`, err?.message || err);
-            lastError = err;
-          }
-        }
-        
-        if (!success) {
-          throw lastError || new Error("Failed to get response from any compatible model.");
-        }
-      } else {
-        const ai = new GoogleGenAI({
-          apiKey: customAiApiKey.trim(),
-          httpOptions: {
-            headers: {
-              "User-Agent": "aistudio-build",
-            },
-          },
-        });
-
-        const modelsToTry = [];
-        if (aiModelName && aiModelName.trim() !== "") {
-          modelsToTry.push(aiModelName.trim());
-        }
-        modelsToTry.push(
-          "gemini-2.5-flash",
-          "gemini-3.5-flash",
-          "gemini-flash-latest",
-          "gemini-3.1-flash-lite",
-        );
-
-        for (const modelName of modelsToTry) {
-          try {
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: message,
-              config: {
-                systemInstruction: systemPrompt,
-                temperature: 0.7,
-              },
-            });
-            if (response && response.text) {
-              responseText = response.text;
-              break;
-            }
-          } catch (err: any) {
-            console.warn(
-              `[AI Chat General Gemini Fallback] Iteration fail (${modelName}):`,
-              err?.message || err,
-            );
-            lastError = err;
+          const errMsg = err?.message || "";
+          // Check for API key errors to break immediately and save roundtrip time
+          if (errMsg.includes("API key not valid") || errMsg.includes("INVALID_ARGUMENT") || errMsg.includes("API_KEY_INVALID") || errMsg.includes("key is invalid") || errMsg.includes("400") || errMsg.includes("401")) {
+            break;
           }
         }
       }
@@ -1734,6 +1729,83 @@ app.post("/api/ai/chat", async (req, res) => {
     res
       .status(500)
       .json({ error: error.message || "Failed to generate AI response." });
+  }
+});
+
+app.post("/api/ai/test-key", async (req, res) => {
+  try {
+    const { apiKey, baseUrl, modelName, type } = req.body;
+    if (!apiKey || apiKey.trim() === "") {
+      return res.status(400).json({ error: "لطفاً ابتدا کلید API را وارد کنید." });
+    }
+
+    const trimmedKey = apiKey.trim();
+    const isCustom = type === "custom" && baseUrl && baseUrl.trim() !== "";
+
+    if (isCustom) {
+      // Test OpenAI-compatible key
+      const trimmedUrl = baseUrl.trim().replace(/\/$/, "");
+      const completionUrl = `${trimmedUrl}/chat/completions`;
+      const modelToUse = modelName && modelName.trim() !== "" ? modelName.trim() : "gpt-4o-mini";
+
+      console.log(`[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      const response = await fetch(completionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${trimmedKey}`
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          messages: [{ role: "user", content: "سلام" }],
+          max_tokens: 5
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`خطای سرور سرویس‌دهنده (کد ${response.status}): ${errText}`);
+      }
+
+      return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API معتبر است." });
+    } else {
+      // Test direct Gemini Key
+      console.log(`[AI Key Test] Testing direct Gemini API key`);
+      const ai = new GoogleGenAI({
+        apiKey: trimmedKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+
+      const modelToUse = type === "custom" && modelName && modelName.trim() !== "" ? modelName.trim() : "gemini-2.5-flash";
+
+      const response = await ai.models.generateContent({
+        model: modelToUse,
+        contents: "سلام",
+        config: {
+          maxOutputTokens: 5,
+        },
+      });
+
+      if (response && response.text) {
+        return res.json({ success: true, message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است." });
+      } else {
+        throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
+      }
+    }
+  } catch (err: any) {
+    console.error("[AI Key Test Error]:", err);
+    res.status(500).json({ error: err.message || "بررسی کلید API با خطا مواجه شد." });
   }
 });
 
