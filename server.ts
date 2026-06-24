@@ -1526,24 +1526,28 @@ app.post("/api/ai/chat", async (req, res) => {
     let finalModelName = "";
 
     if (isSupport) {
-      // Support assistant defaults to geminiApiKey
+      // Support assistant strictly uses geminiApiKey
       apiKeyToUse = geminiApiKey.trim();
+      if (!apiKeyToUse || apiKeyToUse.trim() === "") {
+        return res.status(400).json({
+          error: "کلید API جیمینای ثبت نشده است. لطفاً ابتدا در تنظیمات داشبورد کلید معتبر را وارد کنید."
+        });
+      }
     } else {
-      // General AI defaults to customAiApiKey, falls back to geminiApiKey
-      apiKeyToUse = customAiApiKey && customAiApiKey.trim() !== "" ? customAiApiKey.trim() : geminiApiKey.trim();
+      // General AI strictly uses customAiApiKey
+      apiKeyToUse = customAiApiKey.trim();
       finalBaseUrl = aiBaseUrl ? aiBaseUrl.trim() : "";
       finalModelName = aiModelName ? aiModelName.trim() : "";
+      
+      if (!apiKeyToUse || apiKeyToUse.trim() === "") {
+        return res.status(400).json({
+          error: "کلید API هوش مصنوعی عمومی تنظیم نشده است. لطفاً تنظیمات را بررسی کنید."
+        });
+      }
     }
 
-    if (!apiKeyToUse || apiKeyToUse.trim() === "") {
-      return res.status(400).json({
-        error: "کلید API برای هوش مصنوعی ثبت نشده است. لطفاً ابتدا در تنظیمات داشبورد کلید معتبر را وارد کنید."
-      });
-    }
-
-    // Auto-detect direct Google Gemini key vs custom/OpenAI-compatible key
-    // Native Google Gemini keys must start with 'AIzaSy'
-    const isDirectGemini = apiKeyToUse.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === "");
+    // Support Assistant uses Gemini, General AI uses the custom API key (or auto-detects if Custom API key happens to be Gemini)
+    const isDirectGemini = isSupport ? true : (apiKeyToUse.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === ""));
 
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
@@ -1635,9 +1639,22 @@ app.post("/api/ai/chat", async (req, res) => {
     }
   } catch (error: any) {
     console.error("[AI Chat API Error]:", error);
-    res
-      .status(500)
-      .json({ error: error.message || "Failed to generate AI response." });
+    let errMsg = error.message || "Failed to generate AI response.";
+    
+    if (errMsg.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(errMsg);
+        if (parsed.error && parsed.error.message) {
+          errMsg = parsed.error.message;
+        }
+      } catch (e) {}
+    }
+    
+    if (errMsg.includes("API key not valid")) {
+      errMsg = "کلید API ثبت شده نامعتبر است. لطفاً به مدیریت اطلاع دهید.";
+    }
+
+    res.status(500).json({ error: errMsg });
   }
 });
 
@@ -1652,8 +1669,9 @@ app.post("/api/ai/test-key", async (req, res) => {
     let finalBaseUrl = baseUrl ? baseUrl.trim() : "";
     let finalModelName = modelName ? modelName.trim() : "";
 
-    // Auto-detect if it is a native Google Gemini API key (Google keys always start with AIzaSy)
-    const isDirectGemini = trimmedKey.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === "");
+    // If type is explicitly 'gemini', test as Google Gemini.
+    // Otherwise, auto-detect (useful if type is custom but they put a gemini key without base url)
+    const isDirectGemini = type === "gemini" ? true : (trimmedKey.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === ""));
 
     if (isDirectGemini) {
       // Test direct Gemini Key
@@ -1721,9 +1739,25 @@ app.post("/api/ai/test-key", async (req, res) => {
   } catch (err: any) {
     console.error("[AI Key Test Error]:", err);
     let errMsg = err.message || "بررسی کلید API با خطا مواجه شد.";
+    
+    // Parse GoogleGenAI JSON error messages to be user-friendly
+    if (errMsg.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(errMsg);
+        if (parsed.error && parsed.error.message) {
+          errMsg = parsed.error.message;
+        }
+      } catch (e) {}
+    }
+
     if (err.name === "AbortError" || errMsg.includes("aborted") || errMsg.includes("timeout")) {
       errMsg = "زمان اتصال به سرور هوش مصنوعی به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور هوش مصنوعی یا عدم پاسخگویی مناسب فیلترشکن/اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
+    } else if (errMsg.includes("API key not valid")) {
+      errMsg = "کلید API وارد شده نامعتبر است. لطفاً کلید صحیح را وارد کنید.";
+    } else if (errMsg.includes("fetch failed")) {
+      errMsg = "خطا در برقراری ارتباط با سرور هوش مصنوعی (Network Error).";
     }
+
     res.status(500).json({ error: errMsg });
   }
 });
