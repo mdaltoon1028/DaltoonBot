@@ -6,6 +6,10 @@ import { spawn, ChildProcess, exec, execSync } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import dns from "dns";
+
+// Prefer IPv4 DNS resolution first to fix native fetch failing on self-hosted VPS servers (especially with dual-stack domain names like AwanLLM)
+dns.setDefaultResultOrder("ipv4first");
 
 // Explicit absolute dotenv loads for absolute correctness across nested builds
 dotenv.config();
