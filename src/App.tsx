@@ -933,14 +933,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070913] text-gray-100 flex flex-col font-sans select-none antialiased" dir={lang === "fa" ? "rtl" : "ltr"}>
+    <div className="min-h-screen bg-[#030305] text-gray-100 flex flex-col font-sans select-none antialiased relative overflow-hidden" dir={lang === "fa" ? "rtl" : "ltr"}>
       
+      {/* Immersive visual ambient glowing spotlights */}
+      <div className="fixed top-[-15%] left-[-15%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[120px] pointer-events-none pulse-glow-bg z-0" />
+      <div className="fixed bottom-[-15%] right-[-15%] w-[60%] h-[60%] rounded-full bg-pink-600/5 blur-[120px] pointer-events-none pulse-glow-bg z-0" />
+      <div className="fixed top-[40%] left-[30%] w-[40%] h-[40%] rounded-full bg-indigo-600/3 blur-[140px] pointer-events-none pulse-glow-bg z-0" />
+
       {showSetupModal && <SetupModal lang={lang} onComplete={handleSetupComplete} />}
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#0f172a]/95 text-white text-xs md:text-sm font-semibold rounded-xl px-5 py-3 border border-indigo-500/30 shadow-[0_4px_20px_rgba(99,102,241,0.25)] flex items-center gap-2 backdrop-blur-md animate-fade-in transition duration-300">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#0a0a0f]/95 text-white text-xs md:text-sm font-semibold rounded-2xl px-6 py-3.5 border border-purple-500/30 shadow-[0_4px_30px_rgba(168,85,247,0.25)] flex items-center gap-3 backdrop-blur-xl animate-fade-in transition duration-300">
+          <div className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7] animate-ping" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -948,21 +953,21 @@ export default function App() {
       {/* Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-black/80 z-40 backdrop-blur-md transition-opacity duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar Drawer */}
       <div 
-        className={`fixed top-0 bottom-0 ${lang === "fa" ? "right-0 border-l" : "left-0 border-r"} w-72 bg-[#0b0f19] border-[#1f2937] z-50 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl ${
+        className={`fixed top-0 bottom-0 ${lang === "fa" ? "right-0 border-l" : "left-0 border-r"} w-72 glass-panel border-white/5 z-50 transform transition-transform duration-300 ease-in-out flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] ${
           isSidebarOpen ? "translate-x-0" : (lang === "fa" ? "translate-x-full" : "-translate-x-full")
         }`}
       >
-        <div className="flex items-center justify-between p-5 border-b border-[#1f2937]">
+        <div className="flex items-center justify-between p-5 border-b border-white/5 bg-black/20">
           <div className="flex items-center gap-2">
             <h2 className="font-display font-bold text-white tracking-wider flex items-center gap-2 whitespace-nowrap">
-              <span>{t.appTitle}</span>
+              <span className="bg-gradient-to-r from-white via-purple-200 to-gray-300 bg-clip-text text-transparent">{t.appTitle}</span>
               <LionAndSunFlag />
             </h2>
             <button 
@@ -970,178 +975,238 @@ export default function App() {
                 refreshData();
                 setIsSidebarOpen(false);
               }}
-              className="p-1.5 ms-2 bg-gray-800/50 hover:bg-gray-700/60 rounded-full text-indigo-400 hover:text-indigo-300 transition shadow-sm border border-gray-700/50"
+              className="p-1.5 ms-2 bg-purple-950/40 hover:bg-purple-900/40 rounded-full text-purple-400 hover:text-purple-300 transition shadow-sm border border-purple-500/20"
               title={lang === 'fa' ? 'بروزرسانی داده‌ها' : 'Refresh Data'}
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-white" : ""}`} />
             </button>
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white transition cursor-pointer p-1">
-            <X className="w-5 h-5" />
+          <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white transition cursor-pointer p-1 bg-white/5 hover:bg-white/10 rounded-full">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5">
             <button
               onClick={() => setActiveTab("dashboard")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                 activeTab === "dashboard" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
-              {t.tabOverview}
+              <div className="flex items-center gap-3">
+                <LayoutDashboard className={`w-4 h-4 transition-colors duration-300 ${activeTab === "dashboard" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabOverview}</span>
+              </div>
+              {activeTab === "dashboard" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab("users")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                 activeTab === "users" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <Users className="w-4 h-4" />
-              {t.tabUsers}
+              <div className="flex items-center gap-3">
+                <Users className={`w-4 h-4 transition-colors duration-300 ${activeTab === "users" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabUsers}</span>
+              </div>
+              {activeTab === "users" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab("transactions")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition relative ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group relative ${
                 activeTab === "transactions" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <CheckSquare className="w-4 h-4" />
-              {t.tabApprovals}
-              {pendingTx.length > 0 && (
-                <span className={`absolute ${lang === "fa" ? "left-4" : "right-4"} bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce`}>
-                  {pendingTx.length}
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                <CheckSquare className={`w-4 h-4 transition-colors duration-300 ${activeTab === "transactions" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabApprovals}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {pendingTx.length > 0 && (
+                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                    {pendingTx.length}
+                  </span>
+                )}
+                {activeTab === "transactions" && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+                )}
+              </div>
             </button>
 
             <button
               onClick={() => setActiveTab("simulator")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                 activeTab === "simulator" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <Bot className="w-4 h-4" />
-              {t.tabSimulator}
+              <div className="flex items-center gap-3">
+                <Bot className={`w-4 h-4 transition-colors duration-300 ${activeTab === "simulator" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabSimulator}</span>
+              </div>
+              {activeTab === "simulator" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
             </button>
 
              <button
                onClick={() => setActiveTab("servers")}
-               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+               className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                  activeTab === "servers" 
-                   ? "bg-indigo-600/10 text-indigo-400" 
-                   : "text-gray-400 hover:text-white hover:bg-white/5"
+                   ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                   : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
                }`}
              >
-               <Server className="w-4 h-4" />
-               {lang === "fa" ? "مدیریت سرورها" : "Server Management"}
+               <div className="flex items-center gap-3">
+                 <Server className={`w-4 h-4 transition-colors duration-300 ${activeTab === "servers" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                 <span>{lang === "fa" ? "مدیریت سرورها" : "Server Management"}</span>
+               </div>
+               {activeTab === "servers" && (
+                 <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+               )}
              </button>
 
             <button
               onClick={() => setActiveTab("colleagues")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                 activeTab === "colleagues" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <Briefcase className="w-4 h-4" />
-              {t.tabColleagues}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("buttons")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
-                activeTab === "buttons" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <Command className="w-4 h-4" />
-              {t.tabBotButtons}
-            </button>
-            <button
-              onClick={() => setActiveTab("giftcodes")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
-                activeTab === "giftcodes" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <Gift className="w-4 h-4" />
-              {lang === "fa" ? "کدهای هدیه" : "Gift Codes"}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("tickets")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition relative ${
-                activeTab === "tickets" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" />
-              {lang === "fa" ? "سیستم تیکت" : "Support Tickets"}
-              {tickets.filter(t => t.status === "open").length > 0 && (
-                <span className={`absolute ${lang === "fa" ? "left-4" : "right-4"} bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse`}>
-                  {tickets.filter(t => t.status === "open").length}
-                </span>
+              <div className="flex items-center gap-3">
+                <Briefcase className={`w-4 h-4 transition-colors duration-300 ${activeTab === "colleagues" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabColleagues}</span>
+              </div>
+              {activeTab === "colleagues" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
               )}
             </button>
 
             <button
-              onClick={() => setActiveTab("logs")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
-                activeTab === "logs" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              onClick={() => setActiveTab("buttons")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
+                activeTab === "buttons" 
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <Clock className="w-4 h-4" />
-              {lang === "fa" ? "وضعیت سیستم" : "System Status"}
+              <div className="flex items-center gap-3">
+                <Command className={`w-4 h-4 transition-colors duration-300 ${activeTab === "buttons" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabBotButtons}</span>
+              </div>
+              {activeTab === "buttons" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("giftcodes")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
+                activeTab === "giftcodes" 
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Gift className={`w-4 h-4 transition-colors duration-300 ${activeTab === "giftcodes" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{lang === "fa" ? "کدهای هدیه" : "Gift Codes"}</span>
+              </div>
+              {activeTab === "giftcodes" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("tickets")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group relative ${
+                activeTab === "tickets" 
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquare className={`w-4 h-4 transition-colors duration-300 ${activeTab === "tickets" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{lang === "fa" ? "سیستم تیکت" : "Support Tickets"}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {tickets.filter(t => t.status === "open").length > 0 && (
+                  <span className="bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                    {tickets.filter(t => t.status === "open").length}
+                  </span>
+                )}
+                {activeTab === "tickets" && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+                )}
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("logs")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
+                activeTab === "logs" 
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Clock className={`w-4 h-4 transition-colors duration-300 ${activeTab === "logs" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{lang === "fa" ? "وضعیت سیستم" : "System Status"}</span>
+              </div>
+              {activeTab === "logs" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab("settings")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer transition ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
                 activeTab === "settings" 
-                  ? "bg-indigo-600/10 text-indigo-400" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]" 
+                  : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
               }`}
             >
-              <Settings className="w-4 h-4" />
-              {t.tabSettings}
+              <div className="flex items-center gap-3">
+                <Settings className={`w-4 h-4 transition-colors duration-300 ${activeTab === "settings" ? "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`} />
+                <span>{t.tabSettings}</span>
+              </div>
+              {activeTab === "settings" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-pulse" />
+              )}
             </button>
         </div>
 
-        <div className="p-4 border-t border-[#1f2937]">
+        <div className="p-4 border-t border-white/5 bg-black/10">
           <div className="flex items-center gap-2 mb-4">
             <button
               onClick={() => {
                 localStorage.removeItem("daltoon_dashboard_auth");
                 setIsAuthenticated(false);
               }}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 hover:border-rose-500/20 transition cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-              {lang === "fa" ? "خروج" : "Logout"}
+              <span>{lang === "fa" ? "خروج" : "Logout"}</span>
             </button>
 
             {updateAvailable && (
               <button
                 onClick={handleUpdate}
                 disabled={isUpdating}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer border border-emerald-500/30 animate-pulse"
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer border border-emerald-500/30 animate-pulse"
               >
                 {isUpdating ? (lang === "fa" ? "کمی صبر..." : "Wait...") : (lang === "fa" ? "آپدیت ⬇" : "Update ⬇")}
               </button>
@@ -1149,10 +1214,10 @@ export default function App() {
           </div>
           
           <div className="text-center space-y-1">
-            <div className="text-gray-500 text-xs font-mono">v{appVersion} PRO</div>
+            <div className="text-gray-500 text-[10px] font-mono tracking-wider">v{appVersion} PRO</div>
             <div className="text-gray-400 text-xs">
               {lang === "fa" ? "توسعه دهنده توسط " : "Developer by "}
-              <a href="https://t.me/mDaltoon" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+              <a href="https://t.me/mDaltoon" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
                 mDaltoon
               </a>
             </div>
@@ -1161,17 +1226,17 @@ export default function App() {
       </div>
 
       {/* Upper Navigation Header */}
-      <header dir={lang === "fa" ? "rtl" : "ltr"} className="bg-[#0b0f19] border-b border-[#1f2937] px-4 md:px-6 py-3 sticky top-0 z-30 shadow-sm">
+      <header dir={lang === "fa" ? "rtl" : "ltr"} className="bg-black/40 backdrop-blur-md border-b border-white/5 px-4 md:px-6 py-3 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo Brand Header & Hamburger */}
           <div className="flex items-center gap-3 flex-1 justify-start">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer">
-              <Menu className="w-6 h-6" />
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white transition cursor-pointer bg-white/5 hover:bg-white/10 rounded-full">
+              <Menu className="w-5 h-5 text-purple-400" />
             </button>
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="cursor-pointer flex items-center gap-2 flex-shrink-0" onClick={() => setIsSidebarOpen(true)}>
-                <h1 className="font-display font-bold text-lg sm:text-xl md:text-2xl tracking-wide text-white whitespace-nowrap">{t.appTitle}</h1>
+                <h1 className="font-display font-bold text-lg sm:text-xl md:text-2xl tracking-wide bg-gradient-to-r from-white via-purple-200 to-gray-300 bg-clip-text text-transparent whitespace-nowrap">{t.appTitle}</h1>
                 <LionAndSunFlag />
               </div>
             </div>
@@ -1180,12 +1245,12 @@ export default function App() {
           {/* Sync / State actions Panel */}
           <div className="flex items-center gap-3 flex-1 justify-end">
             {/* Language Selection Buttons */}
-            <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs flex-shrink-0">
+            <div className="flex items-center p-1 bg-black/60 border border-white/5 rounded-xl text-xs flex-shrink-0">
               <button
                 onClick={() => setLang("fa")}
-                className={`px-3 py-1 rounded font-semibold transition cursor-pointer ${
+                className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
                   lang === "fa" 
-                    ? "bg-indigo-600 text-white shadow" 
+                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25" 
                     : "text-gray-400 hover:text-white"
                 }`}
               >
@@ -1193,9 +1258,9 @@ export default function App() {
               </button>
               <button
                 onClick={() => setLang("en")}
-                className={`px-3 py-1 rounded font-semibold transition cursor-pointer ${
+                className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
                   lang === "en" 
-                    ? "bg-indigo-600 text-white shadow" 
+                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25" 
                     : "text-gray-400 hover:text-white"
                 }`}
               >

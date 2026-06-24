@@ -8,33 +8,177 @@
   
   --color-primary-50: #f5f3ff;
   --color-primary-100: #ede9fe;
-  --color-primary-500: #8b5cf6;
-  --color-primary-600: #7c3aed;
-  --color-primary-700: #6d28d9;
+  --color-primary-500: #a855f7;
+  --color-primary-600: #8b5cf6;
+  --color-primary-700: #7c3aed;
+  
+  --color-accent-purple: #d8b4fe;
+  --color-accent-pink: #f472b6;
+
+  /* Remap indigo classes to purple/violet to dynamically change colors throughout all components */
+  --color-indigo-50: #faf5ff;
+  --color-indigo-100: #f3e8ff;
+  --color-indigo-200: #e9d5ff;
+  --color-indigo-300: #d8b4fe;
+  --color-indigo-400: #c084fc;
+  --color-indigo-500: #a855f7;
+  --color-indigo-600: #8b5cf6;
+  --color-indigo-700: #7c3aed;
+  --color-indigo-800: #6b21a8;
+  --color-indigo-900: #581c87;
+  --color-indigo-950: #3b0764;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #0b0f19;
+  background-color: #030305;
   color: #f3f4f6;
   overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.04) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+
+/* Deep Glassmorphic Overrides for existing dark background panels */
+.bg-\[\#0b0f19\], 
+.bg-\[\#0c0f1c\], 
+.bg-\[\#111827\], 
+.bg-\[\#0f1424\], 
+.bg-\[\#0f1626\],
+.bg-\[\#161c2a\],
+.bg-\[\#141b2c\],
+.bg-\[\#111625\],
+.bg-\[\#0f172a\],
+.bg-\[\#0b101d\],
+.bg-\[\#13192e\],
+.bg-\[\#181f2a\],
+.bg-\[\#0a0e17\],
+.bg-slate-900, 
+.bg-slate-950, 
+.bg-gray-900 {
+  background: rgba(10, 10, 15, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Modals or high-emphasis dialogs should be solid to look clear on top of other content */
+.bg-\[\#111827\].shadow-2xl,
+.bg-\[\#0f1424\].shadow-2xl,
+.modal,
+div[role="dialog"] {
+  background: rgba(12, 12, 18, 0.96) !important;
+  border: 1px solid rgba(168, 85, 247, 0.25) !important;
+  box-shadow: 0 0 50px rgba(139, 92, 246, 0.15) !important;
+}
+
+/* Overriding nested lists or inner elements to look integrated */
+.bg-\[\#1f2937\], 
+.bg-\[\#1a2234\],
+.bg-slate-800,
+.bg-gray-800 {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Exclude active tabs from background override */
+button.bg-indigo-600\/10,
+button.bg-purple-600\/10 {
+  background: rgba(168, 85, 247, 0.1) !important;
+}
+
+/* Overriding input fields, textareas, and select boxes to look super modern */
+input, select, textarea {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f3f4f6 !important;
+  transition: all 0.2s ease-in-out;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15) !important;
+}
+
+/* Translucent borders and separators */
+.border-\[\#1f2937\], 
+.border-slate-800, 
+.border-gray-700,
+.border-slate-700,
+.border-\[\#374151\],
+.divide-\[\#1f2937\] > *,
+.divide-slate-800 > *,
+.divide-gray-700 > * {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Smooth row hover feedback for all tables */
+tr {
+  transition: all 0.2s ease-in-out;
+}
+tr:hover {
+  background: rgba(255, 255, 255, 0.015) !important;
+}
+
+/* Glassmorphism & High Tech Glow utilities */
+.glass-panel {
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(15, 15, 24, 0.85);
+  border-color: rgba(168, 85, 247, 0.2);
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.08);
+  transform: translateY(-2px);
+}
+
+.glow-purple {
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.15);
+}
+
+.glow-text-purple {
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #030305;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: #1e1e2d;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #3a2d54;
 }
+
+/* Custom keyframe animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.05);
+  }
+}
+
+.pulse-glow-bg {
+  animation: pulseGlow 10s infinite ease-in-out;
+}
+
