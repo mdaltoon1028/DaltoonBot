@@ -1996,10 +1996,10 @@ def handle_main_menu_callback(call):
     db = read_db_json()
     user = get_user_data(tg_id)
     
-    if action == "mm_btnAiChat" or action == "mm_btnAi":
+    if action == "mm_btnAiChat":
         try:
             msg = bot.edit_message_text(
-                "🤖 <b>چت هوشمند فعال شد!</b>\n\nسوال خود را بپرسید تا با استفاده از هوش‌مصنوعی پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+                "🤖 <b>دستیار هوشمند فعال شد!</b>\n\nسوال خود را در رابطه با خرید، تعرفه‌ها و اتصال بپرسید تا پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
                 chat_id=message.chat.id,
                 message_id=message.message_id,
                 parse_mode="HTML",
@@ -2008,11 +2008,30 @@ def handle_main_menu_callback(call):
         except Exception:
             msg = bot.send_message(
                 message.chat.id,
-                "🤖 <b>چت هوشمند فعال شد!</b>\n\nسوال خود را بپرسید تا با استفاده از هوش‌مصنوعی پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+                "🤖 <b>دستیار هوشمند فعال شد!</b>\n\nسوال خود را در رابطه با خرید، تعرفه‌ها و اتصال بپرسید تا پاسخ داده شود:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
                 parse_mode="HTML",
                 reply_markup=get_cancel_keyboard()
             )
-        bot.register_next_step_handler(message, process_ai_chat)
+        bot.register_next_step_handler(message, process_ai_support)
+        return
+
+    elif action == "mm_btnAi":
+        try:
+            msg = bot.edit_message_text(
+                "🧠 <b>هوش مصنوعی فعال شد!</b>\n\nهر سوالی دارید بپرسید تا هوش مصنوعی پاسخ دهد:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+                chat_id=message.chat.id,
+                message_id=message.message_id,
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
+            )
+        except Exception:
+            msg = bot.send_message(
+                message.chat.id,
+                "🧠 <b>هوش مصنوعی فعال شد!</b>\n\nهر سوالی دارید بپرسید تا هوش مصنوعی پاسخ دهد:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
+            )
+        bot.register_next_step_handler(message, process_ai_general)
         return
 
     elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
@@ -4752,7 +4771,41 @@ def callback_handler(call):
         except Exception as e:
             print(f"[Error Charge Custom Init] {e}")
 
-def process_ai_chat(message):
+def process_ai_support(message):
+    tg_id = message.from_user.id
+    text = message.text.strip() if message.text else ""
+    
+    if text == "/start" or "انصراف" in text or "بازگشت" in text or "منصرف" in text:
+        bot.send_message(message.chat.id, "❌ چت با دستیار هوشمند متوقف شد.", reply_markup=get_custom_keyboard())
+        start_cmd(message)
+        return
+        
+    typing_msg = bot.send_message(message.chat.id, "🤖 <i>در حال تایپ...</i>", parse_mode="HTML")
+    
+    try:
+        import requests
+        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text, "type": "support"}, timeout=200)
+        try:
+            bot.delete_message(message.chat.id, typing_msg.message_id)
+        except Exception:
+            pass
+        if response.status_code == 200:
+            data = response.json()
+            reply = data.get("response", "پاسخی دریافت نشد.")
+            msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
+            bot.register_next_step_handler(msg, process_ai_support)
+        else:
+            msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}): {response.text}. دوباره بپرسید:", reply_markup=get_cancel_keyboard())
+            bot.register_next_step_handler(msg, process_ai_support)
+    except Exception as e:
+        try:
+            bot.delete_message(message.chat.id, typing_msg.message_id)
+        except Exception:
+            pass
+        msg = bot.send_message(message.chat.id, f"❌ خطا در ارتباط: {e}\nمجدداً تلاش کنید:", reply_markup=get_cancel_keyboard())
+        bot.register_next_step_handler(msg, process_ai_support)
+
+def process_ai_general(message):
     tg_id = message.from_user.id
     text = message.text.strip() if message.text else ""
     
@@ -4761,24 +4814,30 @@ def process_ai_chat(message):
         start_cmd(message)
         return
         
-    typing_msg = bot.send_message(message.chat.id, "🤖 <i>در حال تایپ...</i>", parse_mode="HTML")
+    typing_msg = bot.send_message(message.chat.id, "🧠 <i>در حال پردازش...</i>", parse_mode="HTML")
     
     try:
         import requests
-        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text}, timeout=200)
-        bot.delete_message(message.chat.id, typing_msg.message_id)
+        response = requests.post("http://127.0.0.1:3000/api/ai/chat", json={"userId": tg_id, "message": text, "type": "general"}, timeout=200)
+        try:
+            bot.delete_message(message.chat.id, typing_msg.message_id)
+        except Exception:
+            pass
         if response.status_code == 200:
             data = response.json()
             reply = data.get("response", "پاسخی دریافت نشد.")
             msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
-            bot.register_next_step_handler(msg, process_ai_chat)
+            bot.register_next_step_handler(msg, process_ai_general)
         else:
             msg = bot.send_message(message.chat.id, f"❌ خطای سرور ({response.status_code}): {response.text}. دوباره بپرسید:", reply_markup=get_cancel_keyboard())
-            bot.register_next_step_handler(msg, process_ai_chat)
+            bot.register_next_step_handler(msg, process_ai_general)
     except Exception as e:
-        bot.delete_message(message.chat.id, typing_msg.message_id)
+        try:
+            bot.delete_message(message.chat.id, typing_msg.message_id)
+        except Exception:
+            pass
         msg = bot.send_message(message.chat.id, f"❌ خطا در ارتباط: {e}\nمجدداً تلاش کنید:", reply_markup=get_cancel_keyboard())
-        bot.register_next_step_handler(msg, process_ai_chat)
+        bot.register_next_step_handler(msg, process_ai_general)
 
 def process_colleague_login_username(message):
     tg_id = message.from_user.id

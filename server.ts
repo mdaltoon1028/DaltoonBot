@@ -1496,17 +1496,11 @@ function getAiClient(): GoogleGenAI {
 
 app.post("/api/ai/chat", async (req, res) => {
   try {
-    const { message, userId } = req.body;
+    const { message, userId, type } = req.body;
+    const isSupport = type === "support" || !type;
+
     if (!message) {
       return res.status(400).json({ error: "Message is required." });
-    }
-
-    const ai = getAiClient();
-    if (!ai || !(ai as any).apiKey) {
-      return res.status(400).json({
-        error:
-          "Gemini API Key is not configured. Please set it in Settings -> Bot Configuration -> Gemini API Key to enable AI features.",
-      });
     }
 
     const dbData = readJsonDb();
@@ -1538,7 +1532,20 @@ app.post("/api/ai/chat", async (req, res) => {
       (u: any) => u.status === "active",
     ).length;
 
-    const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام V2ray به نام "${safePanelConfig.botNickname || "دالتون"} Servers" هستید. 
+    let responseText = "";
+    let lastError = null;
+
+    if (isSupport) {
+      // 1. SMART SUPPORT ASSISTANT (دستیار هوشمند)
+      // This is the bot support assistant. It MUST always use Gemini directly.
+      const geminiApiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
+      if (!geminiApiKey || geminiApiKey.trim() === "") {
+        return res.status(400).json({
+          error: "کلید API جیمینای در تنظیمات ثبت نشده است. لطفاً ابتدا در داشبورد کلید Gemini را برای دستیار هوشمند وارد کنید."
+        });
+      }
+
+      const systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام V2ray به نام "${safePanelConfig.botNickname || "دالتون"} Servers" هستید. 
 شما باید به سوالات مرتبط با خدمات و خرید از ربات پاسخ دهید.
 
 مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، شارژ ولت، رفع مشکل درگاه، قطعی یا خرید دارد، او را راهنمایی کنید که از منوی اصلی ربات از دکمه «🎫 ثبت تیکت پشتیبانی» استفاده کند.
@@ -1548,57 +1555,21 @@ app.post("/api/ai/chat", async (req, res) => {
 - تعداد کاربران: ${activeUsersCount}
 - راهنما: ${safeSettings.supportText || safePanelConfig.supportText || ""}`;
 
-    let responseText = "";
-    let lastError = null;
-
-    const aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
-    const aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
-    const apiKey = dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
-
-    if (aiBaseUrl && aiBaseUrl.trim() !== "") {
-      const trimmedUrl = aiBaseUrl.trim().replace(/\/$/, "");
-      const completionUrl = `${trimmedUrl}/chat/completions`;
-      const model = aiModelName && aiModelName.trim() !== "" ? aiModelName.trim() : "gpt-4o";
-      
-      console.log(`[AI Chat] Routing via OpenAI Compatible API: ${completionUrl} with model ${model}`);
-      
-      const response = await fetch(completionUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+      const ai = new GoogleGenAI({
+        apiKey: geminiApiKey.trim(),
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
         },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message }
-          ],
-          temperature: 0.7
-        })
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`OpenAI Provider error: ${response.status} - ${errText}`);
-      }
-
-      const resData: any = await response.json();
-      responseText = resData.choices?.[0]?.message?.content || "";
-      if (!responseText) {
-        throw new Error("Empty response from AI provider.");
-      }
-    } else {
-      const modelsToTry = [];
-      if (aiModelName && aiModelName.trim() !== "") {
-        modelsToTry.push(aiModelName.trim());
-      }
-      modelsToTry.push(
+      const modelsToTry = [
         "gemini-2.5-flash",
         "gemini-3.5-flash",
         "gemini-flash-latest",
         "gemini-3.1-flash-lite",
-      );
+      ];
 
       for (const modelName of modelsToTry) {
         try {
@@ -1616,10 +1587,134 @@ app.post("/api/ai/chat", async (req, res) => {
           }
         } catch (err: any) {
           console.warn(
-            `[AI Chat] Iteration fail (${modelName}):`,
+            `[AI Chat Support] Iteration fail (${modelName}):`,
             err?.message || err,
           );
           lastError = err;
+        }
+      }
+    } else {
+      // 2. GENERAL AI PLAYGROUND (هوش مصنوعی عمومی)
+      // This uses customAiApiKey, aiBaseUrl, and aiModelName.
+      const customAiApiKey = dbData.settings?.customAiApiKey || safePanelConfig.customAiApiKey || dbData.settings?.geminiApiKey || safePanelConfig.geminiApiKey || "";
+      const aiBaseUrl = dbData.settings?.aiBaseUrl || safePanelConfig.aiBaseUrl || "";
+      const aiModelName = dbData.settings?.aiModelName || safePanelConfig.aiModelName || "";
+
+      if (!customAiApiKey || customAiApiKey.trim() === "") {
+        return res.status(400).json({
+          error: "کلید API هوش مصنوعی در تنظیمات پیشرفته ثبت نشده است. لطفاً ابتدا در داشبورد کلید API را وارد کنید."
+        });
+      }
+
+      const systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.`;
+
+      if (aiBaseUrl && aiBaseUrl.trim() !== "") {
+        const trimmedUrl = aiBaseUrl.trim().replace(/\/$/, "");
+        const completionUrl = `${trimmedUrl}/chat/completions`;
+        
+        const modelsToTry = [];
+        const userModel = aiModelName && aiModelName.trim() !== "" ? aiModelName.trim() : "";
+        if (userModel) {
+          modelsToTry.push(userModel);
+        }
+        
+        const isGroq = trimmedUrl.toLowerCase().includes("groq");
+        if (isGroq) {
+          if (userModel !== "llama-3.3-70b-specdec") modelsToTry.push("llama-3.3-70b-specdec");
+          if (userModel !== "llama-3.3-70b-versatile") modelsToTry.push("llama-3.3-70b-versatile");
+          if (userModel !== "llama-3.1-8b-instant") modelsToTry.push("llama-3.1-8b-instant");
+          if (userModel !== "gemma2-9b-it") modelsToTry.push("gemma2-9b-it");
+        } else {
+          if (userModel !== "gpt-4o") modelsToTry.push("gpt-4o");
+          if (userModel !== "gpt-4o-mini") modelsToTry.push("gpt-4o-mini");
+          if (userModel !== "gpt-3.5-turbo") modelsToTry.push("gpt-3.5-turbo");
+        }
+        
+        let success = false;
+        for (const model of modelsToTry) {
+          try {
+            console.log(`[AI Chat General] Trying OpenAI Compatible model: ${model} on ${completionUrl}`);
+            const response = await fetch(completionUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${customAiApiKey}`
+              },
+              body: JSON.stringify({
+                model: model,
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: message }
+                ],
+                temperature: 0.7
+              })
+            });
+
+            if (!response.ok) {
+              const errText = await response.text();
+              throw new Error(`Status ${response.status} - ${errText}`);
+            }
+
+            const resData: any = await response.json();
+            responseText = resData.choices?.[0]?.message?.content || "";
+            if (responseText) {
+              success = true;
+              console.log(`[AI Chat General] Successfully got response with model: ${model}`);
+              break;
+            } else {
+              throw new Error("Empty response from AI provider.");
+            }
+          } catch (err: any) {
+            console.warn(`[AI Chat General] OpenAI compatible fail with model ${model}:`, err?.message || err);
+            lastError = err;
+          }
+        }
+        
+        if (!success) {
+          throw lastError || new Error("Failed to get response from any compatible model.");
+        }
+      } else {
+        const ai = new GoogleGenAI({
+          apiKey: customAiApiKey.trim(),
+          httpOptions: {
+            headers: {
+              "User-Agent": "aistudio-build",
+            },
+          },
+        });
+
+        const modelsToTry = [];
+        if (aiModelName && aiModelName.trim() !== "") {
+          modelsToTry.push(aiModelName.trim());
+        }
+        modelsToTry.push(
+          "gemini-2.5-flash",
+          "gemini-3.5-flash",
+          "gemini-flash-latest",
+          "gemini-3.1-flash-lite",
+        );
+
+        for (const modelName of modelsToTry) {
+          try {
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents: message,
+              config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.7,
+              },
+            });
+            if (response && response.text) {
+              responseText = response.text;
+              break;
+            }
+          } catch (err: any) {
+            console.warn(
+              `[AI Chat General Gemini Fallback] Iteration fail (${modelName}):`,
+              err?.message || err,
+            );
+            lastError = err;
+          }
         }
       }
     }

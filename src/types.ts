@@ -21,6 +21,7 @@ export interface PanelSettings {
   activeInboundIds: number[]; // Deprecated
   ownerId: number;
   geminiApiKey?: string;
+  customAiApiKey?: string;
   aiBaseUrl?: string;
   aiModelName?: string;
   cardNumber?: string;

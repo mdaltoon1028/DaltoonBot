@@ -55,6 +55,7 @@ export default function SettingsPanel({
     settings.ownerId ? settings.ownerId.toString() : "",
   );
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || "");
+  const [customAiApiKey, setCustomAiApiKey] = useState(settings.customAiApiKey || "");
   const [aiBaseUrl, setAiBaseUrl] = useState(settings.aiBaseUrl || "");
   const [aiModelName, setAiModelName] = useState(settings.aiModelName || "");
   const [hideBtnAiChat, setHideBtnAiChat] = useState(
@@ -155,6 +156,7 @@ export default function SettingsPanel({
       botNickname,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
+      customAiApiKey,
       aiBaseUrl,
       aiModelName,
       cardNumber,
@@ -189,6 +191,7 @@ export default function SettingsPanel({
       botNickname,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
+      customAiApiKey,
       aiBaseUrl,
       aiModelName,
       cardNumber,
@@ -428,6 +431,7 @@ export default function SettingsPanel({
       botNickname,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
+      customAiApiKey,
       aiBaseUrl,
       aiModelName,
       cardNumber,
@@ -812,7 +816,22 @@ export default function SettingsPanel({
               />
             </div>
 
-            <div className="space-y-1.5 flex flex-col justify-end">
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                {lang === "fa"
+                  ? "کلید API جیمینای (Gemini API Key):"
+                  : "Gemini API Key:"}
+              </label>
+              <input
+                type="text"
+                placeholder="AIzaSy..."
+                className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
               <div
                 className={`p-2.5 rounded-lg border text-[10px] font-medium flex items-center gap-2 ${geminiApiKey ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}
               >
@@ -821,8 +840,8 @@ export default function SettingsPanel({
                 ></div>
                 {geminiApiKey
                   ? lang === "fa"
-                    ? "کلید API معتبر شناسایی شد."
-                    : "API Key is configured."
+                    ? "کلید API جیمینای معتبر شناسایی شد."
+                    : "Gemini API Key is configured."
                   : lang === "fa"
                     ? "خطا: کلید API ربات (Gemini) ست نشده است."
                     : "Missing Gemini API Secret Key."}
@@ -864,8 +883,8 @@ export default function SettingsPanel({
               type="text"
               placeholder={lang === "fa" ? "کلید API مربوط به مدل انتخابی شما" : "Your API Key"}
               className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              value={geminiApiKey}
-              onChange={(e) => setGeminiApiKey(e.target.value)}
+              value={customAiApiKey}
+              onChange={(e) => setCustomAiApiKey(e.target.value)}
             />
           </div>
 
@@ -904,8 +923,8 @@ export default function SettingsPanel({
             />
             <span className="text-[10px] text-gray-500 mt-1 block">
               {lang === "fa"
-                ? "مثال‌ها: gemini-2.5-flash (پیش‌فرض جیمینای)، deepseek-chat (دیپ‌سیک)، gpt-4o (OpenAI)"
-                : "Examples: gemini-2.5-flash (Gemini default), deepseek-chat (DeepSeek), gpt-4o (OpenAI)"}
+                ? "مثال‌ها: gemini-2.5-flash (پیش‌فرض)، deepseek-chat (دیپ‌سیک)، llama-3.3-70b-versatile (برای Groq)"
+                : "Examples: gemini-2.5-flash (default), deepseek-chat (DeepSeek), llama-3.3-70b-versatile (for Groq)"}
             </span>
           </div>
         </div>
