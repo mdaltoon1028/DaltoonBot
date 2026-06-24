@@ -1554,6 +1554,17 @@ app.post("/api/ai/chat", async (req, res) => {
       apiKeyToUse = (customAiApiKey && customAiApiKey.trim() !== "") ? customAiApiKey.trim() : (geminiApiKey && geminiApiKey.trim() !== "") ? geminiApiKey.trim() : "";
     }
 
+    // Intelligent auto-detection for AwanLLM API Keys (starts with AQ.)
+    const isAwanKey = apiKeyToUse && apiKeyToUse.trim().startsWith("AQ.");
+    if (isAwanKey) {
+      if (!baseUrlToUse || baseUrlToUse === "") {
+        baseUrlToUse = "https://api.awanllm.com/v1";
+      }
+      if (!modelNameToUse || modelNameToUse === "" || modelNameToUse === "gpt-4o-mini") {
+        modelNameToUse = "Meta-Llama-3-8B-Instruct";
+      }
+    }
+
     // Prepare system instruction prompt based on bot identity or general purpose
     let systemPrompt = "";
     if (isSupport) {
@@ -1591,12 +1602,12 @@ app.post("/api/ai/chat", async (req, res) => {
           mainModel = "llama-3.3-70b-versatile";
         }
       } else if (!mainModel) {
-        mainModel = "gpt-4o-mini";
+        mainModel = isAwanKey ? "Meta-Llama-3-8B-Instruct" : "gpt-4o-mini";
       }
 
       const modelsToTry = [mainModel];
       // Try exactly one fast, modern fallback to prevent slow sequentially blocked timeouts
-      const fallbackModel = isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini";
+      const fallbackModel = isAwanKey ? "Meta-Llama-3-8B-Instruct" : (isGroq ? "llama-3.1-8b-instant" : "gpt-4o-mini");
       if (mainModel !== fallbackModel) {
         modelsToTry.push(fallbackModel);
       }
@@ -1734,13 +1745,25 @@ app.post("/api/ai/chat", async (req, res) => {
 
 app.post("/api/ai/test-key", async (req, res) => {
   try {
-    const { apiKey, baseUrl, modelName, type } = req.body;
+    let { apiKey, baseUrl, modelName, type } = req.body;
     if (!apiKey || apiKey.trim() === "") {
       return res.status(400).json({ error: "لطفاً ابتدا کلید API را وارد کنید." });
     }
 
     const trimmedKey = apiKey.trim();
-    const isCustom = type === "custom" && baseUrl && baseUrl.trim() !== "";
+    const isAwanKey = trimmedKey.startsWith("AQ.");
+
+    if (isAwanKey) {
+      type = "custom";
+      if (!baseUrl || baseUrl.trim() === "") {
+        baseUrl = "https://api.awanllm.com/v1";
+      }
+      if (!modelName || modelName.trim() === "" || modelName.trim() === "gpt-4o-mini") {
+        modelName = "Meta-Llama-3-8B-Instruct";
+      }
+    }
+
+    const isCustom = type === "custom" || (baseUrl && baseUrl.trim() !== "");
 
     if (isCustom) {
       // Test OpenAI-compatible key
