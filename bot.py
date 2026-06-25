@@ -606,22 +606,36 @@ def reset_vpn_client_uuid_api(subscription_id):
         print(f"[reset_vpn_client_uuid_api Error] {e}")
         return {"success": False, "error": f"خطای سیستمی: {str(e)}"}
 
-def get_client_vless_links(client_name, client_uuid, sub_link=None):
+def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None):
     """
-    Fetch raw standard VLESS links for a specific client from the Sanaei 3x-ui panel.
+    Fetch raw standard links for a specific client from the Sanaei 3x-ui panel.
     Tries multiple client-specific endpoint forms:
     1. /panel/api/clients/links/{email}
     2. /panel/api/clients/subLinks/{sub_id}
     Falls back to building links dynamically from active inbounds or generating mock ones if offline.
     """
     cfg = get_config()
-    base_url = cfg.get('XUI_URL', '')
-    if base_url.endswith("/"):
-        base_url = base_url[:-1]
+    servers = cfg.get("SERVERS", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if s.get("id") == server_id), None)
+    # Don't auto-pick the active server if server_id isn't provided, 
+    # because this function is used for fetching links of potentially old clients on other servers.
+    # But if there's only one server or we really need to try, we can fall back to the old behavior:
+    if not server and not cfg.get('XUI_URL'):
+        server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+    else:
+        base_url = cfg.get("XUI_URL", "")
+        if base_url.endswith("/"):
+            base_url = base_url[:-1]
 
     links = []
     
-    if login_xui() and base_url:
+    if login_xui(server_id) and base_url:
         session = get_session()
         # 1. Try links by Email first
         try:
@@ -629,10 +643,10 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
             res = session.get(url, timeout=20, verify=False)
             data = res.json()
             if data.get("success") and isinstance(data.get("obj"), list):
-                links = [str(lnk) for lnk in data["obj"] if str(lnk).startswith("vless://")]
-                print(f"[get_client_vless_links] Fetched {len(links)} links using email endpoint.")
+                links = [str(lnk) for lnk in data["obj"] if "://" in str(lnk)]
+                print(f"[get_client_all_links] Fetched {len(links)} links using email endpoint.")
         except Exception as e:
-            print(f"[get_client_vless_links Email EndPoint Error] {e}")
+            print(f"[get_client_all_links Email EndPoint Error] {e}")
 
         # 2. Try subLinks endpoint if Email endpoint failed or returned empty
         if not links and sub_link:
@@ -645,10 +659,10 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
                     res = session.get(url, timeout=20, verify=False)
                     data = res.json()
                     if data.get("success") and isinstance(data.get("obj"), list):
-                        links = [str(lnk) for lnk in data["obj"] if str(lnk).startswith("vless://")]
-                        print(f"[get_client_vless_links] Fetched {len(links)} links using subLinks endpoint.")
+                        links = [str(lnk) for lnk in data["obj"] if "://" in str(lnk)]
+                        print(f"[get_client_all_links] Fetched {len(links)} links using subLinks endpoint.")
             except Exception as e:
-                print(f"[get_client_vless_links SubId EndPoint Error] {e}")
+                print(f"[get_client_all_links SubId EndPoint Error] {e}")
 
         # 3. Fallback: Parse inbounds statically and construct VLESS links if endpoints returned nothing but login was successful
         if not links:
@@ -730,9 +744,9 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
                             label = f"{remark}-{client_name}"
                             link = f"vless://{client_uuid}@{domain}:{port}?{query_str}#{label}"
                             links.append(link)
-                    print(f"[get_client_vless_links] Reconstructed {len(links)} links statically from inbounds list.")
+                    print(f"[get_client_all_links] Reconstructed {len(links)} links statically from inbounds list.")
             except Exception as e:
-                print(f"[get_client_vless_links static reconstruction error] {e}")
+                print(f"[get_client_all_links static reconstruction error] {e}")
 
     # 4. Semi-dynamic fallback based on XUI_URL
     if not links:
@@ -2426,7 +2440,7 @@ def handle_main_menu_callback(call):
         if success_note and not has_media:
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
-        vless_links = get_client_vless_links(free_username, client_uuid, sub_link)
+        vless_links = get_client_all_links(free_username, client_uuid, sub_link)
         links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
@@ -2752,8 +2766,8 @@ def handle_buy_pay(call):
         if success_note and not has_media:
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
-        vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+        all_links = get_client_all_links(username_input, client_uuid, sub_link)
+        links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links]) if all_links else f"<code>{sub_link}</code>"
 
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -3105,7 +3119,7 @@ def process_purchase_username(message, plan_id, spec):
             f"پلن '{spec['name']}' را با هزینه {price_charged_display} برای نام کاربری '{username_input}' خریداری کرد."
         )
         
-        vless_links = get_client_vless_links(username_input, client_uuid, sub_link)
+        vless_links = get_client_all_links(username_input, client_uuid, sub_link)
         links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
@@ -3382,8 +3396,8 @@ def callback_handler(call):
             client_uuid = k.get("clientUuid", "")
             sub_link = k.get("subLink", "")
             
-            # Fetch the precise links via get_client_vless_links
-            vless_links = get_client_vless_links(client_name, client_uuid, sub_link)
+            # Fetch the precise links via get_client_all_links
+            vless_links = get_client_all_links(client_name, client_uuid, sub_link)
             
             links_text = "\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
             
@@ -5114,7 +5128,7 @@ def process_col_create_days(message, acc, name, gb):
     if success_note and not has_media:
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
-    vless_links = get_client_vless_links(full_name, client_uuid, sub_link)
+    vless_links = get_client_all_links(full_name, client_uuid, sub_link)
     links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
     text_msg = (
