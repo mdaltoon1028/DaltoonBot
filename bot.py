@@ -678,6 +678,49 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
             except Exception as e:
                 print(f"[get_client_all_links SubId EndPoint Error] {e}")
 
+        # 2.5 Try to fetch the subscription content directly and parse/decode individual links
+        if not links and sub_link:
+            import requests
+            candidate_urls = [sub_link]
+            
+            # If the container has DNS resolving issues for the public domain of the sub_link,
+            # we can try to request it directly from the working base_url
+            try:
+                if "/sub/" in sub_link and base_url:
+                    sub_part = "/sub/" + sub_link.split("/sub/")[1]
+                    candidate_urls.append(base_url.rstrip("/") + sub_part)
+            except Exception as ex:
+                print(f"[get_client_all_links Candidates Build Error] {ex}")
+
+            for url in candidate_urls:
+                try:
+                    print(f"[get_client_all_links] Trying to fetch sub content directly from: {url}")
+                    # Use a fresh requests.get to bypass session headers that might interfere
+                    res = requests.get(url, timeout=12, verify=False)
+                    if res.status_code == 200 and res.text.strip():
+                        text_content = res.text.strip()
+                        decoded_text = ""
+                        try:
+                            import base64
+                            missing_padding = len(text_content) % 4
+                            if missing_padding:
+                                padded_content = text_content + '=' * (4 - missing_padding)
+                            else:
+                                padded_content = text_content
+                            decoded_text = base64.b64decode(padded_content).decode('utf-8', errors='ignore')
+                        except Exception as decode_err:
+                            print(f"[get_client_all_links Direct Fetch Decode Error] {decode_err}")
+                            decoded_text = text_content
+                        
+                        raw_lines = [line.strip() for line in decoded_text.split('\n') if line.strip()]
+                        fetched_links = [l for l in raw_lines if "://" in l]
+                        if fetched_links:
+                            links = fetched_links
+                            print(f"[get_client_all_links] Successfully fetched {len(links)} links directly from sub content at {url}")
+                            break
+                except Exception as e:
+                    print(f"[get_client_all_links Direct Fetch Error for {url}] {e}")
+
         # 3. Fallback: Parse inbounds statically and construct VLESS/VMESS/Trojan links if endpoints returned nothing but login was successful
         if not links:
             try:
@@ -3481,15 +3524,24 @@ def callback_handler(call):
             # Fetch the precise links via get_client_all_links
             vless_links = get_client_all_links(client_name, client_uuid, sub_link, server_id=k.get("serverId"))
             
-            links_text = "\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
-            
-            text = (
-                f"⚡ <b>لیست کانفیگ‌های معمولی VLESS سرویس شما:</b>\n\n"
-                f"👤 نام سرویس: <code>{client_name}</code>\n\n"
-                f"👇 <b>جهت کپی کردن، روی هر لینک ضربه بزنید یا لمس کنید:</b>\n\n"
-                f"{links_text}\n\n"
-                f"💡 این لینک‌ها را کپی کرده و مستقیماً در نرم‌افزارهای V2ray خود وارد نمایید."
-            )
+            if vless_links:
+                links_text = "\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
+                text = (
+                    f"⚡ <b>لیست کانفیگ‌های معمولی VLESS سرویس شما:</b>\n\n"
+                    f"👤 نام سرویس: <code>{client_name}</code>\n\n"
+                    f"👇 <b>جهت کپی کردن، روی هر لینک ضربه بزنید یا لمس کنید:</b>\n\n"
+                    f"{links_text}\n\n"
+                    f"💡 این لینک‌ها را کپی کرده و مستقیماً در نرم‌افزارهای V2ray خود وارد نمایید."
+                )
+            else:
+                text = (
+                    f"⚡ <b>لیست کانفیگ‌های معمولی VLESS سرویس شما:</b>\n\n"
+                    f"👤 نام سرویس: <code>{client_name}</code>\n\n"
+                    f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌ها از پنل در این لحظه میسر نشد.\n\n"
+                    f"👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n"
+                    f"<code>{sub_link}</code>\n\n"
+                    f"💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند."
+                )
             
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(

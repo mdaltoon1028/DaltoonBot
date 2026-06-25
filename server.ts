@@ -4448,10 +4448,7 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
 async function performAutoBackup() {
   try {
     const db = readJsonDb();
-    const configStr = db.settings?.panel_config;
-    if (!configStr) return;
-
-    const settings = JSON.parse(configStr);
+    const settings = getSystemSettings(db);
 
     if (!settings.autoBackupEnabled) return;
     if (!settings.autoBackupInterval) return;
@@ -4524,10 +4521,7 @@ async function performAutoBackup() {
 async function checkAutoBackup() {
   try {
     const db = readJsonDb();
-    const configStr = db.settings?.panel_config;
-    if (!configStr) return;
-
-    const settings = JSON.parse(configStr);
+    const settings = getSystemSettings(db);
 
     if (!settings.autoBackupEnabled || !settings.autoBackupInterval) return;
 
