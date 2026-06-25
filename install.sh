@@ -146,16 +146,12 @@ if [ -d "/opt/daltoon-store" ]; then
     INSTALL_DIR="/opt/daltoon-store"
 fi
 
-ALREADY_CONFIGURED=$(node -e "
+# Load current credentials from existing configuration if any
+CONFIG_DATA=$(node -e "
 const fs = require('fs');
-let foundConfig = false;
-
-if (fs.existsSync('$INSTALL_DIR/.env')) {
-  const envContent = fs.readFileSync('$INSTALL_DIR/.env', 'utf8');
-  if (envContent.includes('PANEL_USER') || envContent.includes('DASHBOARD_USERNAME')) {
-    foundConfig = true;
-  }
-}
+let user = 'Daltoon';
+let pass = 'Daltoon';
+let port = '3000';
 
 const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
 
@@ -189,164 +185,105 @@ if (bestFile) {
   try {
     const parsed = JSON.parse(fs.readFileSync(bestFile, 'utf8'));
     if (parsed.settings) {
-      if (parsed.settings.dashboardUsername && parsed.settings.dashboardPassword) {
-        foundConfig = true;
-      }
+      if (parsed.settings.dashboardUsername) user = parsed.settings.dashboardUsername;
+      if (parsed.settings.dashboardPassword) pass = parsed.settings.dashboardPassword;
+      if (parsed.settings.serverPort) port = parsed.settings.serverPort.toString();
+      
       if (parsed.settings.panel_config) {
         const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
-        if (pc && pc.dashboardUsername && pc.dashboardPassword) {
-          foundConfig = true;
+        if (pc) {
+          if (pc.dashboardUsername) user = pc.dashboardUsername;
+          if (pc.dashboardPassword) pass = pc.dashboardPassword;
+          if (pc.serverPort) port = pc.serverPort.toString();
         }
       }
     }
   } catch(e){}
 }
 
-console.log(foundConfig ? 'true' : 'false');
+console.log(user + '|' + pass + '|' + port);
 " | tr -d '\n')
 
-if [ "$ALREADY_CONFIGURED" = "true" ]; then
-    echo -e "${GREEN}Existing configuration found! Preserving previous Username, Password, and Port...${NC}"
-    DASH_PORT=$(node -e "
-      const fs = require('fs');
-      let port = 3000;
-      try {
-        if (fs.existsSync('$INSTALL_DIR/.env')) {
-          const envLines = fs.readFileSync('$INSTALL_DIR/.env', 'utf8').split('\n');
-          for (const line of envLines) {
-            if (line.startsWith('PANEL_PORT=') || line.startsWith('DASHBOARD_PORT=') || line.startsWith('PORT=')) {
-              const envPort = parseInt(line.split('=')[1].trim());
-              if (!isNaN(envPort)) {
-                port = envPort;
-              }
-            }
-          }
-        }
-        
-        const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
-        
-        function getScore(p) {
-          try {
-            if (!fs.existsSync(p)) return -1;
-            const stat = fs.statSync(p);
-            const content = fs.readFileSync(p, 'utf8').trim();
-            if (!content || content === '{}' || content === '[]') return -1;
-            const parsed = JSON.parse(content);
-            let score = 0;
-            if (Array.isArray(parsed.users) && parsed.users.length > 0) score += parsed.users.length * 10;
-            if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) score += parsed.transactions.length * 10;
-            if (parsed.settings && parsed.settings.panel_config) {
-              const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
-              if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
-              if (pc.serverPort) score += 50;
-            }
-            return score > 0 ? (score * 1000000) + stat.size : -1;
-          } catch(e) { return -1; }
-        }
+IFS='|' read -r CURRENT_USER CURRENT_PASS CURRENT_PORT <<< "$CONFIG_DATA"
 
-        let bestFile = null;
-        let bestScore = -1;
-        for (const p of dbPaths) {
-          const score = getScore(p);
-          if (score > bestScore) { bestScore = score; bestFile = p; }
-        }
+read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER < /dev/tty 2>/dev/null || read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
+DASH_USER=${DASH_USER:-$CURRENT_USER}
 
-        if (bestFile) {
-          const parsed = JSON.parse(fs.readFileSync(bestFile, 'utf8'));
-          if (parsed && parsed.settings) {
-            if (parsed.settings.serverPort) {
-              port = parsed.settings.serverPort;
-            } else if (parsed.settings.panel_config) {
-              const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
-              if (pc && pc.serverPort) {
-                port = pc.serverPort;
-              }
-            }
-          }
-        }
-      } catch(e) {}
-      console.log(port.toString());
-    " | tr -d '\n')
-else
-    read -p "Enter Admin Username [Daltoon]: " DASH_USER < /dev/tty
-    DASH_USER=${DASH_USER:-Daltoon}
+read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS < /dev/tty 2>/dev/null || read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
+echo ""
+DASH_PASS=${DASH_PASS:-$CURRENT_PASS}
 
-    read -s -p "Enter Admin Password [Daltoon]: " DASH_PASS < /dev/tty
-    echo ""
-    DASH_PASS=${DASH_PASS:-Daltoon}
+read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT < /dev/tty 2>/dev/null || read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
+DASH_PORT=${DASH_PORT:-$CURRENT_PORT}
 
-    read -p "Enter Server Port [3000]: " DASH_PORT < /dev/tty
-    DASH_PORT=${DASH_PORT:-3000}
-
-    echo -e "${YELLOW}Saving configuration to database...${NC}"
-    node -e "
-    const fs = require('fs');
-    const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-    let db = {};
-    let parseError = false;
-    if (fs.existsSync(dbPath)) {
-      try { 
-        const content = fs.readFileSync(dbPath, 'utf8');
-        if (content && content.trim()) {
-          db = JSON.parse(content) || {};
-        }
-      } catch(e){
-        console.error("CRITICAL: Failed to parse existing database JSON. Aborting configuration write to prevent data loss!");
-        parseError = true;
-      }
+echo -e "${YELLOW}Saving configuration to database...${NC}"
+node -e "
+const fs = require('fs');
+const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
+let db = {};
+let parseError = false;
+if (fs.existsSync(dbPath)) {
+  try { 
+    const content = fs.readFileSync(dbPath, 'utf8');
+    if (content && content.trim()) {
+      db = JSON.parse(content) || {};
     }
-    
-    if (parseError) {
-      process.exit(1);
-    }
-    
-    // Ensure standard keys are preserved/created to avoid any data loss or blank UI
-    if (!db.users) db.users = [];
-    if (!db.transactions) db.transactions = [];
-    if (!db.subscription_keys) db.subscription_keys = [];
-    if (!db.vpn_plans) db.vpn_plans = [];
-    if (!db.custom_buttons) db.custom_buttons = [];
-    if (!db.plan_categories) db.plan_categories = [];
-    
-    if (!db.settings) db.settings = {};
-    
-    // Merge existing config if present
-    let ps = {};
-    if (db.settings.panel_config) {
-      try {
-        ps = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
-      } catch(e) {}
-    }
-    
-    // Preserve old credentials if they are missing from prompt but in DB
-    const newConfig = {
-      ...ps,
-      dashboardUsername: '$DASH_USER',
-      dashboardPassword: '$DASH_PASS',
-      serverPort: parseInt('$DASH_PORT')
-    };
-    
-    db.settings.dashboardUsername = '$DASH_USER';
-    db.settings.dashboardPassword = '$DASH_PASS';
-    db.settings.serverPort = parseInt('$DASH_PORT');
-    db.settings.panel_config = JSON.stringify(newConfig);
-    if (!db.users) db.users = [];
-    if (!db.transactions) db.transactions = [];
-    if (!db.subscription_keys) db.subscription_keys = [];
-    if (!db.vpn_plans) db.vpn_plans = [];
-    if (!db.colleague_packages) db.colleague_packages = [];
-    if (!db.colleague_accounts) db.colleague_accounts = [];
-    if (!db.colleague_categories) db.colleague_categories = [];
-    if (!db.inbounds) db.inbounds = [];
-    if (!db.custom_buttons) db.custom_buttons = [];
-    if (!db.gift_codes) db.gift_codes = [];
-    if (!db.promo_codes) db.promo_codes = [];
-    if (!db.tickets) db.tickets = [];
-    if (!db.plan_categories) db.plan_categories = [];
-    
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
-    "
-fi
+  } catch(e){
+    console.error('CRITICAL: Failed to parse existing database JSON. Aborting configuration write to prevent data loss!');
+    parseError = true;
+  }
+}
+
+if (parseError) {
+  process.exit(1);
+}
+
+// Ensure standard keys are preserved/created to avoid any data loss or blank UI
+if (!db.users) db.users = [];
+if (!db.transactions) db.transactions = [];
+if (!db.subscription_keys) db.subscription_keys = [];
+if (!db.vpn_plans) db.vpn_plans = [];
+if (!db.custom_buttons) db.custom_buttons = [];
+if (!db.plan_categories) db.plan_categories = [];
+
+if (!db.settings) db.settings = {};
+
+// Merge existing config if present
+let ps = {};
+if (db.settings.panel_config) {
+  try {
+    ps = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
+  } catch(e) {}
+}
+
+// Preserve old credentials if they are missing from prompt but in DB
+const newConfig = {
+  ...ps,
+  dashboardUsername: '$DASH_USER',
+  dashboardPassword: '$DASH_PASS',
+  serverPort: parseInt('$DASH_PORT')
+};
+
+db.settings.dashboardUsername = '$DASH_USER';
+db.settings.dashboardPassword = '$DASH_PASS';
+db.settings.serverPort = parseInt('$DASH_PORT');
+db.settings.panel_config = JSON.stringify(newConfig);
+if (!db.users) db.users = [];
+if (!db.transactions) db.transactions = [];
+if (!db.subscription_keys) db.subscription_keys = [];
+if (!db.vpn_plans) db.vpn_plans = [];
+if (!db.colleague_packages) db.colleague_packages = [];
+if (!db.colleague_accounts) db.colleague_accounts = [];
+if (!db.colleague_categories) db.colleague_categories = [];
+if (!db.inbounds) db.inbounds = [];
+if (!db.custom_buttons) db.custom_buttons = [];
+if (!db.gift_codes) db.gift_codes = [];
+if (!db.promo_codes) db.promo_codes = [];
+if (!db.tickets) db.tickets = [];
+if (!db.plan_categories) db.plan_categories = [];
+
+fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
+"
 
 # Allow custom port through firewall
 echo -e "${YELLOW}Configuring firewall for port $DASH_PORT...${NC}"

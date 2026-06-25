@@ -731,6 +731,14 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                     import json
                     import base64
                     domain = base_url.split("://")[-1].split(":")[0]  # default domain of the panel
+                    if sub_link:
+                        from urllib.parse import urlparse
+                        try:
+                            parsed_sub = urlparse(sub_link)
+                            if parsed_sub.hostname:
+                                domain = parsed_sub.hostname
+                        except Exception as parse_ex:
+                            print(f"[get_client_all_links Domain Parsing Error] {parse_ex}")
                     for item in inb_data["obj"]:
                         protocol = item.get("protocol", "").lower()
                         if protocol not in ["vless", "vmess", "trojan"]:
@@ -952,6 +960,13 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     headers = {"Accept": "application/json"}
 
+    # Resolve correct subscription base URL
+    sub_base = cfg.get('SUB_URL', base_url)
+    if server:
+        server_sub = server.get("subUrl") or server.get("panelUrl")
+        if server_sub:
+            sub_base = normalize_xui_url(server_sub)
+
     # Attempt to use the NEW Unified API first
     try:
         unified_url = f"{base_url}/panel/api/clients/add"
@@ -962,7 +977,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
         if u_res.ok and u_res.json().get("success"):
             print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
-            return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+            return client_uuid, f"{sub_base}/sub/{xui_sub_id}"
     except Exception as e:
         print(f"[Unified API Error] Fallback to classic: {e}")
 
@@ -982,7 +997,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         except: pass
     
     if success_count > 0:
-        return client_uuid, f"{cfg.get('SUB_URL', base_url)}/sub/{xui_sub_id}"
+        return client_uuid, f"{sub_base}/sub/{xui_sub_id}"
 
     return None, None
 
@@ -1144,15 +1159,28 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
         
     return success
 
-def delete_vpn_client_api(client_email, client_uuid=None):
+def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
     """ Call Sanaei 3x-ui API to delete client """
+    import re
     cfg = get_config()
-    base_url = cfg.get('XUI_URL', '')
-    if base_url.endswith("/"):
-        base_url = base_url[:-1]
+    servers = cfg.get("SERVERS", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if s.get("id") == server_id), None)
+    if not server and servers:
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
+        
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+    else:
+        base_url = cfg.get("XUI_URL", "")
+        
+    if not base_url: return False
+    if base_url.endswith("/"): base_url = base_url[:-1]
 
-    if not login_xui():
-        print("[Sanaei API Error] Login failed in delete_vpn_client_api")
+    if not login_xui(server_id):
+        print(f"[Sanaei API Error] Login failed in delete_vpn_client_api for server_id: {server_id}")
         return False
         
     session = get_session()
@@ -2892,7 +2920,16 @@ def handle_buy_pay(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links]) if all_links else f"<code>{sub_link}</code>"
+        if all_links:
+            links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
+            configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+        else:
+            configs_block = (
+                f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n"
+                f"👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n"
+                f"<code>{sub_link}</code>\n\n"
+                f"💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند."
+            )
 
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -2900,8 +2937,7 @@ def handle_buy_pay(call):
             f"👤 شناسه: <code>{username_input}</code>\n"
             f"⏳ انقضا: <b>{spec['duration']} روز</b> (تا {expire_date})\n"
             f"💬 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n\n"
-            f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+            f"{configs_block}{note_append}"
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
         add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
@@ -3609,7 +3645,7 @@ def callback_handler(call):
 
         elif sub_action == "delconfirm":
             try:
-                delete_vpn_client_api(client_name, k.get("clientUuid"))
+                delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
             except Exception as e:
                 print(f"[Delete API Error]: {e}")
             
@@ -3793,8 +3829,8 @@ def callback_handler(call):
                 new_exp_days = (new_exp_dt - datetime.now()).days
                 new_exp_days = max(1, new_exp_days)
                 
-                delete_vpn_client_api(client_name, k.get("clientUuid"))
-                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"))
+                delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
+                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"), server_id=k.get("serverId"))
                 
                 if not sub_link:
                     sub_link = k.get('subLink', '')
@@ -3895,7 +3931,7 @@ def callback_handler(call):
         # Call API to delete globally
         import threading
         def _bg_del():
-            delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"))
+            delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
         
         threading.Thread(target=_bg_del).start()
         
@@ -4154,7 +4190,7 @@ def callback_handler(call):
         elif action == "delyes":
             import threading
             def _bg_del():
-                delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"))
+                delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
             threading.Thread(target=_bg_del).start()
             
             # Sub is being deleted. If it was already used, permanently add to deleted list so colleague loses balance.
@@ -5380,8 +5416,8 @@ def process_col_renew_days(message, acc, sub, add_gb):
         new_exp_days = max(1, new_exp_days)
         
         client_name = live_sub.get("clientName") or live_sub.get("planName", "")
-        delete_vpn_client_api(client_name, live_sub.get("clientUuid"))
-        _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, live_sub.get("clientUuid"))
+        delete_vpn_client_api(client_name, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
+        _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
         
         live_sub['expireDate'] = new_expire_date_str
         live_sub['trafficLimitGb'] = new_limit_gb

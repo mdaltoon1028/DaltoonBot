@@ -1311,14 +1311,20 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
         const newSubId = crypto.randomBytes(8).toString("hex");
         const settings = getSystemSettings(db);
         const activeServers = getActiveServers(settings);
-        let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
+        let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
+        if (key.serverId) {
+          const found = activeServers.find((s: any) => s.id === key.serverId);
+          if (found) {
+            chosenServer = found;
+          }
+        }
         const subBase =
-          fallbackServer &&
-          fallbackServer.subUrl &&
-          fallbackServer.subUrl.trim() !== ""
-            ? normalizeXuiUrl(fallbackServer.subUrl)
-            : fallbackServer
-              ? normalizeXuiUrl(fallbackServer.panelUrl)
+          chosenServer &&
+          chosenServer.subUrl &&
+          chosenServer.subUrl.trim() !== ""
+            ? normalizeXuiUrl(chosenServer.subUrl)
+            : chosenServer
+              ? normalizeXuiUrl(chosenServer.panelUrl)
               : "https://tr.sub-daltoon.ir:2096";
         const subLink = `${subBase}/sub/${newSubId}`;
         resetResult = { success: true, clientUuid: newUuid, subLink };
@@ -1326,7 +1332,7 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
           `[regenerate-uuid API] Regenerated manual client locally: ${key.id}`,
         );
       } else {
-        resetResult = await resetVpnClientUuidApi(clientName);
+        resetResult = await resetVpnClientUuidApi(clientName, key.serverId);
       }
 
       if (resetResult.success) {
@@ -2535,17 +2541,22 @@ async function addVpnClientApi(
 }
 
 // 2.3 Delete a VPN client from XUI Panel globally
-async function deleteVpnClientApi(clientEmail: string) {
+async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
   try {
     const db = readJsonDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
-    if (activeServers.length === 0)
+
+    const targetServers = serverId
+      ? activeServers.filter((s: any) => s.id === serverId)
+      : activeServers;
+
+    if (targetServers.length === 0)
       return { success: false, error: "XUI disconnected" };
 
     let deletedAtLeastOnce = false;
 
-    for (const server of activeServers) {
+    for (const server of targetServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
@@ -2662,7 +2673,7 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
 }
 
 // 2.5 Change/Reset client UUID and Subscription ID on XUI Panel (Highly Resilient with delete/add fallback and local generation fallback)
-async function resetVpnClientUuidApi(clientEmail: string) {
+async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
   try {
     const db = readJsonDb();
     const settings = getSystemSettings(db);
@@ -2674,19 +2685,29 @@ async function resetVpnClientUuidApi(clientEmail: string) {
 
     const activeServers = getActiveServers(settings);
 
-    // Pick first server for subLink base if available
-    let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
+    let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
+    if (serverId) {
+      const found = activeServers.find((s: any) => s.id === serverId);
+      if (found) {
+        chosenServer = found;
+      }
+    }
+
     const subBase =
-      fallbackServer &&
-      fallbackServer.subUrl &&
-      fallbackServer.subUrl.trim() !== ""
-        ? normalizeXuiUrl(fallbackServer.subUrl)
-        : fallbackServer
-          ? normalizeXuiUrl(fallbackServer.panelUrl)
+      chosenServer &&
+      chosenServer.subUrl &&
+      chosenServer.subUrl.trim() !== ""
+        ? normalizeXuiUrl(chosenServer.subUrl)
+        : chosenServer
+          ? normalizeXuiUrl(chosenServer.panelUrl)
           : "https://tr.sub-daltoon.ir:2096";
     const subLink = `${subBase}/sub/${newSubId}`;
 
-    if (activeServers.length === 0) {
+    const targetServers = serverId
+      ? activeServers.filter((s: any) => s.id === serverId)
+      : activeServers;
+
+    if (targetServers.length === 0) {
       console.warn(
         `[resetVpnClientUuidApi] XUI disconnected/not configured. Performing local-only database reset fallback for ${clientEmail}`,
       );
@@ -2700,7 +2721,7 @@ async function resetVpnClientUuidApi(clientEmail: string) {
 
     let panelUpdatedOnce = false;
 
-    for (const server of activeServers) {
+    for (const server of targetServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
@@ -3499,14 +3520,17 @@ app.post("/api/transactions/approve", async (req, res) => {
                   }
                 } catch (e) {}
 
-                let linksDisplay = `<code>${subLink}</code>`;
+                let linksDisplay = "";
                 if (vlessLinks.length > 0) {
-                  linksDisplay = vlessLinks
+                  const linksText = vlessLinks
                     .map((l) => `<code>${l}</code>`)
                     .join("\n\n");
+                  linksDisplay = `🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksText}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
+                } else {
+                  linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
                 }
 
-                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksDisplay}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
+                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n${linksDisplay}`;
 
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId =
@@ -3947,7 +3971,7 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
     if (keyToDelete) {
       if (keyToDelete.clientName) {
         // Attempt to delete from X-UI Panel using our helper
-        await deleteVpnClientApi(keyToDelete.clientName);
+        await deleteVpnClientApi(keyToDelete.clientName, keyToDelete.serverId);
       }
 
       // If this key belongs to a colleague account and has been used
@@ -4277,6 +4301,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       userId: Number(userId),
       planId: plan.id,
       planName: plan.name,
+      clientName: cleanClientName,
       clientUuid: clientUuid,
       subLink: subLink,
       expireDate: expireDate,
