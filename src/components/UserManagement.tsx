@@ -64,6 +64,11 @@ export default function UserManagement({
   const [adjustType, setAdjustType] = useState<"add" | "sub">("add");
   const [showAddForm, setShowAddForm] = useState(false);
   
+  // States for direct PV message
+  const [sendingMsgUser, setSendingMsgUser] = useState<User | null>(null);
+  const [directMsgText, setDirectMsgText] = useState("");
+  const [isSendingMsg, setIsSendingMsg] = useState(false);
+  
   // Custom manual config addition form states
   const [addingConfigForUser, setAddingConfigForUser] = useState<User | null>(null);
   const [manualPlanName, setManualPlanName] = useState("");
@@ -227,6 +232,36 @@ export default function UserManagement({
     setManualSubLink("");
     setManualTrafficLimit("50");
     setManualExpiryDays("30");
+  };
+
+  const handleSendDirectMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sendingMsgUser || !directMsgText.trim() || isSendingMsg) return;
+    
+    setIsSendingMsg(true);
+    fetch("/api/users/send-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: sendingMsgUser.userId,
+        message: directMsgText
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setIsSendingMsg(false);
+      if (data.success) {
+        showToast(lang === "fa" ? "پیام خصوصی با موفقیت ارسال شد!" : "Direct message sent successfully!", "success");
+        setDirectMsgText("");
+        setSendingMsgUser(null);
+      } else {
+        showToast(data.error || (lang === "fa" ? "خطا در ارسال پیام" : "Error sending message"), "error");
+      }
+    })
+    .catch(err => {
+      setIsSendingMsg(false);
+      showToast(err.message || (lang === "fa" ? "خطا در ارتباط با سرور" : "Failed to communicate with server"), "error");
+    });
   };
 
   const handleAdjustSubmit = (e: React.FormEvent) => {
@@ -529,6 +564,15 @@ export default function UserManagement({
                         >
                           <MessageSquare className="w-3 h-3" />
                           {t.chatAction}
+                        </button>
+
+                        <button
+                          onClick={() => setSendingMsgUser(user)}
+                          className="p-1 px-2 bg-fuchsia-950/40 hover:bg-fuchsia-900 border border-fuchsia-500/20 text-fuchsia-300 rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
+                          title={lang === "fa" ? "ارسال پیام خصوصی به تلگرام" : "Send direct Telegram message"}
+                        >
+                          <MessageSquare className="w-3 h-3 text-fuchsia-400" />
+                          {lang === "fa" ? "💬 پیام به PV" : "💬 Message PV"}
                         </button>
 
                         <button
@@ -977,6 +1021,62 @@ export default function UserManagement({
                 {lang === "fa" ? "انصراف" : "Cancel"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Telegram Message (PV Chat) Dialog */}
+      {sendingMsgUser && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-md w-full space-y-4 shadow-2xl" dir={lang === "fa" ? "rtl" : "ltr"}>
+            <h3 className="font-display font-semibold text-base text-fuchsia-400 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-fuchsia-400" />
+              {lang === "fa" ? `ارسال پیام خصوصی به @${sendingMsgUser.username || sendingMsgUser.userId}` : `Send Direct PV Message to @${sendingMsgUser.username || sendingMsgUser.userId}`}
+            </h3>
+            
+            <p className="text-xs text-gray-300 leading-relaxed">
+              {lang === "fa" 
+                ? "پیام شما به صورت مستقیم و خصوصی از طرف ربات تلگرام به پی‌وی کاربر ارسال خواهد شد. می‌توانید از تگ‌های HTML نظیر <b>خط ضخیم</b> یا <code>کد کپی‌شونده</code> استفاده کنید."
+                : "Your message will be sent directly from the Telegram bot to the user's private chat. You can use HTML formatting tags like <b>bold</b> or <code>code</code>."}
+            </p>
+
+            <form onSubmit={handleSendDirectMessage} className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                  {lang === "fa" ? "متن پیام:" : "Message Text:"}
+                </label>
+                <textarea
+                  rows={5}
+                  value={directMsgText}
+                  onChange={(e) => setDirectMsgText(e.target.value)}
+                  placeholder={lang === "fa" ? "سلام! اکانت شما با موفقیت تمدید شد..." : "Hello! Your account has been extended..."}
+                  className="w-full p-2.5 rounded-lg border border-gray-700 bg-slate-900 text-white text-xs focus:ring-1 focus:ring-fuchsia-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end text-xs">
+                <button
+                  type="submit"
+                  disabled={isSendingMsg || !directMsgText.trim()}
+                  className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-50 text-white font-semibold rounded-lg transition cursor-pointer"
+                >
+                  {isSendingMsg 
+                    ? (lang === "fa" ? "در حال ارسال..." : "Sending...") 
+                    : (lang === "fa" ? "ارسال پیام" : "Send Message")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSendingMsgUser(null);
+                    setDirectMsgText("");
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition cursor-pointer"
+                >
+                  {lang === "fa" ? "انصراف" : "Cancel"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

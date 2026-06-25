@@ -3251,6 +3251,48 @@ app.post("/api/users/ban", async (req, res) => {
   }
 });
 
+app.post("/api/users/send-message", async (req, res) => {
+  try {
+    const { userId, message } = req.body;
+    if (!userId || !message) {
+      return res.status(400).json({ success: false, error: "کاربر یا متن پیام ارسال نشده است." });
+    }
+    const db = readJsonDb();
+    const settings = getSystemSettings(db);
+    let botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
+    if (botToken) botToken = botToken.trim();
+
+    if (!botToken || botToken === "DUMMY_TOKEN") {
+      return res.status(400).json({ success: false, error: "توکن ربات تلگرام تنظیم نشده است یا نامعتبر است." });
+    }
+
+    const fetchRef = globalThis.fetch || fetch;
+    const body = {
+      chat_id: userId,
+      text: message,
+      parse_mode: "HTML",
+    };
+
+    const telegramRes = await fetchRef(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await telegramRes.json() as any;
+    if (data && data.ok) {
+      res.json({ success: true, message: "پیام با موفقیت به پیوی کاربر ارسال شد." });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: data?.description || "خطا در ارسال پیام به تلگرام. ممکن است کاربر ربات را بلاک کرده باشد یا چت را شروع نکرده باشد."
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post("/api/users/delete", async (req, res) => {
   try {
     const { userId } = req.body;
