@@ -2408,12 +2408,28 @@ def handle_main_menu_callback(call):
     # 4. Support chat
     elif action == "mm_btnSupport":
         custom_support = cfg.get("SUPPORT_TEXT")
+        support_handle = cfg.get("SUPPORT_HANDLE", "@daltoon_owner")
+        tg_channel = cfg.get("TG_CHANNEL", "@daltoon_channel")
+        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+        
+        # Ensure support_handle has a leading @
+        if support_handle and not support_handle.startswith("@"):
+            support_handle = "@" + support_handle
+            
         if custom_support:
             support_txt = custom_support
+            
+            # Dynamic replacement of @mDaltoon and placeholders with the actual configured support handle
+            support_txt = support_txt.replace("{support_id}", support_handle)
+            support_txt = support_txt.replace("{support_handle}", support_handle)
+            
+            import re
+            # Replace @mDaltoon (case-insensitive)
+            support_txt = re.sub(r'(?i)@mdaltoon', support_handle, support_txt)
+            # Replace raw mDaltoon as a whole word (case-insensitive)
+            clean_handle_no_at = support_handle.replace("@", "")
+            support_txt = re.sub(r'(?i)\bmdaltoon\b', clean_handle_no_at, support_txt)
         else:
-            support_handle = cfg.get("SUPPORT_HANDLE", "@daltoon_owner")
-            tg_channel = cfg.get("TG_CHANNEL", "@daltoon_channel")
-            nickname = cfg.get("BOT_NICKNAME", "دالتون")
             support_txt = (
                 f"📞 <b>پشتیبانی فنی {nickname} سرور:</b>\n\n"
                 "مشتری گرامی! در صورت بروز هرگونه قطعی، کندی سرعت، ارورهای اتصال یا سوالات قبل از خرید با ما تماس بگیرید.\n\n"

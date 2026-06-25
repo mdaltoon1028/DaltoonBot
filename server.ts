@@ -4421,9 +4421,6 @@ async function performAutoBackup() {
     if (!fs.existsSync(dbJsonPath)) return;
 
     const fileBuffer = fs.readFileSync(dbJsonPath);
-    const blob = new Blob([fileBuffer], { type: "application/json" });
-    const formData = new FormData();
-    formData.append("chat_id", String(ownerId));
 
     const dateStr = new Date().toLocaleString("fa-IR", {
       timeZone: "Asia/Tehran",
@@ -4436,13 +4433,41 @@ async function performAutoBackup() {
     };
     const caption = `📦 پشتیبان‌گیری خودکار\n\n🕒 تاریخ: ${dateStr}\nتنظیمات: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}\n\n#DaltoonBot`;
 
-    formData.append("caption", caption);
-    formData.append("document", blob, "Daltoon_Bot.json");
+    // Extremely robust manual multipart payload construction to bypass Node.js FormData/Blob fetch boundary bugs
+    const boundary = "----WebKitFormBoundaryDaltoonBackup" + Math.random().toString(36).substring(2);
+    
+    const headerParts = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="chat_id"`,
+      '',
+      String(ownerId),
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="caption"`,
+      '',
+      caption,
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="document"; filename="Daltoon_Bot.json"`,
+      `Content-Type: application/json`,
+      '',
+      ''
+    ].join('\r\n');
 
-    await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+    const headerBuffer = Buffer.from(headerParts);
+    const footerBuffer = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const bodyBuffer = Buffer.concat([headerBuffer, fileBuffer, footerBuffer]);
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: "POST",
-      body: formData as any,
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: bodyBuffer,
     });
+
+    const resJson = await response.json() as any;
+    if (!resJson || !resJson.ok) {
+      throw new Error(resJson?.description || "Failed to send backup document to Telegram");
+    }
 
     const freshDb = readJsonDb();
     if (!freshDb.settings) freshDb.settings = {};
@@ -4464,50 +4489,35 @@ async function checkAutoBackup() {
 
     if (!settings.autoBackupEnabled || !settings.autoBackupInterval) return;
 
-    const lastBackup = Number(db.settings.lastAutoBackup) || 0;
+    const lastBackup = Number(db.settings?.lastAutoBackup) || 0;
     const now = Date.now();
-
-    const nowT = new Date(
-      new Date(now).toLocaleString("en-US", { timeZone: "Asia/Tehran" }),
-    );
-    const lastT = new Date(
-      new Date(lastBackup).toLocaleString("en-US", { timeZone: "Asia/Tehran" }),
-    );
-
-    const nowFa = new Date(now).toLocaleDateString("fa-IR", {
-      timeZone: "Asia/Tehran",
-    });
-    const lastFa = new Date(lastBackup).toLocaleDateString("fa-IR", {
-      timeZone: "Asia/Tehran",
-    });
 
     let shouldBackup = false;
 
     if (lastBackup === 0) {
       shouldBackup = true;
-    } else if (now - lastBackup > 32 * 24 * 60 * 60 * 1000) {
-      shouldBackup = true;
     } else {
-      if (settings.autoBackupInterval === "hourly") {
-        if (nowT.getHours() !== lastT.getHours() || nowFa !== lastFa) {
+      const diffMs = now - lastBackup;
+      const interval = settings.autoBackupInterval;
+
+      if (interval === "hourly") {
+        // Run hourly if at least 55 minutes have passed
+        if (diffMs >= 55 * 60 * 1000) {
           shouldBackup = true;
         }
-      } else if (settings.autoBackupInterval === "daily") {
-        if (nowFa !== lastFa) {
+      } else if (interval === "daily") {
+        // Run daily if at least 23 hours have passed
+        if (diffMs >= 23 * 60 * 60 * 1000) {
           shouldBackup = true;
         }
-      } else if (settings.autoBackupInterval === "weekly") {
-        if (now - lastBackup >= 7 * 24 * 60 * 60 * 1000) {
-          shouldBackup = true;
-        } else if (nowT.getDay() === 6 && nowFa !== lastFa) {
-          // Saturday
+      } else if (interval === "weekly") {
+        // Run weekly if at least 6 days and 23 hours have passed
+        if (diffMs >= (7 * 24 - 1) * 60 * 60 * 1000) {
           shouldBackup = true;
         }
-      } else if (settings.autoBackupInterval === "monthly") {
-        const nowParts = nowFa.split("/");
-        const lastParts = lastFa.split("/");
-        // Year or Month changed
-        if (nowParts[0] !== lastParts[0] || nowParts[1] !== lastParts[1]) {
+      } else if (interval === "monthly") {
+        // Run monthly if at least 29 days have passed
+        if (diffMs >= 29 * 24 * 60 * 60 * 1000) {
           shouldBackup = true;
         }
       }
@@ -4516,7 +4526,9 @@ async function checkAutoBackup() {
     if (shouldBackup) {
       await performAutoBackup();
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("[Auto Backup Check Error]", e);
+  }
 }
 
 // 9. System auto-update endpoints
