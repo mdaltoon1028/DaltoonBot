@@ -614,20 +614,22 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
     2. /panel/api/clients/subLinks/{sub_id}
     Falls back to building links dynamically from active inbounds or generating mock ones if offline.
     """
+    import re
+    safe_client_name = re.sub(r"[^A-Za-z0-9_-]", "", client_name)
+
     cfg = get_config()
     servers = cfg.get("SERVERS", [])
     
     server = None
     if server_id:
         server = next((s for s in servers if s.get("id") == server_id), None)
-    # Don't auto-pick the active server if server_id isn't provided, 
-    # because this function is used for fetching links of potentially old clients on other servers.
-    # But if there's only one server or we really need to try, we can fall back to the old behavior:
-    if not server and not cfg.get('XUI_URL'):
-        server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+    
+    if not server and servers:
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
         
     if server:
         base_url = normalize_xui_url(server.get("panelUrl", ""))
+        server_id = server.get("id")
     else:
         base_url = cfg.get("XUI_URL", "")
         if base_url.endswith("/"):
@@ -648,6 +650,18 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
         except Exception as e:
             print(f"[get_client_all_links Email EndPoint Error] {e}")
 
+        # Try with safe_client_name too if different
+        if not links and safe_client_name != client_name:
+            try:
+                url = f"{base_url}/panel/api/clients/links/{safe_client_name}"
+                res = session.get(url, timeout=20, verify=False)
+                data = res.json()
+                if data.get("success") and isinstance(data.get("obj"), list):
+                    links = [str(lnk) for lnk in data["obj"] if "://" in str(lnk)]
+                    print(f"[get_client_all_links] Fetched {len(links)} links using safe email endpoint.")
+            except Exception as e:
+                print(f"[get_client_all_links Safe Email EndPoint Error] {e}")
+
         # 2. Try subLinks endpoint if Email endpoint failed or returned empty
         if not links and sub_link:
             try:
@@ -664,51 +678,56 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
             except Exception as e:
                 print(f"[get_client_all_links SubId EndPoint Error] {e}")
 
-        # 3. Fallback: Parse inbounds statically and construct VLESS links if endpoints returned nothing but login was successful
+        # 3. Fallback: Parse inbounds statically and construct VLESS/VMESS/Trojan links if endpoints returned nothing but login was successful
         if not links:
             try:
                 url_list = f"{base_url}/panel/api/inbounds/list"
                 res_inb = session.get(url_list, timeout=20, verify=False)
                 inb_data = res_inb.json()
                 if inb_data.get("success") and isinstance(inb_data.get("obj"), list):
-                    # We will reconstruct standard links for inbounds of VLESS protocol
                     import json
+                    import base64
                     domain = base_url.split("://")[-1].split(":")[0]  # default domain of the panel
                     for item in inb_data["obj"]:
-                        if item.get("protocol") == "vless":
+                        protocol = item.get("protocol", "").lower()
+                        if protocol not in ["vless", "vmess", "trojan"]:
+                            continue
                             
-                            # VERIFY THE CLIENT IS ACTUALLY IN THIS INBOUND
-                            client_in_this_inbound = False
-                            settings_str = item.get("settings", "{}")
+                        # VERIFY THE CLIENT IS ACTUALLY IN THIS INBOUND
+                        client_in_this_inbound = False
+                        settings_str = item.get("settings", "{}")
+                        client_id_or_password = client_uuid
+                        try:
+                            settings_obj = json.loads(settings_str)
+                            for c in settings_obj.get("clients", []):
+                                if c.get("id") == client_uuid or c.get("email") == client_name or c.get("email") == safe_client_name:
+                                    client_in_this_inbound = True
+                                    client_id_or_password = c.get("id") or c.get("password") or client_uuid
+                                    break
+                        except:
+                            pass
+                            
+                        if not client_in_this_inbound:
+                            continue
+                            
+                        port = item.get("port")
+                        remark = item.get("remark", protocol.upper())
+                        
+                        stream_settings_str = item.get("streamSettings", "{}")
+                        stream_settings = {}
+                        if isinstance(stream_settings_str, str):
                             try:
-                                settings_obj = json.loads(settings_str)
-                                for c in settings_obj.get("clients", []):
-                                    if c.get("id") == client_uuid or c.get("email") == client_name:
-                                        client_in_this_inbound = True
-                                        break
+                                stream_settings = json.loads(stream_settings_str)
                             except:
                                 pass
-                                
-                            if not client_in_this_inbound:
-                                continue
-                                
-                            port = item.get("port")
-                            remark = item.get("remark", "VLESS")
+                        elif isinstance(stream_settings_str, dict):
+                            stream_settings = stream_settings_str
                             
-                            stream_settings_str = item.get("streamSettings", "{}")
-                            stream_settings = {}
-                            if isinstance(stream_settings_str, str):
-                                try:
-                                    stream_settings = json.loads(stream_settings_str)
-                                except:
-                                    pass
-                            elif isinstance(stream_settings_str, dict):
-                                stream_settings = stream_settings_str
-                                
-                            security = stream_settings.get("security", "none")
-                            network = stream_settings.get("network", "tcp")
-                            
-                            # Standard format: vless://uuid@domain:port?security=...&type=...#remark
+                        security = stream_settings.get("security", "none")
+                        network = stream_settings.get("network", "tcp")
+                        
+                        if protocol == "vless" or protocol == "trojan":
+                            # Standard format: protocol://id@domain:port?security=...&type=...#remark
                             paras = []
                             paras.append(f"security={security}")
                             paras.append(f"type={network}")
@@ -742,8 +761,49 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                     
                             query_str = "&".join(paras)
                             label = f"{remark}-{client_name}"
-                            link = f"vless://{client_uuid}@{domain}:{port}?{query_str}#{label}"
+                            link = f"{protocol}://{client_id_or_password}@{domain}:{port}?{query_str}#{label}"
                             links.append(link)
+                            
+                        elif protocol == "vmess":
+                            vmess_obj = {
+                                "v": "2",
+                                "ps": f"{remark}-{client_name}",
+                                "add": domain,
+                                "port": port,
+                                "id": client_uuid,
+                                "aid": "0",
+                                "scy": "auto",
+                                "net": network,
+                                "type": "none",
+                                "host": "",
+                                "path": "",
+                                "tls": "tls" if security == "tls" else "none",
+                                "sni": "",
+                                "fp": ""
+                            }
+                            if network == "ws":
+                                ws_settings = stream_settings.get("wsSettings", {})
+                                vmess_obj["path"] = ws_settings.get("path", "/")
+                                headers = ws_settings.get("headers", {})
+                                if headers:
+                                    vmess_obj["host"] = headers.get("Host", "")
+                            elif network == "grpc":
+                                grpc_settings = stream_settings.get("grpcSettings", {})
+                                vmess_obj["path"] = grpc_settings.get("serviceName", "")
+                            if security in ["tls", "reality"]:
+                                vmess_obj["tls"] = "tls"
+                                if security == "reality":
+                                    r_settings = stream_settings.get("realitySettings", {})
+                                    vmess_obj["sni"] = r_settings.get("serverNames", ["google.com"])[0]
+                                else:
+                                    t_settings = stream_settings.get("tlsSettings", {})
+                                    vmess_obj["sni"] = t_settings.get("serverName", "")
+                            
+                            json_str = json.dumps(vmess_obj, ensure_ascii=False)
+                            b64_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+                            link = f"vmess://{b64_str}"
+                            links.append(link)
+                            
                     print(f"[get_client_all_links] Reconstructed {len(links)} links statically from inbounds list.")
             except Exception as e:
                 print(f"[get_client_all_links static reconstruction error] {e}")
@@ -2394,10 +2454,15 @@ def handle_main_menu_callback(call):
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             free_username = f"test_{random_suffix}"
             
-        client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0) # 0.1 GB (100MB), 1 day
+        # Select active server to pass to add_vpn_client_api, create_sub_key and get_client_all_links
+        cfg = get_config()
+        servers = cfg.get("SERVERS", [])
+        active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        active_server_id = active_server.get("id") if active_server else None
+
+        client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0, server_id=active_server_id) # 0.1 GB (100MB), 1 day
         
         if not sub_link:
-            cfg = get_config()
             import uuid
             from urllib.parse import urlparse
             parsed = urlparse(cfg.get('XUI_URL', ''))
@@ -2428,7 +2493,8 @@ def handle_main_menu_callback(call):
             expire_date=expire_date, 
             limit_gb=0.1,
             client_name=free_username,
-            client_uuid=client_uuid
+            client_uuid=client_uuid,
+            server_id=active_server_id
         )
         
         cfg_settings = get_config()
@@ -2440,7 +2506,7 @@ def handle_main_menu_callback(call):
         if success_note and not has_media:
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
-        vless_links = get_client_all_links(free_username, client_uuid, sub_link)
+        vless_links = get_client_all_links(free_username, client_uuid, sub_link, server_id=active_server_id)
         links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
@@ -2766,7 +2832,7 @@ def handle_buy_pay(call):
         if success_note and not has_media:
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
-        all_links = get_client_all_links(username_input, client_uuid, sub_link)
+        all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
         links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links]) if all_links else f"<code>{sub_link}</code>"
 
         success_msg = (
@@ -3119,7 +3185,7 @@ def process_purchase_username(message, plan_id, spec):
             f"پلن '{spec['name']}' را با هزینه {price_charged_display} برای نام کاربری '{username_input}' خریداری کرد."
         )
         
-        vless_links = get_client_all_links(username_input, client_uuid, sub_link)
+        vless_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
         links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
@@ -3397,7 +3463,7 @@ def callback_handler(call):
             sub_link = k.get("subLink", "")
             
             # Fetch the precise links via get_client_all_links
-            vless_links = get_client_all_links(client_name, client_uuid, sub_link)
+            vless_links = get_client_all_links(client_name, client_uuid, sub_link, server_id=k.get("serverId"))
             
             links_text = "\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
             
@@ -5058,9 +5124,14 @@ def process_col_create_days(message, acc, name, gb):
     
     full_name = f"{live_acc.get('prefix', 'Col')}-{name}"
     
-    client_uuid, sub_link = add_vpn_client_api(full_name, gb, days)
-    
+    # Select active server to pass to add_vpn_client_api, subscription dict, and get_client_all_links
     cfg = get_config()
+    servers = cfg.get("SERVERS", [])
+    active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+    active_server_id = active_server.get("id") if active_server else None
+
+    client_uuid, sub_link = add_vpn_client_api(full_name, gb, days, server_id=active_server_id)
+    
     if not sub_link:
         if not cfg.get("SIMULATOR_MODE"):
             bot.send_message(
@@ -5101,7 +5172,8 @@ def process_col_create_days(message, acc, name, gb):
         "trafficUsedGb": 0.0,
         "status": "active",
         "colleagueAccountId": live_acc["id"],
-        "clientUuid": client_uuid
+        "clientUuid": client_uuid,
+        "serverId": active_server_id
     }
     
     if "subscription_keys" not in db:
@@ -5128,7 +5200,7 @@ def process_col_create_days(message, acc, name, gb):
     if success_note and not has_media:
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
-    vless_links = get_client_all_links(full_name, client_uuid, sub_link)
+    vless_links = get_client_all_links(full_name, client_uuid, sub_link, server_id=active_server_id)
     links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
     text_msg = (
