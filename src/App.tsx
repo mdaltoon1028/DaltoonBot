@@ -887,6 +887,7 @@ export default function App() {
     const newSettings = { ...settings, ...updates };
     saveSettings(newSettings);
     setShowSetupModal(false);
+    setIsNewInstall(false);
   };
 
   const handleOpenSimulatedChat = (userId: number) => {

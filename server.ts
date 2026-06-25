@@ -242,8 +242,8 @@ function readJsonDb(): DbSchema {
             autoBackupInterval: "hourly",
             btnTextWallet: "شارژ کیف پول 💳",
             walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
-            dashboardUsername: process.env.DASHBOARD_USERNAME || "admin",
-            dashboardPassword: process.env.DASHBOARD_PASSWORD || "admin",
+            dashboardUsername: process.env.DASHBOARD_USERNAME || "Daltoon",
+            dashboardPassword: process.env.DASHBOARD_PASSWORD || "Daltoon10",
             serverPort: process.env.DASHBOARD_PORT
               ? parseInt(process.env.DASHBOARD_PORT, 10)
               : 3000,
@@ -1946,12 +1946,20 @@ app.post("/api/settings", async (req, res) => {
     if (payload.ownerId) {
       payload.ownerId = Number(payload.ownerId);
     }
-    const configValue = JSON.stringify(payload);
 
     const db = readJsonDb();
 
     // Compare admins list to find newly added ones
     const prevSettings = getSystemSettings(db);
+    
+    // Preserve existing critical fields if not provided in the payload
+    const finalPayload = {
+      ...prevSettings,
+      ...payload
+    };
+    
+    const configValue = JSON.stringify(finalPayload);
+
     const prevAdmins = prevSettings.admins || [];
     const newAdmins = payload.admins || [];
 

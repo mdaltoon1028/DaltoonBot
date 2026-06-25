@@ -736,19 +736,9 @@ def get_client_vless_links(client_name, client_uuid, sub_link=None):
 
     # 4. Semi-dynamic fallback based on XUI_URL
     if not links:
-        try:
-            from urllib.parse import urlparse
-            cfg = get_config()
-            parsed = urlparse(cfg.get('XUI_URL', ''))
-            host = parsed.hostname or "panel.your-vpn.com"
-            fake_uuid = client_uuid if client_uuid else "00000000-0000-0000-0000-000000000000"
-            # Instead of completely fake links, we show one example with the user's host
-            links = [
-                f"vless://{fake_uuid}@{host}:2053?security=tls&type=ws&path=%2F#Vless-{client_name}-⚡"
-            ]
-            print(f"[get_client_vless_links] Generated semi-dynamic fallback link for {host}.")
-        except:
-            links = []
+        # Instead of returning a fake display config that confuses users, return empty list
+        # so the caller will default to showing the sub_link.
+        links = []
 
     return links
 
