@@ -980,6 +980,8 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     if not login_xui(server_id):
         print("[Sanaei API Error] Skipping user creation - login failed.")
+        session = get_session()
+        session.last_error = getattr(session, "last_login_error", "ورود به پنل ناموفق بود.")
         return None, None
 
     session = get_session()
@@ -1067,10 +1069,14 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
                     final_sub = f"{sub_base}/sub/{safe_email}"
                 return client_uuid, final_sub
             else:
-                print(f"[{panel_type} API] Failed to create user: {res.text}")
+                err_msg = f"HTTP {res.status_code}: {res.text}"
+                print(f"[{panel_type} API] Failed to create user: {err_msg}")
+                session.last_error = err_msg
                 return None, None
         except Exception as e:
-            print(f"[{panel_type} API Error]: {e}")
+            err_msg = str(e)
+            print(f"[{panel_type} API Error]: {err_msg}")
+            session.last_error = err_msg
             return None, None
 
     try:
@@ -3049,9 +3055,12 @@ def handle_buy_pay(call):
                     update_user_balance(tg_id, refunded_bal)
                     log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید", f"برگشت مبلغ {spec['price']:,} تومان به دلیل خطای اتصال x-ui.")
                 
+                session = get_session()
+                last_err = getattr(session, "last_error", "خطای ناشناخته")
                 refund_message = (
                     "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
                     "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ در این لحظه وجود ندارد.\n\n"
+                    f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
                     f"💰 <b>مبلغ {spec['price']:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
                     "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید."
                 )
@@ -3405,9 +3414,12 @@ def process_purchase_username(message, plan_id, spec):
                     update_user_balance(tg_id, refunded_bal)
                     log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید", f"برگشت مبلغ {spec['price']:,} تومان به دلیل خطای اتصال x-ui.")
                 
+                session = get_session()
+                last_err = getattr(session, "last_error", "خطای ناشناخته")
                 refund_message = (
                     "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
                     "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ در این لحظه وجود ندارد.\n\n"
+                    f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
                     f"💰 <b>مبلغ {spec['price']:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
                     "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید."
                 )
@@ -5457,10 +5469,13 @@ def process_col_create_days(message, acc, name, gb):
     
     if not sub_link:
         if not cfg.get("SIMULATOR_MODE"):
+            session = get_session()
+            last_err = getattr(session, "last_error", "خطای ناشناخته")
             bot.send_message(
                 message.chat.id,
                 "❌ <b>خطا در ساخت کانفیگ همکار!</b>\n\n"
                 "متأسفانه امکان اتصال به پنل x-ui و ایجاد این اکانت در این لحظه وجود ندارد.\n\n"
+                f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
                 "⚠️ <b>هیچ ترافیکی از حساب همکار شما کسر نشد.</b>\n\n"
                 "لطفاً وضعیت سرور را بررسی کرده یا مجدداً تلاش کنید.",
                 parse_mode="HTML",
