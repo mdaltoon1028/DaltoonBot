@@ -1057,6 +1057,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             print(f"[{panel_type} API] Creating user with payload: {payload}")
             headers = {"Accept": "application/json", "Content-Type": "application/json"}
             res = session.post(f"{base_url}/api/user", json=payload, headers=headers, timeout=20, verify=False)
+            if res.status_code == 401:
+                print(f"[{panel_type} API] Got 401 Unauthorized, forcing login retry...")
+                if login_xui(server_id, force=True):
+                    session = get_session()
+                    res = session.post(f"{base_url}/api/user", json=payload, headers=headers, timeout=20, verify=False)
             if res.ok:
                 rj = res.json()
                 print(f"[{panel_type} API] User '{safe_email}' created successfully.")
@@ -1181,6 +1186,11 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server
             # Actually, Rebecca's modify_user is PUT /api/user/{username} with all fields, OR set_user_disabled PUT /api/user/{username}/disabled
             # Let's just use the toggle endpoint for disabled
             res = session.put(f"{base_url}/api/user/{safe_email}/disabled", json={"status": status_str}, headers=headers, timeout=20, verify=False)
+            if res.status_code == 401:
+                print(f"[{panel_type} API] Got 401 Unauthorized in modify, forcing login retry...")
+                if login_xui(server_id, force=True):
+                    session = get_session()
+                    res = session.put(f"{base_url}/api/user/{safe_email}/disabled", json={"status": status_str}, headers=headers, timeout=20, verify=False)
             if res.ok:
                 return True
             return False
@@ -1363,6 +1373,11 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
         try:
             print(f"[{panel_type} Delete API] Deleting user: {safe_email}")
             res = session.delete(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
+            if res.status_code == 401:
+                print(f"[{panel_type} API] Got 401 Unauthorized in delete, forcing login retry...")
+                if login_xui(server_id, force=True):
+                    session = get_session()
+                    res = session.delete(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
             if res.ok:
                 return True
             return False
