@@ -1114,17 +1114,31 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             sub_base = normalize_xui_url(server_sub)
 
     # Attempt to use the NEW Unified API first
+    last_err_msg = ""
     try:
         unified_url = f"{base_url}/panel/api/clients/add"
+        unified_payload = {
+            "id": client_uuid,
+            "settings": json.dumps({"clients": [client_config]})
+        }
+        # Wait, unified API usually requires something else, let's keep original payload
         unified_payload = {
             "client": client_config,
             "inboundIds": inbound_ids
         }
         u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
+        if u_res.status_code == 401:
+            print(f"[Sanaei API] Got 401 Unauthorized, forcing login retry...")
+            if login_xui(server_id, force=True):
+                session = get_session()
+                u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
         if u_res.ok and u_res.json().get("success"):
             print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
             return client_uuid, f"{sub_base}/sub/{xui_sub_id}"
+        else:
+            last_err_msg = f"Unified API: HTTP {u_res.status_code} {u_res.text}"
     except Exception as e:
+        last_err_msg = f"Unified API error: {e}"
         print(f"[Unified API Error] Fallback to classic: {e}")
 
     # Classic Loop Fallback
@@ -1137,14 +1151,25 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         }
         try:
             c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=20, verify=False)
+            if c_res.status_code == 401:
+                print(f"[Sanaei Classic API] Got 401 Unauthorized, forcing login retry...")
+                if login_xui(server_id, force=True):
+                    session = get_session()
+                    c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=20, verify=False)
             if c_res.ok and c_res.json().get("success"):
                 success_count += 1
                 print(f"[Classic API] Added user '{safe_email}' to inbound {inb_id}")
-        except: pass
+            else:
+                last_err_msg = f"Classic API (inbound {inb_id}): HTTP {c_res.status_code} {c_res.text}"
+                print(f"[Classic API Error] {last_err_msg}")
+        except Exception as e:
+            last_err_msg = f"Classic API error (inbound {inb_id}): {e}"
+            print(f"[Classic API Error] {last_err_msg}")
     
     if success_count > 0:
         return client_uuid, f"{sub_base}/sub/{xui_sub_id}"
 
+    session.last_error = last_err_msg
     return None, None
 
 def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server_id=None):
