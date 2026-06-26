@@ -711,13 +711,17 @@ export default function UserManagement({
           <div className="flex gap-4">
             {keys.filter(key => {
               if (!searchTerm) return true;
-            const user = users.find(u => u.userId === key.userId);
-            return (
-              key.planName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              key.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              (user && user.username.toLowerCase().includes(searchTerm.toLowerCase()))
-            );
-          }).map((key) => {
+              const term = searchTerm.toLowerCase();
+              const user = users.find(u => u.userId === key.userId);
+              return (
+                key.planName.toLowerCase().includes(term) ||
+                key.id.toLowerCase().includes(term) ||
+                (key.clientName && key.clientName.toLowerCase().includes(term)) ||
+                (key.clientUuid && key.clientUuid.toLowerCase().includes(term)) ||
+                key.userId.toString().includes(term) ||
+                (user && user.username.toLowerCase().includes(term))
+              );
+            }).map((key) => {
             const user = users.find(u => u.userId === key.userId);
             return (
               <div key={key.id} className="min-w-[320px] max-w-[380px] snap-center bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3 relative overflow-hidden group flex-shrink-0 flex flex-col">

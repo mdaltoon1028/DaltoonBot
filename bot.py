@@ -1298,8 +1298,8 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
                         print(f"[Sanaei Delete API] Found fuzzy typo-tolerant match candidate: '{c_email}' [ratio: {ratio:.2f}] (UUID: {c_id})")
 
     if not ids_to_delete:
-        print(f"[Sanaei Delete API] No UUIDs or matching panel clients found to delete for '{client_email}'.")
-        return success_flag
+        print(f"[Sanaei Delete API] No UUIDs or matching panel clients found to delete for '{client_email}'. Assuming already deleted.")
+        return True
 
     print(f"[Sanaei Delete API] Executing deletion commands for UUIDs: {ids_to_delete}")
     success = False
@@ -3648,12 +3648,9 @@ def callback_handler(call):
             try:
                 success = delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
                 if not success:
-                    bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
-                    return
+                    print(f"[Delete API Warning]: Failed to delete {client_name} from panel, proceeding locally.")
             except Exception as e:
                 print(f"[Delete API Error]: {e}")
-                bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
-                return
             
             db["subscription_keys"] = [sub for sub in db["subscription_keys"] if not (sub["id"] == target_sub_id and sub["userId"] == tg_id)]
             
@@ -3950,8 +3947,7 @@ def callback_handler(call):
         # Call API to delete globally
         success = delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
         if not success:
-            bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
-            return
+            print(f"[Delete API Warning]: Failed to delete colleague sub {sub.get('clientName')} from panel, proceeding locally.")
         
         # Deduct used
         accounts = db.get("colleague_accounts", [])
@@ -4208,8 +4204,7 @@ def callback_handler(call):
         elif action == "delyes":
             success = delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
             if not success:
-                bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
-                return
+                print(f"[Delete API Warning]: Failed to delete colu sub {sub.get('clientName')} from panel, proceeding locally.")
             
             # Sub is being deleted. If it was already used, permanently add to deleted list so colleague loses balance.
             if float(sub.get("trafficUsedGb", 0)) >= 0.001:

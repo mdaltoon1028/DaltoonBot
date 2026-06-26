@@ -1491,13 +1491,13 @@ export default function BotSimulator({
                 <h4 className="text-[11px] font-bold text-white leading-tight whitespace-nowrap">{lang === "fa" ? "ربات تلگرام دالتون بات 🤖" : "Daltoon Bot 🤖"}</h4>
                 <p className="text-[9px] text-emerald-400 flex items-center gap-1 leading-none mt-0.5">
                   <span className="h-1 w-1 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
-                  {lang === "fa" ? "ربات فعال است (bot.py)" : "bot.py polling active"}
+                  {lang === "fa" ? "ربات فعال است" : "Bot active"}
                 </p>
               </div>
             </div>
 
             <span className="text-[9px] font-mono font-medium py-0.5 px-1.5 bg-slate-800 text-slate-400 rounded">
-              @daltoon_store_bot
+              {lang === "fa" ? "سازنده: @mDaltoon" : "Creator: @mDaltoon"}
             </span>
           </div>
 

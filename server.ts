@@ -2633,7 +2633,7 @@ async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
 }
 
 // 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel
-async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
+async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientUuid?: string) {
   try {
     const db = readJsonDb();
     const settings = getSystemSettings(db);
@@ -2726,7 +2726,10 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
                   clients = settings.clients || [];
                 } catch (e) {}
 
-                const clientMatch = clients.find((c: any) => c.email === clientEmail);
+                const clientMatch = clients.find((c: any) => 
+                  (clientUuid && c.id === clientUuid) || c.email === clientEmail
+                );
+                
                 if (clientMatch && clientMatch.id) {
                   const mergedClient = { ...clientMatch, enable: enabled };
                   const inboundId = inbound.id;
@@ -4061,7 +4064,7 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
         // Attempt to delete from X-UI Panel using our helper
         const delRes = await deleteVpnClientApi(keyToDelete.clientName, keyToDelete.serverId);
         if (!delRes.success) {
-          throw new Error("امکان حذف کانفیگ از روی سرور وجود ندارد. خطا: " + (delRes.error || "نامشخص"));
+          console.warn("Could not delete from panel, deleting locally anyway. Error:", delRes.error);
         }
       }
 
@@ -4115,6 +4118,7 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
       const vpnResult = await toggleVpnClientApi(
         keyToToggle.clientName,
         newStatus === "active",
+        keyToToggle.clientUuid
       );
       if (!vpnResult.success) {
         console.warn(
