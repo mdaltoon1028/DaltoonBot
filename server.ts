@@ -2168,8 +2168,8 @@ function normalizeXuiUrl(url: string): string {
   // Remove any trailing slashes
   cleaned = cleaned.replace(/\/+$/, "");
   
-  // Remove trailing /dashboard or /panel as we only need the base host:port
-  cleaned = cleaned.replace(/\/(dashboard|panel)$/i, "");
+  // Remove trailing /dashboard or /panel or /admin as we only need the base host:port
+  cleaned = cleaned.replace(/\/(dashboard|panel|admin)$/i, "");
   // Remove trailing slashes again just in case
   cleaned = cleaned.replace(/\/+$/, "");
 

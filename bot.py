@@ -109,7 +109,11 @@ def write_db_json(data):
 def normalize_xui_url(url):
     if not url:
         return ""
-    cleaned = url.strip().rstrip("/")
+    import re
+    cleaned = url.strip()
+    cleaned = re.sub(r'/+$', '', cleaned)
+    cleaned = re.sub(r'/(dashboard|panel|admin)$', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'/+$', '', cleaned)
     if not cleaned.startswith("http://") and not cleaned.startswith("https://"):
         cleaned = "http://" + cleaned
     return cleaned
