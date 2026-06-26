@@ -274,6 +274,17 @@ export default function MultiServerConfig({
                   />
                   <span className="text-sm text-gray-300">{lang === "fa" ? "ربکا (Rebecca)" : "Rebecca"}</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="panelType"
+                    value="pasarguard"
+                    checked={panelType === "pasarguard"}
+                    onChange={() => setPanelType("pasarguard")}
+                    className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-300">{lang === "fa" ? "پاسارگارد (PasarGuard)" : "PasarGuard"}</span>
+                </label>
               </div>
             </div>
             <div className="md:col-span-2">
@@ -370,8 +381,8 @@ export default function MultiServerConfig({
             <div className="border border-indigo-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
               <h4 className="text-xs font-bold text-gray-200 mb-3">
                 {lang === "fa"
-                  ? (panelType === "rebecca" ? "سرویس‌های مجاز برای این سرور:" : "اینباندهای مجاز برای ساخت اکانت:")
-                  : (panelType === "rebecca" ? "Allowed Services:" : "Allowed Inbounds:")}
+                  ? (panelType === "pasarguard" ? "گروه‌های مجاز برای این سرور:" : (panelType === "rebecca" ? "سرویس‌های مجاز برای این سرور:" : "اینباندهای مجاز برای ساخت اکانت:"))
+                  : (panelType === "pasarguard" ? "Allowed Groups:" : (panelType === "rebecca" ? "Allowed Services:" : "Allowed Inbounds:"))}
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-1">
                 {inbounds.map((ib) => (

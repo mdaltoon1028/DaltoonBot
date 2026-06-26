@@ -842,7 +842,58 @@ app.get("/api/data", async (req, res) => {
         for (const server of activeServers) {
           const cleanedUrl = normalizeXuiUrl(server.panelUrl);
           
-          if (server.panelType === "rebecca") {
+          if (server.panelType === "pasarguard") {
+            try {
+              const params = new URLSearchParams();
+              params.append("grant_type", "password");
+              params.append("username", server.panelUsername);
+              params.append("password", server.panelPassword);
+
+              const loginRes = await xuiFetch(
+                `${cleanedUrl}/api/admin/token`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Accept: "application/json"
+                  },
+                  body: params.toString()
+                },
+                5000
+              );
+
+              if (loginRes.ok) {
+                const data = await loginRes.json();
+                const access_token = data.access_token;
+
+                const groupsRes = await xuiFetch(
+                  `${cleanedUrl}/api/groups/simple`,
+                  {
+                    method: "GET",
+                    headers: {
+                      Authorization: `Bearer ${access_token}`,
+                      Accept: "application/json"
+                    }
+                  },
+                  5000
+                );
+                
+                if (groupsRes.ok) {
+                  const groupsData = await groupsRes.json();
+                  const pasarguardGroups = (groupsData.groups || []).map((g: any) => ({
+                    id: g.id,
+                    remark: g.name,
+                    port: 0,
+                    protocol: "pasarguard-group",
+                    clientsCount: 0 // Could fetch detailed list to get total_users if needed
+                  }));
+                  allInbounds = allInbounds.concat(pasarguardGroups);
+                }
+              }
+            } catch (e) {
+              console.error("[Sanaei API Sync] Failed to fetch PasarGuard groups", e);
+            }
+          } else if (server.panelType === "rebecca") {
             try {
               const params = new URLSearchParams();
               params.append("grant_type", "password");
@@ -882,7 +933,7 @@ app.get("/api/data", async (req, res) => {
                   const servicesData = await servicesRes.json();
                   const rebeccaInbounds = (servicesData.services || []).map((s: any) => ({
                     id: s.id,
-                    tag: s.name,
+                    remark: s.name,
                     port: 0,
                     protocol: "rebecca-service",
                     clientsCount: s.user_count || 0
@@ -3091,7 +3142,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
               const servicesData = await servicesRes.json();
               services = (servicesData.services || []).map((s: any) => ({
                 id: s.id,
-                tag: s.name,
+                remark: s.name,
                 port: 0,
                 protocol: "rebecca-service"
               }));
@@ -3117,6 +3168,79 @@ app.post("/api/xui/test-connection", async (req, res) => {
           success: false,
           error: "خطا در ارتباط با پنل ربکا.",
         });
+      }
+    } else if (panelType === "pasarguard") {
+      if (!baseUrl || !panelUsername || !panelPassword) {
+        return res.json({
+          success: false,
+          error: "برای پنل پاسارگارد، آدرس هاست، نام کاربری و رمز عبور الزامی است.",
+        });
+      }
+      const cleanedUrl = normalizeXuiUrl(baseUrl);
+      
+      try {
+        const params = new URLSearchParams();
+        params.append("grant_type", "password");
+        params.append("username", panelUsername);
+        params.append("password", panelPassword);
+
+        const loginRes = await xuiFetch(
+          `${cleanedUrl}/api/admin/token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              Accept: "application/json"
+            },
+            body: params.toString()
+          },
+          5000
+        );
+
+        if (loginRes.ok) {
+          const data = await loginRes.json();
+          const access_token = data.access_token;
+          
+          let groups = [];
+          try {
+            const groupsRes = await xuiFetch(
+              `${cleanedUrl}/api/groups/simple`,
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${access_token}`,
+                  Accept: "application/json"
+                }
+              },
+              5000
+            );
+            if (groupsRes.ok) {
+              const groupsData = await groupsRes.json();
+              groups = (groupsData.groups || []).map((g: any) => ({
+                id: g.id,
+                remark: g.name,
+                port: 0,
+                protocol: "pasarguard-group"
+              }));
+            }
+          } catch (e) {
+            console.error("Failed to fetch PasarGuard groups:", e);
+          }
+          
+          return res.json({
+            success: true,
+            message: "اتصال به پنل پاسارگارد با موفقیت انجام شد.",
+            panelToken: access_token,
+            inbounds: groups,
+          });
+        } else {
+          return res.json({
+            success: false,
+            error: "نام کاربری یا رمز عبور نامعتبر است.",
+          });
+        }
+      } catch (err) {
+        return res.json({ success: false, error: "خطا در برقراری ارتباط." });
       }
     }
 

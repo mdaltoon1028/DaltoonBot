@@ -9,7 +9,7 @@ export interface ServerConfig {
   activeInboundIds: number[];
   status?: "active" | "inactive";
   planCategories?: string[]; // Allowed categories for this server
-  panelType?: "sanaei" | "rebecca"; // Panel type (defaults to sanaei if undefined)
+  panelType?: "sanaei" | "rebecca" | "pasarguard"; // Panel type (defaults to sanaei if undefined)
 }
 
 export interface PanelSettings {
