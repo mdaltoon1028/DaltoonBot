@@ -401,7 +401,10 @@ def login_xui(server_id=None, force=False):
         try:
             print(f"[Panel API] Connecting to {panel_type} token URL: {base_url}/api/admin/token")
             session = get_session()
+            session.cookies.clear()
             session.headers.pop("Authorization", None)
+            session.headers.pop("X-Csrf-Token", None)
+            session.last_login_error = "" # Reset
             login_data = {"grant_type": "password", "username": user, "password": pwd}
             headers = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
             res = session.post(f"{base_url}/api/admin/token", data=login_data, headers=headers, timeout=20, verify=False)
@@ -412,17 +415,30 @@ def login_xui(server_id=None, force=False):
                     _last_login_times[cache_key] = now
                     print(f"[Panel API] Authenticated successfully with {panel_type}.")
                     return True
-            print(f"[Panel API] Login rejected for {panel_type}: {res.status_code}")
+            
+            err_msg = f"Login rejected ({res.status_code})"
+            try:
+                rj = res.json()
+                if rj.get("msg"): err_msg += f": {rj['msg']}"
+                elif rj.get("message"): err_msg += f": {rj['message']}"
+            except: pass
+            print(f"[Panel API] {err_msg}")
+            session.last_login_error = err_msg
             return False
         except Exception as e:
-            print(f"[Panel API] Handshake error for {panel_type}: {e}")
+            err_msg = f"Connection error: {str(e)}"
+            print(f"[Panel API] {err_msg}")
+            get_session().last_login_error = err_msg
             return False
 
     try:
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
         print(f"[Sanaei X-UI API] Connecting to handshake URL: {base_url}")
         session = get_session()
+        session.cookies.clear()
         session.headers.pop("Authorization", None)
+        session.headers.pop("X-Csrf-Token", None)
+        session.last_login_error = "" # Reset
         get_res = session.get(base_url, timeout=20, verify=False)
         
         csrf_token = ""
@@ -451,6 +467,12 @@ def login_xui(server_id=None, force=False):
         print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
         response = get_session().post(login_url, data=login_data, headers=headers, timeout=20, verify=False)
         
+        if response.status_code != 200:
+            err_msg = f"Login failed (Status: {response.status_code})"
+            print(f"[Sanaei X-UI API] {err_msg}")
+            get_session().last_login_error = err_msg
+            return False
+
         # After login, the panel might issue a NEW CSRF token or update cookies
         if response.status_code == 200:
              # Try to find a new token in the response headers or body
@@ -4710,9 +4732,11 @@ def callback_handler(call):
         
         # PRE-CHECK: Ensure server is available before proceeding
         if not login_xui(server_id):
+            session = get_session()
+            last_err = getattr(session, "last_login_error", "ارتباط با پنل برقرار نشد")
             bot.send_message(
                 call.message.chat.id, 
-                "❌ <b>سرور موجود نیست!</b>\n\nمتاسفانه در حال حاضر امکان ارتباط با سرور فراهم نیست و ساخت کانفیگ انجام نمی‌شود. لطفاً بعداً تلاش کنید.", 
+                f"❌ <b>خطا در اتصال به پنل!</b>\n\nجزئیات: {last_err}\n\nمتاسفانه در حال حاضر امکان ساخت کانفیگ روی این سرور فراهم نیست. لطفاً بعداً تلاش کنید یا سرور دیگری را انتخاب کنید.", 
                 parse_mode="HTML",
                 reply_markup=get_custom_keyboard()
             )
