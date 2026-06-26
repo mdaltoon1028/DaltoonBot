@@ -7,6 +7,7 @@ export interface ServerConfig {
   panelPassword: string;
   activeInboundIds: number[];
   status?: "active" | "inactive";
+  planCategories?: string[]; // Allowed categories for this server
 }
 
 export interface PanelSettings {

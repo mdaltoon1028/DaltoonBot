@@ -278,7 +278,7 @@ export default function ServerManagement({
       </div>
 
       {/* Multi-Server Config Block */}
-      <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} />
+      <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} planCategories={planCategories} />
 
       {/* Plan Categories Management Section */}
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">

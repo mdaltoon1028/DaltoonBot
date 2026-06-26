@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ServerConfig, PanelSettings, InboundInfo } from "../types";
+import { ServerConfig, PanelSettings, InboundInfo, PlanCategory } from "../types";
 import { Language } from "../locales";
 import {
   Cpu,
@@ -19,12 +19,14 @@ interface MultiServerConfigProps {
   settings: PanelSettings;
   onSaveSettings: (settings: PanelSettings) => void;
   lang: Language;
+  planCategories: PlanCategory[];
 }
 
 export default function MultiServerConfig({
   settings,
   onSaveSettings,
   lang,
+  planCategories,
 }: MultiServerConfigProps) {
   const [servers, setServers] = useState<ServerConfig[]>(
     Array.isArray(settings.servers) ? settings.servers : [],
@@ -71,6 +73,7 @@ export default function MultiServerConfig({
   }>({ type: "idle", message: "" });
   const [inbounds, setInbounds] = useState<InboundInfo[]>([]);
   const [checkedInboundIds, setCheckedInboundIds] = useState<number[]>([]);
+  const [checkedPlanCategories, setCheckedPlanCategories] = useState<string[]>([]);
   const [showInbounds, setShowInbounds] = useState(true);
 
   const startAdd = () => {
@@ -81,6 +84,7 @@ export default function MultiServerConfig({
     setPanelPassword("");
     setInbounds([]);
     setCheckedInboundIds([]);
+    setCheckedPlanCategories([]);
     setTestStatus({ type: "idle", message: "" });
     setEditingIndex(null);
     setShowForm(true);
@@ -96,6 +100,7 @@ export default function MultiServerConfig({
     setCheckedInboundIds(
       Array.isArray(s.activeInboundIds) ? s.activeInboundIds : [],
     );
+    setCheckedPlanCategories(Array.isArray(s.planCategories) ? s.planCategories : []);
     setInbounds([]); // We don't have the old list, need to re-test to fetch them or just let them stay as ids.
     setTestStatus({ type: "idle", message: "" });
     setEditingIndex(index);
@@ -165,6 +170,7 @@ export default function MultiServerConfig({
       panelUsername,
       panelPassword,
       activeInboundIds: checkedInboundIds,
+      planCategories: checkedPlanCategories,
       status: "active",
     };
 
@@ -357,6 +363,44 @@ export default function MultiServerConfig({
               </div>
             </div>
           )}
+
+          <div className="border border-purple-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
+            <h4 className="text-xs font-bold text-gray-200 mb-3">
+              {lang === "fa"
+                ? "دسته‌بندی‌های پلن مجاز برای این سرور:"
+                : "Allowed Plan Categories for this server:"}
+            </h4>
+            <div className="flex flex-wrap gap-3">
+              {planCategories.map((cat) => (
+                <label
+                  key={cat.id}
+                  className="flex items-center gap-2 p-2 rounded-lg border border-gray-800 hover:border-purple-500/50 cursor-pointer bg-[#111827]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checkedPlanCategories.includes(cat.id)}
+                    onChange={(e) => {
+                      if (e.target.checked)
+                        setCheckedPlanCategories((prev) => [...prev, cat.id]);
+                      else
+                        setCheckedPlanCategories((prev) =>
+                          prev.filter((id) => id !== cat.id),
+                        );
+                    }}
+                  />
+                  <div className="text-xs text-gray-300 flex items-center gap-1">
+                    <span>{cat.emoji}</span>
+                    <span className="font-bold text-white">{cat.name}</span>
+                  </div>
+                </label>
+              ))}
+              {planCategories.length === 0 && (
+                <span className="text-xs text-gray-500">
+                  {lang === "fa" ? "هنوز هیچ دسته‌بندی ایجاد نشده است." : "No categories created yet."}
+                </span>
+              )}
+            </div>
+          </div>
 
           <div className="pt-4 flex justify-end">
             <button

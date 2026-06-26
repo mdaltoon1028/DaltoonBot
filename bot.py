@@ -4430,6 +4430,10 @@ def callback_handler(call):
         cfg = get_config()
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == server_id), None)
+        allowed_cats = srv.get("planCategories") if srv else None
+
         message_body = (
             f"🛍️ <b>دسته بندی‌های خرید اشتراک {nickname}:</b>\n\n"
             "لطفاً یکی از دسته‌بندی‌های زیر را جهت مشاهده و خرید طرح‌ها انتخاب کنید:\n\n"
@@ -4444,6 +4448,8 @@ def callback_handler(call):
         
         if db_categories:
             for c in db_categories:
+                if allowed_cats and isinstance(allowed_cats, list) and c.get("id") not in allowed_cats:
+                    continue
                 cat_name = c.get("name")
                 if cat_name:
                     categories.append(cat_name)
@@ -4452,6 +4458,7 @@ def callback_handler(call):
             seen_cats = set()
             for p in db_plans:
                 cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
+                # In legacy mode we cannot filter by ID.
                 if cat not in seen_cats:
                     categories.append(cat)
                     seen_cats.add(cat)
