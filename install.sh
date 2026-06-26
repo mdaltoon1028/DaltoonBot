@@ -162,13 +162,16 @@ function getScore(p) {
     const content = fs.readFileSync(p, 'utf8').trim();
     if (!content || content === '{}' || content === '[]') return -1;
     const parsed = JSON.parse(content);
-    let score = 0;
+    let score = 1; // Base score for a valid JSON file
     if (Array.isArray(parsed.users) && parsed.users.length > 0) score += parsed.users.length * 10;
     if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) score += parsed.transactions.length * 10;
-    if (parsed.settings && parsed.settings.panel_config) {
-      const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
-      if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
-      if (pc.dashboardUsername) score += 50;
+    if (parsed.settings) {
+      if (parsed.settings.dashboardUsername) score += 20;
+      if (parsed.settings.panel_config) {
+        const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+        if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
+        if (pc.dashboardUsername) score += 50;
+      }
     }
     return score > 0 ? (score * 1000000) + stat.size : -1;
   } catch(e) { return -1; }
