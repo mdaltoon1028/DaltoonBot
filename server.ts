@@ -2103,6 +2103,11 @@ function normalizeXuiUrl(url: string): string {
   let cleaned = `${url}`.trim();
   // Remove any trailing slashes
   cleaned = cleaned.replace(/\/+$/, "");
+  
+  // Remove trailing /dashboard or /panel as we only need the base host:port
+  cleaned = cleaned.replace(/\/(dashboard|panel)$/i, "");
+  // Remove trailing slashes again just in case
+  cleaned = cleaned.replace(/\/+$/, "");
 
   // If there's an invalid or incomplete protocol (like ps://, ttps://, s://, tp://, etc.)
   if (cleaned.includes("://")) {
