@@ -38,34 +38,53 @@ BACKUP_DIR="/tmp/daltoon_db_backup"
 mkdir -p "$BACKUP_DIR"
 
 # Backup databases if they exist anywhere to verify persistence
-for dir in "/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/DaltoonBot"; do
-    if [ -f "$dir/.env" ] && [ -s "$dir/.env" ]; then
-        echo -e "${GREEN}Backing up .env configuration from $dir...${NC}"
-        cp "$dir/.env" "$BACKUP_DIR/.env_backup"
-    fi
-    if [ -f "$dir/Daltoon_Bot.json" ] && [ -s "$dir/Daltoon_Bot.json" ]; then
-        echo -e "${GREEN}Backing up bot database from $dir/Daltoon_Bot.json...${NC}"
-        cp "$dir/Daltoon_Bot.json" "$BACKUP_DIR/Daltoon_Bot.json"
-    fi
-    if [ -f "$dir/database.json" ] && [ -s "$dir/database.json" ]; then
-        echo -e "${GREEN}Backing up legacy database.json from $dir...${NC}"
-        cp "$dir/database.json" "$BACKUP_DIR/database.json"
-    fi
-    if [ -f "$dir/db.json" ] && [ -s "$dir/db.json" ]; then
-        echo -e "${GREEN}Backing up legacy db.json from $dir...${NC}"
-        cp "$dir/db.json" "$BACKUP_DIR/db.json"
-    fi
-    if [ -f "$dir/bot_database.json" ] && [ -s "$dir/bot_database.json" ]; then
-        echo -e "${GREEN}Backing up legacy bot_database.json from $dir...${NC}"
-        cp "$dir/bot_database.json" "$BACKUP_DIR/bot_database.json"
+echo -e "${YELLOW}Searching the system for any existing Daltoon databases...${NC}"
+
+# Define candidate directories first (these are fast)
+CANDIDATE_DIRS=("/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/DaltoonBot" "/root/daltoon-store" "/root/daltoon-bot" "/root/daltoonbot" "/root/Daltoon_Bot" "/opt/daltoon" "/opt/daltoon-bot" "/home/daltoon" "/var/www/daltoon" "/var/daltoon")
+
+# Collect all files that exist in candidates
+FOUND_FILES=()
+for dir in "${CANDIDATE_DIRS[@]}"; do
+    if [ -d "$dir" ]; then
+        for f in "Daltoon_Bot.json" "database.json" "db.json" "bot_database.json" ".env"; do
+            if [ -f "$dir/$f" ] && [ -s "$dir/$f" ]; then
+                FOUND_FILES+=("$dir/$f")
+            fi
+        done
     fi
 done
 
-for dir in "/opt/daltoon-store" "$(pwd)" "$HOME" "/root" "/root/daltoon" "/root/DaltoonBot"; do
-    if [ -f "$dir/database.json" ] && [ -s "$dir/database.json" ]; then
-        echo -e "${GREEN}Backing up server database from $dir/database.json...${NC}"
-        cp "$dir/database.json" "$BACKUP_DIR/database.json"
-        break
+# Additionally, do a quick find across common root folders to be absolutely sure we don't miss anything
+# Exclude system folders to keep it very fast and avoid hangs
+ADDITIONAL_FIND=$(find /root /home /opt /var -maxdepth 4 -type f \( -name "Daltoon_Bot.json" -o -name "database.json" -o -name "db.json" -o -name "bot_database.json" -o -name ".env" \) 2>/dev/null | grep -vE "/proc|/sys|/dev|/var/lib/docker|/snap|/tmp|/run|/node_modules|/\.git")
+
+for p in $ADDITIONAL_FIND; do
+    FOUND_FILES+=("$p")
+done
+
+# De-duplicate the list of found files
+UNIQUE_FILES=$(echo "${FOUND_FILES[@]}" | tr ' ' '\n' | sort -u)
+
+for file_path in $UNIQUE_FILES; do
+    filename=$(basename "$file_path")
+    dirpath=$(dirname "$file_path")
+    
+    if [ "$filename" == ".env" ]; then
+        echo -e "${GREEN}Found and backing up configuration .env from $dirpath...${NC}"
+        cp "$file_path" "$BACKUP_DIR/.env_backup"
+    elif [ "$filename" == "Daltoon_Bot.json" ]; then
+        echo -e "${GREEN}Found and backing up database Daltoon_Bot.json from $dirpath...${NC}"
+        cp "$file_path" "$BACKUP_DIR/Daltoon_Bot.json"
+    elif [ "$filename" == "database.json" ]; then
+        echo -e "${GREEN}Found and backing up database database.json from $dirpath...${NC}"
+        cp "$file_path" "$BACKUP_DIR/database.json"
+    elif [ "$filename" == "db.json" ]; then
+        echo -e "${GREEN}Found and backing up database db.json from $dirpath...${NC}"
+        cp "$file_path" "$BACKUP_DIR/db.json"
+    elif [ "$filename" == "bot_database.json" ]; then
+        echo -e "${GREEN}Found and backing up database bot_database.json from $dirpath...${NC}"
+        cp "$file_path" "$BACKUP_DIR/bot_database.json"
     fi
 done
 
@@ -153,7 +172,20 @@ let user = 'Daltoon';
 let pass = 'Daltoon';
 let port = '3000';
 
-const dbPaths = ['./Daltoon_Bot.json', '$INSTALL_DIR/Daltoon_Bot.json', './database.json', '$INSTALL_DIR/database.json', './db.json', '$INSTALL_DIR/db.json', './bot_database.json', '$INSTALL_DIR/bot_database.json'];
+const dbPaths = [
+  './Daltoon_Bot.json', 
+  '$INSTALL_DIR/Daltoon_Bot.json', 
+  '/tmp/daltoon_db_backup/Daltoon_Bot.json',
+  './database.json', 
+  '$INSTALL_DIR/database.json', 
+  '/tmp/daltoon_db_backup/database.json',
+  './db.json', 
+  '$INSTALL_DIR/db.json', 
+  '/tmp/daltoon_db_backup/db.json',
+  './bot_database.json', 
+  '$INSTALL_DIR/bot_database.json',
+  '/tmp/daltoon_db_backup/bot_database.json'
+];
 
 function getScore(p) {
   try {
@@ -240,11 +272,20 @@ echo -e "${YELLOW}Saving configuration to database...${NC}"
 node -e "
 const fs = require('fs');
 const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
+const backupDbPath = '/tmp/daltoon_db_backup/Daltoon_Bot.json';
 let db = {};
 let parseError = false;
-if (fs.existsSync(dbPath)) {
+
+let targetPath = dbPath;
+if (!fs.existsSync(targetPath) || fs.readFileSync(targetPath, 'utf8').trim() === '') {
+  if (fs.existsSync(backupDbPath) && fs.readFileSync(backupDbPath, 'utf8').trim() !== '') {
+    targetPath = backupDbPath;
+  }
+}
+
+if (fs.existsSync(targetPath)) {
   try { 
-    const content = fs.readFileSync(dbPath, 'utf8');
+    const content = fs.readFileSync(targetPath, 'utf8');
     if (content && content.trim()) {
       db = JSON.parse(content) || {};
     }
