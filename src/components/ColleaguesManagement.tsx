@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ColleaguePackage, ColleagueAccount, ColleagueCategory, PlanCategory } from "../types";
+import { ColleaguePackage, ColleagueAccount, ColleagueCategory, PlanCategory, PanelSettings } from "../types";
 import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity, Layers, Smile } from "lucide-react";
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   setPackages: (p: ColleaguePackage[]) => void;
   setAccounts: (a: ColleagueAccount[]) => void;
   lang: string;
+  settings: PanelSettings;
+  onSaveSettings: (s: PanelSettings) => void;
   planCategories?: PlanCategory[];
   colleagueCategories?: ColleagueCategory[];
   setColleagueCategories?: (c: ColleagueCategory[]) => void;
@@ -18,7 +20,9 @@ export default function ColleaguesManagement({
   accounts, 
   setPackages, 
   setAccounts, 
-  lang, 
+  lang,
+  settings,
+  onSaveSettings,
   planCategories = [], 
   colleagueCategories = [], 
   setColleagueCategories 

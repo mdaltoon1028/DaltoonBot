@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ServerConfig, PanelSettings, InboundInfo, PlanCategory } from "../types";
+import { ServerConfig, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage } from "../types";
 import { Language } from "../locales";
 import {
   Cpu,
@@ -20,6 +20,7 @@ interface MultiServerConfigProps {
   onSaveSettings: (settings: PanelSettings) => void;
   lang: Language;
   planCategories: PlanCategory[];
+  colleaguePackages?: ColleaguePackage[];
 }
 
 export default function MultiServerConfig({
@@ -27,6 +28,7 @@ export default function MultiServerConfig({
   onSaveSettings,
   lang,
   planCategories,
+  colleaguePackages = [],
 }: MultiServerConfigProps) {
   const [servers, setServers] = useState<ServerConfig[]>(
     Array.isArray(settings.servers) ? settings.servers : [],
@@ -68,7 +70,6 @@ export default function MultiServerConfig({
   const [panelPassword, setPanelPassword] = useState("");
   const [panelToken, setPanelToken] = useState("");
   const [panelType, setPanelType] = useState<"sanaei" | "rebecca" | "pasarguard">("sanaei");
-  const [serverFor, setServerFor] = useState<"users" | "colleagues" | "both">("both");
 
   const [testStatus, setTestStatus] = useState<{
     type: "success" | "error" | "loading" | "idle";
@@ -87,7 +88,6 @@ export default function MultiServerConfig({
     setPanelPassword("");
     setPanelToken("");
     setPanelType("sanaei");
-    setServerFor("both");
     setInbounds([]);
     setCheckedInboundIds([]);
     setCheckedPlanCategories([]);
@@ -105,7 +105,6 @@ export default function MultiServerConfig({
     setPanelPassword(s.panelPassword || "");
     setPanelToken(s.panelToken || "");
     setPanelType(s.panelType || "sanaei");
-    setServerFor(s.serverFor || "both");
     setCheckedInboundIds(
       Array.isArray(s.activeInboundIds) ? s.activeInboundIds : [],
     );
@@ -183,7 +182,6 @@ export default function MultiServerConfig({
       panelPassword,
       panelToken,
       panelType,
-      serverFor,
       activeInboundIds: checkedInboundIds,
       planCategories: checkedPlanCategories,
       status: "active",
@@ -288,46 +286,6 @@ export default function MultiServerConfig({
                     className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
                   />
                   <span className="text-sm text-gray-300">{lang === "fa" ? "پاسارگارد (PasarGuard)" : "PasarGuard"}</span>
-                </label>
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-2">
-                {lang === "fa" ? "مخاطب سرور (تخصیص سرور)" : "Server Target (Allocation)"}
-              </label>
-              <div className="flex gap-4 mb-4 flex-wrap">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="serverFor"
-                    value="both"
-                    checked={serverFor === "both"}
-                    onChange={() => setServerFor("both")}
-                    className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-300">{lang === "fa" ? "هم کاربران، هم همکاران" : "Both Users & Colleagues"}</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="serverFor"
-                    value="users"
-                    checked={serverFor === "users"}
-                    onChange={() => setServerFor("users")}
-                    className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-300">{lang === "fa" ? "فقط کاربران (ربات)" : "Only Users (Bot)"}</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="serverFor"
-                    value="colleagues"
-                    checked={serverFor === "colleagues"}
-                    onChange={() => setServerFor("colleagues")}
-                    className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-300">{lang === "fa" ? "فقط همکاران" : "Only Colleagues"}</span>
                 </label>
               </div>
             </div>
@@ -495,6 +453,40 @@ export default function MultiServerConfig({
                 </span>
               )}
             </div>
+            
+            {colleaguePackages && colleaguePackages.length > 0 && (
+              <>
+                <h4 className="text-xs font-bold text-gray-200 mt-4 mb-3">
+                  {lang === "fa"
+                    ? "بسته‌های مجاز همکاران برای این سرور:"
+                    : "Allowed Colleague Packages for this server:"}
+                </h4>
+                <div className="flex flex-wrap gap-3">
+                  {colleaguePackages.map((pkg) => (
+                    <label
+                      key={pkg.id}
+                      className="flex items-center gap-2 p-2 rounded-lg border border-gray-800 hover:border-blue-500/50 cursor-pointer bg-[#111827]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checkedPlanCategories.includes(pkg.id)}
+                        onChange={(e) => {
+                          if (e.target.checked)
+                            setCheckedPlanCategories((prev) => [...prev, pkg.id]);
+                          else
+                            setCheckedPlanCategories((prev) =>
+                              prev.filter((id) => id !== pkg.id),
+                            );
+                        }}
+                      />
+                      <div className="text-xs text-gray-300 flex items-center gap-1">
+                        <span className="font-bold text-white">{pkg.title}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="pt-4 flex justify-end">
@@ -517,9 +509,6 @@ export default function MultiServerConfig({
               <tr>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
                   {lang === "fa" ? "نام سرور" : "Server Name"}
-                </th>
-                <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
-                  {lang === "fa" ? "مخاطب" : "Target"}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
                   {lang === "fa" ? "آدرس پنل" : "Panel URL"}
@@ -563,13 +552,6 @@ export default function MultiServerConfig({
                         <span className="text-[9px] text-gray-500 uppercase tracking-widest">{srv.panelType === "rebecca" ? "Rebecca" : "Sanaei"}</span>
                       </div>
                     </div>
-                  </td>
-                  <td className="py-4 px-6 whitespace-nowrap text-center">
-                    <span className="inline-flex items-center justify-center px-2 py-1 text-[10px] rounded bg-gray-800 text-gray-300">
-                      {srv.serverFor === "users" ? (lang === "fa" ? "فقط کاربران" : "Users Only") :
-                       srv.serverFor === "colleagues" ? (lang === "fa" ? "فقط همکاران" : "Colleagues Only") :
-                       (lang === "fa" ? "همه" : "Both")}
-                    </span>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap">
                     <span className="font-mono text-xs text-gray-400">

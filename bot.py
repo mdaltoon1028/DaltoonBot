@@ -279,6 +279,7 @@ def get_config():
             config["HIDE_SUPPORT"] = bool(panel_cfg["hideSupport"])
             
         config["SERVERS"] = panel_cfg.get("servers", [])
+        config["COLLEAGUE_SERVERS"] = panel_cfg.get("colleagueServers", [])
         
         if "hideBuy" in panel_cfg:
             config["HIDE_BUY"] = bool(panel_cfg["hideBuy"])
@@ -2213,7 +2214,7 @@ def buy_cmd(message):
     db = read_db_json()
     
     servers = cfg.get("SERVERS", [])
-    active_servers = [s for s in servers if s.get("status") == "active" and s.get("serverFor") != "colleagues"]
+    active_servers = [s for s in servers if s.get("status") == "active"]
     
     if active_servers:
         message_body = (
@@ -2765,7 +2766,7 @@ def handle_main_menu_callback(call):
         # Select active server to pass to add_vpn_client_api, create_sub_key and get_client_all_links
         cfg = get_config()
         servers = cfg.get("SERVERS", [])
-        active_server = next((s for s in servers if s.get("status") == "active" and s.get("serverFor") != "colleagues"), servers[0] if servers else None)
+        active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
         active_server_id = active_server.get("id") if active_server else None
 
         client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0, server_id=active_server_id) # 0.1 GB (100MB), 1 day
@@ -5601,8 +5602,13 @@ def process_col_create_days(message, acc, name, gb):
     
     cfg = get_config()
     servers = cfg.get("SERVERS", [])
-    active_servers = [s for s in servers if s.get("status") == "active" and s.get("serverFor") != "users"]
+        
+    active_servers = [s for s in servers if s.get("status") == "active" and (not s.get("planCategories") or live_acc.get("packageId") in s.get("planCategories"))]
     
+    if not active_servers and servers:
+        # Fallback if no matching categories found but there are active servers
+        active_servers = [s for s in servers if s.get("status") == "active"]
+
     if len(active_servers) > 1:
         markup = types.InlineKeyboardMarkup()
         for i, s in enumerate(active_servers):

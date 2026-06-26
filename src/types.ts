@@ -10,11 +10,11 @@ export interface ServerConfig {
   status?: "active" | "inactive";
   planCategories?: string[]; // Allowed categories for this server
   panelType?: "sanaei" | "rebecca" | "pasarguard"; // Panel type (defaults to sanaei if undefined)
-  serverFor?: "users" | "colleagues" | "both"; // Who is this server allocated for
 }
 
 export interface PanelSettings {
   servers?: ServerConfig[];
+  colleagueServers?: ServerConfig[];
   botToken: string;
   botNickname?: string;
   baseUrl: string; // Deprecated, kept for backward compatibility

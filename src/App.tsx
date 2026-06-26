@@ -1809,6 +1809,7 @@ export default function App() {
               setVpnPlans={setVpnPlans}
               planCategories={planCategories}
               setPlanCategories={setPlanCategories}
+              colleaguePackages={colleaguePackages}
               lang={lang}
               settings={settings}
               onSaveSettings={saveSettings}
@@ -1834,6 +1835,8 @@ export default function App() {
                 accounts={colleagueAccounts}
                 setPackages={setColleaguePackages}
                 setAccounts={setColleagueAccounts}
+                settings={settings}
+                onSaveSettings={saveSettings}
                 lang={lang}
                 planCategories={planCategories}
                 colleagueCategories={colleagueCategories}

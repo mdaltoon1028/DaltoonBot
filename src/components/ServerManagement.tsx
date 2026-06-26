@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { VpnPlan, PanelSettings, InboundInfo, PlanCategory } from "../types";
+import { VpnPlan, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage } from "../types";
 import { Language } from "../locales";
 import MultiServerConfig from "./MultiServerConfig";
 import { 
@@ -25,6 +25,7 @@ interface ServerManagementProps {
   setVpnPlans: React.Dispatch<React.SetStateAction<VpnPlan[]>>;
   planCategories: PlanCategory[];
   setPlanCategories: React.Dispatch<React.SetStateAction<PlanCategory[]>>;
+  colleaguePackages?: ColleaguePackage[];
   lang: Language;
   settings: PanelSettings;
   onSaveSettings: (settings: PanelSettings) => void;
@@ -37,6 +38,7 @@ export default function ServerManagement({
   setVpnPlans,
   planCategories,
   setPlanCategories,
+  colleaguePackages = [],
   lang,
   settings,
   onSaveSettings,
@@ -278,7 +280,7 @@ export default function ServerManagement({
       </div>
 
       {/* Multi-Server Config Block */}
-      <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} planCategories={planCategories} />
+      <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} planCategories={planCategories} colleaguePackages={colleaguePackages} />
 
       {/* Plan Categories Management Section */}
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
