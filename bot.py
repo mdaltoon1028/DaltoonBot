@@ -366,7 +366,7 @@ def login_xui(server_id=None, force=False):
     global _last_login_times
     cfg = get_config()
     
-    servers = cfg.get("SERVERS", [])
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
     
     server = None
     if server_id:
@@ -705,7 +705,7 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
     safe_client_name = re.sub(r"[^A-Za-z0-9_-]", "", client_name)
 
     cfg = get_config()
-    servers = cfg.get("SERVERS", [])
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
     
     server = None
     if server_id:
@@ -963,7 +963,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     cfg = get_config()
     db = read_db_json()
     settings = db.get("settings", {})
-    servers = cfg.get("SERVERS", [])
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
     
     server = None
     if server_id:
@@ -1177,7 +1177,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server
     """ Call Sanaei 3x-ui API to update client enabled status """
     import json, re
     cfg = get_config()
-    servers = cfg.get("SERVERS", [])
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
     
     server = None
     if server_id:
@@ -1369,7 +1369,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
     success_flag = False
     import re
     cfg = get_config()
-    servers = cfg.get("SERVERS", [])
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
     
     server = None
     if server_id:
@@ -4324,15 +4324,42 @@ def callback_handler(call):
                 
             write_db_json(db)
             
-            bot.send_message(
-                call.message.chat.id,
-                f"✅ <b>کاربر جدید با موفقیت ساخته شد!</b>\n\n"
-                f"👤 نام: {full_name}\n"
-                f"🗄 حجم تخصیصی: {gb} گیگابایت\n"
-                f"⏳ اعتبار: {days} روز\n\n"
-                f"🔗 <b>لینک اشتراک:</b>\n<code>{sub_link}</code>",
-                parse_mode="HTML", reply_markup=get_custom_keyboard()
+            log_action(
+                call.from_user.id, 
+                call.from_user.username or str(call.from_user.id), 
+                "colleague_create_config", 
+                f"همکار کانفیگی با نام '{full_name}' ({gb} گیگ - {days} روز) ایجاد کرد."
             )
+
+            # success_note if any
+            success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "").strip()
+            note_append = ""
+            if success_note:
+                note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
+
+            vless_links = get_client_all_links(full_name, client_uuid, sub_link, server_id=server_id)
+            links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+
+            text_msg = (
+                f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
+                f"👤 <b>نام:</b> {full_name}\n"
+                f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
+                f"⏳ <b>اعتبار:</b> {days} روز\n\n"
+                f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+                f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+            )
+
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+
+            try:
+                import urllib.parse
+                qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+                bot.send_photo(call.message.chat.id, qr_url, caption=text_msg, parse_mode="HTML", reply_markup=markup)
+            except Exception as e:
+                print(f"[Bot Warning] Failed to send QR Photo: {e}")
+                bot.send_message(call.message.chat.id, text_msg, parse_mode="HTML", reply_markup=markup)
+
             show_colleague_panel_msg(call.message, live_acc)
             
     elif call.data.startswith("col_") and not call.data.startswith("col_pay:"):
