@@ -4592,7 +4592,7 @@ def callback_handler(call):
         if data_stripped.startswith("srv_"):
             parts = data_stripped.split("_", 2)
             if len(parts) == 3:
-                server_id = parts[1]
+                server_id = f"{parts[0]}_{parts[1]}"
                 category_name = parts[2]
             else:
                 category_name = data_stripped
@@ -4661,7 +4661,7 @@ def callback_handler(call):
         if data_stripped.startswith("srv_"):
             parts = data_stripped.split("_", 2)
             if len(parts) == 3:
-                server_id = parts[1]
+                server_id = f"{parts[0]}_{parts[1]}"
                 plan_id = parts[2]
             else:
                 plan_id = data_stripped
