@@ -110,16 +110,8 @@ def normalize_xui_url(url):
     if not url:
         return ""
     cleaned = url.strip().rstrip("/")
-    if "://" in cleaned:
-        parts = cleaned.split("://", 1)
-        protocol = parts[0].lower()
-        if protocol not in ["http", "https"]:
-            if "http" in protocol or protocol.endswith("s") or protocol.endswith("ps"):
-                cleaned = "https://" + parts[1]
-            else:
-                cleaned = "http://" + parts[1]
-    else:
-        cleaned = "https://" + cleaned
+    if not cleaned.startswith("http://") and not cleaned.startswith("https://"):
+        cleaned = "http://" + cleaned
     return cleaned
 
 active_purchases = set()
