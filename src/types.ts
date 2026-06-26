@@ -239,6 +239,7 @@ export interface ColleaguePackage {
   trafficGb: number;
   description: string;
   category?: string;
+  minCreateGb?: number;
 }
 
 export interface ColleagueAccount {

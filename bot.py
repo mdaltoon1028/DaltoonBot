@@ -5563,8 +5563,19 @@ def process_col_create_gb(message, acc, name):
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
-    if gb < 1:
-        msg = bot.send_message(message.chat.id, "⚠️ حداقل حجم انتخابی برای کاربر جدید باید 1 گیگابایت به بالا باشد. لطفا حجم دیگری وارد کنید:")
+    # Enforce matched package minimum GB limit
+    db = read_db_json()
+    pkgs = db.get("colleague_packages", [])
+    matched_pkg = next((p for p in pkgs if p.get("id") == acc.get("packageId")), None)
+    min_gb = 1
+    if matched_pkg and matched_pkg.get("minCreateGb"):
+        try:
+            min_gb = int(matched_pkg.get("minCreateGb"))
+        except:
+            min_gb = 1
+            
+    if gb < min_gb:
+        msg = bot.send_message(message.chat.id, f"⚠️ حداقل حجم مجاز برای هر اشتراک در پکیج شما {min_gb} گیگابایت است. لطفاً حجم بیشتری وارد کنید:")
         bot.register_next_step_handler(msg, process_col_create_gb, acc, name)
         return
         
@@ -5617,35 +5628,35 @@ def process_col_create_days(message, acc, name, gb):
     cfg = get_config()
     servers = cfg.get("COLLEAGUE_SERVERS", [])
     if not servers:
-        servers = cfg.get("SERVERS", [])
+        bot.send_message(message.chat.id, "⚠️ هیچ سروری برای بخش همکاران تعریف نشده است. لطفا به مدیریت اطلاع دهید تا سرورهای همکاران را اضافه کنند.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, live_acc)
+        return
         
     active_servers = [s for s in servers if s.get("status") == "active" and (not s.get("planCategories") or live_acc.get("packageId") in s.get("planCategories"))]
     
-    if not active_servers and servers:
-        # Fallback if no matching categories found but there are active servers
+    if not active_servers:
+        # Fallback if no matching categories found but there are active servers in colleague tab
         active_servers = [s for s in servers if s.get("status") == "active"]
-
-    if len(active_servers) > 1:
-        markup = types.InlineKeyboardMarkup()
-        for i, s in enumerate(active_servers):
-            srv_name = s.get('name') or f"Server {i+1}"
-            markup.row(types.InlineKeyboardButton(f"🌐 {srv_name}", callback_data=f"colsrv_{acc['id']}_{gb}_{days}_{s.get('id')}"))
-        bot.send_message(message.chat.id, f"لطفاً سرور مورد نظر برای ساخت کانفیگ همکار را انتخاب کنید:\nنام کاربری: {name}\nحجم: {gb} گیگابایت\nاعتبار: {days} روز", reply_markup=markup)
         
-        # Save temporary name in db or just pass it in callback?
-        # Since callback data is limited to 64 bytes, and name can be long, 
-        # let's save the pending colleague creation state.
-        db = read_db_json()
-        if "pending_col_creations" not in db:
-            db["pending_col_creations"] = {}
-        db["pending_col_creations"][acc['id']] = {"name": name, "gb": gb, "days": days}
-        write_db_json(db)
+    if not active_servers:
+        bot.send_message(message.chat.id, "⚠️ هیچ سرور فعالی در بخش همکاران یافت نشد. لطفا به مدیریت اطلاع دهید.", reply_markup=get_custom_keyboard())
+        show_colleague_panel_msg(message, live_acc)
         return
-        
-    active_server = active_servers[0] if active_servers else (servers[0] if servers else None)
-    active_server_id = active_server.get("id") if active_server else None
 
-    client_uuid, sub_link = add_vpn_client_api(full_name, gb, days, server_id=active_server_id)
+    # Always show server selection to colleague so they explicitly choose their preferred server
+    markup = types.InlineKeyboardMarkup()
+    for i, s in enumerate(active_servers):
+        srv_name = s.get('name') or f"Server {i+1}"
+        markup.row(types.InlineKeyboardButton(f"🌐 {srv_name}", callback_data=f"colsrv_{acc['id']}_{gb}_{days}_{s.get('id')}"))
+    bot.send_message(message.chat.id, f"لطفاً سرور مورد نظر برای ساخت کانفیگ همکار را انتخاب کنید:\nنام کاربری: {name}\nحجم: {gb} گیگابایت\nاعتبار: {days} روز", reply_markup=markup)
+    
+    # Save temporary name in db to be retrieved in callback
+    db = read_db_json()
+    if "pending_col_creations" not in db:
+        db["pending_col_creations"] = {}
+    db["pending_col_creations"][acc['id']] = {"name": name, "gb": gb, "days": days}
+    write_db_json(db)
+    return
     
     if not sub_link:
         if not cfg.get("SIMULATOR_MODE"):

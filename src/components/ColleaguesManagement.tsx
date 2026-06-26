@@ -88,6 +88,7 @@ export default function ColleaguesManagement({
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [pTraffic, setPTraffic] = useState("");
+  const [pMinCreateGb, setPMinCreateGb] = useState("");
   const [pCategory, setPCategory] = useState("");
   const [pDesc, setPDesc] = useState("");
 
@@ -107,6 +108,7 @@ export default function ColleaguesManagement({
     setPTitle("");
     setPPrice("");
     setPTraffic("");
+    setPMinCreateGb("");
     setPCategory("");
     setPDesc("");
   };
@@ -178,7 +180,8 @@ export default function ColleaguesManagement({
           price: Number(pPrice),
           trafficGb: Number(pTraffic),
           category: pCategory,
-          description: pDesc
+          description: pDesc,
+          minCreateGb: pMinCreateGb ? Number(pMinCreateGb) : 1
         })
       });
       const data = await res.json();
@@ -469,6 +472,10 @@ export default function ColleaguesManagement({
                   <input type="number" value={pTraffic} onChange={e => setPTraffic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "حداقل حجم ساخت کلاینت" : "Min GB per Client"}</label>
+                  <input type="number" placeholder="1" value={pMinCreateGb} onChange={e => setPMinCreateGb(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
                    <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "دسته‌بندی" : "Category"}</label>
                    <div className="flex gap-2">
                      <select 
@@ -530,6 +537,7 @@ export default function ColleaguesManagement({
                     setPTitle(p.title);
                     setPPrice(String(p.price));
                     setPTraffic(String(p.trafficGb));
+                    setPMinCreateGb(p.minCreateGb ? String(p.minCreateGb) : "");
                     setPCategory(p.category || "");
                     setPDesc(p.description || "");
                     setShowAddPackage(true);
@@ -542,6 +550,7 @@ export default function ColleaguesManagement({
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-300">
                   <span className="text-indigo-400 font-bold whitespace-nowrap">💰 {p.price.toLocaleString()} تومان</span>
                   <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
+                  <span className="text-amber-400 font-bold whitespace-nowrap">⚠️ حداقل حجم ساخت: {p.minCreateGb || 1} گیگابایت</span>
                   {p.category && (
                     <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
                       {colleagueCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}

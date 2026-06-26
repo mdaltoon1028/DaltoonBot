@@ -1043,7 +1043,7 @@ app.post("/api/gift-codes/delete", (req, res) => {
 app.post("/api/colleague-packages/save", (req, res) => {
   const db = readJsonDb();
   if (!db.colleague_packages) db.colleague_packages = [];
-  const { id, title, price, trafficGb, category, description } = req.body;
+  const { id, title, price, trafficGb, category, description, minCreateGb } = req.body;
   if (!id || !title || price === undefined || trafficGb === undefined) {
     return res.status(400).json({ error: "Missing fields" });
   }
@@ -1057,6 +1057,7 @@ app.post("/api/colleague-packages/save", (req, res) => {
       trafficGb: Number(trafficGb),
       category,
       description,
+      minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
     };
   } else {
     db.colleague_packages.push({
@@ -1066,6 +1067,7 @@ app.post("/api/colleague-packages/save", (req, res) => {
       trafficGb: Number(trafficGb),
       category,
       description,
+      minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
     });
   }
   writeJsonDb(db);

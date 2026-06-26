@@ -540,7 +540,7 @@ export default function MultiServerConfig({
                   {lang === "fa" ? "آدرس پنل" : "Panel URL"}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
-                  {lang === "fa" ? "کانفیگ‌ها" : "Configs"}
+                  {lang === "fa" ? "اینباندها" : "Inbounds"}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
                   {lang === "fa" ? "وضعیت اتصال" : "Connection Status"}
