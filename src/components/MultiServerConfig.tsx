@@ -66,6 +66,8 @@ export default function MultiServerConfig({
   const [subUrl, setSubUrl] = useState("");
   const [panelUsername, setPanelUsername] = useState("");
   const [panelPassword, setPanelPassword] = useState("");
+  const [panelToken, setPanelToken] = useState("");
+  const [panelType, setPanelType] = useState<"sanaei" | "rebecca">("sanaei");
 
   const [testStatus, setTestStatus] = useState<{
     type: "success" | "error" | "loading" | "idle";
@@ -82,6 +84,8 @@ export default function MultiServerConfig({
     setSubUrl("");
     setPanelUsername("");
     setPanelPassword("");
+    setPanelToken("");
+    setPanelType("sanaei");
     setInbounds([]);
     setCheckedInboundIds([]);
     setCheckedPlanCategories([]);
@@ -95,8 +99,10 @@ export default function MultiServerConfig({
     setName(s.name);
     setBaseUrl(s.panelUrl);
     setSubUrl(s.subUrl || "");
-    setPanelUsername(s.panelUsername);
-    setPanelPassword(s.panelPassword);
+    setPanelUsername(s.panelUsername || "");
+    setPanelPassword(s.panelPassword || "");
+    setPanelToken(s.panelToken || "");
+    setPanelType(s.panelType || "sanaei");
     setCheckedInboundIds(
       Array.isArray(s.activeInboundIds) ? s.activeInboundIds : [],
     );
@@ -127,17 +133,20 @@ export default function MultiServerConfig({
       type: "loading",
       message:
         lang === "fa"
-          ? "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها..."
+          ? (panelType === "rebecca" ? "در حال اتصال به پنل ربکا..." : "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها...")
           : "Connecting to panel and retrieving inbounds...",
     });
     try {
       const response = await fetch("/api/xui/test-connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl, panelUsername, panelPassword }),
+        body: JSON.stringify({ baseUrl, panelUsername, panelPassword, panelType, panelToken }),
       });
       const data = await response.json();
       if (data.success) {
+        if (data.panelToken) {
+          setPanelToken(data.panelToken);
+        }
         setTestStatus({ type: "success", message: data.message });
         if (Array.isArray(data.inbounds)) {
           setInbounds(data.inbounds);
@@ -169,6 +178,8 @@ export default function MultiServerConfig({
       subUrl,
       panelUsername,
       panelPassword,
+      panelToken,
+      panelType,
       activeInboundIds: checkedInboundIds,
       planCategories: checkedPlanCategories,
       status: "active",
@@ -237,6 +248,35 @@ export default function MultiServerConfig({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-300 mb-2">
+                {lang === "fa" ? "نوع پنل" : "Panel Type"}
+              </label>
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="panelType"
+                    value="sanaei"
+                    checked={panelType === "sanaei"}
+                    onChange={() => setPanelType("sanaei")}
+                    className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-300">{lang === "fa" ? "سنایی (Sanaei)" : "Sanaei"}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="panelType"
+                    value="rebecca"
+                    checked={panelType === "rebecca"}
+                    onChange={() => setPanelType("rebecca")}
+                    className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-300">{lang === "fa" ? "ربکا (Rebecca)" : "Rebecca"}</span>
+                </label>
+              </div>
+            </div>
+            <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
                 {lang === "fa" ? "نام دلخواه سرور" : "Server Name"}
               </label>
@@ -276,7 +316,7 @@ export default function MultiServerConfig({
             </div>
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "نام کاربری X-UI" : "Username"}
+                {lang === "fa" ? "نام کاربری پنل" : "Panel Username"}
               </label>
               <input
                 type="text"
@@ -287,7 +327,7 @@ export default function MultiServerConfig({
             </div>
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "رمز عبور X-UI" : "Password"}
+                {lang === "fa" ? "رمز عبور پنل" : "Panel Password"}
               </label>
               <input
                 type="password"
@@ -307,8 +347,8 @@ export default function MultiServerConfig({
                 className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`}
               />
               {lang === "fa"
-                ? "تست اتصال و دریافت اینباندها"
-                : "Test Connection & Fetch Inbounds"}
+                ? (panelType === "rebecca" ? "تست اتصال به پنل ربکا" : "تست اتصال و دریافت اینباندها")
+                : (panelType === "rebecca" ? "Test Rebecca Connection" : "Test Connection & Fetch Inbounds")}
             </button>
           </div>
 
@@ -326,7 +366,7 @@ export default function MultiServerConfig({
             </div>
           )}
 
-          {inbounds.length > 0 && (
+          {panelType === "sanaei" && inbounds.length > 0 && (
             <div className="border border-indigo-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
               <h4 className="text-xs font-bold text-gray-200 mb-3">
                 {lang === "fa"
@@ -460,7 +500,10 @@ export default function MultiServerConfig({
                       >
                         <Server className="w-4 h-4" />
                       </div>
-                      <span className="font-bold text-white">{srv.name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-white">{srv.name}</span>
+                        <span className="text-[9px] text-gray-500 uppercase tracking-widest">{srv.panelType === "rebecca" ? "Rebecca" : "Sanaei"}</span>
+                      </div>
                     </div>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap">

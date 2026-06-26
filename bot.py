@@ -2014,7 +2014,8 @@ def buy_cmd(message):
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
         for srv in active_servers:
-            markup.add(types.InlineKeyboardButton(f"🌐 {srv.get('name')}", callback_data=f"srvsel_{srv.get('id')}"))
+            panel_type = "Rebecca" if srv.get("panelType") == "rebecca" else "Sanaei"
+            markup.add(types.InlineKeyboardButton(f"🌐 [{panel_type}] {srv.get('name')}", callback_data=f"srvsel_{srv.get('id')}"))
             
         markup.row(
             types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home")

@@ -527,7 +527,7 @@ export default function BotSimulator({
         
         if (activeServers.length > 0) {
           const inlineServers = activeServers.map((s: any) => ([
-            { text: `🌐 ${s.name}`, action: `srvsel_${s.id}` }
+            { text: `🌐 [${s.panelType === "rebecca" ? "Rebecca" : "Sanaei"}] ${s.name}`, action: `srvsel_${s.id}` }
           ]));
           
           inlineServers.push([

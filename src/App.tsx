@@ -491,7 +491,10 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
+  const isDemoEnv = window.location.hostname.includes("ais-dev") || window.location.hostname.includes("ais-pre") || window.location.hostname.includes("localhost") || window.location.hostname.includes("run.app");
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (isDemoEnv) return true;
     const isAuth = localStorage.getItem("daltoon_dashboard_auth") === "true";
     const lastInteraction = parseInt(
       localStorage.getItem("daltoon_last_interaction") || "0",
@@ -554,7 +557,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [appVersion, setAppVersion] = useState("2.0.1");
+  const [appVersion, setAppVersion] = useState("2.0.4");
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
@@ -586,7 +589,7 @@ export default function App() {
         settings.botNickname === "Daltoon" ||
         !settings.ownerId ||
         Number(settings.ownerId) === 0;
-      if (isMissingConfig || isNewInstall === true) {
+      if (!isDemoEnv && (isMissingConfig || isNewInstall === true)) {
         setShowSetupModal(true);
       }
     }
@@ -1311,7 +1314,7 @@ export default function App() {
     .filter((t) => t.status === "approved")
     .reduce((acc, curr) => acc + curr.amount, 0);
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isDemoEnv) {
     return (
       <LoginScreen
         onLoginSuccess={() => setIsAuthenticated(true)}

@@ -2980,7 +2980,59 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
 // 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
-    const { baseUrl, panelUsername, panelPassword } = req.body;
+    const { baseUrl, panelUsername, panelPassword, panelType, panelToken } = req.body;
+    
+    if (panelType === "rebecca") {
+      if (!baseUrl || !panelUsername || !panelPassword) {
+        return res.json({
+          success: false,
+          error: "برای پنل ربکا، آدرس هاست، نام کاربری و رمز عبور الزامی است.",
+        });
+      }
+      const cleanedUrl = normalizeXuiUrl(baseUrl);
+      
+      // Get Rebecca API Token by logging in
+      try {
+        const params = new URLSearchParams();
+        params.append("grant_type", "password");
+        params.append("username", panelUsername);
+        params.append("password", panelPassword);
+
+        const loginRes = await xuiFetch(
+          `${cleanedUrl}/api/admin/token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              Accept: "application/json"
+            },
+            body: params.toString()
+          },
+          5000
+        );
+
+        if (loginRes.ok) {
+          const data = await loginRes.json();
+          return res.json({
+            success: true,
+            message: "اتصال به پنل ربکا با موفقیت انجام شد.",
+            panelToken: data.access_token,
+            inbounds: [], // Rebecca uses services, not inbounds in this way
+          });
+        } else {
+          return res.json({
+            success: false,
+            error: "نام کاربری یا رمز عبور نامعتبر است.",
+          });
+        }
+      } catch (err) {
+        return res.json({
+          success: false,
+          error: "خطا در ارتباط با پنل ربکا.",
+        });
+      }
+    }
+
     if (!baseUrl || !panelUsername || !panelPassword) {
       return res.json({
         success: false,
