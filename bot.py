@@ -1050,6 +1050,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         }
         if panel_type == "rebecca":
             payload["service_ids"] = inbound_ids
+            payload["service_id"] = inbound_ids[0] if inbound_ids else 1
         else:
             payload["group_ids"] = inbound_ids
 
