@@ -918,6 +918,7 @@ app.get("/api/data", async (req, res) => {
       tickets: db.tickets || [],
       colleaguePackages: db.colleague_packages || [],
       colleagueAccounts: db.colleague_accounts || [],
+      colleagueCategories: db.colleague_categories || [],
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
       settings,
