@@ -1160,10 +1160,10 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
                 success_count += 1
                 print(f"[Classic API] Added user '{safe_email}' to inbound {inb_id}")
             else:
-                last_err_msg = f"Classic API (inbound {inb_id}): HTTP {c_res.status_code} {c_res.text}"
+                last_err_msg += f" | Classic API (inb {inb_id}): HTTP {c_res.status_code} {c_res.text}"
                 print(f"[Classic API Error] {last_err_msg}")
         except Exception as e:
-            last_err_msg = f"Classic API error (inbound {inb_id}): {e}"
+            last_err_msg += f" | Classic API error (inb {inb_id}): {e}"
             print(f"[Classic API Error] {last_err_msg}")
     
     if success_count > 0:
@@ -4221,7 +4221,106 @@ def callback_handler(call):
         process_col_renew_payment(message, acc_id, package)
         return
 
-    if call.data.startswith("col_") and not call.data.startswith("col_pay:"):
+    elif call.data.startswith("colsrv_"):
+        bot.answer_callback_query(call.id)
+        # format: colsrv_{acc_id}_{gb}_{days}_{server_id}
+        parts = call.data.split("_")
+        if len(parts) >= 5:
+            acc_id = parts[1]
+            gb = int(parts[2])
+            days = int(parts[3])
+            server_id = "_".join(parts[4:])
+            
+            db = read_db_json()
+            accounts = db.get("colleague_accounts", [])
+            live_acc = next((a for a in accounts if a["id"] == acc_id), None)
+            
+            pending = db.get("pending_col_creations", {}).get(acc_id, {})
+            name = pending.get("name")
+            
+            if not live_acc or not name:
+                bot.send_message(call.message.chat.id, "❌ حساب همکار یا نام کاربری یافت نشد.", reply_markup=get_custom_keyboard())
+                return
+                
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            
+            # call add_vpn_client_api with selected server
+            full_name = f"{live_acc.get('prefix', 'Col')}-{name}"
+            cfg = get_config()
+            client_uuid, sub_link = add_vpn_client_api(full_name, gb, days, server_id=server_id)
+            
+            if not sub_link:
+                if not cfg.get("SIMULATOR_MODE"):
+                    session = get_session()
+                    last_err = getattr(session, "last_error", "خطای ناشناخته")
+                    bot.send_message(
+                        call.message.chat.id,
+                        "❌ <b>خطا در ساخت کانفیگ همکار!</b>\n\n"
+                        "متأسفانه امکان اتصال به پنل x-ui و ایجاد این اکانت در این لحظه وجود ندارد.\n\n"
+                        f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                        "⚠️ <b>هیچ ترافیکی از حساب همکار شما کسر نشد.</b>\n\n",
+                        parse_mode="HTML", reply_markup=get_custom_keyboard()
+                    )
+                    show_colleague_panel_msg(call.message, live_acc)
+                else:
+                    bot.send_message(call.message.chat.id, "خطا در ساخت کانفیگ (حالت شبیه‌ساز)")
+                return
+                
+            # success
+            port = cfg.get("SERVER_PORT", 3000)
+            if not sub_link:
+                cfg_url = cfg.get("SUB_URL", f"http://localhost:{port}")
+                sub_link = f"{cfg_url}/sub/{full_name}"
+                
+            used = live_acc.get("usedTrafficGb", 0)
+            live_acc["usedTrafficGb"] = used + gb
+            acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), -1)
+            accounts[acc_idx] = live_acc
+            db["colleague_accounts"] = accounts
+            
+            import time
+            expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
+            sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+            
+            sub = {
+                "id": sub_id,
+                "userId": live_acc.get("userId"),
+                "colleagueAccountId": live_acc["id"],
+                "planName": full_name,
+                "clientName": full_name,
+                "clientUuid": client_uuid,
+                "subLink": sub_link,
+                "trafficLimitGb": gb,
+                "trafficUsedGb": 0,
+                "expireDate": expire_date,
+                "expireTimestamp": int(time.time()) + days * 24 * 60 * 60,
+                "status": "active",
+                "createdAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "serverId": server_id
+            }
+            
+            if "subscription_keys" not in db:
+                db["subscription_keys"] = []
+            db["subscription_keys"].append(sub)
+            
+            # clean up pending
+            if "pending_col_creations" in db and acc_id in db["pending_col_creations"]:
+                del db["pending_col_creations"][acc_id]
+                
+            write_db_json(db)
+            
+            bot.send_message(
+                call.message.chat.id,
+                f"✅ <b>کاربر جدید با موفقیت ساخته شد!</b>\n\n"
+                f"👤 نام: {full_name}\n"
+                f"🗄 حجم تخصیصی: {gb} گیگابایت\n"
+                f"⏳ اعتبار: {days} روز\n\n"
+                f"🔗 <b>لینک اشتراک:</b>\n<code>{sub_link}</code>",
+                parse_mode="HTML", reply_markup=get_custom_keyboard()
+            )
+            show_colleague_panel_msg(call.message, live_acc)
+            
+    elif call.data.startswith("col_") and not call.data.startswith("col_pay:"):
         bot.answer_callback_query(call.id)
         parts = call.data.split("_")
         action = parts[1]
@@ -5500,10 +5599,28 @@ def process_col_create_days(message, acc, name, gb):
     
     full_name = f"{live_acc.get('prefix', 'Col')}-{name}"
     
-    # Select active server to pass to add_vpn_client_api, subscription dict, and get_client_all_links
     cfg = get_config()
     servers = cfg.get("SERVERS", [])
-    active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+    active_servers = [s for s in servers if s.get("status") == "active"]
+    
+    if len(active_servers) > 1:
+        markup = types.InlineKeyboardMarkup()
+        for i, s in enumerate(active_servers):
+            srv_name = s.get('name') or f"Server {i+1}"
+            markup.row(types.InlineKeyboardButton(f"🌐 {srv_name}", callback_data=f"colsrv_{acc['id']}_{gb}_{days}_{s.get('id')}"))
+        bot.send_message(message.chat.id, f"لطفاً سرور مورد نظر برای ساخت کانفیگ همکار را انتخاب کنید:\nنام کاربری: {name}\nحجم: {gb} گیگابایت\nاعتبار: {days} روز", reply_markup=markup)
+        
+        # Save temporary name in db or just pass it in callback?
+        # Since callback data is limited to 64 bytes, and name can be long, 
+        # let's save the pending colleague creation state.
+        db = read_db_json()
+        if "pending_col_creations" not in db:
+            db["pending_col_creations"] = {}
+        db["pending_col_creations"][acc['id']] = {"name": name, "gb": gb, "days": days}
+        write_db_json(db)
+        return
+        
+    active_server = active_servers[0] if active_servers else (servers[0] if servers else None)
     active_server_id = active_server.get("id") if active_server else None
 
     client_uuid, sub_link = add_vpn_client_api(full_name, gb, days, server_id=active_server_id)
