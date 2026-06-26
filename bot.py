@@ -2213,7 +2213,7 @@ def buy_cmd(message):
     db = read_db_json()
     
     servers = cfg.get("SERVERS", [])
-    active_servers = [s for s in servers if s.get("status") == "active"]
+    active_servers = [s for s in servers if s.get("status") == "active" and s.get("serverFor") != "colleagues"]
     
     if active_servers:
         message_body = (
@@ -2765,7 +2765,7 @@ def handle_main_menu_callback(call):
         # Select active server to pass to add_vpn_client_api, create_sub_key and get_client_all_links
         cfg = get_config()
         servers = cfg.get("SERVERS", [])
-        active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        active_server = next((s for s in servers if s.get("status") == "active" and s.get("serverFor") != "colleagues"), servers[0] if servers else None)
         active_server_id = active_server.get("id") if active_server else None
 
         client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0, server_id=active_server_id) # 0.1 GB (100MB), 1 day
@@ -5601,7 +5601,7 @@ def process_col_create_days(message, acc, name, gb):
     
     cfg = get_config()
     servers = cfg.get("SERVERS", [])
-    active_servers = [s for s in servers if s.get("status") == "active"]
+    active_servers = [s for s in servers if s.get("status") == "active" and s.get("serverFor") != "users"]
     
     if len(active_servers) > 1:
         markup = types.InlineKeyboardMarkup()
