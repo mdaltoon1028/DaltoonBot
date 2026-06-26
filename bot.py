@@ -399,46 +399,75 @@ def login_xui(server_id=None, force=False):
         
     if panel_type in ["rebecca", "pasarguard"]:
         try:
-            print(f"[Panel API] Connecting to {panel_type} token URL: {base_url}/api/admin/token")
             session = get_session()
             session.cookies.clear()
             session.headers.pop("Authorization", None)
             session.headers.pop("X-Csrf-Token", None)
             session.last_login_error = "" # Reset
-            login_data = {"grant_type": "password", "username": user, "password": pwd}
-            headers = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
-            res = session.post(f"{base_url}/api/admin/token", data=login_data, headers=headers, timeout=20, verify=False)
-            if res.ok:
-                token = res.json().get("access_token")
-                if token:
-                    session.headers.update({"Authorization": f"Bearer {token}"})
-                    _last_login_times[cache_key] = now
-                    print(f"[Panel API] Authenticated successfully with {panel_type}.")
-                    return True
-            
-            err_msg = f"Login rejected ({res.status_code})"
-            try:
-                rj = res.json()
-                if rj.get("msg"): err_msg += f": {rj['msg']}"
-                elif rj.get("message"): err_msg += f": {rj['message']}"
-            except: pass
-            
-            # 405 Fallback for some Rebecca/Pasarguard versions
-            if res.status_code == 405:
-                alt_url = f"{base_url}/api/token"
-                print(f"[Panel API] 405 detected. Trying alternative URL: {alt_url}")
-                res_alt = session.post(alt_url, data=login_data, headers=headers, timeout=20, verify=False)
-                if res_alt.ok:
-                    rj = res_alt.json()
-                    token = rj.get("access_token")
-                    if token:
-                        session.headers["Authorization"] = f"Bearer {token}"
-                        _last_login_times[cache_key] = now
-                        print(f"[Panel API] Authenticated successfully with {panel_type} (via fallback URL).")
-                        return True
 
-            print(f"[Panel API] {err_msg} | URL: {base_url}/api/admin/token")
-            session.last_login_error = f"{err_msg}\nآدرس تست شده: {base_url}/api/admin/token"
+            # We will try multiple candidate login paths and body formats to handle any version/Nginx redirects
+            candidates = [
+                # 1. Standard admin token urlencoded
+                {"url": f"{base_url}/api/admin/token", "as_json": False, "data": {"grant_type": "password", "username": user, "password": pwd}},
+                # 2. Standard admin token trailing slash urlencoded
+                {"url": f"{base_url}/api/admin/token/", "as_json": False, "data": {"grant_type": "password", "username": user, "password": pwd}},
+                # 3. Alternative token urlencoded
+                {"url": f"{base_url}/api/token", "as_json": False, "data": {"grant_type": "password", "username": user, "password": pwd}},
+                # 4. Alternative token trailing slash urlencoded
+                {"url": f"{base_url}/api/token/", "as_json": False, "data": {"grant_type": "password", "username": user, "password": pwd}},
+                # 5. Admin token JSON
+                {"url": f"{base_url}/api/admin/token", "as_json": True, "data": {"username": user, "password": pwd}},
+                # 6. Admin token trailing slash JSON
+                {"url": f"{base_url}/api/admin/token/", "as_json": True, "data": {"username": user, "password": pwd}},
+                # 7. Alternative token JSON
+                {"url": f"{base_url}/api/token", "as_json": True, "data": {"username": user, "password": pwd}},
+                # 8. Alternative token trailing slash JSON
+                {"url": f"{base_url}/api/token/", "as_json": True, "data": {"username": user, "password": pwd}},
+            ]
+
+            last_status = None
+            last_body = ""
+            last_tested_url = ""
+
+            for cand in candidates:
+                url = cand["url"]
+                as_json = cand["as_json"]
+                payload = cand["data"]
+                headers = {"Accept": "application/json"}
+                
+                try:
+                    print(f"[Panel API] Trying auth candidate: {url} (JSON: {as_json})")
+                    if as_json:
+                        res = session.post(url, json=payload, headers=headers, timeout=10, verify=False)
+                    else:
+                        headers["Content-Type"] = "application/x-www-form-urlencoded"
+                        res = session.post(url, data=payload, headers=headers, timeout=10, verify=False)
+                    
+                    last_status = res.status_code
+                    last_tested_url = url
+                    try:
+                        last_body = res.text[:200]
+                    except:
+                        last_body = ""
+
+                    if res.ok:
+                        token = res.json().get("access_token")
+                        if token:
+                            session.headers.update({"Authorization": f"Bearer {token}"})
+                            _last_login_times[cache_key] = now
+                            print(f"[Panel API] Authenticated successfully with {panel_type} via {url}.")
+                            return True
+                except Exception as cand_err:
+                    print(f"[Panel API] Auth candidate {url} failed: {str(cand_err)}")
+
+            err_msg = f"Login rejected (Status: {last_status})"
+            if last_status == 405:
+                err_msg = f"Login rejected (405 Method Not Allowed)"
+            elif last_status == 404:
+                err_msg = f"Login rejected (404 Not Found)"
+            
+            print(f"[Panel API] All authentication candidates failed. Last tested: {last_tested_url} (Status: {last_status})")
+            session.last_login_error = f"{err_msg}\nآدرس تست شده: {last_tested_url}\nپاسخ: {last_body}"
             return False
         except Exception as e:
             err_msg = f"Connection error: {str(e)}"

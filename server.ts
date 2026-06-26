@@ -844,45 +844,9 @@ app.get("/api/data", async (req, res) => {
           
           if (server.panelType === "pasarguard") {
             try {
-              const params = new URLSearchParams();
-              params.append("grant_type", "password");
-              params.append("username", server.panelUsername);
-              params.append("password", server.panelPassword);
+              const access_token = await loginRebeccaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
 
-              let loginRes = await xuiFetch(
-                `${cleanedUrl}/api/admin/token`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Accept: "application/json"
-                  },
-                  body: params.toString()
-                },
-                5000
-              );
-
-              // 405 Fallback for some Rebecca/Pasarguard versions
-              if (!loginRes.ok && loginRes.status === 405) {
-                console.log(`[PasarGuard Sync] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
-                loginRes = await xuiFetch(
-                  `${cleanedUrl}/api/token`,
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/x-www-form-urlencoded",
-                      Accept: "application/json"
-                    },
-                    body: params.toString()
-                  },
-                  5000
-                );
-              }
-
-              if (loginRes.ok) {
-                const data = await loginRes.json();
-                const access_token = data.access_token;
-
+              if (access_token) {
                 const groupsRes = await xuiFetch(
                   `${cleanedUrl}/api/groups/simple`,
                   {
@@ -912,45 +876,9 @@ app.get("/api/data", async (req, res) => {
             }
           } else if (server.panelType === "rebecca") {
             try {
-              const params = new URLSearchParams();
-              params.append("grant_type", "password");
-              params.append("username", server.panelUsername);
-              params.append("password", server.panelPassword);
+              const access_token = await loginRebeccaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
 
-              let loginRes = await xuiFetch(
-                `${cleanedUrl}/api/admin/token`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Accept: "application/json"
-                  },
-                  body: params.toString()
-                },
-                5000
-              );
-
-              // 405 Fallback for some Rebecca/Pasarguard versions
-              if (!loginRes.ok && loginRes.status === 405) {
-                console.log(`[Rebecca Sync] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
-                loginRes = await xuiFetch(
-                  `${cleanedUrl}/api/token`,
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/x-www-form-urlencoded",
-                      Accept: "application/json"
-                    },
-                    body: params.toString()
-                  },
-                  5000
-                );
-              }
-
-              if (loginRes.ok) {
-                const data = await loginRes.json();
-                const access_token = data.access_token;
-
+              if (access_token) {
                 const servicesRes = await xuiFetch(
                   `${cleanedUrl}/api/v2/services`,
                   {
@@ -2268,6 +2196,95 @@ function normalizeXuiUrl(url: string): string {
   return cleaned;
 }
 
+// Highly robust helper to log into Rebecca/Pasarguard panels trying multiple candidates
+async function loginRebeccaPasarguard(baseUrl: string, username: string, password: string): Promise<string | null> {
+  const cleanedUrl = normalizeXuiUrl(baseUrl);
+  
+  const candidates = [
+    // 1. Standard admin token urlencoded
+    { url: `${cleanedUrl}/api/admin/token`, asJson: false, body: () => {
+        const p = new URLSearchParams();
+        p.append("grant_type", "password");
+        p.append("username", username);
+        p.append("password", password);
+        return p.toString();
+      }
+    },
+    // 2. Standard admin token trailing slash urlencoded
+    { url: `${cleanedUrl}/api/admin/token/`, asJson: false, body: () => {
+        const p = new URLSearchParams();
+        p.append("grant_type", "password");
+        p.append("username", username);
+        p.append("password", password);
+        return p.toString();
+      }
+    },
+    // 3. Alternative token urlencoded
+    { url: `${cleanedUrl}/api/token`, asJson: false, body: () => {
+        const p = new URLSearchParams();
+        p.append("grant_type", "password");
+        p.append("username", username);
+        p.append("password", password);
+        return p.toString();
+      }
+    },
+    // 4. Alternative token trailing slash urlencoded
+    { url: `${cleanedUrl}/api/token/`, asJson: false, body: () => {
+        const p = new URLSearchParams();
+        p.append("grant_type", "password");
+        p.append("username", username);
+        p.append("password", password);
+        return p.toString();
+      }
+    },
+    // 5. Admin token JSON
+    { url: `${cleanedUrl}/api/admin/token`, asJson: true, body: () => JSON.stringify({ username, password }) },
+    // 6. Admin token trailing slash JSON
+    { url: `${cleanedUrl}/api/admin/token/`, asJson: true, body: () => JSON.stringify({ username, password }) },
+    // 7. Alternative token JSON
+    { url: `${cleanedUrl}/api/token`, asJson: true, body: () => JSON.stringify({ username, password }) },
+    // 8. Alternative token trailing slash JSON
+    { url: `${cleanedUrl}/api/token/`, asJson: true, body: () => JSON.stringify({ username, password }) },
+  ];
+
+  for (const cand of candidates) {
+    try {
+      console.log(`[Rebecca/PasarGuard Login] Trying candidate: ${cand.url} (JSON: ${cand.asJson})`);
+      const headers: Record<string, string> = {
+        "Accept": "application/json"
+      };
+      if (cand.asJson) {
+        headers["Content-Type"] = "application/json";
+      } else {
+        headers["Content-Type"] = "application/x-www-form-urlencoded";
+      }
+
+      const res = await xuiFetch(
+        cand.url,
+        {
+          method: "POST",
+          headers,
+          body: cand.body()
+        },
+        5000
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const token = data?.access_token;
+        if (token) {
+          console.log(`[Rebecca/PasarGuard Login] Authenticated successfully with ${cand.url}`);
+          return token;
+        }
+      }
+    } catch (e: any) {
+      console.log(`[Rebecca/PasarGuard Login] Candidate ${cand.url} failed: ${e.message}`);
+    }
+  }
+
+  return null;
+}
+
 // Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
 async function loginXuiPanel(
   cleanedUrl: string,
@@ -3132,48 +3149,11 @@ app.post("/api/xui/test-connection", async (req, res) => {
       }
       const cleanedUrl = normalizeXuiUrl(baseUrl);
       
-      // Get Rebecca API Token by logging in
       try {
-        const params = new URLSearchParams();
-        params.append("grant_type", "password");
-        params.append("username", panelUsername);
-        params.append("password", panelPassword);
+        const access_token = await loginRebeccaPasarguard(cleanedUrl, panelUsername, panelPassword);
 
-        let loginRes = await xuiFetch(
-          `${cleanedUrl}/api/admin/token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              Accept: "application/json"
-            },
-            body: params.toString()
-          },
-          5000
-        );
-
-        // 405 Fallback for some Rebecca/Pasarguard versions
-        if (!loginRes.ok && loginRes.status === 405) {
-          console.log(`[Rebecca Test] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
-          loginRes = await xuiFetch(
-            `${cleanedUrl}/api/token`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                Accept: "application/json"
-              },
-              body: params.toString()
-            },
-            5000
-          );
-        }
-
-        if (loginRes.ok) {
-          const data = await loginRes.json();
-          const access_token = data.access_token;
-          
-          let services = [];
+        if (access_token) {
+          let services: any[] = [];
           try {
             const servicesRes = await xuiFetch(
               `${cleanedUrl}/api/v2/services`,
@@ -3208,13 +3188,13 @@ app.post("/api/xui/test-connection", async (req, res) => {
         } else {
           return res.json({
             success: false,
-            error: "نام کاربری یا رمز عبور نامعتبر است.",
+            error: "نام کاربری یا رمز عبور نامعتبر است یا امکان برقراری ارتباط با متدهای مختلف وجود ندارد.",
           });
         }
-      } catch (err) {
+      } catch (err: any) {
         return res.json({
           success: false,
-          error: "خطا در ارتباط با پنل ربکا.",
+          error: "خطا در ارتباط با پنل ربکا: " + err.message,
         });
       }
     } else if (panelType === "pasarguard") {
@@ -3227,46 +3207,10 @@ app.post("/api/xui/test-connection", async (req, res) => {
       const cleanedUrl = normalizeXuiUrl(baseUrl);
       
       try {
-        const params = new URLSearchParams();
-        params.append("grant_type", "password");
-        params.append("username", panelUsername);
-        params.append("password", panelPassword);
+        const access_token = await loginRebeccaPasarguard(cleanedUrl, panelUsername, panelPassword);
 
-        let loginRes = await xuiFetch(
-          `${cleanedUrl}/api/admin/token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              Accept: "application/json"
-            },
-            body: params.toString()
-          },
-          5000
-        );
-
-        // 405 Fallback for some Rebecca/Pasarguard versions
-        if (!loginRes.ok && loginRes.status === 405) {
-          console.log(`[PasarGuard Test] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
-          loginRes = await xuiFetch(
-            `${cleanedUrl}/api/token`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                Accept: "application/json"
-              },
-              body: params.toString()
-            },
-            5000
-          );
-        }
-
-        if (loginRes.ok) {
-          const data = await loginRes.json();
-          const access_token = data.access_token;
-          
-          let groups = [];
+        if (access_token) {
+          let groups: any[] = [];
           try {
             const groupsRes = await xuiFetch(
               `${cleanedUrl}/api/groups/simple`,
@@ -3301,11 +3245,11 @@ app.post("/api/xui/test-connection", async (req, res) => {
         } else {
           return res.json({
             success: false,
-            error: "نام کاربری یا رمز عبور نامعتبر است.",
+            error: "نام کاربری یا رمز عبور نامعتبر است یا امکان برقراری ارتباط با متدهای مختلف وجود ندارد.",
           });
         }
-      } catch (err) {
-        return res.json({ success: false, error: "خطا در برقراری ارتباط." });
+      } catch (err: any) {
+        return res.json({ success: false, error: "خطا در برقراری ارتباط: " + err.message });
       }
     }
 
