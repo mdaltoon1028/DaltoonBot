@@ -3571,9 +3571,7 @@ app.post("/api/transactions/approve", async (req, res) => {
 
           if (plan) {
             const clientName = tx.clientName || `user_${tx.userId}`;
-            const settings = db.settings
-              ? JSON.parse(db.settings.panel_config || "{}")
-              : {};
+            const settings = getSystemSettings(db);
 
             try {
               const planTraffic = Number(plan.trafficGb) || 30;
@@ -3708,12 +3706,11 @@ app.post("/api/transactions/approve", async (req, res) => {
 
       // Try to notify the user via Telegram Bot API on success
       try {
-        const configStr = db.settings?.panel_config;
-        if (configStr) {
-          const cfg = JSON.parse(configStr);
-          const botToken = cfg.botToken;
-          if (botToken) {
-            const https = require("https");
+        const cfg = getSystemSettings(db);
+        let botToken = cfg.botToken || cfg.BOT_TOKEN;
+        if (botToken) botToken = botToken.trim();
+        if (botToken && botToken !== "DUMMY_TOKEN") {
+          const https = require("https");
 
             // Check if there is a newly generated subLink to attach a QR code
             let qrUrl: string | null = null;
@@ -3808,7 +3805,6 @@ app.post("/api/transactions/approve", async (req, res) => {
               }, 1000);
             }
           }
-        }
       } catch (notifyErr) {
         console.warn("Error notifying user of approval:", notifyErr);
       }
@@ -3853,12 +3849,11 @@ app.post("/api/transactions/reject", async (req, res) => {
 
       // Try to notify the user via Telegram Bot API on reject
       try {
-        const configStr = db.settings?.panel_config;
-        if (configStr) {
-          const cfg = JSON.parse(configStr);
-          const botToken = cfg.botToken;
-          if (botToken) {
-            const messageText = `❌ <b>تراکنش شما پذیرفته نشد!</b>\n\nفیش ارسالی شما با شناسه <code>${tx.id}</code> توسط مدیریت بررسی و رد گردید.\n\n⚠️ علت رد تراکنش ممکن است ناخوانا بودن رسید، مغایرت مبلغ و یا تکراری بودن فیش باشد. لطفا در صورت بروز مشکل با پشتیبان ارتباط برقرار کنید.`;
+        const cfg = getSystemSettings(db);
+        let botToken = cfg.botToken || cfg.BOT_TOKEN;
+        if (botToken) botToken = botToken.trim();
+        if (botToken && botToken !== "DUMMY_TOKEN") {
+          const messageText = `❌ <b>تراکنش شما پذیرفته نشد!</b>\n\nفیش ارسالی شما با شناسه <code>${tx.id}</code> توسط مدیریت بررسی و رد گردید.\n\n⚠️ علت رد تراکنش ممکن است ناخوانا بودن رسید، مغایرت مبلغ و یا تکراری بودن فیش باشد. لطفا در صورت بروز مشکل با پشتیبان ارتباط برقرار کنید.`;
             const https = require("https");
             const postData = JSON.stringify({
               chat_id: tx.userId,
@@ -3882,7 +3877,6 @@ app.post("/api/transactions/reject", async (req, res) => {
             reqNotify.write(postData);
             reqNotify.end();
           }
-        }
       } catch (notifyErr) {
         console.warn("Error notifying user of rejection:", notifyErr);
       }

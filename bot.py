@@ -1001,15 +1001,27 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     return None, None
 
-def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
+def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server_id=None):
     """ Call Sanaei 3x-ui API to update client enabled status """
     import json, re
     cfg = get_config()
-    base_url = cfg.get('XUI_URL', '')
-    if base_url.endswith("/"):
-        base_url = base_url[:-1]
+    servers = cfg.get("SERVERS", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if s.get("id") == server_id), None)
+    if not server and servers:
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
+        
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+    else:
+        base_url = cfg.get("XUI_URL", "")
+        
+    if not base_url: return False
+    if base_url.endswith("/"): base_url = base_url[:-1]
 
-    if not login_xui():
+    if not login_xui(server_id):
         return False
         
     session = get_session()
@@ -3476,7 +3488,7 @@ def callback_handler(call):
             
             # Perform X-UI API Update
             client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
-            update_vpn_client_enabled_api(client_name, is_enabled, k.get("clientUuid"))
+            update_vpn_client_enabled_api(client_name, is_enabled, k.get("clientUuid"), server_id=k.get("serverId"))
             
             # Update DB
             k["status"] = new_status
@@ -4122,7 +4134,7 @@ def callback_handler(call):
             
             # Action on X-UI API
             client_name = sub.get("clientName", "")
-            update_vpn_client_enabled_api(client_name, is_enabled, sub.get("clientUuid"))
+            update_vpn_client_enabled_api(client_name, is_enabled, sub.get("clientUuid"), server_id=sub.get("serverId"))
             
             sub["status"] = new_status
             keys[sub_idx] = sub
