@@ -2566,22 +2566,56 @@ async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
         );
         if (!loginResult.success || !loginResult.cookie) continue;
 
-        const delUrl = `${cleanedUrl}/panel/api/clients/del/${clientEmail}`;
         const headers: Record<string, string> = {
           Cookie: loginResult.cookie,
           Accept: "application/json",
         };
-        if (loginResult.csrfToken)
+        if (loginResult.csrfToken) {
           headers["X-Csrf-Token"] = loginResult.csrfToken;
-
-        const res = await xuiFetch(
-          delUrl,
-          { method: "POST", headers },
-          5000,
-        ).catch(() => null);
-        if (res && res.ok) {
-          deletedAtLeastOnce = true;
         }
+
+        const delUrl = `${cleanedUrl}/panel/api/clients/del/${encodeURIComponent(clientEmail)}`;
+        let globalDelSuccess = false;
+        try {
+          const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000);
+          if (res && res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data && data.success) {
+              globalDelSuccess = true;
+              deletedAtLeastOnce = true;
+            }
+          }
+        } catch (e) {}
+
+        // Fallback: search across all inbounds
+        try {
+          const listUrl = `${cleanedUrl}/panel/api/inbounds/list`;
+          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5000);
+          if (listRes && listRes.ok) {
+            const data = await listRes.json().catch(() => ({}));
+            if (data && data.success && Array.isArray(data.obj)) {
+              for (const inbound of data.obj) {
+                let clients = [];
+                try {
+                  const settings = JSON.parse(inbound.settings || "{}");
+                  clients = settings.clients || [];
+                } catch (e) {}
+                
+                const clientMatch = clients.find((c: any) => c.email === clientEmail);
+                if (clientMatch && clientMatch.id) {
+                   const fallbackDelUrl = `${cleanedUrl}/panel/api/inbounds/${inbound.id}/delClient/${clientMatch.id}`;
+                   const fRes = await xuiFetch(fallbackDelUrl, { method: "POST", headers }, 5000);
+                   if (fRes && fRes.ok) {
+                      const fData = await fRes.json().catch(() => ({}));
+                      if (fData && fData.success) {
+                         deletedAtLeastOnce = true;
+                      }
+                   }
+                }
+              }
+            }
+          }
+        } catch (e) {}
       } catch (e) {
         // Ignore individual server errors and try others
       }
@@ -3572,7 +3606,11 @@ app.post("/api/transactions/approve", async (req, res) => {
                   details: `اشتراک برای پلان ${plan.name} با نام ${clientName} تحویل داده شد.`,
                 });
               } else {
-                messageTextForNotif = `❌ <b>خطا در ساخت کانفیگ!</b>\n\nمتاسفانه مشکلی در اتصال به پنل و ساخت کانفیگ پیش آمد:\n<code>${vpnResult.error || "خطای نامشخص"}</code>\n\nمدیریت موضوع را بررسی خواهد کرد. شما می‌توانید با پشتیبانی در تماس باشید.`;
+                if (user) {
+                  user.walletBalance = Number(user.walletBalance) + Number(tx.amount);
+                }
+                tx.status = "refunded";
+                messageTextForNotif = `❌ <b>خطا در ساخت کانفیگ!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت ساخت کانفیگ رخ داد:\n<code>${vpnResult.error || "خطای نامشخص"}</code>\n\n✅ سیستم جهت محافظت از شما، تراکنش را لغو کرده و مبلغ <b>${Number(tx.amount).toLocaleString()} تومان</b> را به صورت کامل به کیف پول داخلی شما در ربات عودت داد.\n\nاکنون می‌توانید از طریق کیف پول خود مجدداً اقدام کنید (در صورت رفع مشکل).`;
 
                 if (!db.logs) db.logs = [];
                 db.logs.push({
@@ -3580,8 +3618,8 @@ app.post("/api/transactions/approve", async (req, res) => {
                   date: new Date().toISOString(),
                   userId: Number(tx.userId),
                   username: tx.username || `user_${tx.userId}`,
-                  action: "خطا در تحویل",
-                  details: `خطا در ساخت کانفیگ برای ${clientName}: ${vpnResult.error || "Unknown"}`,
+                  action: "خطا و مرجوعی خودکار",
+                  details: `خطا در ساخت کانفیگ برای ${clientName}: ${vpnResult.error || "Unknown"}. مبلغ به کیف پول برگشت داده شد.`,
                 });
               }
             } catch (e: any) {
@@ -3971,7 +4009,10 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
     if (keyToDelete) {
       if (keyToDelete.clientName) {
         // Attempt to delete from X-UI Panel using our helper
-        await deleteVpnClientApi(keyToDelete.clientName, keyToDelete.serverId);
+        const delRes = await deleteVpnClientApi(keyToDelete.clientName, keyToDelete.serverId);
+        if (!delRes.success) {
+          throw new Error("امکان حذف کانفیگ از روی سرور وجود ندارد. خطا: " + (delRes.error || "نامشخص"));
+        }
       }
 
       // If this key belongs to a colleague account and has been used

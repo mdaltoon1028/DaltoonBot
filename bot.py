@@ -1161,6 +1161,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None):
 
 def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
     """ Call Sanaei 3x-ui API to delete client """
+    success_flag = False
     import re
     cfg = get_config()
     servers = cfg.get("SERVERS", [])
@@ -1199,7 +1200,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
                 rj = resp.json()
                 if rj.get("success"):
                     print(f"[Sanaei Delete API] Successfully deleted '{safe_email}' via global client/del endpoint.")
-                    return True
+                    success_flag = True
             except:
                 pass
         except Exception as e:
@@ -1298,7 +1299,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
 
     if not ids_to_delete:
         print(f"[Sanaei Delete API] No UUIDs or matching panel clients found to delete for '{client_email}'.")
-        return False
+        return success_flag
 
     print(f"[Sanaei Delete API] Executing deletion commands for UUIDs: {ids_to_delete}")
     success = False
@@ -1339,7 +1340,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
         except Exception as e:
             print(f"[Sanaei Delete API] Global client del exception for {uid}: {e}")
 
-    return success
+    return success or success_flag
 
 # --- User Management DB Queries ---
 def set_user_pending_charge(tg_id, amount):
@@ -3645,9 +3646,14 @@ def callback_handler(call):
 
         elif sub_action == "delconfirm":
             try:
-                delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
+                success = delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
+                if not success:
+                    bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+                    return
             except Exception as e:
                 print(f"[Delete API Error]: {e}")
+                bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+                return
             
             db["subscription_keys"] = [sub for sub in db["subscription_keys"] if not (sub["id"] == target_sub_id and sub["userId"] == tg_id)]
             
@@ -3833,7 +3839,20 @@ def callback_handler(call):
                 _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"), server_id=k.get("serverId"))
                 
                 if not sub_link:
-                    sub_link = k.get('subLink', '')
+                    if not is_privileged:
+                        # Refund
+                        refunded_bal = int(user['walletBalance']) # Previous balance before deduction
+                        update_user_balance(tg_id, refunded_bal)
+                    
+                    text = (
+                        f"❌ <b>خطا در تمدید اشتراک!</b>\n\n"
+                        f"متاسفانه در ارتباط با سرور و اعمال تمدید خطایی رخ داد.\n\n"
+                        f"✅ جهت محافظت از شما، مبلغ کسر شده فوراً به کیف پول شما بازگردانده شد. لطفاً در زمان دیگری تلاش کنید."
+                    )
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"))
+                    bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+                    return
                 
                 k['expireDate'] = new_expire_date_str
                 k['trafficLimitGb'] = new_limit_gb
@@ -3929,11 +3948,10 @@ def callback_handler(call):
         acc_id = sub.get("colleagueAccountId")
         
         # Call API to delete globally
-        import threading
-        def _bg_del():
-            delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
-        
-        threading.Thread(target=_bg_del).start()
+        success = delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
+        if not success:
+            bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
         
         # Deduct used
         accounts = db.get("colleague_accounts", [])
@@ -4188,10 +4206,10 @@ def callback_handler(call):
                 bot.edit_message_text(f"❌ <b>خطا:</b>\n{err_msg}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
 
         elif action == "delyes":
-            import threading
-            def _bg_del():
-                delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
-            threading.Thread(target=_bg_del).start()
+            success = delete_vpn_client_api(sub.get("clientName", ""), sub.get("clientUuid"), server_id=sub.get("serverId"))
+            if not success:
+                bot.edit_message_text("❌ خطا: امکان حذف کانفیگ از روی سرور وجود ندارد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+                return
             
             # Sub is being deleted. If it was already used, permanently add to deleted list so colleague loses balance.
             if float(sub.get("trafficUsedGb", 0)) >= 0.001:
@@ -4570,6 +4588,16 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+        
+        # PRE-CHECK: Ensure server is available before proceeding
+        if not login_xui(server_id):
+            bot.send_message(
+                call.message.chat.id, 
+                "❌ <b>سرور موجود نیست!</b>\n\nمتاسفانه در حال حاضر امکان ارتباط با سرور فراهم نیست و ساخت کانفیگ انجام نمی‌شود. لطفاً بعداً تلاش کنید.", 
+                parse_mode="HTML",
+                reply_markup=get_custom_keyboard()
+            )
+            return
         
         # Ask for username first
         msg = bot.send_message(
@@ -5418,6 +5446,16 @@ def process_col_renew_days(message, acc, sub, add_gb):
         client_name = live_sub.get("clientName") or live_sub.get("planName", "")
         delete_vpn_client_api(client_name, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
         _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
+        
+        if not sub_link:
+            # Revert deduction
+            live_acc["usedTrafficGb"] = used
+            accounts[acc_idx] = live_acc
+            db["colleague_accounts"] = accounts
+            write_db_json(db)
+            bot.send_message(message.chat.id, "❌ خطا در اتصال به سرور جهت انجام عملیات تمدید.\n\n✅ حجم کسر شده بازگردانده شد.", reply_markup=get_custom_keyboard())
+            show_colleague_panel_msg(message, live_acc)
+            return
         
         live_sub['expireDate'] = new_expire_date_str
         live_sub['trafficLimitGb'] = new_limit_gb
