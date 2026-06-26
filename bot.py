@@ -401,6 +401,7 @@ def login_xui(server_id=None, force=False):
         try:
             print(f"[Panel API] Connecting to {panel_type} token URL: {base_url}/api/admin/token")
             session = get_session()
+            session.headers.pop("Authorization", None)
             login_data = {"grant_type": "password", "username": user, "password": pwd}
             headers = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
             res = session.post(f"{base_url}/api/admin/token", data=login_data, headers=headers, timeout=20, verify=False)
@@ -421,6 +422,7 @@ def login_xui(server_id=None, force=False):
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
         print(f"[Sanaei X-UI API] Connecting to handshake URL: {base_url}")
         session = get_session()
+        session.headers.pop("Authorization", None)
         get_res = session.get(base_url, timeout=20, verify=False)
         
         csrf_token = ""
