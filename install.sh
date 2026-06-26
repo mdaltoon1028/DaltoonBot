@@ -206,14 +206,20 @@ console.log(user + '|' + pass + '|' + port);
 
 IFS='|' read -r CURRENT_USER CURRENT_PASS CURRENT_PORT <<< "$CONFIG_DATA"
 
-read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER < /dev/tty 2>/dev/null || read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
+if [ -c /dev/tty ]; then
+    read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER < /dev/tty
+    read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS < /dev/tty
+    echo ""
+    read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT < /dev/tty
+else
+    read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
+    read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
+    echo ""
+    read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
+fi
+
 DASH_USER=${DASH_USER:-$CURRENT_USER}
-
-read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS < /dev/tty 2>/dev/null || read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
-echo ""
 DASH_PASS=${DASH_PASS:-$CURRENT_PASS}
-
-read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT < /dev/tty 2>/dev/null || read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
 DASH_PORT=${DASH_PORT:-$CURRENT_PORT}
 
 echo -e "${YELLOW}Saving configuration to database...${NC}"

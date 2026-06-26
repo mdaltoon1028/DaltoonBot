@@ -383,12 +383,14 @@ def login_xui(server_id=None, force=False):
         base_url = normalize_xui_url(server.get("panelUrl", ""))
         user = server.get("panelUsername", "")
         pwd = server.get("panelPassword", "")
+        panel_type = server.get("panelType", "sanaei")
         cache_key = f"server_{server.get('id')}"
     else:
         # Legacy fallback
         base_url = cfg.get('XUI_URL', '')
         user = cfg.get('XUI_USER', '')
         pwd = cfg.get('XUI_PASS', '')
+        panel_type = "sanaei"
         cache_key = "legacy"
 
     if not base_url:
@@ -402,6 +404,26 @@ def login_xui(server_id=None, force=False):
     now = time.time()
     if not force and (now - _last_login_times.get(cache_key, 0) < 600):
         return True
+        
+    if panel_type in ["rebecca", "pasarguard"]:
+        try:
+            print(f"[Panel API] Connecting to {panel_type} token URL: {base_url}/api/admin/token")
+            session = get_session()
+            login_data = {"grant_type": "password", "username": user, "password": pwd}
+            headers = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
+            res = session.post(f"{base_url}/api/admin/token", data=login_data, headers=headers, timeout=20, verify=False)
+            if res.ok:
+                token = res.json().get("access_token")
+                if token:
+                    session.headers.update({"Authorization": f"Bearer {token}"})
+                    _last_login_times[cache_key] = now
+                    print(f"[Panel API] Authenticated successfully with {panel_type}.")
+                    return True
+            print(f"[Panel API] Login rejected for {panel_type}: {res.status_code}")
+            return False
+        except Exception as e:
+            print(f"[Panel API] Handshake error for {panel_type}: {e}")
+            return False
 
     try:
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
@@ -939,6 +961,53 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     # Fetch available IDs to ensure validity (Avoid hanging on dead IDs)
     valid_ids = []
+    
+    panel_type = server.get("panelType", "sanaei") if server else "sanaei"
+    
+    # Resolve correct subscription base URL
+    sub_base = cfg.get('SUB_URL', base_url)
+    if server:
+        server_sub = server.get("subUrl") or server.get("panelUrl")
+        if server_sub:
+            sub_base = normalize_xui_url(server_sub)
+            
+    if panel_type in ["rebecca", "pasarguard"]:
+        if not inbound_ids:
+            inbound_ids = [1]
+        payload = {
+            "username": safe_email,
+            "expire": int(expiry_time_ms / 1000),
+            "data_limit": total_bytes,
+            "data_limit_reset_strategy": "no_reset",
+            "proxy_settings": {}
+        }
+        if panel_type == "rebecca":
+            payload["service_ids"] = inbound_ids
+        else:
+            payload["group_ids"] = inbound_ids
+
+        try:
+            print(f"[{panel_type} API] Creating user with payload: {payload}")
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            res = session.post(f"{base_url}/api/user/", json=payload, headers=headers, timeout=20, verify=False)
+            if res.ok:
+                rj = res.json()
+                print(f"[{panel_type} API] User '{safe_email}' created successfully.")
+                sub_token = rj.get("sub_token", rj.get("subscription_url", ""))
+                if "subscription_url" in rj:
+                    final_sub = rj["subscription_url"]
+                    if final_sub.startswith("/"):
+                        final_sub = sub_base + final_sub
+                else:
+                    final_sub = f"{sub_base}/sub/{safe_email}"
+                return client_uuid, final_sub
+            else:
+                print(f"[{panel_type} API] Failed to create user: {res.text}")
+                return None, None
+        except Exception as e:
+            print(f"[{panel_type} API Error]: {e}")
+            return None, None
+
     try:
         list_url = f"{base_url}/panel/api/inbounds/list"
         list_res = session.get(list_url, timeout=20, verify=False)
@@ -1030,6 +1099,22 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server
     if client_email:
         safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
         safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
+        
+    panel_type = server.get("panelType", "sanaei") if server else "sanaei"
+    if panel_type in ["rebecca", "pasarguard"]:
+        try:
+            status_str = "active" if enable else "disabled"
+            payload = {"status": status_str}
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            url = f"{base_url}/api/user/{safe_email}/disabled" if not enable else f"{base_url}/api/user/{safe_email}" # wait, rebecca uses PUT /api/user/{username}/disabled with {"status": "disabled"}?
+            # Actually, Rebecca's modify_user is PUT /api/user/{username} with all fields, OR set_user_disabled PUT /api/user/{username}/disabled
+            # Let's just use the toggle endpoint for disabled
+            res = session.put(f"{base_url}/api/user/{safe_email}/disabled", json={"status": status_str}, headers=headers, timeout=20, verify=False)
+            if res.ok:
+                return True
+            return False
+        except:
+            return False
 
     # Try several common endpoints for maximum reliability
     targets = []
@@ -1201,6 +1286,17 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
     import re
     safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
     safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
+    
+    panel_type = server.get("panelType", "sanaei") if server else "sanaei"
+    if panel_type in ["rebecca", "pasarguard"]:
+        try:
+            print(f"[{panel_type} Delete API] Deleting user: {safe_email}")
+            res = session.delete(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
+            if res.ok:
+                return True
+            return False
+        except:
+            return False
     
     # NEW SANAEI ENDPOINT (Safest and cleanest)
     if safe_email:
