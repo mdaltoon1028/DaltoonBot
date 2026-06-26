@@ -478,7 +478,7 @@ export default function UserManagement({
                               {userKeys.map((key) => (
                                 <div key={key.id} className="flex flex-col gap-1 bg-slate-950/80 hover:bg-slate-950 border border-slate-800/80 p-1.5 rounded text-[10px] transition">
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="truncate text-indigo-300 font-medium font-sans max-w-[120px]" title={key.planName}>
+                                    <span className="truncate text-indigo-300 font-medium font-sans max-w-[120px]" title={`${key.planName} (${key.clientName || 'N/A'})`}>
                                       {key.planName}
                                     </span>
                                     <div className="flex items-center gap-1 shrink-0">
@@ -497,6 +497,29 @@ export default function UserManagement({
                                           <Copy className="w-3 h-3" />
                                         )}
                                       </button>
+                                      
+                                      <button
+                                        onClick={() => toggleSubscriptionKey(key.id)}
+                                        className={`p-0.5 rounded transition cursor-pointer ${
+                                          key.status === "active"
+                                            ? "text-amber-500 hover:bg-amber-500/10"
+                                            : "text-emerald-400 hover:bg-emerald-500/10"
+                                        }`}
+                                        title={key.status === "active" ? (lang === "fa" ? "تعلیق" : "Suspend") : (lang === "fa" ? "فعال کردن" : "Enable")}
+                                      >
+                                        <Ban className="w-3 h-3" />
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRegenerateUuid(key.id)}
+                                        disabled={regeneratingKeyId === key.id}
+                                        className="text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition cursor-pointer disabled:opacity-50"
+                                        title={lang === "fa" ? "تغییر لینک" : "New Link"}
+                                      >
+                                        <RotateCcw className={`w-3 h-3 ${regeneratingKeyId === key.id ? 'animate-spin' : ''}`} />
+                                      </button>
+
                                       <button
                                         onClick={() => setDeleteConfirm({
                                           id: key.id,
@@ -684,8 +707,8 @@ export default function UserManagement({
         </h3>
         <p className="text-xs text-gray-400 mb-4">{t.activeVpnKeysDesc}</p>
         
-        <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="overflow-x-auto custom-scrollbar pb-4 snap-x pr-2">
+          <div className="flex gap-4">
             {keys.filter(key => {
               if (!searchTerm) return true;
             const user = users.find(u => u.userId === key.userId);
@@ -697,14 +720,19 @@ export default function UserManagement({
           }).map((key) => {
             const user = users.find(u => u.userId === key.userId);
             return (
-              <div key={key.id} className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3 relative overflow-hidden group">
+              <div key={key.id} className="min-w-[320px] max-w-[380px] snap-center bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3 relative overflow-hidden group flex-shrink-0 flex flex-col">
                 <div className="absolute top-0 right-0 h-1.5 w-full bg-indigo-500"></div>
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col gap-3">
                   <div>
-                    <h4 className="font-semibold text-white text-sm">{key.planName}</h4>
-                    <span className="text-[10px] text-gray-400 font-mono block">Key ID: {key.id}</span>
+                    <h4 className="font-semibold text-white text-sm flex items-center justify-between">
+                      {key.planName}
+                    </h4>
+                    <span className="text-[10px] text-gray-400 font-mono block mt-1">Key ID: {key.id}</span>
+                    <span className="text-[10px] text-indigo-400 font-mono block mt-0.5" title="Client/Config Name">
+                      Client Name: {key.clientName || 'N/A'}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
                       {key.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "منقضی" : "expired")}
                     </span>

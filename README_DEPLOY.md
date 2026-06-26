@@ -66,7 +66,7 @@ pm2 startup
 # نصب داکر و داکر کامپوز
 sudo apt install -y docker.io docker-compose
 
-# اجرای پروژه در بک‌گراند
+# اجرای پروژه در بک‌گرا��د
 docker-compose up -d --build
 ```
 داشبورد روی پورت `3000` سرور مجازی شما در دسترس خواهد بود.

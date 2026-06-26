@@ -2406,7 +2406,7 @@ def handle_main_menu_callback(call):
         instructions = (
             f"💳 <b>بخش شارژ و افزایش موجودی کیف پول {nickname}:</b>\n\n"
             f"لطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\n"
-            f"پس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن برای شما فرستاده می‌شود."
+            f"پس از انتخاب، اطلاعات پرداخت و کارت مدیریت متناسب با آن ب��ای شما فرستاده می‌شود."
         )
         markup = types.InlineKeyboardMarkup(row_width=2)
         charge_amounts = cfg.get("WALLET_CHARGE_AMOUNTS", [200000, 300000, 400000, 500000, 1000000])
@@ -4174,7 +4174,7 @@ def callback_handler(call):
                 types.InlineKeyboardButton("بله، حذف کن", callback_data=f"colu_delyes_{acc_id}_{sub_id}"),
                 types.InlineKeyboardButton("خیر، انصراف", callback_data=f"colu_view_{acc_id}_{sub_id}")
             )
-            bot.edit_message_text(f"⚠️ آیا از حذف کاربر <b>{sub.get('clientName', 'نامشخص')}</b> اطمینان دارید؟\nاین عملیات غیرقابل بازگشت است و هزینه بازگشت داده نخواهد شد.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            bot.edit_message_text(f"⚠️ آیا از حذف کاربر <b>{sub.get('clientName', 'نامشخص')}</b> اطمینان دارید؟\nاین عملیات غیرقابل بازگشت است و هزینه بازگشت داده نخواهد ش��.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
             
         elif action == "resetuuid":
             markup = types.InlineKeyboardMarkup()

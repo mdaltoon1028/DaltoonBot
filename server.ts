@@ -2658,40 +2658,108 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean) {
           "Content-Type": "application/json",
           Accept: "application/json",
         };
-        if (loginResult.csrfToken)
+        const formHeaders: Record<string, string> = {
+          Cookie: loginResult.cookie,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        };
+        if (loginResult.csrfToken) {
           headers["X-Csrf-Token"] = loginResult.csrfToken;
+          formHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+        }
 
-        // First fetch current client to follow "replace" rule
-        const getUrl = `${cleanedUrl}/panel/api/clients/get/${clientEmail}`;
-        const getRes = await xuiFetch(
-          getUrl,
-          { method: "GET", headers },
-          4000,
-        ).catch(() => null);
+        const safeEmail = encodeURIComponent(clientEmail);
+        let globalUpdateSuccess = false;
 
-        if (getRes && getRes.ok) {
-          const getJson = await getRes.json();
-          if (getJson.success && getJson.obj) {
-            const client = getJson.obj;
-            client.enable = enabled;
+        // Try getting the client globally
+        try {
+          const getUrl = `${cleanedUrl}/panel/api/clients/get/${safeEmail}`;
+          const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
+          if (getRes && getRes.ok) {
+            const getJson = await getRes.json().catch(() => ({}));
+            if (getJson.success && getJson.obj) {
+              const client = getJson.obj;
+              client.enable = enabled;
 
-            const updateUrl = `${cleanedUrl}/panel/api/clients/update/${clientEmail}`;
-            const updateRes = await xuiFetch(
-              updateUrl,
-              {
-                method: "POST",
-                headers,
-                body: JSON.stringify(client),
-              },
-              5000,
-            );
+              const updateUrl = `${cleanedUrl}/panel/api/clients/update/${safeEmail}`;
+              
+              // 1. Try form data payload
+              const inboundId = client.inboundId || 0;
+              const payloadStr = JSON.stringify({ clients: [client] });
+              const formBody = `id=${inboundId}&settings=${encodeURIComponent(payloadStr)}`;
+              
+              const formRes = await xuiFetch(updateUrl, { method: "POST", headers: formHeaders, body: formBody }, 5000).catch(() => null);
+              if (formRes && formRes.ok) {
+                const r = await formRes.json().catch(()=>({}));
+                if(r.success) {
+                  globalUpdateSuccess = true;
+                  toggledAtLeastOnce = true;
+                }
+              }
 
-            if (updateRes.ok) {
-              const updateJson = await updateRes.json();
-              if (updateJson.success) toggledAtLeastOnce = true;
+              // 2. Try json payload
+              if (!globalUpdateSuccess) {
+                const jsonRes = await xuiFetch(updateUrl, { method: "POST", headers, body: JSON.stringify(client) }, 5000).catch(() => null);
+                if (jsonRes && jsonRes.ok) {
+                  const r = await jsonRes.json().catch(()=>({}));
+                  if(r.success) {
+                    globalUpdateSuccess = true;
+                    toggledAtLeastOnce = true;
+                  }
+                }
+              }
             }
           }
-        }
+        } catch (e) {}
+
+        // Fallback: search across all inbounds
+        try {
+          const listUrl = `${cleanedUrl}/panel/api/inbounds/list`;
+          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5000).catch(() => null);
+          if (listRes && listRes.ok) {
+            const data = await listRes.json().catch(() => ({}));
+            if (data && data.success && Array.isArray(data.obj)) {
+              for (const inbound of data.obj) {
+                let clients: any[] = [];
+                try {
+                  const settings = JSON.parse(inbound.settings || "{}");
+                  clients = settings.clients || [];
+                } catch (e) {}
+
+                const clientMatch = clients.find((c: any) => c.email === clientEmail);
+                if (clientMatch && clientMatch.id) {
+                  const mergedClient = { ...clientMatch, enable: enabled };
+                  const inboundId = inbound.id;
+                  const uid = clientMatch.id;
+                  
+                  const payloadStr = JSON.stringify({ clients: [mergedClient] });
+                  const formBody = `id=${inboundId}&settings=${encodeURIComponent(payloadStr)}`;
+
+                  // Attempt different update combinations
+                  const attempts = [
+                    { url: `${cleanedUrl}/panel/api/clients/update/${uid}`, isForm: true, body: formBody },
+                    { url: `${cleanedUrl}/panel/api/clients/update/${uid}`, isForm: false, body: JSON.stringify(mergedClient) },
+                    { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBody },
+                    { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inboundId, settings: payloadStr }) }
+                  ];
+
+                  for (const attempt of attempts) {
+                    const reqHeaders = attempt.isForm ? formHeaders : headers;
+                    const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5000).catch(()=>null);
+                    if (aRes && aRes.ok) {
+                      const r = await aRes.json().catch(()=>({}));
+                      if (r.success) {
+                        toggledAtLeastOnce = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {}
+
       } catch (e) {
         // Ignore individual server errors and try others
       }
@@ -2820,55 +2888,37 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
             ? targetClient.tgId
             : parseInt(targetClient.tgId) || 0;
 
-        // 1. Recreate the client manually via deletion then addition inside inbound
-        // Step A: Delete client using ID match
-        const deleteUrl = `${cleanedUrl}/panel/api/inbounds/${parentInboundId}/delClient/${oldUuid}`;
-        await xuiFetch(deleteUrl, { method: "POST", headers }, 8000).catch(
-          () => null,
-        );
-
-        // Step B: Add client with updated UUID and sub ID to the same inbound
-        const addUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
-        const payload = {
-          id: parentInboundId,
-          settings: JSON.stringify({ clients: [targetClient] }),
+        const formHeaders: Record<string, string> = {
+          Cookie: loginResult.cookie,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
         };
-        const addRes = await xuiFetch(
-          addUrl,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload),
-          },
-          8000,
-        );
-
-        if (addRes && addRes.ok) {
-          const addJson = await addRes.json().catch(() => null);
-          if (addJson && addJson.success) {
-            panelUpdatedOnce = true;
-          }
+        if (loginResult.csrfToken) {
+          formHeaders["X-Csrf-Token"] = loginResult.csrfToken;
         }
 
-        if (!panelUpdatedOnce) {
-          const updateUrl = `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`;
-          const updateRes = await xuiFetch(
-            updateUrl,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                id: parentInboundId,
-                settings: JSON.stringify({ clients: [targetClient] }),
-              }),
-            },
-            8000,
-          );
+        const safeEmail = encodeURIComponent(clientEmail);
+        const payloadStr = JSON.stringify({ clients: [targetClient] });
+        const formBody = `id=${parentInboundId}&settings=${encodeURIComponent(payloadStr)}`;
 
-          if (updateRes && updateRes.ok) {
-            const updateJson = await updateRes.json().catch(() => null);
-            if (updateJson && updateJson.success) {
+        // Attempt different update combinations to retain traffic while changing UUID
+        const attempts = [
+          { url: `${cleanedUrl}/panel/api/clients/update/${safeEmail}`, isForm: true, body: formBody },
+          { url: `${cleanedUrl}/panel/api/clients/update/${safeEmail}`, isForm: false, body: JSON.stringify(targetClient) },
+          { url: `${cleanedUrl}/panel/api/clients/update/${oldUuid}`, isForm: true, body: formBody },
+          { url: `${cleanedUrl}/panel/api/clients/update/${oldUuid}`, isForm: false, body: JSON.stringify(targetClient) },
+          { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`, isForm: true, body: formBody },
+          { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`, isForm: false, body: JSON.stringify({ id: parentInboundId, settings: payloadStr }) }
+        ];
+
+        for (const attempt of attempts) {
+          const reqHeaders = attempt.isForm ? formHeaders : headers;
+          const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5000).catch(()=>null);
+          if (aRes && aRes.ok) {
+            const r = await aRes.json().catch(()=>({}));
+            if (r.success) {
               panelUpdatedOnce = true;
+              break;
             }
           }
         }
