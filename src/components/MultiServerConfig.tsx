@@ -366,12 +366,12 @@ export default function MultiServerConfig({
             </div>
           )}
 
-          {panelType === "sanaei" && inbounds.length > 0 && (
+          {inbounds.length > 0 && (
             <div className="border border-indigo-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
               <h4 className="text-xs font-bold text-gray-200 mb-3">
                 {lang === "fa"
-                  ? "اینباندهای مجاز برای ساخت اکانت:"
-                  : "Allowed Inbounds:"}
+                  ? (panelType === "rebecca" ? "سرویس‌های مجاز برای این سرور:" : "اینباندهای مجاز برای ساخت اکانت:")
+                  : (panelType === "rebecca" ? "Allowed Services:" : "Allowed Inbounds:")}
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-1">
                 {inbounds.map((ib) => (

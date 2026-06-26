@@ -841,33 +841,86 @@ app.get("/api/data", async (req, res) => {
         let allInbounds: any[] = [];
         for (const server of activeServers) {
           const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-          const loginResult = await loginXuiPanel(
-            cleanedUrl,
-            server.panelUsername,
-            server.panelPassword,
-          );
+          
+          if (server.panelType === "rebecca") {
+            try {
+              const params = new URLSearchParams();
+              params.append("grant_type", "password");
+              params.append("username", server.panelUsername);
+              params.append("password", server.panelPassword);
 
-          if (loginResult.success && loginResult.cookie) {
-            const listRes = await xuiFetch(
-              `${cleanedUrl}/panel/api/inbounds/list`,
-              {
-                method: "GET",
-                headers: { Cookie: loginResult.cookie },
-              },
-              5000,
+              const loginRes = await xuiFetch(
+                `${cleanedUrl}/api/admin/token`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Accept: "application/json"
+                  },
+                  body: params.toString()
+                },
+                5000
+              );
+
+              if (loginRes.ok) {
+                const data = await loginRes.json();
+                const access_token = data.access_token;
+
+                const servicesRes = await xuiFetch(
+                  `${cleanedUrl}/api/v2/services`,
+                  {
+                    method: "GET",
+                    headers: {
+                      Authorization: `Bearer ${access_token}`,
+                      Accept: "application/json"
+                    }
+                  },
+                  5000
+                );
+                
+                if (servicesRes.ok) {
+                  const servicesData = await servicesRes.json();
+                  const rebeccaInbounds = (servicesData.services || []).map((s: any) => ({
+                    id: s.id,
+                    tag: s.name,
+                    port: 0,
+                    protocol: "rebecca-service",
+                    clientsCount: s.user_count || 0
+                  }));
+                  allInbounds = allInbounds.concat(rebeccaInbounds);
+                }
+              }
+            } catch (e) {
+              console.error("[Sanaei API Sync] Failed to fetch Rebecca services", e);
+            }
+          } else {
+            const loginResult = await loginXuiPanel(
+              cleanedUrl,
+              server.panelUsername,
+              server.panelPassword,
             );
 
-            if (listRes.ok) {
-              const listJson = await listRes.json();
-              if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-                const freshInbounds = listJson.obj.map((item: any) => {
-                  let totalClientsCount = 0;
-                  try {
-                    const settingsObj =
-                      typeof item.settings === "string"
-                        ? JSON.parse(item.settings)
-                        : item.settings;
-                    if (settingsObj && Array.isArray(settingsObj.clients)) {
+            if (loginResult.success && loginResult.cookie) {
+              const listRes = await xuiFetch(
+                `${cleanedUrl}/panel/api/inbounds/list`,
+                {
+                  method: "GET",
+                  headers: { Cookie: loginResult.cookie },
+                },
+                5000,
+              );
+
+              if (listRes.ok) {
+                const listJson = await listRes.json();
+                if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+                  const freshInbounds = listJson.obj.map((item: any) => {
+                    let totalClientsCount = 0;
+                    try {
+                      const settingsObj =
+                        typeof item.settings === "string"
+                          ? JSON.parse(item.settings)
+                          : item.settings;
+                      if (settingsObj && Array.isArray(settingsObj.clients)) {
                       totalClientsCount = settingsObj.clients.length;
                     }
                   } catch (e) {}
@@ -896,6 +949,7 @@ app.get("/api/data", async (req, res) => {
                 allInbounds = allInbounds.concat(freshInbounds);
               }
             }
+          }
           }
         }
         db.inbounds = allInbounds;
@@ -3018,11 +3072,39 @@ app.post("/api/xui/test-connection", async (req, res) => {
 
         if (loginRes.ok) {
           const data = await loginRes.json();
+          const access_token = data.access_token;
+          
+          let services = [];
+          try {
+            const servicesRes = await xuiFetch(
+              `${cleanedUrl}/api/v2/services`,
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${access_token}`,
+                  Accept: "application/json"
+                }
+              },
+              5000
+            );
+            if (servicesRes.ok) {
+              const servicesData = await servicesRes.json();
+              services = (servicesData.services || []).map((s: any) => ({
+                id: s.id,
+                tag: s.name,
+                port: 0,
+                protocol: "rebecca-service"
+              }));
+            }
+          } catch (e) {
+            console.error("Failed to fetch Rebecca services:", e);
+          }
+          
           return res.json({
             success: true,
             message: "اتصال به پنل ربکا با موفقیت انجام شد.",
-            panelToken: data.access_token,
-            inbounds: [], // Rebecca uses services, not inbounds in this way
+            panelToken: access_token,
+            inbounds: services,
           });
         } else {
           return res.json({
