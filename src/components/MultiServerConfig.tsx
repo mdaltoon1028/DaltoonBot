@@ -21,6 +21,7 @@ interface MultiServerConfigProps {
   lang: Language;
   planCategories: PlanCategory[];
   colleaguePackages?: ColleaguePackage[];
+  serverType?: "standard" | "colleague";
 }
 
 export default function MultiServerConfig({
@@ -29,13 +30,34 @@ export default function MultiServerConfig({
   lang,
   planCategories,
   colleaguePackages = [],
+  serverType = "standard",
 }: MultiServerConfigProps) {
-  const [servers, setServers] = useState<ServerConfig[]>(
-    Array.isArray(settings.servers) ? settings.servers : [],
-  );
+  const isColleague = serverType === "colleague";
+  
+  const [servers, setServers] = useState<ServerConfig[]>(() => {
+    const sList = isColleague ? settings.colleagueServers : settings.servers;
+    return Array.isArray(sList) ? sList : [];
+  });
+  
+  React.useEffect(() => {
+    const sList = isColleague ? settings.colleagueServers : settings.servers;
+    const currentList = Array.isArray(sList) ? sList : [];
+    if (JSON.stringify(servers) !== JSON.stringify(currentList)) {
+      setServers(currentList);
+    }
+  }, [settings.servers, settings.colleagueServers, isColleague]);
+
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const updateSettingsWithServers = (newServers: ServerConfig[]) => {
+    if (isColleague) {
+      onSaveSettings({ ...settings, colleagueServers: newServers });
+    } else {
+      onSaveSettings({ ...settings, servers: newServers });
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
@@ -58,7 +80,7 @@ export default function MultiServerConfig({
     newServers.splice(index, 0, draggedItem);
 
     setServers(newServers);
-    onSaveSettings({ ...settings, servers: newServers });
+    updateSettingsWithServers(newServers);
     setDraggedIndex(null);
   };
 
@@ -119,7 +141,7 @@ export default function MultiServerConfig({
     const newServers = [...servers];
     newServers.splice(index, 1);
     setServers(newServers);
-    onSaveSettings({ ...settings, servers: newServers });
+    updateSettingsWithServers(newServers);
   };
 
   const handleTestConnection = async () => {
@@ -195,7 +217,7 @@ export default function MultiServerConfig({
     }
 
     setServers(newServers);
-    onSaveSettings({ ...settings, servers: newServers });
+    updateSettingsWithServers(newServers);
     setShowForm(false);
   };
 
@@ -209,13 +231,13 @@ export default function MultiServerConfig({
           <div>
             <h3 className="font-display font-bold text-lg text-white">
               {lang === "fa"
-                ? "🔌 مدیریت سرورهای X-UI"
-                : "🔌 X-UI Servers Management"}
+                ? (isColleague ? "🔌 مدیریت سرورهای همکاران" : "🔌 مدیریت سرورهای X-UI")
+                : (isColleague ? "🔌 Colleague Servers Management" : "🔌 X-UI Servers Management")}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
               {lang === "fa"
-                ? "پنل‌های خود را برای ساخت خودکار اشتراک‌ها اضافه کنید."
-                : "Manage your X-UI panels for automated subscription delivery."}
+                ? (isColleague ? "پنل‌های مخصوص همکاران را برای ساخت خودکار اشتراک‌های همکار اضافه کنید." : "پنل‌های خود را برای ساخت خودکار اشتراک‌ها اضافه کنید.")
+                : (isColleague ? "Manage X-UI panels designated for colleague accounts subscription delivery." : "Manage your X-UI panels for automated subscription delivery.")}
             </p>
           </div>
         </div>
@@ -418,74 +440,78 @@ export default function MultiServerConfig({
           )}
 
           <div className="border border-purple-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
-            <h4 className="text-xs font-bold text-gray-200 mb-3">
-              {lang === "fa"
-                ? "دسته‌بندی‌های پلن مجاز برای این سرور:"
-                : "Allowed Plan Categories for this server:"}
-            </h4>
-            <div className="flex flex-wrap gap-3">
-              {planCategories.map((cat) => (
-                <label
-                  key={cat.id}
-                  className="flex items-center gap-2 p-2 rounded-lg border border-gray-800 hover:border-purple-500/50 cursor-pointer bg-[#111827]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checkedPlanCategories.includes(cat.id)}
-                    onChange={(e) => {
-                      if (e.target.checked)
-                        setCheckedPlanCategories((prev) => [...prev, cat.id]);
-                      else
-                        setCheckedPlanCategories((prev) =>
-                          prev.filter((id) => id !== cat.id),
-                        );
-                    }}
-                  />
-                  <div className="text-xs text-gray-300 flex items-center gap-1">
-                    <span>{cat.emoji}</span>
-                    <span className="font-bold text-white">{cat.name}</span>
-                  </div>
-                </label>
-              ))}
-              {planCategories.length === 0 && (
-                <span className="text-xs text-gray-500">
-                  {lang === "fa" ? "هنوز هیچ دسته‌بندی ایجاد نشده است." : "No categories created yet."}
-                </span>
-              )}
-            </div>
-            
-            {colleaguePackages && colleaguePackages.length > 0 && (
+            {!isColleague ? (
               <>
-                <h4 className="text-xs font-bold text-gray-200 mt-4 mb-3">
+                <h4 className="text-xs font-bold text-gray-200 mb-3">
                   {lang === "fa"
-                    ? "بسته‌های مجاز همکاران برای این سرور:"
-                    : "Allowed Colleague Packages for this server:"}
+                    ? "دسته‌بندی‌های پلن مجاز برای این سرور:"
+                    : "Allowed Plan Categories for this server:"}
                 </h4>
                 <div className="flex flex-wrap gap-3">
-                  {colleaguePackages.map((pkg) => (
+                  {planCategories.map((cat) => (
                     <label
-                      key={pkg.id}
-                      className="flex items-center gap-2 p-2 rounded-lg border border-gray-800 hover:border-blue-500/50 cursor-pointer bg-[#111827]"
+                      key={cat.id}
+                      className="flex items-center gap-2 p-2 rounded-lg border border-gray-800 hover:border-purple-500/50 cursor-pointer bg-[#111827]"
                     >
                       <input
                         type="checkbox"
-                        checked={checkedPlanCategories.includes(pkg.id)}
+                        checked={checkedPlanCategories.includes(cat.id)}
                         onChange={(e) => {
                           if (e.target.checked)
-                            setCheckedPlanCategories((prev) => [...prev, pkg.id]);
+                            setCheckedPlanCategories((prev) => [...prev, cat.id]);
                           else
                             setCheckedPlanCategories((prev) =>
-                              prev.filter((id) => id !== pkg.id),
+                              prev.filter((id) => id !== cat.id),
                             );
                         }}
                       />
                       <div className="text-xs text-gray-300 flex items-center gap-1">
-                        <span className="font-bold text-white">{pkg.title}</span>
+                        <span>{cat.emoji}</span>
+                        <span className="font-bold text-white">{cat.name}</span>
                       </div>
                     </label>
                   ))}
+                  {planCategories.length === 0 && (
+                    <span className="text-xs text-gray-500">
+                      {lang === "fa" ? "هنوز هیچ دسته‌بندی ایجاد نشده است." : "No categories created yet."}
+                    </span>
+                  )}
                 </div>
               </>
+            ) : (
+              colleaguePackages && colleaguePackages.length > 0 && (
+                <>
+                  <h4 className="text-xs font-bold text-gray-200 mb-3">
+                    {lang === "fa"
+                      ? "بسته‌های مجاز همکاران برای این سرور:"
+                      : "Allowed Colleague Packages for this server:"}
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {colleaguePackages.map((pkg) => (
+                      <label
+                        key={pkg.id}
+                        className="flex items-center gap-2 p-2 rounded-lg border border-gray-800 hover:border-blue-500/50 cursor-pointer bg-[#111827]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checkedPlanCategories.includes(pkg.id)}
+                          onChange={(e) => {
+                            if (e.target.checked)
+                              setCheckedPlanCategories((prev) => [...prev, pkg.id]);
+                            else
+                              setCheckedPlanCategories((prev) =>
+                                prev.filter((id) => id !== pkg.id),
+                              );
+                          }}
+                        />
+                        <div className="text-xs text-gray-300 flex items-center gap-1">
+                          <span className="font-bold text-white">{pkg.title}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )
             )}
           </div>
 

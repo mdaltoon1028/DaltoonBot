@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ColleaguePackage, ColleagueAccount, ColleagueCategory, PlanCategory, PanelSettings } from "../types";
 import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity, Layers, Smile } from "lucide-react";
+import MultiServerConfig from "./MultiServerConfig";
 
 interface Props {
   packages: ColleaguePackage[];
@@ -27,7 +28,7 @@ export default function ColleaguesManagement({
   colleagueCategories = [], 
   setColleagueCategories 
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"packages" | "accounts" | "categories">("packages");
+  const [activeTab, setActiveTab] = useState<"packages" | "accounts" | "categories" | "servers">("servers");
   const [loading, setLoading] = useState(false);
 
   const [localToast, setLocalToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -327,6 +328,12 @@ export default function ColleaguesManagement({
     <div className="space-y-6" dir={lang === "fa" ? "rtl" : "ltr"}>
       {/* Tabs */}
       <div className="flex gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab("servers")}
+          className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "servers" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
+        >
+          {lang === "fa" ? "سرورهای همکاران" : "Colleague Servers"}
+        </button>
         <button
           onClick={() => setActiveTab("packages")}
           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "packages" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
@@ -713,6 +720,19 @@ export default function ColleaguesManagement({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "servers" && (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <MultiServerConfig
+            settings={settings}
+            onSaveSettings={onSaveSettings}
+            lang={lang as any}
+            planCategories={planCategories}
+            colleaguePackages={packages}
+            serverType="colleague"
+          />
         </div>
       )}
 

@@ -2214,7 +2214,21 @@ def buy_cmd(message):
     db = read_db_json()
     
     servers = cfg.get("SERVERS", [])
-    active_servers = [s for s in servers if s.get("status") == "active"]
+    
+    # Filter active servers for standard users:
+    # A server is shown to standard users if its 'planCategories' list is empty/None,
+    # or if it contains at least one of the standard plan category IDs.
+    db_categories = db.get("plan_categories", [])
+    std_cat_ids = {c.get("id") for c in db_categories if c.get("id")}
+    
+    active_servers = []
+    for s in servers:
+        if s.get("status") == "active":
+            p_cats = s.get("planCategories")
+            if not p_cats:  # General server for everyone
+                active_servers.append(s)
+            elif any(cid in std_cat_ids for cid in p_cats):
+                active_servers.append(s)
     
     if active_servers:
         message_body = (
@@ -5601,7 +5615,9 @@ def process_col_create_days(message, acc, name, gb):
     full_name = f"{live_acc.get('prefix', 'Col')}-{name}"
     
     cfg = get_config()
-    servers = cfg.get("SERVERS", [])
+    servers = cfg.get("COLLEAGUE_SERVERS", [])
+    if not servers:
+        servers = cfg.get("SERVERS", [])
         
     active_servers = [s for s in servers if s.get("status") == "active" and (not s.get("planCategories") or live_acc.get("packageId") in s.get("planCategories"))]
     
