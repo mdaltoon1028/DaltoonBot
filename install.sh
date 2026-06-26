@@ -206,16 +206,18 @@ console.log(user + '|' + pass + '|' + port);
 
 IFS='|' read -r CURRENT_USER CURRENT_PASS CURRENT_PORT <<< "$CONFIG_DATA"
 
-if [ -c /dev/tty ]; then
+if [ -t 0 ]; then
+    read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
+    read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
+    echo ""
+    read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
+elif [ -c /dev/tty ]; then
     read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER < /dev/tty
     read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS < /dev/tty
     echo ""
     read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT < /dev/tty
 else
-    read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
-    read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
-    echo ""
-    read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
+    echo -e "${YELLOW}Non-interactive terminal detected. Using current defaults.${NC}"
 fi
 
 DASH_USER=${DASH_USER:-$CURRENT_USER}

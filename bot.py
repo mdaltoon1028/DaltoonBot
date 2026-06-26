@@ -979,7 +979,8 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             "expire": int(expiry_time_ms / 1000),
             "data_limit": total_bytes,
             "data_limit_reset_strategy": "no_reset",
-            "proxy_settings": {}
+            "proxies": {"vless": {}},
+            "inbounds": {}
         }
         if panel_type == "rebecca":
             payload["service_ids"] = inbound_ids
@@ -989,7 +990,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         try:
             print(f"[{panel_type} API] Creating user with payload: {payload}")
             headers = {"Accept": "application/json", "Content-Type": "application/json"}
-            res = session.post(f"{base_url}/api/user/", json=payload, headers=headers, timeout=20, verify=False)
+            res = session.post(f"{base_url}/api/user", json=payload, headers=headers, timeout=20, verify=False)
             if res.ok:
                 rj = res.json()
                 print(f"[{panel_type} API] User '{safe_email}' created successfully.")
@@ -4591,7 +4592,7 @@ def callback_handler(call):
         if data_stripped.startswith("srv_"):
             parts = data_stripped.split("_", 2)
             if len(parts) == 3:
-                server_id = f"{parts[0]}_{parts[1]}"
+                server_id = parts[1]
                 category_name = parts[2]
             else:
                 category_name = data_stripped
@@ -4660,7 +4661,7 @@ def callback_handler(call):
         if data_stripped.startswith("srv_"):
             parts = data_stripped.split("_", 2)
             if len(parts) == 3:
-                server_id = f"{parts[0]}_{parts[1]}"
+                server_id = parts[1]
                 plan_id = parts[2]
             else:
                 plan_id = data_stripped
