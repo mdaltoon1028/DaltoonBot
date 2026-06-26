@@ -3484,23 +3484,27 @@ def callback_handler(call):
         elif sub_action == "toggle":
             # New status
             new_status = "inactive" if k.get("status", "active") == "active" else "active"
-            is_enabled = (new_status == "active")
             
-            # Perform X-UI API Update
-            client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
-            update_vpn_client_enabled_api(client_name, is_enabled, k.get("clientUuid"), server_id=k.get("serverId"))
+            # Send HTTP request to Node.js backend to handle both API sync and DB update
+            try:
+                import requests
+                payload = {
+                    "id": target_sub_id,
+                    "status": "active" if new_status == "active" else "suspended"
+                }
+                requests.post("http://127.0.0.1:3000/api/subscription-keys/toggle", json=payload, timeout=10)
+            except Exception as e:
+                print(f"Error calling local toggle API: {e}")
             
-            # Update DB
-            k["status"] = new_status
-            
-            # Save
+            # Re-read DB since Node.js updated it
             db = read_db_json()
             subscription_keys = db.get("subscription_keys", [])
             idx = next((i for i, sub in enumerate(subscription_keys) if sub["id"] == target_sub_id and sub["userId"] == tg_id), -1)
             if idx != -1:
-                subscription_keys[idx] = k
-                db["subscription_keys"] = subscription_keys
-                write_db_json(db)
+                k = subscription_keys[idx]
+                k["status"] = "active" if k.get("status") == "active" else "inactive" # Standardize local view
+            else:
+                k["status"] = new_status
             
             bot.answer_callback_query(call.id, f"وضعیت به {k['status']} تغییر یافت.")                
             # Re-render manage view
@@ -4130,16 +4134,26 @@ def callback_handler(call):
         elif action == "toggle":
             # Toggle logic
             new_status = "inactive" if sub.get("status", "active") == "active" else "active"
-            is_enabled = (new_status == "active")
             
-            # Action on X-UI API
-            client_name = sub.get("clientName", "")
-            update_vpn_client_enabled_api(client_name, is_enabled, sub.get("clientUuid"), server_id=sub.get("serverId"))
+            # Action on X-UI API via Node.js
+            try:
+                import requests
+                payload = {
+                    "id": sub_id,
+                    "status": "active" if new_status == "active" else "suspended"
+                }
+                requests.post("http://127.0.0.1:3000/api/subscription-keys/toggle", json=payload, timeout=10)
+            except Exception as e:
+                print(f"Error calling local toggle API: {e}")
             
-            sub["status"] = new_status
-            keys[sub_idx] = sub
-            db["subscription_keys"] = keys
-            write_db_json(db)
+            db = read_db_json()
+            keys = db.get("subscription_keys", [])
+            sub_idx = next((i for i, k in enumerate(keys) if k["id"] == sub_id), -1)
+            if sub_idx != -1:
+                sub = keys[sub_idx]
+                sub["status"] = "active" if sub.get("status") == "active" else "inactive"
+            else:
+                sub["status"] = new_status
             
             # Simple UI update
             bot.answer_callback_query(call.id, f"وضعیت به {sub['status']} تغییر یافت.")                

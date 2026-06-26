@@ -735,6 +735,12 @@ export default function UserManagement({
                     <span className="text-[10px] text-indigo-400 font-mono block mt-0.5" title="Client/Config Name">
                       Client Name: {key.clientName || 'N/A'}
                     </span>
+                    <span className="text-[10px] text-gray-500 font-mono block mt-0.5" title="Telegram User ID">
+                      Telegram ID: {key.userId}
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-mono block mt-0.5 truncate" title="UUID">
+                      UUID: {key.clientUuid || 'N/A'}
+                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">

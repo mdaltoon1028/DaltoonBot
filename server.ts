@@ -3712,12 +3712,6 @@ app.post("/api/transactions/approve", async (req, res) => {
         if (botToken && botToken !== "DUMMY_TOKEN") {
           const https = require("https");
 
-            // Check if there is a newly generated subLink to attach a QR code
-            let qrUrl: string | null = null;
-            if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
-              qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(tx._generatedSubLink)}`;
-            }
-
             const messageText = messageTextForNotif;
             const postDataObj: any = {
               chat_id: tx.userId,
@@ -3769,17 +3763,9 @@ app.post("/api/transactions/approve", async (req, res) => {
               };
             }
 
-            if (qrUrl) {
-              postDataObj.photo = qrUrl;
-              postDataObj.caption = messageText;
-            } else {
-              postDataObj.text = messageText;
-            }
+            postDataObj.text = messageText;
 
-            const postData = JSON.stringify(postDataObj);
-            const endpointPath = qrUrl
-              ? `/bot${botToken}/sendPhoto`
-              : `/bot${botToken}/sendMessage`;
+            const endpointPath = `/bot${botToken}/sendMessage`;
 
             const options = {
               hostname: "api.telegram.org",
@@ -3788,9 +3774,10 @@ app.post("/api/transactions/approve", async (req, res) => {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "Content-Length": Buffer.byteLength(postData),
               },
             };
+            const postData = JSON.stringify(postDataObj);
+            
             const reqNotify = https.request(options);
             reqNotify.on("error", (e: any) =>
               console.warn("Telegram approve notify error:", e),
@@ -3799,7 +3786,7 @@ app.post("/api/transactions/approve", async (req, res) => {
             reqNotify.end();
 
             // Also attach purchase success note if delivering exactly a newly built purchase config
-            if (tx.type === "PLAN_PURCHASE" && qrUrl) {
+            if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
               setTimeout(() => {
                 sendPurchaseSuccessNoteIfAnyServer(botToken, tx.userId, cfg);
               }, 1000);
