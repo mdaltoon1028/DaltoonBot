@@ -849,7 +849,7 @@ app.get("/api/data", async (req, res) => {
               params.append("username", server.panelUsername);
               params.append("password", server.panelPassword);
 
-              const loginRes = await xuiFetch(
+              let loginRes = await xuiFetch(
                 `${cleanedUrl}/api/admin/token`,
                 {
                   method: "POST",
@@ -861,6 +861,23 @@ app.get("/api/data", async (req, res) => {
                 },
                 5000
               );
+
+              // 405 Fallback for some Rebecca/Pasarguard versions
+              if (!loginRes.ok && loginRes.status === 405) {
+                console.log(`[PasarGuard Sync] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
+                loginRes = await xuiFetch(
+                  `${cleanedUrl}/api/token`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/x-www-form-urlencoded",
+                      Accept: "application/json"
+                    },
+                    body: params.toString()
+                  },
+                  5000
+                );
+              }
 
               if (loginRes.ok) {
                 const data = await loginRes.json();
@@ -900,7 +917,7 @@ app.get("/api/data", async (req, res) => {
               params.append("username", server.panelUsername);
               params.append("password", server.panelPassword);
 
-              const loginRes = await xuiFetch(
+              let loginRes = await xuiFetch(
                 `${cleanedUrl}/api/admin/token`,
                 {
                   method: "POST",
@@ -912,6 +929,23 @@ app.get("/api/data", async (req, res) => {
                 },
                 5000
               );
+
+              // 405 Fallback for some Rebecca/Pasarguard versions
+              if (!loginRes.ok && loginRes.status === 405) {
+                console.log(`[Rebecca Sync] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
+                loginRes = await xuiFetch(
+                  `${cleanedUrl}/api/token`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/x-www-form-urlencoded",
+                      Accept: "application/json"
+                    },
+                    body: params.toString()
+                  },
+                  5000
+                );
+              }
 
               if (loginRes.ok) {
                 const data = await loginRes.json();
@@ -1032,9 +1066,6 @@ app.get("/api/data", async (req, res) => {
         !settings.botToken ||
         settings.botToken.trim() === "" ||
         settings.botToken === "DUMMY_TOKEN" ||
-        !settings.botNickname ||
-        settings.botNickname.trim() === "" ||
-        settings.botNickname === "Daltoon" ||
         !settings.ownerId ||
         Number(settings.ownerId) === 0,
     });
@@ -3108,7 +3139,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
         params.append("username", panelUsername);
         params.append("password", panelPassword);
 
-        const loginRes = await xuiFetch(
+        let loginRes = await xuiFetch(
           `${cleanedUrl}/api/admin/token`,
           {
             method: "POST",
@@ -3120,6 +3151,23 @@ app.post("/api/xui/test-connection", async (req, res) => {
           },
           5000
         );
+
+        // 405 Fallback for some Rebecca/Pasarguard versions
+        if (!loginRes.ok && loginRes.status === 405) {
+          console.log(`[Rebecca Test] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
+          loginRes = await xuiFetch(
+            `${cleanedUrl}/api/token`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Accept: "application/json"
+              },
+              body: params.toString()
+            },
+            5000
+          );
+        }
 
         if (loginRes.ok) {
           const data = await loginRes.json();
@@ -3184,7 +3232,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
         params.append("username", panelUsername);
         params.append("password", panelPassword);
 
-        const loginRes = await xuiFetch(
+        let loginRes = await xuiFetch(
           `${cleanedUrl}/api/admin/token`,
           {
             method: "POST",
@@ -3196,6 +3244,23 @@ app.post("/api/xui/test-connection", async (req, res) => {
           },
           5000
         );
+
+        // 405 Fallback for some Rebecca/Pasarguard versions
+        if (!loginRes.ok && loginRes.status === 405) {
+          console.log(`[PasarGuard Test] 405 detected. Trying alternative URL: ${cleanedUrl}/api/token`);
+          loginRes = await xuiFetch(
+            `${cleanedUrl}/api/token`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Accept: "application/json"
+              },
+              body: params.toString()
+            },
+            5000
+          );
+        }
 
         if (loginRes.ok) {
           const data = await loginRes.json();

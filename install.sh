@@ -201,23 +201,32 @@ if (bestFile) {
   } catch(e){}
 }
 
-console.log(user + '|' + pass + '|' + port);
+let is_update = bestScore > 0 ? '1' : '0';
+console.log(user + '|' + pass + '|' + port + '|' + is_update);
 " | tr -d '\n')
 
-IFS='|' read -r CURRENT_USER CURRENT_PASS CURRENT_PORT <<< "$CONFIG_DATA"
+IFS='|' read -r CURRENT_USER CURRENT_PASS CURRENT_PORT IS_UPDATE <<< "$CONFIG_DATA"
 
-if [ -t 0 ]; then
-    read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
-    read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
-    echo ""
-    read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
-elif [ -c /dev/tty ]; then
-    read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER < /dev/tty
-    read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS < /dev/tty
-    echo ""
-    read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT < /dev/tty
+if [ "$IS_UPDATE" == "1" ]; then
+    echo -e "${GREEN}Existing configuration found. Skipping credential setup...${NC}"
+    echo -e "${YELLOW}(Tip: Use 'daltoon-dashboard' command to change credentials later)${NC}"
+    DASH_USER=$CURRENT_USER
+    DASH_PASS=$CURRENT_PASS
+    DASH_PORT=$CURRENT_PORT
 else
-    echo -e "${YELLOW}Non-interactive terminal detected. Using current defaults.${NC}"
+    if [ -t 0 ]; then
+        read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER
+        read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS
+        echo ""
+        read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT
+    elif [ -c /dev/tty ]; then
+        read -p "Enter Admin Username [$CURRENT_USER]: " DASH_USER < /dev/tty
+        read -s -p "Enter Admin Password [$CURRENT_PASS]: " DASH_PASS < /dev/tty
+        echo ""
+        read -p "Enter Server Port [$CURRENT_PORT]: " DASH_PORT < /dev/tty
+    else
+        echo -e "${YELLOW}Non-interactive terminal detected. Using current defaults.${NC}"
+    fi
 fi
 
 DASH_USER=${DASH_USER:-$CURRENT_USER}

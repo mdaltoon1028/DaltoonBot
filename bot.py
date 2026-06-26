@@ -422,8 +422,23 @@ def login_xui(server_id=None, force=False):
                 if rj.get("msg"): err_msg += f": {rj['msg']}"
                 elif rj.get("message"): err_msg += f": {rj['message']}"
             except: pass
-            print(f"[Panel API] {err_msg}")
-            session.last_login_error = err_msg
+            
+            # 405 Fallback for some Rebecca/Pasarguard versions
+            if res.status_code == 405:
+                alt_url = f"{base_url}/api/token"
+                print(f"[Panel API] 405 detected. Trying alternative URL: {alt_url}")
+                res_alt = session.post(alt_url, data=login_data, headers=headers, timeout=20, verify=False)
+                if res_alt.ok:
+                    rj = res_alt.json()
+                    token = rj.get("access_token")
+                    if token:
+                        session.headers["Authorization"] = f"Bearer {token}"
+                        _last_login_times[cache_key] = now
+                        print(f"[Panel API] Authenticated successfully with {panel_type} (via fallback URL).")
+                        return True
+
+            print(f"[Panel API] {err_msg} | URL: {base_url}/api/admin/token")
+            session.last_login_error = f"{err_msg}\nآدرس تست شده: {base_url}/api/admin/token"
             return False
         except Exception as e:
             err_msg = f"Connection error: {str(e)}"
