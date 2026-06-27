@@ -305,6 +305,14 @@ def get_config():
         config["IS_FREETEST_ACTIVE"] = panel_cfg.get("isFreeTestActive", True)
         config["FREETEST_DISABLED_MSG"] = panel_cfg.get("freeTestDisabledMessage", "اکانت تست رایگان فعلا موجود نیست.")
         config["FREE_TEST_SERVER_ID"] = panel_cfg.get("freeTestServerId")
+        try:
+            config["FREE_TEST_GB"] = float(panel_cfg.get("freeTestGb", 0.1))
+        except:
+            config["FREE_TEST_GB"] = 0.1
+        try:
+            config["FREE_TEST_DAYS"] = float(panel_cfg.get("freeTestDays", 1.0))
+        except:
+            config["FREE_TEST_DAYS"] = 1.0
 
         config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
         if "hideBtnMySubs" in panel_cfg: config["HIDE_MY_SUBS"] = bool(panel_cfg["hideBtnMySubs"])
@@ -1090,6 +1098,15 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     Creates a new client in the X-UI panel.
     Adds the user to all active inbounds specified in the settings.
     """
+    try:
+        traffic_gb = float(traffic_gb)
+    except:
+        traffic_gb = 0.1
+    try:
+        duration_days = float(duration_days)
+    except:
+        duration_days = 1.0
+
     import random, string, time, json, os, uuid, re
     cfg = get_config()
     db = read_db_json()
@@ -2912,7 +2929,16 @@ def handle_main_menu_callback(call):
             return
             
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
-        bot.send_message(message.chat.id, f"⏳ در حال ساخت اکانت تست رایگان (۱ روزه - ۱۰۰ مگابایت) از پنل سرور {nickname}... لطفاً چند لحظه صبر کنید.")
+        free_gb = cfg.get("FREE_TEST_GB", 0.1)
+        free_days = cfg.get("FREE_TEST_DAYS", 1.0)
+        
+        free_gb_str = f"{int(free_gb * 1024)} مگابایت" if free_gb < 1 else f"{free_gb} گیگابایت"
+        if free_days == int(free_days):
+            free_days_str = f"{int(free_days)} روزه"
+        else:
+            free_days_str = f"{free_days} روزه"
+            
+        bot.send_message(message.chat.id, f"⏳ در حال ساخت اکانت تست رایگان ({free_days_str} - {free_gb_str}) از پنل سرور {nickname}... لطفاً چند لحظه صبر کنید.")
         
         import string
         import random
@@ -2940,7 +2966,16 @@ def handle_main_menu_callback(call):
             
         active_server_id = active_server.get("id") if active_server else None
 
-        client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0, server_id=active_server_id) # 0.1 GB (100MB), 1 day
+        free_gb = cfg.get("FREE_TEST_GB", 0.1)
+        free_days = cfg.get("FREE_TEST_DAYS", 1.0)
+        
+        free_gb_str = f"{int(free_gb * 1024)} مگابایت" if free_gb < 1 else f"{free_gb} گیگابایت"
+        if free_days == int(free_days):
+            free_days_str = f"{int(free_days)} روزه"
+        else:
+            free_days_str = f"{free_days} روزه"
+
+        client_uuid, sub_link = add_vpn_client_api(free_username, free_gb, free_days, server_id=active_server_id)
         
         if not sub_link:
             import uuid
@@ -2959,17 +2994,17 @@ def handle_main_menu_callback(call):
             save_json_db(db)
                 
         import time
-        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 1 * 24 * 60 * 60))
+        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + free_days * 24 * 60 * 60))
         sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
 
         create_sub_key(
             key_id=sub_id, 
             tg_id=tg_id, 
             plan_id="free_test", 
-            plan_name="تست رایگان ۱ روزه", 
+            plan_name=f"تست رایگان {free_gb_str} - {free_days_str}", 
             sub_link=sub_link, 
             expire_date=expire_date, 
-            limit_gb=0.1,
+            limit_gb=free_gb,
             client_name=free_username,
             client_uuid=client_uuid,
             server_id=active_server_id

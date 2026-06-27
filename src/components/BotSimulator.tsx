@@ -879,20 +879,24 @@ export default function BotSimulator({
         if (settings?.isFreeTestActive === false) {
            addBotReply(settings?.freeTestDisabledMessage || (lang === "fa" ? "اکانت تست رایگان فعلا موجود نیست." : "Free test is not available right now."), 500);
         } else {
-           addBotReply(lang === "fa" ? "⏳ در حال ساخت اکانت تست رایگان یک روزه (۱۰۰ مگابایت)..." : "⏳ Generating 1-Day (100MB) test account...", 500, []);
+           const freeGb = settings?.freeTestGb !== undefined ? settings?.freeTestGb : 0.1;
+          const freeDays = settings?.freeTestDays !== undefined ? settings?.freeTestDays : 1;
+          const freeGbStr = freeGb < 1 ? `${Math.round(freeGb * 1024)} مگابایت` : `${freeGb} گیگابایت`;
+          const freeDaysStr = `${freeDays} روزه`;
+          addBotReply(lang === "fa" ? `⏳ در حال ساخت اکانت تست رایگان ${freeDaysStr} (${freeGbStr})...` : `⏳ Generating ${freeDaysStr} (${freeGbStr}) test account...`, 500, []);
            
            setTimeout(() => {
              const randomSubId = "TEST-" + Math.floor(Math.random() * 9000 + 1000);
-             const expireDate = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]; // 1 Day
+             const expireDate = new Date(Date.now() + freeDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
              
              const mockSub = {
                id: randomSubId,
                userId: currentUser.userId,
                planId: "free_test",
-               planName: "تست رایگان ۱ روزه",
+               planName: `تست رایگان ${freeGbStr} - ${freeDaysStr}`,
                subLink: `vless://mock_test_uuid_${randomSubId}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Test_${randomSubId}`,
                expireDate,
-               trafficLimitGb: 0.1, // 100 MB
+               trafficLimitGb: freeGb,
                trafficUsedGb: 0,
                status: "active" as const
              };
@@ -903,14 +907,14 @@ export default function BotSimulator({
              const confirmMsg = lang === "fa"
                ? `🎉 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n` +
                  `👤 نام کاربری سرویس: <code>test_${currentUser.username || currentUser.userId}</code>\n` +
-                 `⏳ اعتبار: یک روز\n` +
-                 `حجم: ۱۰۰ مگابایت\n\n` +
+                 `⏳ اعتبار: ${freeDaysStr}\n` +
+                 `حجم: ${freeGbStr}\n\n` +
                  `🔑 <b>کانفیگ VLESS اختصاصی (آزمایشی) صادر شد:</b>\n` +
                  `<code>${mockSub.subLink}</code>\n\n` +
                  `⚠️ <i>توجه: کل سیستم شبیه‌ساز کاملاً آموزشی است.</i>`
                : `🎉 <b>Simulated Free Test generated!</b>\n\n` +
                  `👤 Username: <code>test_${currentUser.username || currentUser.userId}</code>\n` +
-                 `⏳ Duration: 1 Day - 100MB\n\n` +
+                 `⏳ Duration: ${freeDaysStr} - ${freeGbStr}\n\n` +
                  `🔑 <b>Simulated configuration generated:</b>\n` +
                  `<code>${mockSub.subLink}</code>\n\n` +
                  `⚠️ <i>Notice: This is an educational sandbox.</i>`;

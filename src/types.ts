@@ -52,6 +52,8 @@ export interface PanelSettings {
   btnTextFreeTest?: string;
   isFreeTestActive?: boolean;
   freeTestDisabledMessage?: string;
+  freeTestGb?: number;
+  freeTestDays?: number;
   freeTestServerId?: string;
   hideBtnInstantSupport?: boolean;
   btnTextInstantSupport?: string;

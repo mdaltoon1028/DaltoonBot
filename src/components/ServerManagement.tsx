@@ -443,6 +443,47 @@ export default function ServerManagement({
             className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
           />
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
+              {lang === "fa" ? "حجم اکانت تست (گیگابایت - پشتیبانی از مگابایت با عدد اعشاری)" : "Free Test Volume (GB - supports decimals)"}
+            </label>
+            <input
+              type="text"
+              value={settings.freeTestGb !== undefined ? settings.freeTestGb : "0.1"}
+              onChange={(e) => {
+                const val = e.target.value;
+                onSaveSettings({
+                  ...settings,
+                  freeTestGb: val === "" ? undefined : parseFloat(val) || 0
+                });
+              }}
+              placeholder="e.g. 0.1"
+              className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
+              {lang === "fa" ? "مدت زمان تست (روز)" : "Free Test Duration (Days)"}
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={settings.freeTestDays !== undefined ? settings.freeTestDays : 1}
+              onChange={(e) => {
+                const val = e.target.value;
+                onSaveSettings({
+                  ...settings,
+                  freeTestDays: val === "" ? undefined : parseFloat(val) || 0
+                });
+              }}
+              placeholder="e.g. 1"
+              className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold font-mono"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Dynamic Volume/Days Pricing Rules Box */}
