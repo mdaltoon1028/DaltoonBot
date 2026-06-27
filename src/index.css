@@ -183,70 +183,49 @@ tr:hover {
 }
 
 /* =========================================
-   LIGHT THEME OVERRIDES
+   MODERN LIGHT THEME (ZINC & INDIGO)
    ========================================= */
 body.light {
-  background-color: #f3f4f6 !important;
-  color: #1f2937 !important;
+  background-color: #f8fafc !important; /* Soft Slate/Zinc background */
+  color: #0f172a !important; /* Deep Navy/Charcoal for primary text */
   background-image: 
-    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.02) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.02) 0%, transparent 40%) !important;
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.04) 0px, transparent 50%) !important;
 }
 
 body.light .pulse-glow-bg {
   display: none !important;
 }
 
-/* Map white texts to dark colors */
+/* Base Text Mapping for Light Mode */
 body.light .text-white,
 body.light .text-gray-100,
 body.light .text-gray-200 {
-  color: #111827 !important;
+  color: #1e293b !important;
 }
 
-/* Preserve white text on dark background buttons, links, and force classes */
-body.light button .text-white,
-body.light button.text-white,
-body.light a.text-white,
-body.light .bg-indigo-500 .text-white,
+/* Keep white text ONLY on actual colored backgrounds */
+body.light .bg-blue-600 .text-white,
 body.light .bg-indigo-600 .text-white,
-body.light .bg-purple-500 .text-white,
 body.light .bg-purple-600 .text-white,
-body.light .bg-rose-500 .text-white,
-body.light .bg-rose-600 .text-white,
-body.light .bg-emerald-500 .text-white,
 body.light .bg-emerald-600 .text-white,
+body.light .bg-rose-600 .text-white,
+body.light .bg-amber-600 .text-white,
+body.light button.bg-indigo-600,
+body.light button.bg-blue-600,
+body.light .bg-gradient-to-br .text-white,
 body.light .bg-gradient-to-r .text-white,
-body.light .bg-gradient-to-r,
-body.light .text-white-force {
+body.light .bg-primary-600 .text-white {
   color: #ffffff !important;
 }
 
-/* Map gradient and transparent clip-text headers to dark purple-indigo gradient */
-body.light .bg-clip-text,
-body.light .text-transparent {
-  background-image: linear-gradient(to right, #6d28d9, #4f46e5, #312e81) !important;
-  color: transparent !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-}
-
-/* Map muted text to clear darker grays */
-body.light .text-gray-300,
-body.light .text-gray-400 {
-  color: #374151 !important;
-}
-
-body.light .text-gray-500 {
-  color: #4b5563 !important;
-}
-
-body.light .text-indigo-400,
-body.light .text-purple-400 {
-  color: #6d28d9 !important;
-}
-
-/* Glass panel background remapping for Light mode */
+/* Card Styling - Modern Bento Look */
+body.light .bg-gray-900\/40,
+body.light .bg-gray-900\/50,
+body.light .bg-black\/40,
+body.light .bg-black\/20,
+body.light .bg-white\/5,
+body.light .glass-panel,
 body.light .bg-\[\#0b0f19\], 
 body.light .bg-\[\#0c0f1c\], 
 body.light .bg-\[\#111827\], 
@@ -262,172 +241,138 @@ body.light .bg-\[\#181f2a\],
 body.light .bg-\[\#0a0e17\],
 body.light .bg-slate-900, 
 body.light .bg-slate-950, 
-body.light .bg-gray-900,
-body.light .glass-panel {
-  background: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(24px) !important;
-  -webkit-backdrop-filter: blur(24px) !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02) !important;
+body.light .bg-gray-900 {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: none !important;
 }
 
 /* Inner elements / Secondary backgrounds remapping */
 body.light .bg-\[\#1f2937\], 
 body.light .bg-\[\#1a2234\],
-body.light .bg-[#161c2a],
-body.light .bg-[#141b2c],
 body.light .bg-slate-800,
-body.light .bg-gray-800 {
-  background: rgba(0, 0, 0, 0.04) !important;
-  border-color: rgba(0, 0, 0, 0.05) !important;
-}
-
-/* Inbound toggle lists */
+body.light .bg-gray-800,
+body.light .bg-slate-900\/40,
+body.light .bg-slate-950\/80,
 body.light .bg-slate-950\/40 {
-  background: rgba(0, 0, 0, 0.02) !important;
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
 }
 
-/* Hover panels in lists */
-body.light .glass-panel-hover:hover {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(139, 92, 246, 0.25) !important;
-  box-shadow: 0 10px 30px rgba(139, 92, 246, 0.05) !important;
+/* Muted Text - Slate variants for hierarchy */
+body.light .text-gray-400,
+body.light .text-slate-400,
+body.light .text-zinc-400 {
+  color: #64748b !important; /* Muted but readable */
 }
 
-/* Form and controls borders */
-body.light .border-\[\#1f2937\], 
-body.light .border-slate-800, 
-body.light .border-gray-700,
-body.light .border-slate-700,
+body.light .text-gray-500,
+body.light .text-slate-500,
+body.light .text-zinc-500 {
+  color: #475569 !important; /* Sub-headings */
+}
+
+body.light .text-indigo-400,
+body.light .text-purple-400,
+body.light .text-violet-400 {
+  color: #4f46e5 !important;
+}
+
+/* Border mapping */
+body.light .border-white\/10,
 body.light .border-gray-800,
-body.light .border-\[\#374151\],
-body.light .divide-\[\#1f2937\] > *,
-body.light .divide-slate-800 > *,
-body.light .divide-gray-700 > * {
-  border-color: rgba(0, 0, 0, 0.07) !important;
+body.light .border-slate-800,
+body.light .border-zinc-800,
+body.light .divide-white\/5 > *,
+body.light .divide-gray-800 > * {
+  border-color: #e2e8f0 !important;
 }
 
-/* Modern inputs override */
-body.light input, 
-body.light select, 
-body.light textarea {
-  background: #ffffff !important;
-  border-color: rgba(0, 0, 0, 0.09) !important;
-  color: #111827 !important;
+/* Sidebar & Navigation */
+body.light aside.bg-black,
+body.light .bg-slate-900.backdrop-blur-md {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
 }
 
-body.light input:focus, 
-body.light select:focus, 
-body.light textarea:focus {
-  border-color: #8b5cf6 !important;
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.12) !important;
+/* Hover States */
+body.light .hover\:bg-white\/10:hover,
+body.light .hover\:bg-white\/5:hover,
+body.light .glass-panel-hover:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 
-/* Active tabs and nav buttons */
-body.light .bg-black\/40 {
-  background: rgba(255, 255, 255, 0.75) !important;
-  border-color: rgba(0, 0, 0, 0.05) !important;
+/* Inputs & Forms */
+body.light input,
+body.light textarea,
+body.light select {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
-body.light .bg-black\/60 {
-  background: rgba(0, 0, 0, 0.04) !important;
-  border-color: rgba(0, 0, 0, 0.04) !important;
+body.light input:focus,
+body.light textarea:focus,
+body.light select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1) !important;
 }
 
-body.light .bg-black\/20 {
-  background: rgba(0, 0, 0, 0.02) !important;
+body.light input::placeholder {
+  color: #94a3b8 !important;
 }
 
-body.light .bg-black\/10 {
-  background: rgba(0, 0, 0, 0.01) !important;
+/* Specialized Components Mapping */
+body.light .bg-clip-text {
+  background-image: linear-gradient(to right, #4338ca, #6d28d9) !important;
+  color: transparent !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
 }
 
-body.light .text-purple-200 {
-  color: #4c1d95 !important;
-}
-
-body.light .bg-purple-600\/15 {
-  background: rgba(139, 92, 246, 0.08) !important;
-}
-
-body.light .border-purple-500 {
-  border-color: #8b5cf6 !important;
-}
-
-body.light .bg-white\/5 {
-  background: rgba(0, 0, 0, 0.03) !important;
-}
-
-body.light .bg-white\/10 {
-  background: rgba(0, 0, 0, 0.06) !important;
-}
-
-body.light .hover\:bg-white\/10:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
-}
-
-body.light .hover\:bg-white\/5:hover {
-  background: rgba(0, 0, 0, 0.02) !important;
-}
-
-body.light .text-amber-400 {
-  color: #b45309 !important;
-}
-
-body.light .bg-amber-500\/20 {
-  background: rgba(245, 158, 11, 0.09) !important;
-}
-
-body.light .bg-rose-500\/20 {
-  background: rgba(244, 63, 94, 0.09) !important;
-}
-
-body.light .bg-rose-500\/5 {
-  background: rgba(244, 63, 94, 0.03) !important;
-}
-
-body.light .border-rose-500\/10 {
-  border-color: rgba(244, 63, 94, 0.12) !important;
-}
-
-body.light .text-rose-400 {
-  color: #be123c !important;
-}
-
-body.light .text-emerald-400 {
-  color: #047857 !important;
-}
-
-body.light .bg-emerald-500\/10 {
-  background: rgba(16, 185, 129, 0.08) !important;
-}
-
-/* Modals remapping */
-body.light .bg-\[\#111827\].shadow-2xl,
-body.light .bg-\[\#0f1424\].shadow-2xl,
+/* Tooltips & Modals */
 body.light .modal,
 body.light div[role="dialog"] {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Usage Monitor bar */
+body.light .bg-black\/80 {
   background: #ffffff !important;
-  border: 1px solid rgba(139, 92, 246, 0.15) !important;
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.12) !important;
+  border-top: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
-/* Tables row hover remapping */
-body.light tr:hover {
-  background: rgba(0, 0, 0, 0.01) !important;
+body.light .bg-black\/80 .text-white {
+  color: #1e293b !important;
 }
 
-/* Scrollbar override for light mode */
+/* Scrollbar Light Mode */
 body.light ::-webkit-scrollbar-track {
-  background: #f3f4f6 !important;
+  background: #f1f5f9 !important;
 }
 
 body.light ::-webkit-scrollbar-thumb {
-  background: #d1d5db !important;
-  border: 1px solid rgba(0, 0, 0, 0.03) !important;
+  background: #cbd5e1 !important;
+  border: 4px solid #f1f5f9 !important;
 }
 
 body.light ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af !important;
+  background: #94a3b8 !important;
 }
+
+/* Status Colors Overrides */
+body.light .text-emerald-400 { color: #059669 !important; }
+body.light .bg-emerald-500\/10 { background: #ecfdf5 !important; }
+
+body.light .text-rose-400 { color: #e11d48 !important; }
+body.light .bg-rose-500\/10 { background: #fff1f2 !important; }
+
+body.light .text-amber-400 { color: #d97706 !important; }
+body.light .bg-amber-500\/10 { background: #fffbeb !important; }
+
 

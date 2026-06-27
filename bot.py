@@ -1600,21 +1600,31 @@ def pop_user_pending_charge(tg_id):
         return amount
     return None
 
-def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None):
+def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None, custom_gb=None, custom_days=None, custom_price=None):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["pendingPurchasePlanId"] = plan_id
         user["pendingPurchaseClientName"] = client_name
         user["pendingPurchaseServerId"] = server_id
+        user["pendingPurchaseCustomGb"] = custom_gb
+        user["pendingPurchaseCustomDays"] = custom_days
+        user["pendingPurchaseCustomPrice"] = custom_price
         write_db_json(db)
 
 def get_user_pending_purchase(tg_id):
     db = read_db_json()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
-        return user.get("pendingPurchasePlanId"), user.get("pendingPurchaseClientName"), user.get("pendingPurchaseServerId")
-    return None, None, None
+        return (
+            user.get("pendingPurchasePlanId"), 
+            user.get("pendingPurchaseClientName"), 
+            user.get("pendingPurchaseServerId"),
+            user.get("pendingPurchaseCustomGb"),
+            user.get("pendingPurchaseCustomDays"),
+            user.get("pendingPurchaseCustomPrice")
+        )
+    return None, None, None, None, None, None
 
 def clear_user_pending_purchase(tg_id):
     db = read_db_json()
@@ -4929,25 +4939,83 @@ def callback_handler(call):
         return
 
     if call.data.startswith("buycust_pay:"):
-        bot.answer_callback_query(call.id)
         parts = call.data.split(":")
-        server_id = parts[1]
-        username_input = parts[2]
-        gb = int(parts[3])
-        days = int(parts[4])
-        price = int(parts[5])
-        
+        # Format: buycust_pay:method:server_id:username:gb:days:price
+        if len(parts) == 6:
+            # Backward compatibility
+            method = "wallet"
+            server_id = parts[1]
+            username_input = parts[2]
+            gb = int(parts[3])
+            days = int(parts[4])
+            price = int(parts[5])
+        else:
+            method = parts[1]
+            server_id = parts[2]
+            username_input = parts[3]
+            gb = int(parts[4])
+            days = int(parts[5])
+            price = int(parts[6])
+            
         tg_id = call.from_user.id
         db = read_db_json()
+        cfg = get_config()
+
+        if method == "card":
+            bot.answer_callback_query(call.id)
+            set_user_pending_purchase(tg_id, "custom_vol", username_input, server_id, gb, days, price)
+            text_response = (
+                f"🛒 <b>خرید کانفیگ دلخواه (کارت به کارت)</b>\n"
+                f"👤 نام کاربری: <code>{username_input}</code>\n"
+                f"📊 حجم: <b>{gb} GB</b> | زمان: <b>{days} روز</b>\n"
+                f"💰 مبلغ قابل پرداخت: <b>{price:,} تومان</b>\n\n"
+                f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+                f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
+                f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
+                f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+                f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
+            )
+            bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
+            return
+
+        if method == "stars":
+            bot.answer_callback_query(call.id)
+            text_response = (
+                f"🛒 <b>خرید کانفیگ دلخواه (پرداخت با Telegram Stars)</b>\n"
+                f"👤 نام کاربری: <code>{username_input}</code>\n"
+                f"📊 حجم: <b>{gb} GB</b> | زمان: <b>{days} روز</b>\n"
+                f"💰 مبلغ نهایی: <b>{price:,} تومان</b>\n\n"
+                f"در اینجا کاربر به درگاه پرداخت Stars تلگرام متصل خواهد شد.\n"
+            )
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("✅ پایان و تایید فرضی پرداخت", callback_data="btn_back_home"))
+            markup.add(types.InlineKeyboardButton("❌ انصراف", callback_data="btn_back_home"))
+            bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        # Original wallet logic
+        bot.answer_callback_query(call.id)
         user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
         
-        cfg = get_config()
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
         
         if not is_privileged and (not user or user.get("walletBalance", 0) < price):
-            bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.")
+            shortage = price - (user.get("walletBalance", 0) if user else 0)
+            text = (
+                "❌ <b>موجود کيف پول شما کافی نیست!</b>\n\n"
+                f"💰 هزینه خرید: {price:,} تومان\n"
+                f"💳 موجودی فعلی: {int(user.get('walletBalance', 0) if user else 0):,} تومان\n"
+                f"🔴 کسری موجودی: {int(shortage):,} تومان\n\n"
+                "لطفاً ابتدا از طریق دکمه زیر موجودی خود را افزایش دهید و سپس مجدداً تلاش کنید."
+            )
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("💳 شارژ فوری کیف پول", callback_data="mm_btnWallet"),
+                types.InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="btn_back_home")
+            )
+            bot.send_message(call.message.chat.id, text, parse_mode="HTML", reply_markup=markup)
             return
             
         bot.edit_message_text("✅ در حال ساخت کانفیگ دلخواه... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
@@ -6864,7 +6932,7 @@ def handle_receipt_upload(message):
          return
 
     # Check for pending purchase
-    pending_plan_id, pending_username, pending_server_id = get_user_pending_purchase(tg_id)
+    pending_plan_id, pending_username, pending_server_id, p_gb, p_days, p_price = get_user_pending_purchase(tg_id)
 
     # Look up selected amount or fallback to regex extraction or default
     extracted_amount = 0
@@ -6881,10 +6949,13 @@ def handle_receipt_upload(message):
                 extracted_amount = 200000  # Default to 200k if unspecified
     else:
         # Get plan price
-        db = read_db_json()
-        db_plans = db.get("vpn_plans", [])
-        db_plan = next((dp for dp in db_plans if dp["id"] == pending_plan_id), None)
-        extracted_amount = int(db_plan["price"]) if db_plan else 0
+        if pending_plan_id == "custom_vol" and p_price:
+            extracted_amount = int(p_price)
+        else:
+            db = read_db_json()
+            db_plans = db.get("vpn_plans", [])
+            db_plan = next((dp for dp in db_plans if dp["id"] == pending_plan_id), None)
+            extracted_amount = int(db_plan["price"]) if db_plan else 0
 
     try:
         file_id = None
@@ -6902,9 +6973,9 @@ def handle_receipt_upload(message):
         if not file_id:
             bot.reply_to(message, "⚠️ لطفا فیش واریزی خود را فقط به صورت عکس یا فایل تصویری (JPEG, PNG و...) بفرستید.")
             return
-
+ 
         bot.send_message(message.chat.id, "⌛ در حال انتقال و بررسی رسید شما توسط ادمین هستیم. لطفا کمی صبور باشید.")
-
+ 
         file_info = bot.get_file(file_id)
         cfg = get_config()
         token = cfg.get("BOT_TOKEN", "").strip()
@@ -6926,7 +6997,10 @@ def handle_receipt_upload(message):
             
             tx_description = f"شارژ انتخابی تلگرام. کپشن فیش: '{caption}'" if caption else f"شارژ انتخابی {extracted_amount:,} تومان بدون کپشن."
             if pending_plan_id:
-                tx_description = f"خرید پلان: {pending_plan_id}, نام کاربری: {pending_username}"
+                if pending_plan_id == "custom_vol":
+                    tx_description = f"خرید دلخواه: {p_gb}GB/{p_days}روز, نام کاربری: {pending_username}, سرور: {pending_server_id}"
+                else:
+                    tx_description = f"خرید پلان: {pending_plan_id}, نام کاربری: {pending_username}"
 
             new_tx = {
                 "id": tx_id,
@@ -7177,13 +7251,15 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         f"💵 هزینه هر روز: {price_day:,} تومان\n"
         "──────────────────\n"
         f"💰 <b>جمع کل: {total_price:,} تومان</b>\n\n"
-        "⚠️ هزینه ساخت مستقیماً از موجودی کیف پول شما کسر خواهد شد."
+        "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
     )
     
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("✅ تایید و پرداخت از کیف پول", callback_data=f"buycust_pay:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
-        types.InlineKeyboardButton("❌ لغو", callback_data=f"srvsel_{server_id}")
+        types.InlineKeyboardButton("💰 پرداخت از موجودی کیف پول", callback_data=f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+        types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buycust_pay:card:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+        types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"buycust_pay:stars:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+        types.InlineKeyboardButton("❌ لغو و بازگشت", callback_data=f"srvsel_{server_id}")
     )
     
     bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)

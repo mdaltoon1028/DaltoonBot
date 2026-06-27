@@ -101,7 +101,7 @@ export default function SystemResourceMonitor({ lang }: { lang: Language }) {
     <div className="bg-black/80 backdrop-blur-md border border-blue-500/30 p-2 rounded-lg flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-[10px] sm:text-xs font-mono">
       <div className="flex items-center gap-3">
         <div className="flex flex-col">
-          <span className="text-gray-500 text-[8px] leading-none mb-1">CPU LOAD</span>
+          <span className="text-white text-[8px] leading-none mb-1">CPU LOAD</span>
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
               <div 
@@ -118,7 +118,7 @@ export default function SystemResourceMonitor({ lang }: { lang: Language }) {
       
       <div className="flex items-center gap-3 border-l border-gray-800 pl-8">
         <div className="flex flex-col">
-          <span className="text-gray-500 text-[8px] leading-none mb-1">MEMORY</span>
+          <span className="text-white text-[8px] leading-none mb-1">MEMORY</span>
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
               <div 
@@ -138,7 +138,7 @@ export default function SystemResourceMonitor({ lang }: { lang: Language }) {
 
       <div className="flex items-center gap-3 border-l border-gray-800 pl-8">
         <div className="flex flex-col">
-          <span className="text-gray-500 text-[8px] leading-none mb-1">STORAGE</span>
+          <span className="text-white text-[8px] leading-none mb-1">STORAGE</span>
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
               <div 
@@ -154,7 +154,7 @@ export default function SystemResourceMonitor({ lang }: { lang: Language }) {
       </div>
 
       <div className="flex flex-col border-l border-gray-800 pl-8 ml-auto hidden md:flex">
-        <span className="text-gray-500 text-[8px] leading-none mb-1 text-right">UPTIME</span>
+        <span className="text-white text-[8px] leading-none mb-1 text-right">UPTIME</span>
         <span className="text-emerald-400 font-bold tabular-nums text-right shadow-text-[0_0_5px_rgba(52,211,153,0.3)]">
           {status.uptime}
         </span>
