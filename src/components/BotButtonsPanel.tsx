@@ -418,8 +418,8 @@ export default function BotButtonsPanel({
       btnTextColleagues,
       btnTextAiChat,
       btnTextAi,
-      isFreeTestActive,
-      freeTestDisabledMessage,
+      isFreeTestActive: settings.isFreeTestActive,
+      freeTestDisabledMessage: settings.freeTestDisabledMessage,
       hideBtnBuyNew,
       hideBtnMySubs,
       hideBtnGuides,
@@ -765,42 +765,7 @@ export default function BotButtonsPanel({
                         >
                           <Power className="w-4 h-4" />
                         </button>
-                        {key === "btnFreeTest" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isFreeTestActive) {
-                                setTempFreeTestMessage(freeTestDisabledMessage);
-                                setShowFreeTestMessageConfig(true);
-                              } else {
-                                setIsFreeTestActive(true);
-                              }
-                            }}
-                            title={
-                              lang === "fa"
-                                ? "فعال یا غیرفعال کردن سرویس تست رایگان"
-                                : "Service Status"
-                            }
-                            className={`absolute left-[44px] top-1/2 -translate-y-1/2 p-1.5 px-2 rounded-lg transition-all flex items-center gap-1 text-[10px] uppercase font-bold cursor-pointer z-10 ${
-                              btn.disabled
-                                ? "opacity-50 pointer-events-none"
-                                : ""
-                            } ${
-                              isFreeTestActive
-                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30"
-                                : "bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30"
-                            }`}
-                          >
-                            <Activity className="w-3.5 h-3.5" />
-                            {isFreeTestActive
-                              ? lang === "fa"
-                                ? "سرویس فعال"
-                                : "ON"
-                              : lang === "fa"
-                                ? "سرویس غیرفعال"
-                                : "OFF"}
-                          </button>
-                        )}
+
                         {key === "btnWallet" && (
                           <button
                             type="button"
@@ -1528,99 +1493,7 @@ export default function BotButtonsPanel({
         </div>
       )}
 
-      {/* Free Test Disabled Message Modal */}
-      {showFreeTestMessageConfig && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
-          <div className="bg-[#111827] border border-slate-700/60 p-6 rounded-2xl w-full max-w-lg shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-rose-400" />
-              {lang === "fa"
-                ? "غیرفعال‌سازی سرویس تست رایگان"
-                : "Disable Free Test Service"}
-            </h3>
-            <p className="text-xs text-gray-400 mb-5 leading-relaxed">
-              {lang === "fa"
-                ? "پیامی که قصد دارید برای مشتریانی که روی دکمه «تست رایگان» کلیک می‌کنند ارسال شود را وارد کنید. این پیام به جای سرویس تستی ارسال مجدد می‌شود."
-                : "Enter the message to send to users when they click the Free Test button. This will be sent instead of generating a test account."}
-            </p>
 
-            <textarea
-              className="w-full bg-[#0a0e17] border border-slate-800 rounded-xl p-4 text-sm text-gray-200 focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 min-h-[140px] resize-y font-mono leading-relaxed"
-              value={tempFreeTestMessage}
-              onChange={(e) => setTempFreeTestMessage(e.target.value)}
-              placeholder={
-                lang === "fa"
-                  ? "مثلا: اکانت تست رایگان فعلا موجود نیست."
-                  : "e.g., Free test is not available right now."
-              }
-            />
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFreeTestMessageConfig(false);
-                }}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg text-xs font-semibold cursor-pointer transition border border-slate-700/50 hover:border-slate-600"
-              >
-                {lang === "fa" ? "انصراف" : "Cancel"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFreeTestDisabledMessage(tempFreeTestMessage);
-                  setIsFreeTestActive(false);
-
-                  // Also trigger the parent save so the changes reflect immediately in the backend
-                  onSaveSettings({
-                    ...settings,
-                    btnTextBuyNew,
-                    btnTextMySubs,
-                    btnTextGuides,
-                    guidesText,
-                    btnTextProfile,
-                    btnTextSupport,
-                    btnTextTicketSupport,
-                    btnTextFreeTest,
-                    btnTextInstantSupport,
-                    btnTextFeedback,
-                    btnTextReferral,
-                    btnTextWallet,
-                    btnTextColleagues,
-                    btnTextAiChat,
-                    btnTextAi,
-                    isFreeTestActive: false,
-                    freeTestDisabledMessage: tempFreeTestMessage,
-                    hideBtnBuyNew,
-                    hideBtnMySubs,
-                    hideBtnGuides,
-                    hideBtnProfile,
-                    hideBtnSupport,
-                    hideBtnTicketSupport,
-                    hideBtnFreeTest,
-                    hideBtnInstantSupport,
-                    hideBtnFeedback,
-                    hideBtnReferral,
-                    hideBtnWallet,
-                    hideBtnColleagues,
-                    hideBtnAiChat,
-                    hideBtnAi,
-                    keyboardLayout,
-                    mainButtonsOrder,
-                    walletChargeAmounts,
-                  });
-
-                  setShowFreeTestMessageConfig(false);
-                }}
-                className="px-5 py-2 bg-rose-600/90 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold cursor-pointer transition shadow-lg shadow-rose-600/20 flex items-center gap-1.5"
-              >
-                <Check className="w-3.5 h-3.5" />
-                {lang === "fa" ? "غیرفعال‌سازی و ذخیره" : "Disable & Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Wallet Charge Amounts Modal */}
       {showWalletAmountsModal && (
@@ -1728,8 +1601,8 @@ export default function BotButtonsPanel({
                     btnTextColleagues,
                     btnTextAiChat,
                     btnTextAi,
-                    isFreeTestActive,
-                    freeTestDisabledMessage,
+                    isFreeTestActive: settings.isFreeTestActive,
+                    freeTestDisabledMessage: settings.freeTestDisabledMessage,
                     hideBtnBuyNew,
                     hideBtnMySubs,
                     hideBtnGuides,

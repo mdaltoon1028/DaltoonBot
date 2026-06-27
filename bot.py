@@ -304,6 +304,7 @@ def get_config():
 
         config["IS_FREETEST_ACTIVE"] = panel_cfg.get("isFreeTestActive", True)
         config["FREETEST_DISABLED_MSG"] = panel_cfg.get("freeTestDisabledMessage", "اکانت تست رایگان فعلا موجود نیست.")
+        config["FREE_TEST_SERVER_ID"] = panel_cfg.get("freeTestServerId")
 
         config["HIDE_BUY_NEW"] = bool(panel_cfg.get("hideBtnBuyNew", False))
         if "hideBtnMySubs" in panel_cfg: config["HIDE_MY_SUBS"] = bool(panel_cfg["hideBtnMySubs"])
@@ -431,11 +432,49 @@ cfg_boot = get_config()
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML", threaded=True, num_threads=30)
 
 _session = None
+_api_prefix_cache = {}
+
+def get_api_prefix(base_url, session):
+    if not base_url:
+        return "/panel/api"
+    base_url = base_url.rstrip("/")
+    if base_url in _api_prefix_cache:
+        return _api_prefix_cache[base_url]
+        
+    import requests
+    candidates = ["/panel/api", "/xui/API", "/xui/api"]
+    for prefix in candidates:
+        url = f"{base_url}{prefix}/inbounds/list"
+        try:
+            # Bypass XUISession.request to prevent infinite recursion
+            res = requests.Session.request(session, "GET", url, timeout=5, verify=False)
+            if res.status_code != 404:
+                print(f"[API Path Auto-Detect] Found working API path prefix: '{prefix}' for URL: {base_url}")
+                _api_prefix_cache[base_url] = prefix
+                return prefix
+        except Exception as e:
+            pass
+            
+    print(f"[API Path Auto-Detect] All candidates returned 404 or timed out for: {base_url}. Defaulting to '/panel/api'")
+    _api_prefix_cache[base_url] = "/panel/api"
+    return "/panel/api"
+
 def get_session():
     global _session
     if _session is None:
         import requests
-        _session = requests.Session()
+        
+        class XUISession(requests.Session):
+            def request(self, method, url, *args, **kwargs):
+                if "/panel/api/" in url:
+                    idx = url.find("/panel/api/")
+                    base_url = url[:idx]
+                    suffix = url[idx + len("/panel/api/"):]
+                    prefix = get_api_prefix(base_url, self)
+                    url = f"{base_url}{prefix}/{suffix}"
+                return super().request(method, url, *args, **kwargs)
+                
+        _session = XUISession()
         _session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
@@ -2888,7 +2927,17 @@ def handle_main_menu_callback(call):
         # Select active server to pass to add_vpn_client_api, create_sub_key and get_client_all_links
         cfg = get_config()
         servers = cfg.get("SERVERS", [])
-        active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        
+        # Check if a specific free test server is configured
+        free_test_server_id = cfg.get("FREE_TEST_SERVER_ID")
+        active_server = None
+        if free_test_server_id:
+            active_server = next((s for s in servers if s.get("id") == free_test_server_id), None)
+            
+        # Fallback to the first active server if none specified or not found
+        if not active_server:
+            active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+            
         active_server_id = active_server.get("id") if active_server else None
 
         client_uuid, sub_link = add_vpn_client_api(free_username, 0.10, 1.0, server_id=active_server_id) # 0.1 GB (100MB), 1 day
@@ -7322,6 +7371,33 @@ def process_colleague_change_password_pass(message, acc_id, new_user):
     
     bot.send_message(message.chat.id, f"✅ <b>مشخصات حساب شما تغییر کرد:</b>\n\n👤 <b>یوزرنیم جدید:</b> <code>{new_user}</code>\n🔑 <b>رمز عبور جدید:</b> <code>{new_pass}</code>\n\nجهت ورود به پنل از منوی همکاران استفاده کنید.", parse_mode="HTML", reply_markup=get_custom_keyboard())
 
+def get_custom_pricing_limits(server_id):
+    db = read_db_json()
+    settings_data = db.get("settings", {})
+    import json
+    try:
+        panel_config = json.loads(settings_data.get("panel_config", "{}"))
+    except:
+        panel_config = {}
+    
+    custom_pricing = panel_config.get("customPricingBoxes", [])
+    min_gb = 1
+    min_days = 1
+    
+    if isinstance(custom_pricing, list):
+        for box in custom_pricing:
+            if isinstance(box, dict) and str(server_id) in [str(sid) for sid in box.get("serverIds", [])]:
+                try:
+                    min_gb = int(box.get("minGb", 1))
+                except:
+                    min_gb = 1
+                try:
+                    min_days = int(box.get("minDays", 1))
+                except:
+                    min_days = 1
+                break
+    return min_gb, min_days
+
 def process_custom_vol_username(message, server_id):
     text = message.text.strip() if message.text else ""
     if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
@@ -7359,13 +7435,15 @@ def process_custom_vol_gb(message, server_id, username_input):
         
     try:
         gb = int(text)
-        if gb <= 0 or gb > 1000:
+        min_gb, _ = get_custom_pricing_limits(server_id)
+        if gb < min_gb or gb > 1000:
             raise ValueError()
     except ValueError:
+        min_gb, _ = get_custom_pricing_limits(server_id)
         msg = bot.reply_to(
             message,
-            "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\n"
-            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:",
+            f"❌ <b>خطا: ترافیک نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
+            f"حداقل حجم سفارش روی این سرور <b>{min_gb} گیگابایت</b> می‌باشد. لطفاً یک عدد بین {min_gb} تا ۱۰۰۰ وارد کنید:",
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
@@ -7392,13 +7470,15 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         
     try:
         days = int(text)
-        if days <= 0 or days > 365:
+        _, min_days = get_custom_pricing_limits(server_id)
+        if days < min_days or days > 365:
             raise ValueError()
     except ValueError:
+        _, min_days = get_custom_pricing_limits(server_id)
         msg = bot.reply_to(
             message,
-            "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\n"
-            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:",
+            f"❌ <b>خطا: تعداد روزها نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
+            f"حداقل تعداد روز سفارش روی این سرور <b>{min_days} روز</b> می‌باشد. لطفاً یک عدد بین {min_days} تا ۳۶۵ وارد کنید:",
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
@@ -7488,15 +7568,21 @@ def process_renew_gb(message, target_sub_id):
         main_menu_message(message)
         return
         
+    db = read_db_json()
+    k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
+    server_id = k.get("serverId") if k else None
+        
     try:
         gb = int(text)
-        if gb <= 0 or gb > 1000:
+        min_gb, _ = get_custom_pricing_limits(server_id)
+        if gb < min_gb or gb > 1000:
             raise ValueError()
     except ValueError:
+        min_gb, _ = get_custom_pricing_limits(server_id)
         msg = bot.reply_to(
             message,
-            "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\n"
-            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:",
+            f"❌ <b>خطا: ترافیک نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
+            f"حداقل حجم تمدید روی این سرور <b>{min_gb} گیگابایت</b> می‌باشد. لطفاً یک عدد بین {min_gb} تا ۱۰۰۰ وارد کنید:",
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
@@ -7518,15 +7604,21 @@ def process_renew_days(message, target_sub_id, gb):
         main_menu_message(message)
         return
         
+    db = read_db_json()
+    k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
+    server_id = k.get("serverId") if k else None
+        
     try:
         days = int(text)
-        if days <= 0 or days > 365:
+        _, min_days = get_custom_pricing_limits(server_id)
+        if days < min_days or days > 365:
             raise ValueError()
     except ValueError:
+        _, min_days = get_custom_pricing_limits(server_id)
         msg = bot.reply_to(
             message,
-            "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\n"
-            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:",
+            f"❌ <b>خطا: تعداد روزها نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
+            f"حداقل مدت تمدید روی این سرور <b>{min_days} روز</b> می‌باشد. لطفاً یک عدد بین {min_days} تا ۳۶۵ وارد کنید:",
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )

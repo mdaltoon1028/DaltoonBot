@@ -2072,8 +2072,63 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
+// Cache to store detected API prefix per panel base URL
+const apiPrefixCache = new Map<string, string>();
+
+async function getApiPrefix(cleanedUrl: string, cookie: string = ""): Promise<string> {
+  if (!cleanedUrl) return "/panel/api";
+  const normalized = cleanedUrl.replace(/\/+$/, "");
+  if (apiPrefixCache.has(normalized)) {
+    return apiPrefixCache.get(normalized)!;
+  }
+
+  const candidates = ["/panel/api", "/xui/API", "/xui/api"];
+  for (const prefix of candidates) {
+    const url = `${normalized}${prefix}/inbounds/list`;
+    try {
+      const headers: Record<string, string> = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "application/json",
+      };
+      if (cookie) {
+        headers["Cookie"] = cookie;
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+      }).catch(() => null);
+      clearTimeout(timer);
+
+      if (res && res.status !== 404) {
+        console.log(`[API Path Auto-Detect] Found working API path prefix: '${prefix}' for URL: ${cleanedUrl}`);
+        apiPrefixCache.set(normalized, prefix);
+        return prefix;
+      }
+    } catch (e) {
+      // Ignore errors and try next
+    }
+  }
+
+  console.log(`[API Path Auto-Detect] All candidates returned 404 or timed out for: ${cleanedUrl}. Defaulting to '/panel/api'`);
+  apiPrefixCache.set(normalized, "/panel/api");
+  return "/panel/api";
+}
+
 // Robust fetch helper with timeout and standardized browser headers to bypass WAF / strict server security rules
 async function xuiFetch(url: string, options: any = {}, timeoutMs = 8000) {
+  // Automatically adjust path prefix if we detect '/panel/api/' in the URL
+  if (url.includes("/panel/api/")) {
+    const idx = url.indexOf("/panel/api/");
+    const baseUrl = url.substring(0, idx);
+    const suffix = url.substring(idx + "/panel/api/".length);
+    const cookie = options.headers?.Cookie || "";
+    const prefix = await getApiPrefix(baseUrl, cookie);
+    url = `${baseUrl}${prefix}/${suffix}`;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -2370,7 +2425,7 @@ async function addVpnClientApi(
       for (let s of subs) {
         if (
           (s.clientName || "").toLowerCase() === _lMail ||
-          s.planId.toLowerCase() === _lMail
+          (s.planId || "").toLowerCase() === _lMail
         ) {
           return {
             success: false,

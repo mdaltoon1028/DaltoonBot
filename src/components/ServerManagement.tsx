@@ -98,7 +98,9 @@ export default function ServerManagement({
       id: "price_" + Math.random().toString(36).substring(2, 8),
       pricePerGb: 3000,
       pricePerDay: 2000,
-      serverIds: []
+      serverIds: [],
+      minGb: 1,
+      minDays: 1
     };
     setPricingBoxes([...pricingBoxes, newBox]);
     setEditingBoxIds(prev => [...prev, newBox.id]);
@@ -354,6 +356,95 @@ export default function ServerManagement({
       {/* Multi-Server Config Block */}
       <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} planCategories={planCategories} colleaguePackages={colleaguePackages} />
 
+      {/* Free Test Dedicated Server Config Box */}
+      <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
+        <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+          <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+          </div>
+          <h4 className="font-semibold text-white text-sm">
+            {lang === "fa" ? "تنظیمات اختصاصی تست رایگان" : "Free Test Settings"}
+          </h4>
+        </div>
+
+        <p className="text-xs text-gray-400 leading-relaxed font-medium">
+          {lang === "fa" 
+            ? "در این بخش می‌توانید سرور مورد نظر خود را برای ساخت و تحویل کانفیگ‌های تست رایگان کاربران انتخاب کنید. ربات تلگرام اکانت‌های تست رایگان را مستقیماً از روی این سرور ایجاد خواهد کرد."
+            : "Define the specific server dedicated to handling free test requests. The Telegram bot will automatically create and issue free tests from this selected server."}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
+              {lang === "fa" ? "انتخاب سرور تست رایگان" : "Select Free Test Server"}
+            </label>
+            <select
+              value={settings.freeTestServerId || ""}
+              onChange={(e) => {
+                onSaveSettings({
+                  ...settings,
+                  freeTestServerId: e.target.value || undefined
+                });
+              }}
+              className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none cursor-pointer"
+            >
+              <option value="">
+                {lang === "fa" ? "نخستین سرور فعال سیستم (پیش‌فرض)" : "First Active Server (Default)"}
+              </option>
+              {(Array.isArray(settings.servers) ? settings.servers : []).map((srv) => (
+                <option key={srv.id} value={srv.id}>
+                  {srv.name} ({srv.panelUrl})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
+              {lang === "fa" ? "وضعیت سرویس تست رایگان" : "Free Test Status"}
+            </label>
+            <div className="flex items-center gap-2 h-[38px]">
+              <button
+                type="button"
+                onClick={() => {
+                  onSaveSettings({
+                    ...settings,
+                    isFreeTestActive: settings.isFreeTestActive !== false ? false : true
+                  });
+                }}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer ${
+                  settings.isFreeTestActive !== false
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                }`}
+              >
+                {settings.isFreeTestActive !== false
+                  ? (lang === "fa" ? "✅ فعال" : "✅ Enabled")
+                  : (lang === "fa" ? "❌ غیرفعال" : "❌ Disabled")}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
+            {lang === "fa" ? "پیام خطا زمان غیرفعال بودن تست رایگان" : "Free Test Disabled Message"}
+          </label>
+          <input
+            type="text"
+            value={settings.freeTestDisabledMessage || ""}
+            onChange={(e) => {
+              onSaveSettings({
+                ...settings,
+                freeTestDisabledMessage: e.target.value
+              });
+            }}
+            placeholder={lang === "fa" ? "مثلا: اکانت تست رایگان فعلا موجود نیست." : "e.g., Free test accounts are temporarily unavailable."}
+            className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+          />
+        </div>
+      </div>
+
       {/* Dynamic Volume/Days Pricing Rules Box */}
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -414,8 +505,8 @@ export default function ServerManagement({
                           </span>
                           <span className="text-[11px] text-gray-400 font-mono">
                             {lang === "fa" 
-                              ? `ترافیک: ${box.pricePerGb?.toLocaleString()} تومان | زمان: ${box.pricePerDay?.toLocaleString()} تومان` 
-                              : `GB: ${box.pricePerGb?.toLocaleString()}T | Day: ${box.pricePerDay?.toLocaleString()}T`}
+                              ? `ترافیک: ${box.pricePerGb?.toLocaleString()} تومان | زمان: ${box.pricePerDay?.toLocaleString()} تومان | حداقل: ${box.minGb || 1} گیگ و ${box.minDays || 1} روز` 
+                              : `GB: ${box.pricePerGb?.toLocaleString()}T | Day: ${box.pricePerDay?.toLocaleString()}T | Min: ${box.minGb || 1}GB & ${box.minDays || 1} Days`}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-1.5 items-center">
@@ -456,7 +547,7 @@ export default function ServerManagement({
                   ) : (
                     /* Expanded Edit View */
                     <>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                       <div className="flex justify-between items-center pb-2 border-b border-gray-900">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
                             {lang === "fa" ? `✍️ ویرایش تنظیمات کادر شماره ${idx + 1}` : `✍️ Editing Rule #${idx + 1}`}
@@ -494,6 +585,31 @@ export default function ServerManagement({
                             onChange={(e) => handleUpdateBoxField(box.id, "pricePerDay", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
                             className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
                             placeholder="2000"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
+                            {lang === "fa" ? "حداقل حجم ساخت (گیگابایت)" : "Minimum GB Limit"}
+                          </label>
+                          <input
+                            type="number"
+                            value={box.minGb !== undefined ? box.minGb : 1}
+                            onChange={(e) => handleUpdateBoxField(box.id, "minGb", e.target.value === "" ? 1 : parseInt(e.target.value) || 1)}
+                            className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
+                            placeholder="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
+                            {lang === "fa" ? "حداقل روز ساخت (روز)" : "Minimum Days Limit"}
+                          </label>
+                          <input
+                            type="number"
+                            value={box.minDays !== undefined ? box.minDays : 1}
+                            onChange={(e) => handleUpdateBoxField(box.id, "minDays", e.target.value === "" ? 1 : parseInt(e.target.value) || 1)}
+                            className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
+                            placeholder="1"
                           />
                         </div>
                       </div>

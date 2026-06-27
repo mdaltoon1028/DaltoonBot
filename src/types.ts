@@ -52,6 +52,7 @@ export interface PanelSettings {
   btnTextFreeTest?: string;
   isFreeTestActive?: boolean;
   freeTestDisabledMessage?: string;
+  freeTestServerId?: string;
   hideBtnInstantSupport?: boolean;
   btnTextInstantSupport?: string;
   hideBtnFeedback?: boolean;
@@ -141,6 +142,8 @@ export interface CustomPricingBox {
   pricePerGb: number;
   pricePerDay: number;
   serverIds: string[];
+  minGb?: number;
+  minDays?: number;
 }
 
 export interface InboundInfo {
