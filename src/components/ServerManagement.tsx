@@ -85,6 +85,8 @@ export default function ServerManagement({
     return Array.isArray(settings.customPricingBoxes) ? settings.customPricingBoxes : [];
   });
 
+  const [editingBoxIds, setEditingBoxIds] = useState<string[]>([]);
+
   useEffect(() => {
     if (Array.isArray(settings.customPricingBoxes)) {
       setPricingBoxes(settings.customPricingBoxes);
@@ -99,6 +101,7 @@ export default function ServerManagement({
       serverIds: []
     };
     setPricingBoxes([...pricingBoxes, newBox]);
+    setEditingBoxIds(prev => [...prev, newBox.id]);
   };
 
   const handleUpdateBoxField = (id: string, field: keyof CustomPricingBox, value: any) => {
@@ -125,9 +128,25 @@ export default function ServerManagement({
 
   const handleDeletePricingBox = (id: string) => {
     setPricingBoxes(prev => prev.filter(box => box.id !== id));
+    setEditingBoxIds(prev => prev.filter(x => x !== id));
+  };
+
+  const handleToggleEditBox = (id: string) => {
+    setEditingBoxIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleCloseAndSaveBox = (id: string) => {
+    setEditingBoxIds(prev => prev.filter(x => x !== id));
+    onSaveSettings({
+      ...settings,
+      customPricingBoxes: pricingBoxes
+    });
   };
 
   const handleSavePricingSettings = () => {
+    setEditingBoxIds([]);
     onSaveSettings({
       ...settings,
       customPricingBoxes: pricingBoxes
@@ -369,77 +388,159 @@ export default function ServerManagement({
           </div>
         ) : (
           <div className="space-y-4">
-            {pricingBoxes.map((box, idx) => (
-              <div key={box.id} className="bg-slate-950/50 border border-gray-800/80 p-4 rounded-xl space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-gray-900">
-                  <span className="text-xs font-mono font-bold text-amber-400">
-                    {lang === "fa" ? `کادر شماره ${idx + 1}` : `Pricing Rule #${idx + 1}`}
-                  </span>
-                  <button
-                    onClick={() => handleDeletePricingBox(box.id)}
-                    className="p-1 text-rose-400 hover:text-white hover:bg-rose-950/40 rounded transition cursor-pointer"
-                    title={lang === "fa" ? "حذف کادر" : "Delete box"}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+            {pricingBoxes.map((box, idx) => {
+              const isEditing = editingBoxIds.includes(box.id);
+              // Find the names of selected servers for the summary badge
+              const selectedServersNames = Array.isArray(settings.servers)
+                ? settings.servers
+                    .filter((srv: any) => box.serverIds?.includes(srv.id))
+                    .map((srv: any) => srv.name)
+                : [];
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                      {lang === "fa" ? "قیمت به ازای هر گیگابایت (تومان)" : "Price per GB (Toman)"}
-                    </label>
-                    <input
-                      type="number"
-                      value={box.pricePerGb || ""}
-                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerGb", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
-                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
-                      placeholder="3000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                      {lang === "fa" ? "قیمت به ازای هر روز (تومان)" : "Price per Day (Toman)"}
-                    </label>
-                    <input
-                      type="number"
-                      value={box.pricePerDay || ""}
-                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerDay", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
-                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
-                      placeholder="2000"
-                    />
-                  </div>
-                </div>
+              return (
+                <div key={box.id} className={`p-4 rounded-xl border transition-all duration-200 ${
+                  isEditing 
+                    ? "bg-slate-950/70 border-indigo-500/30 shadow-md shadow-indigo-950/10 space-y-4" 
+                    : "bg-slate-950/30 border-gray-800/60 hover:border-gray-700/80 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                }`}>
+                  
+                  {/* Collapsed View */}
+                  {!isEditing ? (
+                    <>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                            {lang === "fa" ? `کادر شماره ${idx + 1}` : `Rule #${idx + 1}`}
+                          </span>
+                          <span className="text-[11px] text-gray-400 font-mono">
+                            {lang === "fa" 
+                              ? `ترافیک: ${box.pricePerGb?.toLocaleString()} تومان | زمان: ${box.pricePerDay?.toLocaleString()} تومان` 
+                              : `GB: ${box.pricePerGb?.toLocaleString()}T | Day: ${box.pricePerDay?.toLocaleString()}T`}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          <span className="text-[10px] text-gray-500 font-medium">
+                            {lang === "fa" ? "سرورهای اعمال‌شده:" : "Applied Servers:"}
+                          </span>
+                          {selectedServersNames.length > 0 ? (
+                            selectedServersNames.map((name, sIdx) => (
+                              <span key={sIdx} className="text-[10px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-1.5 py-0.2 rounded font-semibold truncate max-w-[120px]">
+                                {name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-rose-400/80 bg-rose-500/5 px-1.5 py-0.2 rounded font-semibold">
+                              {lang === "fa" ? "بدون سرور (اعمال نشده)" : "No servers selected"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 justify-end self-end md:self-auto border-t md:border-t-0 pt-2 md:pt-0 border-gray-900/40">
+                        <button
+                          onClick={() => handleToggleEditBox(box.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-lg text-xs font-semibold transition active:scale-95 cursor-pointer"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>{lang === "fa" ? "ویرایش و تنظیم" : "Edit Rule"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeletePricingBox(box.id)}
+                          className="p-2 text-rose-400/80 hover:text-white hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+                          title={lang === "fa" ? "حذف کادر" : "Delete box"}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    /* Expanded Edit View */
+                    <>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
+                            {lang === "fa" ? `✍️ ویرایش تنظیمات کادر شماره ${idx + 1}` : `✍️ Editing Rule #${idx + 1}`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleDeletePricingBox(box.id)}
+                          className="p-1 text-rose-400 hover:text-white hover:bg-rose-950/40 rounded transition cursor-pointer"
+                          title={lang === "fa" ? "حذف کادر" : "Delete box"}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
 
-                <div className="space-y-1.5">
-                  <span className="block text-[10px] text-gray-400 uppercase font-bold">
-                    {lang === "fa" ? "انتخاب سرورهای تیک‌خورده برای اعمال این قانون:" : "Select servers for this rule:"}
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 bg-[#111827]/40 p-3 rounded-lg border border-gray-900">
-                    {Array.isArray(settings.servers) && settings.servers.length > 0 ? (
-                      settings.servers.map((srv: any) => {
-                        const isChecked = box.serverIds.includes(srv.id);
-                        return (
-                          <label key={srv.id} className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleToggleServerInBox(box.id, srv.id)}
-                              className="rounded border-gray-750 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 bg-slate-950 w-3.5 h-3.5"
-                            />
-                            <span className="truncate">{srv.name}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
+                            {lang === "fa" ? "قیمت به ازای هر گیگابایت (تومان)" : "Price per GB (Toman)"}
                           </label>
-                        );
-                      })
-                    ) : (
-                      <span className="text-[10px] text-gray-500 col-span-full">
-                        {lang === "fa" ? "هیچ سروری تعریف نشده است." : "No servers available."}
-                      </span>
-                    )}
-                  </div>
+                          <input
+                            type="number"
+                            value={box.pricePerGb || ""}
+                            onChange={(e) => handleUpdateBoxField(box.id, "pricePerGb", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
+                            className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
+                            placeholder="3000"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
+                            {lang === "fa" ? "قیمت به ازای هر روز (تومان)" : "Price per Day (Toman)"}
+                          </label>
+                          <input
+                            type="number"
+                            value={box.pricePerDay || ""}
+                            onChange={(e) => handleUpdateBoxField(box.id, "pricePerDay", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
+                            className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
+                            placeholder="2000"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="block text-[10px] text-gray-400 uppercase font-bold">
+                          {lang === "fa" ? "انتخاب سرورهای تیک‌خورده برای اعمال این قانون:" : "Select servers for this rule:"}
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 bg-[#111827]/40 p-3 rounded-lg border border-gray-900">
+                          {Array.isArray(settings.servers) && settings.servers.length > 0 ? (
+                            settings.servers.map((srv: any) => {
+                              const isChecked = box.serverIds.includes(srv.id);
+                              return (
+                                <label key={srv.id} className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleServerInBox(box.id, srv.id)}
+                                    className="rounded border-gray-750 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0 bg-slate-950 w-3.5 h-3.5"
+                                  />
+                                  <span className="truncate">{srv.name}</span>
+                                </label>
+                              );
+                            })
+                          ) : (
+                            <span className="text-[10px] text-gray-500 col-span-full">
+                              {lang === "fa" ? "هیچ سروری تعریف نشده است." : "No servers available."}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-gray-900/60">
+                        <button
+                          type="button"
+                          onClick={() => handleCloseAndSaveBox(box.id)}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{lang === "fa" ? "ذخیره و بستن کادر" : "Save and Close Box"}</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

@@ -5,9 +5,29 @@ Designed specifically for: Sanaei X-UI v3.2 Panel (https://tr.sub-daltoon.ir:209
 Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
 """
 
+import os
+import sys
+import subprocess
+
+try:
+    import requests
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "--break-system-packages"])
+    import requests
+
+try:
+    import telebot
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyTelegramBotAPI", "--break-system-packages"])
+    import telebot
+
+try:
+    import dotenv
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-dotenv", "--break-system-packages"])
+    import dotenv
+
 import json
-import requests
-import telebot
 from telebot import types
 import time
 import uuid
@@ -3587,6 +3607,7 @@ def edit_or_reply_message(call, text, reply_markup=None, parse_mode="HTML"):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
+    global active_purchases
     tg_id = call.from_user.id
     
     if call.data == "check_mandatory_join":
@@ -4017,7 +4038,7 @@ def callback_handler(call):
                 bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
                 return
 
-            global active_purchases
+            # Check for double-processing
             if tg_id in active_purchases:
                 bot.answer_callback_query(call.id, "یک درخواست خرید یا تمدید برای شما در حال پردازش است.")
                 return
@@ -5034,7 +5055,7 @@ def callback_handler(call):
             
         bot.edit_message_text("✅ در حال تمدید اشتراک... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
         
-        global active_purchases
+        # Check for double-processing
         if tg_id in active_purchases:
             bot.send_message(call.message.chat.id, "یک درخواست خرید یا تمدید برای شما در حال پردازش است.")
             return

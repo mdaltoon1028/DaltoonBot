@@ -480,6 +480,7 @@ function startPythonBot() {
         env: {
           ...process.env,
           PYTHONUNBUFFERED: "1",
+          PYTHONPATH: (process.env.PYTHONPATH ? process.env.PYTHONPATH + ":" : "") + path.join(process.env.HOME || "/root", ".local/lib/python3.10/site-packages"),
         },
         stdio: "pipe",
       });
@@ -517,42 +518,17 @@ function startPythonBot() {
     console.log(
       "[Bot Manager] Ensuring Python dependencies (pyTelegramBotAPI, python-dotenv, requests) are installed...",
     );
-    // Use python3 -m pip which is more reliable
     exec(
-      "python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages",
-      (err, stdout, stderr) => {
-        pythonDepsInstalled = true;
-        if (err) {
-          console.error(
-            "[Bot Manager] Failed to install Python dependencies:",
-            err.message,
-          );
-          console.error("[Bot Manager] PIP STDOUT:", stdout);
-          console.error("[Bot Manager] PIP STDERR:", stderr);
-          // Fallback: try without --break-system-packages
-          exec(
-            "python3 -m pip install pyTelegramBotAPI python-dotenv requests",
-            (err2, stdout2, stderr2) => {
-              if (err2) {
-                console.error(
-                  "[Bot Manager] Secondary PIP failed:",
-                  err2.message,
-                );
-              } else {
-                console.log(
-                  "[Bot Manager] Python dependencies installed on second attempt.",
-                );
-              }
-              runBot();
-            },
-          );
-          return;
-        }
-        console.log(
-          "[Bot Manager] Python dependencies verified/installed successfully.",
+      "curl -sSL https://bootstrap.pypa.io/get-pip.py -o get-pip_fresh.py && python3 get-pip_fresh.py --user || true",
+      () => {
+        exec(
+          "python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages --user || ~/.local/bin/pip install pyTelegramBotAPI python-dotenv requests --user || pip install pyTelegramBotAPI python-dotenv requests --user || true",
+          () => {
+            pythonDepsInstalled = true;
+            runBot();
+          },
         );
-        runBot();
-      },
+      }
     );
   } else {
     runBot();
