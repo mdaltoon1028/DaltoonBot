@@ -109,8 +109,17 @@ def read_db_json():
         "colleague_categories": [],
         "inbounds": [],
         "custom_buttons": [],
-        "settings": {},
+        "gift_codes": [],
+        "promo_codes": [],
         "tickets": [],
+        "plan_categories": [],
+        "pending_purchases": {},
+        "pending_charges": {},
+        "user_pending_configs": {},
+        "settings": {
+            "panel_config": "{}"
+        },
+        "isNewInstall": False,
         "logs": []
     }
     if not os.path.exists(DB_FILE):
@@ -1621,7 +1630,7 @@ def pop_user_pending_charge(tg_id):
 
 def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None, custom_gb=None, custom_days=None, custom_price=None):
     db = read_db_json()
-    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    user = next((u for u in db["users"] if str(u["userId"]) == str(tg_id)), None)
     if user:
         user["pendingPurchasePlanId"] = plan_id
         user["pendingPurchaseClientName"] = client_name
@@ -1633,7 +1642,7 @@ def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None, custo
 
 def get_user_pending_purchase(tg_id):
     db = read_db_json()
-    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    user = next((u for u in db["users"] if str(u["userId"]) == str(tg_id)), None)
     if user:
         return (
             user.get("pendingPurchasePlanId"), 
@@ -1643,6 +1652,7 @@ def get_user_pending_purchase(tg_id):
             user.get("pendingPurchaseCustomDays"),
             user.get("pendingPurchaseCustomPrice")
         )
+    return None, None, None, None, None, None
     return None, None, None, None, None, None
 
 def clear_user_pending_purchase(tg_id):
@@ -1814,7 +1824,7 @@ def register_tg_user(tg_id, username, referral_id=None):
 
 def get_user_data(tg_id):
     db = read_db_json()
-    return next((u for u in db["users"] if u["userId"] == tg_id), None)
+    return next((u for u in db["users"] if str(u.get("userId")) == str(tg_id)), None)
 
 def update_user_wallet_balance(tg_id, amount):
     db = read_db_json()
@@ -1954,6 +1964,7 @@ def log_action(tg_id, username, action, details):
     write_db_json(db)
 
 def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name="", client_uuid="", server_id=None):
+    print(f"[create_sub_key] Registering: id={key_id}, user={tg_id}, plan={plan_name}")
     db = read_db_json()
     new_sub = {
         "id": key_id,
@@ -1970,14 +1981,19 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
         "status": "active",
         "serverId": server_id
     }
+    if "subscription_keys" not in db:
+        db["subscription_keys"] = []
     db["subscription_keys"].append(new_sub)
     
     # Recalculate user subscription count
-    user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+    user = next((u for u in db["users"] if str(u["userId"]) == str(tg_id)), None)
     if user:
-        user["activePlansCount"] = sum(1 for k in db["subscription_keys"] if k["userId"] == tg_id and k["status"] == "active")
+        user["activePlansCount"] = sum(1 for k in db["subscription_keys"] if str(k.get("userId")) == str(tg_id) and k.get("status") == "active")
         
-    write_db_json(db)
+    if write_db_json(db):
+        print(f"[create_sub_key] Successfully committed to DB for user {tg_id}")
+    else:
+        print(f"[create_sub_key] FAILED to write to DB for user {tg_id}")
 
 def get_custom_keyboard():
     """ Load dynamic and static custom buttons with visibility toggles and custom layouts """
@@ -3312,7 +3328,8 @@ def handle_discount_decision(call):
         bot.register_next_step_handler(msg, process_promo_code_input, plan_id, username_input, spec)
     else:
         bot.answer_callback_query(call.id)
-        send_final_purchase_message(call.message, plan_id, username_input, spec)
+        # Pass the message_id to edit instead of sending a new message
+        send_final_purchase_message(call.message, plan_id, username_input, spec, edit_message_id=call.message.message_id)
 
 def process_promo_code_input(message, plan_id, username_input, spec):
     tg_id = message.from_user.id
@@ -3387,15 +3404,15 @@ def process_promo_code_input(message, plan_id, username_input, spec):
     bot.send_message(message.chat.id, f"✅ <b>کد تخفیف اعمال شد!</b>\n💰 مبلغ تخفیف: {discount_amount:,} تومان")
     send_final_purchase_message(message, plan_id, username_input, spec)
 
-def send_final_purchase_message(message, plan_id, username_input, spec):
+def send_final_purchase_message(message, plan_id, username_input, spec, edit_message_id=None):
     tg_id = message.chat.id if hasattr(message, 'chat') else message.from_user.id
     cfg = get_config()
     
     # Intelligent Server Name Detection
     server_id = spec.get("server_id")
     if not server_id:
-        _, _, pending_server_id = get_user_pending_purchase(tg_id)
-        server_id = pending_server_id
+        p_plan, p_client, p_server_id, _, _, _ = get_user_pending_purchase(tg_id)
+        server_id = p_server_id
         
     server_line = ""
     if server_id:
@@ -3406,17 +3423,19 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
             if server_name:
                 server_line = f"🖥️ <b>سرور: <u>{server_name}</u></b>\n\n"
 
-    price_text = f"{spec.get('price', 0):,} تومان"
+    price_val = spec.get('price', 0)
+    price_text = f"{int(price_val):,} تومان"
     if spec.get("applied_promo"):
-        price_text = f"<s>{spec.get('price_original', spec.get('price', 0)):,}</s> ➡️ <b>{spec.get('price', 0):,} تومان</b> (بر حسب تخفیف)"
+        orig_price = spec.get('price_original', price_val)
+        price_text = f"<s>{int(orig_price):,}</s> ➡️ <b>{int(price_val):,} تومان</b> (با کد تخفیف)"
         
     text_response = (
-        f"✅ <b>اطلاعات ثبت شد.</b>\n\n"
+        f"✅ <b>اطلاعات خرید نهایی شده است.</b>\n\n"
         f"{server_line}"
-        f"🛒 <b>خرید اشتراک: {spec['name']}</b>\n"
-        f"👤 نام کاربری: <code>{username_input}</code>\n"
-        f"💰 مبلغ نهایی: <b>{price_text}</b>\n\n"
-        f"💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
+        f"🛒 <b>نوع اشتراک: {spec['name']}</b>\n"
+        f"👤 نام کاربری انتخابی: <code>{username_input}</code>\n"
+        f"💰 مبلغ نهایی قابل پرداخت: <b>{price_text}</b>\n\n"
+        f"💳 <b>لطفاً یکی از روش‌های پرداخت زیر را انتخاب کنید:</b>"
     )
     
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -3449,9 +3468,15 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
     if not is_privileged and cfg.get("GATEWAY_STARS_STATUS"):
         markup.add(types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"buy_pay:stars:{plan_id}:{username_input}:{promo_code}"))
 
-    markup.add(types.InlineKeyboardButton("❌ انصراف", callback_data="btn_back_home"))
+    markup.add(types.InlineKeyboardButton("❌ انصراف و بازگشت", callback_data="btn_back_home"))
     
-    bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
+    if edit_message_id:
+        try:
+            bot.edit_message_text(text_response, chat_id=message.chat.id, message_id=edit_message_id, parse_mode="HTML", reply_markup=markup)
+        except Exception:
+            bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=markup)
 
 def process_purchase_username(message, plan_id, spec):
     tg_id = message.from_user.id
@@ -5161,7 +5186,12 @@ def callback_handler(call):
             links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
             configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
         else:
-            configs_block = f"👇 <b>سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>{sub_link}</code>"
+            configs_block = (
+                f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n"
+                f"👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n"
+                f"<code>{sub_link}</code>\n\n"
+                f"💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند."
+            )
             
         success_msg = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -5361,7 +5391,13 @@ def callback_handler(call):
         bot.answer_callback_query(call.id)
 
     elif call.data.startswith("hasdisc:"):
-        handle_discount_decision(call)
+        try:
+            handle_discount_decision(call)
+        except Exception as e:
+            print(f"[Callback Error hasdisc] {e}")
+            try:
+                bot.answer_callback_query(call.id, f"⚠️ خطایی رخ داد: {e}", show_alert=True)
+            except: pass
         return
 
     elif call.data.startswith("charge_amount_"):
