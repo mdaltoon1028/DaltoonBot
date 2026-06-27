@@ -141,6 +141,18 @@ export default function BotSimulator({
   const [invoiceDesc, setInvoiceDesc] = useState("");
   const [transferringKeyId, setTransferringKeyId] = useState<string | null>(null);
 
+  // Custom config/renew flow states
+  const [customVolServerId, setCustomVolServerId] = useState<string | null>(null);
+  const [customVolStep, setCustomVolStep] = useState<"idle" | "ask_username" | "ask_gb" | "ask_days" | "confirm">("idle");
+  const [customVolUsername, setCustomVolUsername] = useState("");
+  const [customVolGb, setCustomVolGb] = useState<number>(30);
+  const [customVolDays, setCustomVolDays] = useState<number>(30);
+
+  const [renewingSubId, setRenewingSubId] = useState<string | null>(null);
+  const [renewStep, setRenewStep] = useState<"idle" | "ask_gb" | "ask_days" | "confirm">("idle");
+  const [renewGbVal, setRenewGbVal] = useState<number>(30);
+  const [renewDaysVal, setRenewDaysVal] = useState<number>(30);
+
   useEffect(() => {
     setInvoiceDesc(lang === "fa" ? "واریز کارت به کارت" : "Card-to-Card Transfer");
   }, [lang]);
@@ -291,6 +303,237 @@ export default function BotSimulator({
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
     setMessages(prev => [...prev, userMsg]);
+
+    // Handle Custom Volume Step Handlers
+    if (customVolStep !== "idle") {
+      const input = text.trim();
+      if (input.includes("انصراف") || input.includes("Cancel") || input.includes("بازگشت") || input.includes("منوی اصلی")) {
+        setCustomVolStep("idle");
+        setCustomVolServerId(null);
+        addBotReply(lang === "fa" ? "❌ عملیات ساخت کانفیگ دلخواه لغو شد." : "❌ Custom config creation cancelled.", 500, getKeyboard());
+        return;
+      }
+
+      if (customVolStep === "ask_username") {
+        const safeNameRegex = /^[a-zA-Z0-9_-]{3,15}$/;
+        if (!safeNameRegex.test(input)) {
+          addBotReply(
+            lang === "fa"
+              ? "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد و خط تیره بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:"
+              : "⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens and be between 3 and 15 chars (no spaces).\n\nPlease write a valid English name:",
+            500,
+            [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+          );
+          return;
+        }
+        setCustomVolUsername(input);
+        setCustomVolStep("ask_gb");
+        addBotReply(
+          lang === "fa"
+            ? `👤 نام کاربری: <code>${input}</code>\n\n🔻 لطفاً ترافیک مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)`
+            : `👤 Username: <code>${input}</code>\n\n🔻 Please enter traffic limit in <b>GB</b> (e.g. <code>30</code>):`,
+          500,
+          [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+        );
+        return;
+      }
+
+      if (customVolStep === "ask_gb") {
+        const gb = parseInt(input);
+        if (isNaN(gb) || gb <= 0 || gb > 1000) {
+          addBotReply(
+            lang === "fa"
+              ? "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:"
+              : "❌ <b>Error: Invalid traffic limit!</b>\n\nPlease enter a valid integer (between 1 and 1000):",
+            500,
+            [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+          );
+          return;
+        }
+        setCustomVolGb(gb);
+        setCustomVolStep("ask_days");
+        addBotReply(
+          lang === "fa"
+            ? `👤 نام کاربری: <code>${customVolUsername}</code>\n` +
+              `🔻 حجم انتخابی: <code>${gb} GB</code>\n\n` +
+              `⏳ لطفاً تعداد روزهای فعال بودن اشتراک را به <b>روز (Days)</b> وارد کنید:\n` +
+              `⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)`
+            : `👤 Username: <code>${customVolUsername}</code>\n` +
+              `🔻 Selected Volume: <code>${gb} GB</code>\n\n` +
+              `⏳ Please enter duration in <b>Days</b> (e.g. <code>30</code>):`,
+          500,
+          [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+        );
+        return;
+      }
+
+      if (customVolStep === "ask_days") {
+        const days = parseInt(input);
+        if (isNaN(days) || days <= 0 || days > 365) {
+          addBotReply(
+            lang === "fa"
+              ? "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:"
+              : "❌ <b>Error: Invalid duration!</b>\n\nPlease enter a valid integer (between 1 and 365):",
+            500,
+            [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+          );
+          return;
+        }
+        setCustomVolDays(days);
+        setCustomVolStep("confirm");
+
+        // Calculate price based on customPricingBoxes
+        let priceGb = 3000;
+        let priceDay = 2000;
+        if (settings?.customPricingBoxes) {
+          const box = settings.customPricingBoxes.find(b => b.serverIds?.includes(customVolServerId || ""));
+          if (box) {
+            priceGb = box.pricePerGb ?? 3000;
+            priceDay = box.pricePerDay ?? 2000;
+          }
+        }
+
+        const totalPrice = (customVolGb * priceGb) + (days * priceDay);
+
+        let serverName = "سرور انتخابی";
+        if (settings?.servers) {
+          const s = settings.servers.find(srv => String(srv.id) === customVolServerId);
+          if (s) serverName = s.name;
+        }
+
+        const invoiceText = lang === "fa"
+          ? `📊 <b>پیش‌فاکتور ساخت کانفیگ دلخواه</b>\n\n` +
+            `🌐 سرور: <b>${serverName}</b>\n` +
+            `👤 نام کاربری: <code>${customVolUsername}</code>\n` +
+            `🔻 حجم درخواستی: <b>${customVolGb} گیگابایت</b>\n` +
+            `⏳ مدت زمان: <b>${days} روز</b>\n\n` +
+            `💵 هزینه هر گیگابایت: ${priceGb.toLocaleString()} تومان\n` +
+            `💵 هزینه هر روز: ${priceDay.toLocaleString()} تومان\n` +
+            `──────────────────\n` +
+            `💰 <b>جمع کل: ${totalPrice.toLocaleString()} تومان</b>\n\n` +
+            `⚠️ هزینه ساخت مستقیماً از موجودی کیف پول شما کسر خواهد شد.`
+          : `📊 <b>Custom Config Pre-Invoice</b>\n\n` +
+            `🌐 Server: <b>${serverName}</b>\n` +
+            `👤 Username: <code>${customVolUsername}</code>\n` +
+            `🔻 Traffic: <b>${customVolGb} GB</b>\n` +
+            `⏳ Duration: <b>${days} Days</b>\n\n` +
+            `💰 <b>Total Price: ${totalPrice.toLocaleString()} Toman</b>`;
+
+        addBotReply(
+          invoiceText,
+          500,
+          undefined,
+          [
+            [
+              { text: lang === "fa" ? "✅ تایید و پرداخت از کیف پول" : "✅ Confirm & Pay", action: `confirm_buy_cust_val:${customVolServerId}:${customVolUsername}:${customVolGb}:${days}:${totalPrice}` },
+              { text: lang === "fa" ? "❌ لغو" : "❌ Cancel", action: "btn_back_home" }
+            ]
+          ]
+        );
+        return;
+      }
+    }
+
+    // Handle Custom Renewal Step Handlers
+    if (renewStep !== "idle") {
+      const input = text.trim();
+      if (input.includes("انصراف") || input.includes("Cancel") || input.includes("بازگشت") || input.includes("منوی اصلی")) {
+        setRenewStep("idle");
+        setRenewingSubId(null);
+        addBotReply(lang === "fa" ? "❌ عملیات تمدید لغو شد." : "❌ Renewal cancelled.", 500, getKeyboard());
+        return;
+      }
+
+      if (renewStep === "ask_gb") {
+        const gb = parseInt(input);
+        if (isNaN(gb) || gb <= 0 || gb > 1000) {
+          addBotReply(
+            lang === "fa"
+              ? "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:"
+              : "❌ <b>Error: Invalid traffic limit!</b>\n\nPlease enter a valid integer (between 1 and 1000):",
+            500,
+            [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+          );
+          return;
+        }
+        setRenewGbVal(gb);
+        setRenewStep("ask_days");
+        addBotReply(
+          lang === "fa"
+            ? "⏳ <b>انتخاب مدت زمان تمدید:</b>\n\nلطفاً تعداد روزهای اضافی جهت تمدید اشتراک را به <b>روز (Days)</b> وارد کنید (مثلاً <code>30</code>):"
+            : "⏳ <b>Select Renewal Duration:</b>\n\nPlease enter additional days (e.g. <code>30</code>):",
+          500,
+          [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+        );
+        return;
+      }
+
+      if (renewStep === "ask_days") {
+        const days = parseInt(input);
+        if (isNaN(days) || days <= 0 || days > 365) {
+          addBotReply(
+            lang === "fa"
+              ? "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:"
+              : "❌ <b>Error: Invalid duration!</b>\n\nPlease enter a valid integer (between 1 and 365):",
+            500,
+            [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+          );
+          return;
+        }
+        setRenewDaysVal(days);
+        setRenewStep("confirm");
+
+        const sub = simulatedKeys.find(k => k.id === renewingSubId);
+        if (!sub) {
+          setRenewStep("idle");
+          setRenewingSubId(null);
+          addBotReply("❌ خطا: اشتراک یافت نشد.", 500, getKeyboard());
+          return;
+        }
+
+        const serverId = (sub as any).serverId || "";
+        let priceGb = 3000;
+        let priceDay = 2000;
+        if (settings?.customPricingBoxes) {
+          const box = settings.customPricingBoxes.find(b => b.serverIds?.includes(serverId));
+          if (box) {
+            priceGb = box.pricePerGb ?? 3000;
+            priceDay = box.pricePerDay ?? 2000;
+          }
+        }
+
+        const totalPrice = (renewGbVal * priceGb) + (days * priceDay);
+
+        const invoiceText = lang === "fa"
+          ? `🔄 <b>پیش‌فاکتور تمدید و ارتقای اشتراک</b>\n\n` +
+            `👤 نام کاربری سرویس: <code>${sub.clientName || sub.planName}</code>\n` +
+            `➕ حجم ترافیک اضافی: <b>${renewGbVal} گیگابایت</b>\n` +
+            `➕ مدت زمان تمدید: <b>${days} روز</b>\n\n` +
+            `💵 قیمت هر گیگابایت: ${priceGb.toLocaleString()} تومان\n` +
+            `💵 قیمت هر روز: ${priceDay.toLocaleString()} تومان\n` +
+            `──────────────────\n` +
+            `💰 <b>جمع کل هزینه تمدید: ${totalPrice.toLocaleString()} تومان</b>\n\n` +
+            `⚠️ هزینه تمدید مستقیماً از موجودی کیف پول شما کسر خواهد شد.`
+          : `🔄 <b>Renewal Pre-Invoice</b>\n\n` +
+            `👤 Service: <code>${sub.clientName || sub.planName}</code>\n` +
+            `➕ Extra Volume: <b>${renewGbVal} GB</b>\n` +
+            `➕ Extra Duration: <b>${days} Days</b>\n\n` +
+            `💰 <b>Total Price: ${totalPrice.toLocaleString()} Toman</b>`;
+
+        addBotReply(
+          invoiceText,
+          500,
+          undefined,
+          [
+            [
+              { text: lang === "fa" ? "✅ تایید و کسر از کیف پول" : "✅ Confirm & Deduct", action: `confirm_renew_cust_val:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` },
+              { text: lang === "fa" ? "❌ لغو" : "❌ Cancel", action: `manage_sub_${renewingSubId}` }
+            ]
+          ]
+        );
+        return;
+      }
+    }
 
     // Handle support ticket subject input
     if (supportStep === "ask_subject") {
@@ -1063,11 +1306,191 @@ export default function BotSimulator({
               { text: lang === "fa" ? "🎁 انتقال مالکیت به دوست" : "🎁 Transfer Owner", action: `warn_transfer_${k.id}` }
             ],
             [
+              { text: lang === "fa" ? "💳 تمدید با حجم و روز دلخواه" : "💳 Custom Renewal", action: `warn_renew_${k.id}` }
+            ],
+            [
               { text: lang === "fa" ? "🔙 برگشت به منوی کل" : "🔙 Core Menu", action: "btn_back_home" }
             ]
           ]
         );
       }
+      return;
+    }
+
+    if (action.startsWith("custom_vol_")) {
+      const serverId = action.replace("custom_vol_", "");
+      setCustomVolServerId(serverId);
+      setCustomVolStep("ask_username");
+      addBotReply(
+        lang === "fa"
+          ? "✨ <b>فرآیند ساخت کانفیگ با مشخصات دلخواه</b>\n\nلطفاً <b>نام کاربری (Username)</b> انگلیسی مورد نظر خود را بنویسید:\n⚠️ نام کاربری فقط شامل حروف انگلیسی، اعداد و خط تیره باشد (بدون فاصله):"
+          : "✨ <b>Create Custom Configuration</b>\n\nPlease type your desired English <b>Username</b> (English letters, numbers, hyphens, no spaces):",
+        500,
+        [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+      );
+      return;
+    }
+
+    if (action.startsWith("confirm_buy_cust_val:")) {
+      const parts = action.split(":");
+      const serverId = parts[1];
+      const username = parts[2];
+      const gb = parseInt(parts[3]);
+      const days = parseInt(parts[4]);
+      const price = parseInt(parts[5]);
+
+      setCustomVolStep("idle");
+      setCustomVolServerId(null);
+      addBotReply(lang === "fa" ? "⏳ در حال ساخت اکانت دلخواه شما و ارتباط با پنل..." : "⏳ Provisioning your custom client on 3x-ui panel...", 500);
+
+      setTimeout(() => {
+        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const finalPrice = isUserAdminOrOwner ? 0 : price;
+        const newBal = currentUser.walletBalance - finalPrice;
+
+        if (newBal < 0) {
+          addBotReply(
+            lang === "fa"
+              ? "❌ موجودی کیف پول شما برای خرید کافی نیست."
+              : "❌ Insufficient funds in your simulated wallet.",
+            500,
+            getKeyboard()
+          );
+          return;
+        }
+
+        const randomSubId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+        const expireDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const mockSub = {
+          id: randomSubId,
+          userId: currentUser.userId,
+          planId: "custom_vol",
+          planName: lang === "fa" ? `کانفیگ دلخواه (${gb}GB)` : `Custom Config (${gb}GB)`,
+          clientName: username,
+          subLink: `vless://mock_vless_uuid_${randomSubId}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Mock_${username}`,
+          expireDate,
+          trafficLimitGb: gb,
+          trafficUsedGb: 0,
+          status: "active" as const,
+          serverId
+        };
+
+        setSimulatedUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: newBal } : u));
+        setSimulatedKeys(prev => [mockSub, ...prev]);
+
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockSub.subLink)}`;
+
+        setIsTyping(true);
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: "bot",
+              text: lang === "fa"
+                ? `🎉 <b>خرید آزمایشی کانفیگ دلخواه با موفقیت انجام شد!</b>\n\n👤 نام کاربری: <code>${username}</code>\n💬 حجم: <b>${gb} گیگابایت</b>\n⏳ مدت زمان: <b>${days} روز</b>\n💳 هزینه: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n💰 موجودی کیف پول: ${newBal.toLocaleString()} تومان\n\n🔑 <b>لینک سابسکریپشن:</b>\n<code>${mockSub.subLink}</code>\n\n⚠️ <i>محیط آزمایشی شبیه‌ساز: تراکنش واقعی اعمال نشده است.</i>`
+                : `🎉 <b>Custom subscription purchased!</b>\n\n👤 Username: <code>${username}</code>\n💬 Traffic: <b>${gb} GB</b>\n⏳ Duration: <b>${days} Days</b>\n💰 Total Price: ${price.toLocaleString()} Toman\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman\n\n🔑 <b>Subscription link:</b>\n<code>${mockSub.subLink}</code>`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              keyboard: getKeyboard(),
+              inlineButtons: [
+                [
+                  { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${randomSubId}` },
+                  { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${randomSubId}` }
+                ]
+              ],
+              imageUrl: qrUrl
+            }
+          ]);
+        }, 1000);
+      }, 1000);
+      return;
+    }
+
+    if (action.startsWith("warn_renew_")) {
+      const subId = action.substring(11);
+      setRenewingSubId(subId);
+      setRenewStep("ask_gb");
+      addBotReply(
+        lang === "fa"
+          ? "🔄 <b>تمدید اشتراک با ترافیک و روز دلخواه:</b>\n\n🔻 لطفاً مقدار ترافیک اضافی مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)"
+          : "🔄 <b>Renew Subscription with Custom Volume and Duration:</b>\n\n🔻 Please enter extra traffic limit in <b>GB</b> (e.g. <code>30</code>):",
+        500,
+        [[lang === "fa" ? "❌ انصراف" : "❌ Cancel"]]
+      );
+      return;
+    }
+
+    if (action.startsWith("confirm_renew_cust_val:")) {
+      const parts = action.split(":");
+      const subId = parts[1];
+      const gb = parseInt(parts[2]);
+      const days = parseInt(parts[3]);
+      const price = parseInt(parts[4]);
+
+      setRenewStep("idle");
+      setRenewingSubId(null);
+      addBotReply(lang === "fa" ? "⏳ در حال اعمال تمدید و به‌روزرسانی سرویس شما..." : "⏳ Applying renewal and updating your service...", 500);
+
+      setTimeout(() => {
+        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const finalPrice = isUserAdminOrOwner ? 0 : price;
+        const newBal = currentUser.walletBalance - finalPrice;
+
+        if (newBal < 0) {
+          addBotReply(
+            lang === "fa"
+              ? "❌ موجودی کیف پول شما برای تمدید کافی نیست."
+              : "❌ Insufficient funds in your simulated wallet.",
+            500,
+            getKeyboard()
+          );
+          return;
+        }
+
+        setSimulatedUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: newBal } : u));
+        setSimulatedKeys(prev => prev.map(k => {
+          if (k.id === subId) {
+            // Compute new expireDate
+            let currentExp = new Date(k.expireDate);
+            if (isNaN(currentExp.getTime()) || currentExp < new Date()) {
+              currentExp = new Date();
+            }
+            currentExp.setDate(currentExp.getDate() + days);
+            const nextExpireDate = currentExp.toISOString().split("T")[0];
+            const nextTrafficLimitGb = (k.trafficLimitGb || 0) + gb;
+            return {
+              ...k,
+              expireDate: nextExpireDate,
+              trafficLimitGb: nextTrafficLimitGb,
+              status: "active" as const
+            };
+          }
+          return k;
+        }));
+
+        setIsTyping(true);
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: "bot",
+              text: lang === "fa"
+                ? `🎉 <b>سرویس آزمایشی شما با موفقیت تمدید شد! ✨</b>\n\n💬 ترافیک اضافه شده: <b>${gb} گیگابایت</b>\n⏳ روز اضافه شده: <b>${days} روز</b>\n💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n💰 موجودی کیف پول: ${newBal.toLocaleString()} تومان\n\nسرویس شما با موفقیت ارتقا و در سرور تمدید شد. کانکشن‌های قبلی همچنان فعال هستند.`
+                : `🎉 <b>Service successfully renewed! ✨</b>\n\n💬 Added Traffic: <b>${gb} GB</b>\n⏳ Added Duration: <b>${days} Days</b>\n💰 Price: ${price.toLocaleString()} Toman\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              keyboard: getKeyboard(),
+              inlineButtons: [
+                [
+                  { text: lang === "fa" ? "🔙 بازگشت به مدیریت" : "🔙 Back to Manage", action: `manage_sub_${subId}` }
+                ]
+              ]
+            }
+          ]);
+        }, 1000);
+      }, 1000);
       return;
     }
 

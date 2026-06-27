@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { VpnPlan, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage } from "../types";
+import { VpnPlan, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage, CustomPricingBox } from "../types";
 import { Language } from "../locales";
 import MultiServerConfig from "./MultiServerConfig";
 import { 
@@ -80,6 +80,59 @@ export default function ServerManagement({
   // Simplify Inbounds display option
   const [showInbounds, setShowInbounds] = useState(false);
   const [inboundsSuccess, setInboundsSuccess] = useState(false);
+
+  const [pricingBoxes, setPricingBoxes] = useState<CustomPricingBox[]>(() => {
+    return Array.isArray(settings.customPricingBoxes) ? settings.customPricingBoxes : [];
+  });
+
+  useEffect(() => {
+    if (Array.isArray(settings.customPricingBoxes)) {
+      setPricingBoxes(settings.customPricingBoxes);
+    }
+  }, [settings.customPricingBoxes]);
+
+  const handleAddPricingBox = () => {
+    const newBox: CustomPricingBox = {
+      id: "price_" + Math.random().toString(36).substring(2, 8),
+      pricePerGb: 3000,
+      pricePerDay: 2000,
+      serverIds: []
+    };
+    setPricingBoxes([...pricingBoxes, newBox]);
+  };
+
+  const handleUpdateBoxField = (id: string, field: keyof CustomPricingBox, value: any) => {
+    setPricingBoxes(prev => prev.map(box => {
+      if (box.id === id) {
+        return { ...box, [field]: value };
+      }
+      return box;
+    }));
+  };
+
+  const handleToggleServerInBox = (boxId: string, serverId: string) => {
+    setPricingBoxes(prev => prev.map(box => {
+      if (box.id === boxId) {
+        const isChecked = box.serverIds.includes(serverId);
+        const nextServerIds = isChecked
+          ? box.serverIds.filter(id => id !== serverId)
+          : [...box.serverIds, serverId];
+        return { ...box, serverIds: nextServerIds };
+      }
+      return box;
+    }));
+  };
+
+  const handleDeletePricingBox = (id: string) => {
+    setPricingBoxes(prev => prev.filter(box => box.id !== id));
+  };
+
+  const handleSavePricingSettings = () => {
+    onSaveSettings({
+      ...settings,
+      customPricingBoxes: pricingBoxes
+    });
+  };
 
   const startCreateNewPlan = () => {
     setEditingPlanId(null);
@@ -281,6 +334,125 @@ export default function ServerManagement({
 
       {/* Multi-Server Config Block */}
       <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} planCategories={planCategories} colleaguePackages={colleaguePackages} />
+
+      {/* Dynamic Volume/Days Pricing Rules Box */}
+      <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <h4 className="font-semibold text-white text-sm">
+              {lang === "fa" ? "تنظیم قیمت حجم و روز دلخواه (محاسبه هوشمند ربات)" : "Custom Volume & Days Pricing Rules"}
+            </h4>
+          </div>
+          <button
+            onClick={handleAddPricingBox}
+            className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{lang === "fa" ? "افزودن کادر جدید" : "Add New Rule"}</span>
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-400 leading-relaxed font-medium">
+          {lang === "fa" 
+            ? "در این بخش می‌توانید قیمت هر گیگابایت ترافیک و هر روز اعتبار را به تفکیک سرورها مشخص کنید. ربات تلگرام در بخش خرید با حجم دلخواه و همچنین در فرآیند تمدید، قیمت نهایی را به صورت هوشمند بر اساس قوانین این کادرها محاسبه می‌کند." 
+            : "Define price per GB and price per Day for different servers. The bot will automatically calculate final prices for custom subscriptions and renewals based on these boxes."}
+        </p>
+
+        {pricingBoxes.length === 0 ? (
+          <div className="text-center py-8 bg-slate-950/40 rounded-xl border border-dashed border-gray-800">
+            <p className="text-xs text-gray-500">
+              {lang === "fa" ? "هیچ قانون قیمت‌گذاری تعریف نشده است. (ربات از مقادیر پیش‌فرض استفاده خواهد کرد: هر گیگ ۳,۰۰۰ و هر روز ۲,۰۰۰ تومان)" : "No rules defined. Bot will use default prices: 3,000 per GB and 2,000 per Day."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pricingBoxes.map((box, idx) => (
+              <div key={box.id} className="bg-slate-950/50 border border-gray-800/80 p-4 rounded-xl space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                  <span className="text-xs font-mono font-bold text-amber-400">
+                    {lang === "fa" ? `کادر شماره ${idx + 1}` : `Pricing Rule #${idx + 1}`}
+                  </span>
+                  <button
+                    onClick={() => handleDeletePricingBox(box.id)}
+                    className="p-1 text-rose-400 hover:text-white hover:bg-rose-950/40 rounded transition cursor-pointer"
+                    title={lang === "fa" ? "حذف کادر" : "Delete box"}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
+                      {lang === "fa" ? "قیمت به ازای هر گیگابایت (تومان)" : "Price per GB (Toman)"}
+                    </label>
+                    <input
+                      type="number"
+                      value={box.pricePerGb}
+                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerGb", parseInt(e.target.value) || 0)}
+                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
+                      placeholder="3000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
+                      {lang === "fa" ? "قیمت به ازای هر روز (تومان)" : "Price per Day (Toman)"}
+                    </label>
+                    <input
+                      type="number"
+                      value={box.pricePerDay}
+                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerDay", parseInt(e.target.value) || 0)}
+                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
+                      placeholder="2000"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="block text-[10px] text-gray-400 uppercase font-bold">
+                    {lang === "fa" ? "انتخاب سرورهای تیک‌خورده برای اعمال این قانون:" : "Select servers for this rule:"}
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 bg-[#111827]/40 p-3 rounded-lg border border-gray-900">
+                    {Array.isArray(settings.servers) && settings.servers.length > 0 ? (
+                      settings.servers.map((srv: any) => {
+                        const isChecked = box.serverIds.includes(srv.id);
+                        return (
+                          <label key={srv.id} className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleServerInBox(box.id, srv.id)}
+                              className="rounded border-gray-750 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 bg-slate-950 w-3.5 h-3.5"
+                            />
+                            <span className="truncate">{srv.name}</span>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <span className="text-[10px] text-gray-500 col-span-full">
+                        {lang === "fa" ? "هیچ سروری تعریف نشده است." : "No servers available."}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={handleSavePricingSettings}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer"
+          >
+            <Check className="w-4 h-4" />
+            <span>{lang === "fa" ? "ذخیره تنظیمات قیمت‌گذاری" : "Save Pricing Rules"}</span>
+          </button>
+        </div>
+      </div>
 
       {/* Plan Categories Management Section */}
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">

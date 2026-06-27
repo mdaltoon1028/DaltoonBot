@@ -59,6 +59,19 @@ export default function UserManagement({
 }: UserManagementProps) {
   const t = translations[lang];
   const [searchTerm, setSearchTerm] = useState("");
+
+  const getCalculatedPrice = () => {
+    const gb = Number(renewGb) || 0;
+    const days = Number(renewDays) || 0;
+    let pricePerGb = 3000;
+    let pricePerDay = 2000;
+    if (settings?.customPricingBoxes && settings.customPricingBoxes.length > 0) {
+      const firstBox = settings.customPricingBoxes[0];
+      pricePerGb = firstBox.pricePerGb ?? 3000;
+      pricePerDay = firstBox.pricePerDay ?? 2000;
+    }
+    return gb * pricePerGb + days * pricePerDay;
+  };
   const [adjustingUser, setAdjustingUser] = useState<User | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<string>("");
   const [adjustType, setAdjustType] = useState<"add" | "sub">("add");
@@ -105,10 +118,53 @@ export default function UserManagement({
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [activeQrKey, setActiveQrKey] = useState<SubscriptionKey | null>(null);
 
+  const [renewingKey, setRenewingKey] = useState<SubscriptionKey | null>(null);
+  const [renewGb, setRenewGb] = useState<string>("30");
+  const [renewDays, setRenewDays] = useState<string>("30");
+  const [isRenewSubmitting, setIsRenewSubmitting] = useState<boolean>(false);
+
   const [localToast, setLocalToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setLocalToast({ message, type });
     setTimeout(() => setLocalToast(null), 4000);
+  };
+
+  const handleRenewKeySubmit = () => {
+    if (!renewingKey) return;
+    setIsRenewSubmitting(true);
+    showToast(lang === "fa" ? "در حال تمدید اشتراک..." : "Renewing subscription...", "success");
+
+    fetch("/api/subscription-keys/renew", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: renewingKey.id,
+        addGb: Number(renewGb),
+        addDays: Number(renewDays)
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setIsRenewSubmitting(false);
+      if (data.success) {
+        if (updateSubscriptionKey && data.key) {
+          updateSubscriptionKey(renewingKey.id, {
+            expireDate: data.key.expireDate,
+            trafficLimitGb: data.key.trafficLimitGb,
+            subLink: data.key.subLink,
+            status: data.key.status
+          });
+        }
+        showToast(lang === "fa" ? "سرویس با موفقیت تمدید شد! 🎉" : "Service renewed successfully! 🎉", "success");
+        setRenewingKey(null);
+      } else {
+        showToast(data.error || (lang === "fa" ? "خطا در تمدید سرویس" : "Error renewing service"), "error");
+      }
+    })
+    .catch(err => {
+      setIsRenewSubmitting(false);
+      showToast(err.message || (lang === "fa" ? "خطا در برقراری ارتباط" : "Connection error"), "error");
+    });
   };
 
   const [regeneratingKeyId, setRegeneratingKeyId] = useState<string | null>(null);
@@ -512,6 +568,19 @@ export default function UserManagement({
 
                                       <button
                                         type="button"
+                                        onClick={() => {
+                                          setRenewingKey(key);
+                                          setRenewGb("30");
+                                          setRenewDays("30");
+                                        }}
+                                        className="text-emerald-400 hover:bg-emerald-500/10 p-0.5 rounded transition cursor-pointer"
+                                        title={lang === "fa" ? "تمدید سرویس" : "Renew Service"}
+                                      >
+                                        <RefreshCw className="w-3 h-3" />
+                                      </button>
+
+                                      <button
+                                        type="button"
                                         onClick={() => handleRegenerateUuid(key.id)}
                                         disabled={regeneratingKeyId === key.id}
                                         className="text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition cursor-pointer disabled:opacity-50"
@@ -787,6 +856,19 @@ export default function UserManagement({
                     >
                       <RotateCcw className={`w-3.5 h-3.5 text-rose-400 ${regeneratingKeyId === key.id ? 'animate-spin' : ''}`} />
                       <span>{lang === "fa" ? "تغییر لینک" : "New Link"}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setRenewingKey(key);
+                        setRenewGb("30");
+                        setRenewDays("30");
+                      }}
+                      className="px-2 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                      title={lang === "fa" ? "تمدید اشتراک" : "Renew Subscription"}
+                    >
+                      <RefreshCw className="w-3 h-3 text-emerald-400" />
+                      <span>{lang === "fa" ? "تمدید" : "Renew"}</span>
                     </button>
 
                     <button
@@ -1174,6 +1256,86 @@ export default function UserManagement({
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded-lg transition cursor-pointer"
                 >
                   {lang === "fa" ? "بستن" : "Close"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* State-based Renew Subscription Modal Display */}
+      {renewingKey && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-[#0f1424] border border-emerald-500/30 p-6 rounded-2xl max-w-sm w-full space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setRenewingKey(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-display font-medium text-lg text-white">
+                {lang === "fa" ? "🔄 تمدید سرویس کاربر" : "🔄 Renew User Service"}
+              </h3>
+              <p className="text-xs text-emerald-400 font-mono">
+                {renewingKey.planName} ({renewingKey.clientName || "N/A"})
+              </p>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 block font-medium">
+                  {lang === "fa" ? "حجم ترافیک اضافی (گیگابایت):" : "Additional Traffic Limit (GB):"}
+                </label>
+                <input
+                  type="number"
+                  value={renewGb}
+                  onChange={(e) => setRenewGb(e.target.value)}
+                  placeholder="30"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 block font-medium">
+                  {lang === "fa" ? "روزهای اعتبار اضافی:" : "Additional Duration (Days):"}
+                </label>
+                <input
+                  type="number"
+                  value={renewDays}
+                  onChange={(e) => setRenewDays(e.target.value)}
+                  placeholder="30"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800/60 p-3 rounded-lg text-center space-y-0.5">
+                <span className="text-[10px] text-gray-400 block uppercase tracking-wider">
+                  {lang === "fa" ? "هزینه محاسباتی تمدید" : "Calculated Renewal Cost"}
+                </span>
+                <span className="text-base font-bold text-emerald-400 font-mono">
+                  {getCalculatedPrice().toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}
+                </span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isRenewSubmitting}
+                  onClick={handleRenewKeySubmit}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800/50 text-white font-semibold rounded-lg text-xs transition cursor-pointer text-center"
+                >
+                  {isRenewSubmitting
+                    ? (lang === "fa" ? "در حال اعمال..." : "Applying...")
+                    : (lang === "fa" ? "تایید و تمدید" : "Confirm & Renew")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenewingKey(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded-lg transition cursor-pointer"
+                >
+                  {lang === "fa" ? "لغو" : "Cancel"}
                 </button>
               </div>
             </div>

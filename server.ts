@@ -2389,6 +2389,7 @@ async function addVpnClientApi(
   settings: any,
   clientUuid?: string,
   serverId?: string,
+  bypassDuplicateCheck: boolean = false,
 ): Promise<{
   success: boolean;
   clientUuid?: string;
@@ -2397,19 +2398,21 @@ async function addVpnClientApi(
 }> {
   try {
     // Check locally first
-    const db = readJsonDb();
-    const subs = db.subscription_keys || [];
-    const _lMail = clientEmail.toLowerCase();
-    for (let s of subs) {
-      if (
-        (s.clientName || "").toLowerCase() === _lMail ||
-        s.planId.toLowerCase() === _lMail
-      ) {
-        return {
-          success: false,
-          error:
-            "این نام کاربری از قبل در لیست کاربران سرور موجود است. لطفاً نام دیگری انتخاب کنید.",
-        };
+    if (!bypassDuplicateCheck) {
+      const db = readJsonDb();
+      const subs = db.subscription_keys || [];
+      const _lMail = clientEmail.toLowerCase();
+      for (let s of subs) {
+        if (
+          (s.clientName || "").toLowerCase() === _lMail ||
+          s.planId.toLowerCase() === _lMail
+        ) {
+          return {
+            success: false,
+            error:
+              "این نام کاربری از قبل در لیست کاربران سرور موجود است. لطفاً نام دیگری انتخاب کنید.",
+          };
+        }
       }
     }
 
@@ -4359,6 +4362,78 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
   }
 });
 
+app.post("/api/subscription-keys/renew", async (req, res) => {
+  try {
+    const { id, addGb, addDays } = req.body;
+    const db = readJsonDb();
+
+    const key = db.subscription_keys?.find((k: any) => k.id === id);
+    if (!key) {
+      return res.status(404).json({ success: false, error: "Subscription key not found" });
+    }
+
+    const settings = getSystemSettings(db);
+    const clientName = key.clientName || key.planName || "";
+
+    // Calculate new expiration date
+    let expDt: Date;
+    try {
+      expDt = new Date(key.expireDate);
+      if (isNaN(expDt.getTime()) || expDt < new Date()) {
+        expDt = new Date();
+      }
+    } catch {
+      expDt = new Date();
+    }
+
+    expDt.setDate(expDt.getDate() + Number(addDays));
+    const new_expire_date_str = expDt.toISOString().split("T")[0];
+    const new_limit_gb = Number(key.trafficLimitGb || 0) + Number(addGb);
+
+    const new_exp_days = Math.max(1, Math.ceil((expDt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+    // 1. Delete old client on panel
+    await deleteVpnClientApi(clientName, key.serverId);
+
+    // 2. Add new client on panel with bypassDuplicateCheck = true
+    const addResult = await addVpnClientApi(
+      clientName,
+      new_limit_gb,
+      new_exp_days,
+      settings,
+      key.clientUuid,
+      key.serverId,
+      true
+    );
+
+    if (!addResult.success) {
+      return res.status(500).json({ success: false, error: addResult.error || "Failed to renew on X-UI panel" });
+    }
+
+    // 3. Update locally
+    key.expireDate = new_expire_date_str;
+    key.trafficLimitGb = new_limit_gb;
+    if (addResult.subLink) {
+      key.subLink = addResult.subLink;
+    }
+    key.status = "active";
+
+    // Re-enable in users if count updated
+    const user = db.users?.find((u: any) => u.userId === Number(key.userId));
+    if (user) {
+      user.activePlansCount = db.subscription_keys.filter(
+        (k: any) => k.userId === Number(key.userId) && k.status === "active",
+      ).length;
+    }
+
+    writeJsonDb(db);
+
+    res.json({ success: true, key });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post("/api/subscription-keys/toggle", async (req, res) => {
   try {
     const { id, status } = req.body;
@@ -5520,6 +5595,10 @@ async function autoSyncTrafficUsage() {
           const inlineKeyboard = {
             inline_keyboard: [
               [
+                {
+                  text: "🔄 تمدید سرویس",
+                  callback_data: `mysub_renew_${k.id}`,
+                },
                 {
                   text: "🔗 دریافت لینک اتصال",
                   callback_data: `vless_link_${k.id}`,

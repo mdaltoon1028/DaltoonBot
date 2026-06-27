@@ -3959,46 +3959,15 @@ def callback_handler(call):
             return
 
         elif sub_action == "renew":
-            plan_id = k.get("planId")
-            db_plans = db.get("vpn_plans", [])
-            db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
-            
-            spec = None
-            if db_plan:
-                spec = {
-                    "id": db_plan["id"],
-                    "name": db_plan["name"],
-                    "price": db_plan["price"],
-                    "traffic": db_plan.get("trafficGb", 30),
-                    "duration": db_plan.get("durationDays", 30)
-                }
-            else:
-                plan_specs = {
-                    "std_30g": {"id": "std_30g", "name": "30GB - 30 Days", "price": 45000, "traffic": 30, "duration": 30},
-                    "vip_70g": {"id": "vip_70g", "name": "Premium 70GB - 60 Days", "price": 95000, "traffic": 70, "duration": 60},
-                    "ult_150g": {"id": "ult_150g", "name": "VoIP 150GB - 90 Days", "price": 185000, "traffic": 150, "duration": 90}
-                }
-                spec = plan_specs.get(plan_id)
-                
-            if not spec:
-                bot.answer_callback_query(call.id, "خطا: مشخصات طرح مربوطه یافت نشد.")
-                return
-                
-            text = (
-                f"🔄 <b>درخواست تمدید اشتراک جاری:</b>\n\n"
-                f"👤 نام سرویس جهت تمدید: <code>{client_name}</code>\n"
-                f"🔹 طرح مرتبط با سرویس: <b>{spec['name']}</b>\n\n"
-                f"💳 هزینه تمدید: <code>{spec['price']:,}</code> تومان\n"
-                f"⏳ افزایش مدت زمان اعتبار: <code>{spec['duration']}</code> روز مضاعف\n"
-                f"🌐 ترافیک اهدایی جدید: <code>{spec['traffic']}</code> گیگابایت به حجم کل\n\n"
-                f"⚠️ <b>اطلاعات پرداخت:</b> مبلغ تمدید مستقیما از موجودی کیف پول اعتباری شما کسر خواهد شد."
+            msg = bot.send_message(
+                call.message.chat.id,
+                f"🔄 <b>تمدید اشتراک <code>{client_name}</code> با ترافیک و روز دلخواه:</b>\n\n"
+                "🔻 لطفاً مقدار ترافیک اضافی مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n"
+                "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
             )
-            markup = types.InlineKeyboardMarkup(row_width=2)
-            markup.add(
-                types.InlineKeyboardButton("✅ بله، تمدید و کسر از شارژ", callback_data=f"mysub_renewconfirm_{target_sub_id}"),
-                types.InlineKeyboardButton("❌ انصراف", callback_data=f"mysub_manage_{target_sub_id}")
-            )
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            bot.register_next_step_handler(msg, process_renew_gb, target_sub_id)
             return
 
         elif sub_action == "renewconfirm":
@@ -4833,6 +4802,8 @@ def callback_handler(call):
             
             markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{server_id}_{cat}"))
         
+        markup.add(types.InlineKeyboardButton("✨ ساخت کانفیگ با حجم دلخواه", callback_data=f"custom_vol_{server_id}"))
+        
         markup.row(
             types.InlineKeyboardButton("🔙 بازگشت", callback_data="mm_btnBuyNew"),
             types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
@@ -4895,6 +4866,8 @@ def callback_handler(call):
             call_action = f"buy_{server_id}_{p['id']}" if server_id else f"buy_{p['id']}"
             markup.add(types.InlineKeyboardButton(btn_text, callback_data=call_action))
             
+        markup.add(types.InlineKeyboardButton("✨ ساخت کانفیگ با حجم دلخواه", callback_data=f"custom_vol_{server_id}"))
+        
         markup.row(
             types.InlineKeyboardButton("🔙 بازگشت به دسته‌بندی‌ها", callback_data=f"srvsel_{server_id}" if server_id else "mm_btnBuyNew"),
             types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home")
@@ -4909,6 +4882,225 @@ def callback_handler(call):
         )
         return
         
+    if call.data.startswith("custom_vol_"):
+        bot.answer_callback_query(call.id)
+        server_id = call.data.replace("custom_vol_", "")
+        
+        # PRE-CHECK: Ensure server is available before proceeding
+        if not login_xui(server_id):
+            session = get_session()
+            last_err = getattr(session, "last_login_error", "ارتباط با پنل برقرار نشد")
+            bot.send_message(
+                call.message.chat.id, 
+                f"❌ <b>خطا در اتصال به پنل!</b>\n\nجزئیات: {last_err}\n\nمتاسفانه در حال حاضر امکان ساخت کانفیگ روی این سرور فراهم نیست. لطفاً بعداً تلاش کنید یا سرور دیگری را انتخاب کنید.", 
+                parse_mode="HTML",
+                reply_markup=get_custom_keyboard()
+            )
+            return
+
+        msg = bot.send_message(
+            call.message.chat.id,
+            "✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_username, server_id)
+        return
+
+    if call.data.startswith("buycust_pay:"):
+        bot.answer_callback_query(call.id)
+        parts = call.data.split(":")
+        server_id = parts[1]
+        username_input = parts[2]
+        gb = int(parts[3])
+        days = int(parts[4])
+        price = int(parts[5])
+        
+        tg_id = call.from_user.id
+        db = read_db_json()
+        user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
+        
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if not is_privileged and (not user or user.get("walletBalance", 0) < price):
+            bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.")
+            return
+            
+        bot.edit_message_text("✅ در حال ساخت کانفیگ دلخواه... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+        
+        if not is_privileged:
+            new_balance = user.get("walletBalance", 0) - price
+            update_user_balance(tg_id, new_balance)
+            if price > 0:
+                process_referral_on_purchase(user, price)
+            log_action(tg_id, user.get("username", str(tg_id)), "خرید کانفیگ دلخواه", f"کانفیگ دلخواه {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
+        else:
+            log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"کانفیگ دلخواه {gb}GB/{days}روز ایجاد شد.")
+            
+        client_uuid, sub_link = add_vpn_client_api(username_input, gb, days, server_id=server_id)
+        
+        if not sub_link:
+            if not cfg.get("SIMULATOR_MODE"):
+                if not is_privileged:
+                    fresh_db = read_db_json()
+                    fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
+                    current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
+                    refunded_bal = current_bal + float(price)
+                    update_user_balance(tg_id, refunded_bal)
+                    log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید دلخواه", f"برگشت مبلغ {price:,} تومان به دلیل خطای اتصال x-ui.")
+                
+                session = get_session()
+                last_err = getattr(session, "last_error", "خطای ناشناخته")
+                bot.send_message(
+                    tg_id,
+                    "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
+                    "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ دلخواه در این لحظه وجود ندارد.\n\n"
+                    f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                    f"💰 <b>مبلغ {price:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
+                    "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید.",
+                    parse_mode="HTML"
+                )
+                return
+            else:
+                import random, string, uuid
+                client_uuid = client_uuid if client_uuid else str(uuid.uuid4())
+                sub_link = f"https://mock-sub-panel.com/sub/{''.join(random.choices(string.ascii_lowercase + string.digits, k=16))}"
+            
+        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
+        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+        
+        create_sub_key(
+            key_id=sub_id, 
+            tg_id=tg_id, 
+            plan_id="custom_vol", 
+            plan_name=f"Custom {gb}GB - {days} Days", 
+            sub_link=sub_link, 
+            expire_date=expire_date, 
+            limit_gb=gb,
+            client_name=username_input,
+            client_uuid=client_uuid,
+            server_id=server_id
+        )
+        
+        all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
+        if all_links:
+            links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
+            configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+        else:
+            configs_block = f"👇 <b>سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>{sub_link}</code>"
+            
+        success_msg = (
+            f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
+            f"🛒 اشتراک: <b>کانفیگ دلخواه</b>\n"
+            f"👤 شناسه: <code>{username_input}</code>\n"
+            f"⏳ انقضا: <b>{days} روز</b> (تا {expire_date})\n"
+            f"💬 حجم بسته: <b>{gb} گیگابایت</b>\n\n"
+            f"{configs_block}"
+        )
+        bot.send_message(tg_id, success_msg, parse_mode="HTML")
+        return
+
+    if call.data.startswith("mysub_renewcustconfirm:"):
+        bot.answer_callback_query(call.id)
+        parts = call.data.split(":")
+        target_sub_id = parts[1]
+        gb = int(parts[2])
+        days = int(parts[3])
+        price = int(parts[4])
+        
+        tg_id = call.from_user.id
+        db = read_db_json()
+        subscription_keys = db.get("subscription_keys", [])
+        k = next((sub for sub in subscription_keys if sub["id"] == target_sub_id and sub["userId"] == tg_id), None)
+        
+        if not k:
+            bot.send_message(call.message.chat.id, "❌ خطا: اشتراک یافت نشد یا متعلق به شما نیست.")
+            return
+            
+        client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
+        user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
+        
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
+        
+        if not is_privileged and (not user or user.get("walletBalance", 0) < price):
+            bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.")
+            return
+            
+        bot.edit_message_text("✅ در حال تمدید اشتراک... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+        
+        global active_purchases
+        if tg_id in active_purchases:
+            bot.send_message(call.message.chat.id, "یک درخواست خرید یا تمدید برای شما در حال پردازش است.")
+            return
+            
+        active_purchases.add(tg_id)
+        try:
+            if not is_privileged:
+                new_balance = user.get("walletBalance", 0) - price
+                update_user_balance(tg_id, new_balance)
+                log_action(tg_id, user.get("username", str(tg_id)), "تمدید اشتراک دلخواه", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
+            else:
+                log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "تمدید مستقیم ادمین", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز شد.")
+                
+            from datetime import datetime, timedelta
+            try:
+                exp_dt = datetime.strptime(k['expireDate'], '%Y-%m-%d')
+                if exp_dt < datetime.now():
+                    new_exp_dt = datetime.now() + timedelta(days=days)
+                else:
+                    new_exp_dt = exp_dt + timedelta(days=days)
+            except:
+                new_exp_dt = datetime.now() + timedelta(days=days)
+                
+            new_expire_date_str = new_exp_dt.strftime('%Y-%m-%d')
+            new_limit_gb = float(k.get('trafficLimitGb', 0)) + float(gb)
+            
+            new_exp_days = (new_exp_dt - datetime.now()).days
+            new_exp_days = max(1, new_exp_days)
+            
+            delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
+            _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"), server_id=k.get("serverId"))
+            
+            if not sub_link:
+                if not is_privileged:
+                    refunded_bal = user.get("walletBalance", 0) + price
+                    update_user_balance(tg_id, refunded_bal)
+                
+                bot.send_message(
+                    tg_id,
+                    "❌ <b>خطا در تمدید اشتراک!</b>\n\n"
+                    "متاسفانه در ارتباط با سرور و اعمال تمدید خطایی رخ داد.\n"
+                    "✅ مبلغ کسر شده فوراً به کیف پول شما بازگردانده شد.",
+                    parse_mode="HTML"
+                )
+                return
+                
+            k['expireDate'] = new_expire_date_str
+            k['trafficLimitGb'] = new_limit_gb
+            if sub_link:
+                k['subLink'] = sub_link
+                
+            write_db_json(db)
+            
+            success_text = (
+                f"🎉 <b>اشتراک شما با موفقیت تمدید شد!</b>\n\n"
+                f"👤 سرویس: <code>{client_name}</code>\n"
+                f"➕ حجم ترافیک افزوده شده: <b>{gb} گیگابایت</b>\n"
+                f"➕ مدت زمان افزوده شده: <b>{days} روز</b>\n\n"
+                f"📅 تاریخ انقضای جدید: <b>{new_expire_date_str}</b>\n"
+                f"📊 حجم کل جدید: <b>{new_limit_gb} گیگابایت</b>"
+            )
+            bot.send_message(tg_id, success_text, parse_mode="HTML")
+        finally:
+            active_purchases.discard(tg_id)
+        return
+
     if call.data.startswith("buy_"):
         bot.answer_callback_query(call.id)
         
@@ -5845,7 +6037,20 @@ def process_col_renew_days(message, acc, sub, add_gb):
     
     # Update subscription
     keys = db.get("subscription_keys", [])
-    sub_idx = next((i for i, k in enumerate(keys) if k["id"] == sub["id"]), -1)
+    sub_idx = -1
+    sub_id = sub.get("id")
+    client_uuid = sub.get("clientUuid")
+    client_name = sub.get("clientName") or sub.get("planName", "")
+
+    # Try 1: By ID
+    if sub_id:
+        sub_idx = next((i for i, k in enumerate(keys) if k.get("id") == sub_id), -1)
+    # Try 2: By Client UUID
+    if sub_idx == -1 and client_uuid:
+        sub_idx = next((i for i, k in enumerate(keys) if k.get("clientUuid") == client_uuid), -1)
+    # Try 3: By Client Name
+    if sub_idx == -1 and client_name:
+        sub_idx = next((i for i, k in enumerate(keys) if (k.get("clientName") or k.get("planName", "")) == client_name), -1)
     
     if sub_idx != -1:
         import time
@@ -6826,6 +7031,243 @@ def process_colleague_change_password_pass(message, acc_id, new_user):
     write_db_json(db)
     
     bot.send_message(message.chat.id, f"✅ <b>مشخصات حساب شما تغییر کرد:</b>\n\n👤 <b>یوزرنیم جدید:</b> <code>{new_user}</code>\n🔑 <b>رمز عبور جدید:</b> <code>{new_pass}</code>\n\nجهت ورود به پنل از منوی همکاران استفاده کنید.", parse_mode="HTML", reply_markup=get_custom_keyboard())
+
+def process_custom_vol_username(message, server_id):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+        main_menu_message(message)
+        return
+        
+    import re
+    if not re.match(r"^[a-zA-Z0-9_-]+$", text):
+        msg = bot.reply_to(
+            message,
+            "❌ <b>نام کاربری نامعتبر است!</b>\n"
+            "لطفاً فقط از حروف انگلیسی، اعداد و خط تیره استفاده نمایید (بدون فاصله):",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_username, server_id)
+        return
+        
+    username_input = text
+    msg = bot.send_message(
+        message.chat.id,
+        f"👤 نام کاربری: <code>{username_input}</code>\n\n"
+        "🔻 لطفاً ترافیک مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n"
+        "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    bot.register_next_step_handler(msg, process_custom_vol_gb, server_id, username_input)
+
+def process_custom_vol_gb(message, server_id, username_input):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+        main_menu_message(message)
+        return
+        
+    try:
+        gb = int(text)
+        if gb <= 0 or gb > 1000:
+            raise ValueError()
+    except ValueError:
+        msg = bot.reply_to(
+            message,
+            "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\n"
+            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_gb, server_id, username_input)
+        return
+        
+    msg = bot.send_message(
+        message.chat.id,
+        f"👤 نام کاربری: <code>{username_input}</code>\n"
+        f"🔻 حجم انتخابی: <code>{gb} GB</code>\n\n"
+        "⏳ لطفاً تعداد روزهای فعال بودن اشتراک را به <b>روز (Days)</b> وارد کنید:\n"
+        "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    bot.register_next_step_handler(msg, process_custom_vol_days, server_id, username_input, gb)
+
+def process_custom_vol_days(message, server_id, username_input, gb):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+        main_menu_message(message)
+        return
+        
+    try:
+        days = int(text)
+        if days <= 0 or days > 365:
+            raise ValueError()
+    except ValueError:
+        msg = bot.reply_to(
+            message,
+            "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\n"
+            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_days, server_id, username_input, gb)
+        return
+        
+    cfg = get_config()
+    db = read_db_json()
+    settings_data = db.get("settings", {})
+    
+    import json
+    panel_config_str = settings_data.get("panel_config", "{}")
+    try:
+        panel_config = json.loads(panel_config_str)
+    except Exception:
+        panel_config = {}
+        
+    custom_pricing = panel_config.get("customPricingBoxes", [])
+    
+    price_gb = 3000
+    price_day = 2000
+    
+    if isinstance(custom_pricing, list):
+        for box in custom_pricing:
+            if isinstance(box, dict) and server_id in box.get("serverIds", []):
+                price_gb = box.get("pricePerGb", 3000)
+                price_day = box.get("pricePerDay", 2000)
+                break
+                
+    total_price = (gb * price_gb) + (days * price_day)
+    
+    server_name = "سرور انتخابی"
+    servers = panel_config.get("servers", [])
+    for s in servers:
+        if str(s.get("id")) == server_id:
+            server_name = s.get("name")
+            break
+            
+    invoice_text = (
+        "📊 <b>پیش‌فاکتور ساخت کانفیگ دلخواه</b>\n\n"
+        f"🌐 سرور: <b>{server_name}</b>\n"
+        f"👤 نام کاربری: <code>{username_input}</code>\n"
+        f"🔻 حجم درخواستی: <b>{gb} گیگابایت</b>\n"
+        f"⏳ مدت زمان: <b>{days} روز</b>\n\n"
+        f"💵 هزینه هر گیگابایت: {price_gb:,} تومان\n"
+        f"💵 هزینه هر روز: {price_day:,} تومان\n"
+        "──────────────────\n"
+        f"💰 <b>جمع کل: {total_price:,} تومان</b>\n\n"
+        "⚠️ هزینه ساخت مستقیماً از موجودی کیف پول شما کسر خواهد شد."
+    )
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("✅ تایید و پرداخت از کیف پول", callback_data=f"buycust_pay:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+        types.InlineKeyboardButton("❌ لغو", callback_data=f"srvsel_{server_id}")
+    )
+    
+    bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
+
+def process_renew_gb(message, target_sub_id):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+        main_menu_message(message)
+        return
+        
+    try:
+        gb = int(text)
+        if gb <= 0 or gb > 1000:
+            raise ValueError()
+    except ValueError:
+        msg = bot.reply_to(
+            message,
+            "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\n"
+            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_renew_gb, target_sub_id)
+        return
+        
+    msg = bot.send_message(
+        message.chat.id,
+        "⏳ <b>انتخاب مدت زمان تمدید:</b>\n\n"
+        "لطفاً تعداد روزهای اضافی جهت تمدید اشتراک را به <b>روز (Days)</b> وارد کنید (مثلاً <code>30</code>):",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
+
+def process_renew_days(message, target_sub_id, gb):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+        main_menu_message(message)
+        return
+        
+    try:
+        days = int(text)
+        if days <= 0 or days > 365:
+            raise ValueError()
+    except ValueError:
+        msg = bot.reply_to(
+            message,
+            "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\n"
+            "لطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
+        return
+        
+    db = read_db_json()
+    k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
+    if not k:
+        bot.send_message(message.chat.id, "❌ خطا: اشتراک یافت نشد.")
+        return
+        
+    server_id = k.get("serverId")
+    cfg = get_config()
+    settings_data = db.get("settings", {})
+    
+    import json
+    panel_config_str = settings_data.get("panel_config", "{}")
+    try:
+        panel_config = json.loads(panel_config_str)
+    except Exception:
+        panel_config = {}
+        
+    custom_pricing = panel_config.get("customPricingBoxes", [])
+    
+    price_gb = 3000
+    price_day = 2000
+    
+    if isinstance(custom_pricing, list):
+        for box in custom_pricing:
+            if isinstance(box, dict) and server_id in box.get("serverIds", []):
+                price_gb = box.get("pricePerGb", 3000)
+                price_day = box.get("pricePerDay", 2000)
+                break
+                
+    total_price = (gb * price_gb) + (days * price_day)
+    
+    invoice_text = (
+        "🔄 <b>پیش‌فاکتور تمدید و ارتقای اشتراک</b>\n\n"
+        f"👤 نام کاربری سرویس: <code>{k.get('clientName')}</code>\n"
+        f"➕ حجم ترافیک اضافی: <b>{gb} گیگابایت</b>\n"
+        f"➕ مدت زمان تمدید: <b>{days} روز</b>\n\n"
+        f"💵 قیمت هر گیگابایت: {price_gb:,} تومان\n"
+        f"💵 قیمت هر روز: {price_day:,} تومان\n"
+        "──────────────────\n"
+        f"💰 <b>جمع کل هزینه تمدید: {total_price:,} تومان</b>\n\n"
+        "⚠️ هزینه تمدید مستقیماً از موجودی کیف پول شما کسر خواهد شد."
+    )
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("✅ تایید و کسر از کیف پول", callback_data=f"mysub_renewcustconfirm:{target_sub_id}:{gb}:{days}:{total_price}"),
+        types.InlineKeyboardButton("❌ لغو", callback_data=f"mysub_manage_{target_sub_id}")
+    )
+    
+    bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
 
 # Initialize JSON DB on startup
 if __name__ == "__main__":

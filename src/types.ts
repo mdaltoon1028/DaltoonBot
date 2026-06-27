@@ -133,6 +133,14 @@ export interface PanelSettings {
   walletChargeAmounts?: number[];
 
   simulatorMode?: boolean;
+  customPricingBoxes?: CustomPricingBox[];
+}
+
+export interface CustomPricingBox {
+  id: string;
+  pricePerGb: number;
+  pricePerDay: number;
+  serverIds: string[];
 }
 
 export interface InboundInfo {
