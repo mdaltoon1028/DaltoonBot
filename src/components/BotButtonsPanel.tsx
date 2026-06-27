@@ -93,16 +93,6 @@ export default function BotButtonsPanel({
     !!settings.hideBtnFreeTest,
   );
 
-  const [isFreeTestActive, setIsFreeTestActive] = useState(
-    settings.isFreeTestActive !== undefined ? settings.isFreeTestActive : true,
-  );
-  const [freeTestDisabledMessage, setFreeTestDisabledMessage] = useState(
-    settings.freeTestDisabledMessage || "اکانت تست رایگان فعلا موجود نیست.",
-  );
-  const [showFreeTestMessageConfig, setShowFreeTestMessageConfig] =
-    useState(false);
-  const [tempFreeTestMessage, setTempFreeTestMessage] = useState("");
-
   const [btnTextInstantSupport, setBtnTextInstantSupport] = useState(
     settings.btnTextInstantSupport || "🤖 پشتیبانی آنی",
   );
@@ -418,8 +408,6 @@ export default function BotButtonsPanel({
       btnTextColleagues,
       btnTextAiChat,
       btnTextAi,
-      isFreeTestActive: settings.isFreeTestActive,
-      freeTestDisabledMessage: settings.freeTestDisabledMessage,
       hideBtnBuyNew,
       hideBtnMySubs,
       hideBtnGuides,
@@ -1601,8 +1589,6 @@ export default function BotButtonsPanel({
                     btnTextColleagues,
                     btnTextAiChat,
                     btnTextAi,
-                    isFreeTestActive: settings.isFreeTestActive,
-                    freeTestDisabledMessage: settings.freeTestDisabledMessage,
                     hideBtnBuyNew,
                     hideBtnMySubs,
                     hideBtnGuides,

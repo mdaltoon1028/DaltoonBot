@@ -2922,7 +2922,9 @@ def handle_main_menu_callback(call):
         cfg = get_config()
         if not cfg.get("IS_FREETEST_ACTIVE", True):
             disabled_msg = cfg.get("FREETEST_DISABLED_MSG", "اکانت تست رایگان فعلا موجود نیست.")
-            bot.edit_message_text(disabled_msg, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
+            markup = types.InlineKeyboardMarkup()
+            markup.row(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+            bot.edit_message_text(disabled_msg, chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML", reply_markup=markup)
             return
 
         users = db.get("users", [])
