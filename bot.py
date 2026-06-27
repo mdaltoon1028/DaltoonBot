@@ -3088,6 +3088,7 @@ def handle_buy_pay(call):
             spec["price"] = max(0, spec["price"] - discount_amount)
             spec["applied_promo"] = promo_code
 
+    if method == "card":
         if is_privileged:
             bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
             call.data = f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"
@@ -3106,7 +3107,8 @@ def handle_buy_pay(call):
             f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
         )
         bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
-        
+        return
+
     elif method == "wallet":
         user = next((u for u in db["users"] if u["userId"] == tg_id), None)
         
@@ -4993,14 +4995,19 @@ def callback_handler(call):
         tg_id = call.from_user.id
         db = read_db_json()
         cfg = get_config()
+        
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+        is_privileged = is_owner or is_admin
 
-        if is_privileged:
-            bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
-            call.data = f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{price}"
-            handle_callback_query(call) # Re-trigger with wallet method
-            return
+        if method == "card":
+            if is_privileged:
+                bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
+                call.data = f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{price}"
+                handle_callback_query(call) # Re-trigger with wallet method
+                return
 
-        bot.answer_callback_query(call.id)
+            bot.answer_callback_query(call.id)
             set_user_pending_purchase(tg_id, "custom_vol", username_input, server_id, gb, days, price)
             text_response = (
                 f"🛒 <b>خرید کانفیگ دلخواه (کارت به کارت)</b>\n"
@@ -5034,10 +5041,6 @@ def callback_handler(call):
         # Original wallet logic
         bot.answer_callback_query(call.id)
         user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
-        
-        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
-        is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
-        is_privileged = is_owner or is_admin
         
         if not is_privileged and (not user or user.get("walletBalance", 0) < price):
             shortage = price - (user.get("walletBalance", 0) if user else 0)

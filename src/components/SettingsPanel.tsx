@@ -1966,8 +1966,8 @@ export default function SettingsPanel({
             <Database className="w-4 h-4 text-gray-500" />
             <span className="text-[10px] uppercase font-mono text-gray-500">
               {lang === "fa"
-                ? "دیتابیس درگاه محلی: sqlite3 'bot_database.db'"
-                : "Local Cache DB: sqlite3 'bot_database.db'"}
+                ? "دیتابیس درگاه محلی: JSON 'Daltoon_Bot.json'"
+                : "Local Cache DB: JSON 'Daltoon_Bot.json'"}
             </span>
           </div>
 

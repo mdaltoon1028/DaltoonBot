@@ -1391,8 +1391,8 @@ export default function BotButtonsPanel({
             <Database className="w-4 h-4 text-gray-500" />
             <span className="text-[10px] uppercase font-mono text-gray-500">
               {lang === "fa"
-                ? "ذخیره‌سازی آنی در دیتابیس ربات (bot_database.db)"
-                : "Saves straight to sqlite bot_database.db"}
+                ? "ذخیره‌سازی آنی در دیتابیس ربات (Daltoon_Bot.json)"
+                : "Saves straight to JSON Daltoon_Bot.json"}
             </span>
           </div>
 
