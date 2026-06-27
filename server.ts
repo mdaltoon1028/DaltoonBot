@@ -30,12 +30,8 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
 const dbJsonPath = (() => {
-  const possibleFiles = [
-    "Daltoon_Bot.json",
-    "db.json",
-    "database.json",
-    "bot_database.json",
-  ];
+  const targetPath = path.resolve(process.cwd(), "Daltoon_Bot.json");
+  const possibleFiles = ["db.json", "database.json", "bot_database.json"];
 
   // Helper inspect file for actual registered data
   const getFileScore = (filePath: string): number => {
@@ -77,42 +73,63 @@ const dbJsonPath = (() => {
     }
   };
 
-  let bestFile = "";
-  let bestScore = -1;
+  // If target file doesn't exist or is empty, try to migrate from legacy files
+  const targetScore = getFileScore(targetPath);
+  if (targetScore <= 0) {
+    let bestFile = "";
+    let bestScore = -1;
 
-  // 1. Search for a file that actually contains the most data
+    for (const f of possibleFiles) {
+      const rootPath = path.resolve(process.cwd(), f);
+      const scriptPath = path.resolve(_dirname, f);
+      const parentPath = path.resolve(_dirname, "..", f);
+
+      for (const p of [rootPath, scriptPath, parentPath]) {
+        const score = getFileScore(p);
+        if (score > bestScore) {
+          bestScore = score;
+          bestFile = p;
+        }
+      }
+    }
+
+    if (bestScore > -1 && bestFile) {
+      console.log(`[Database Migration] Migrating active database from legacy ${bestFile} to standard ${targetPath}...`);
+      try {
+        const rawData = fs.readFileSync(bestFile, "utf8");
+        fs.writeFileSync(targetPath, rawData, "utf8");
+        console.log("[Database Migration] Migration completed successfully.");
+      } catch (e: any) {
+        console.error("[Database Migration] Failed to copy database file:", e.message);
+      }
+    }
+  }
+
+  // Delete all legacy files completely to prevent future confusion or conflict
   for (const f of possibleFiles) {
     const rootPath = path.resolve(process.cwd(), f);
     const scriptPath = path.resolve(_dirname, f);
     const parentPath = path.resolve(_dirname, "..", f);
 
     for (const p of [rootPath, scriptPath, parentPath]) {
-      const score = getFileScore(p);
-      if (score > bestScore) {
-        bestScore = score;
-        bestFile = p;
+      if (fs.existsSync(p)) {
+        try {
+          fs.unlinkSync(p);
+          console.log(`[Database Cleanup] Legacy file ${p} has been completely deleted.`);
+        } catch (e) {}
+      }
+      // Also clean up any .bak files to keep directory super tidy
+      const bakPath = p + ".bak";
+      if (fs.existsSync(bakPath)) {
+        try {
+          fs.unlinkSync(bakPath);
+        } catch (e) {}
       }
     }
   }
 
-  if (bestScore > -1 && bestFile) {
-    return bestFile;
-  }
-
-  // 2. If no data found, fall back to the first one that exists at all
-  for (const f of possibleFiles) {
-    const rootPath = path.resolve(process.cwd(), f);
-    const scriptPath = path.resolve(_dirname, f);
-    const parentPath = path.resolve(_dirname, "..", f);
-
-    if (fs.existsSync(rootPath)) return rootPath;
-    if (fs.existsSync(scriptPath)) return scriptPath;
-    if (fs.existsSync(parentPath)) return parentPath;
-  }
-
-  // 3. Absolute final fallback (Prefer Daltoon_Bot.json as the standard from now on)
-  return path.resolve(process.cwd(), "Daltoon_Bot.json");
-})();
+  return targetPath;
+})();;
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
@@ -516,15 +533,9 @@ startPythonBot();
 // Full Wipe Database API
 app.post("/api/database/wipe-all", async (req, res) => {
   try {
-    const possibleFiles = [
-      "Daltoon_Bot.json",
-      "db.json",
-      "database.json",
-      "bot_database.json",
-    ];
-    for (const f of possibleFiles) {
-      const p = path.resolve(process.cwd(), f);
-      if (fs.existsSync(p)) fs.unlinkSync(p);
+    const targetFile = path.resolve(process.cwd(), "Daltoon_Bot.json");
+    if (fs.existsSync(targetFile)) {
+      fs.unlinkSync(targetFile);
     }
     // Also clear process-level cache if any (though here it's just variables)
     res.json({

@@ -122,26 +122,98 @@ if [ -f "$BACKUP_DIR/.env_backup" ]; then
     cp "$BACKUP_DIR/.env_backup" ".env" 2>/dev/null
     cp "$BACKUP_DIR/.env_backup" "/opt/daltoon-store/.env" 2>/dev/null
 fi
-if [ -f "$BACKUP_DIR/database.json" ]; then
-    echo -e "${GREEN}Restoring database.json from backup...${NC}"
-    cp "$BACKUP_DIR/database.json" "database.json" 2>/dev/null
-    cp "$BACKUP_DIR/database.json" "/opt/daltoon-store/database.json" 2>/dev/null
-fi
-if [ -f "$BACKUP_DIR/db.json" ]; then
-    echo -e "${GREEN}Restoring db.json from backup...${NC}"
-    cp "$BACKUP_DIR/db.json" "db.json" 2>/dev/null
-    cp "$BACKUP_DIR/db.json" "/opt/daltoon-store/db.json" 2>/dev/null
-fi
-if [ -f "$BACKUP_DIR/bot_database.json" ]; then
-    echo -e "${GREEN}Restoring bot_database.json from backup...${NC}"
-    cp "$BACKUP_DIR/bot_database.json" "bot_database.json" 2>/dev/null
-    cp "$BACKUP_DIR/bot_database.json" "/opt/daltoon-store/bot_database.json" 2>/dev/null
-fi
-if [ -f "$BACKUP_DIR/Daltoon_Bot.json" ]; then
-    echo -e "${GREEN}Restoring Daltoon_Bot.json from backup...${NC}"
-    cp "$BACKUP_DIR/Daltoon_Bot.json" "Daltoon_Bot.json" 2>/dev/null
-    cp "$BACKUP_DIR/Daltoon_Bot.json" "/opt/daltoon-store/Daltoon_Bot.json" 2>/dev/null
-fi
+
+node -e "
+const fs = require('fs');
+const path = require('path');
+
+const backupDir = '$BACKUP_DIR';
+const installDir = path.resolve(process.cwd());
+const optDir = '/opt/daltoon-store';
+
+const targetBackupFile = path.join(backupDir, 'Daltoon_Bot.json');
+const legacyFiles = ['database.json', 'db.json', 'bot_database.json'];
+
+function getScore(p) {
+  try {
+    if (!fs.existsSync(p)) return -1;
+    const stat = fs.statSync(p);
+    const content = fs.readFileSync(p, 'utf8').trim();
+    if (!content || content === '{}' || content === '[]') return -1;
+    const parsed = JSON.parse(content);
+    let score = 1;
+    if (Array.isArray(parsed.users) && parsed.users.length > 0) score += parsed.users.length * 10;
+    if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) score += parsed.transactions.length * 10;
+    if (parsed.settings) {
+      if (parsed.settings.dashboardUsername) score += 20;
+      if (parsed.settings.panel_config) {
+        const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+        if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
+        if (pc.dashboardUsername) score += 50;
+      }
+    }
+    return score > 0 ? (score * 1000000) + stat.size : -1;
+  } catch(e) { return -1; }
+}
+
+// 1. Check if we have Daltoon_Bot.json in backup
+let targetData = null;
+if (getScore(targetBackupFile) > 0) {
+  try {
+    targetData = JSON.parse(fs.readFileSync(targetBackupFile, 'utf8'));
+  } catch(e) {}
+}
+
+// 2. If no valid Daltoon_Bot.json found in backup, try to find the best legacy backup file
+if (!targetData) {
+  let bestFile = null;
+  let bestScore = -1;
+  for (const f of legacyFiles) {
+    const p = path.join(backupDir, f);
+    const score = getScore(p);
+    if (score > bestScore) {
+      bestScore = score;
+      bestFile = p;
+    }
+  }
+  if (bestFile) {
+    try {
+      console.log('[Installer Migration] Migrating legacy backup ' + bestFile + ' to unified Daltoon_Bot.json...');
+      targetData = JSON.parse(fs.readFileSync(bestFile, 'utf8'));
+    } catch(e) {}
+  }
+}
+
+// 3. Write unified data to both current directory and opt directory
+if (targetData) {
+  const content = JSON.stringify(targetData, null, 2);
+  fs.writeFileSync(path.join(installDir, 'Daltoon_Bot.json'), content, 'utf8');
+  if (fs.existsSync(optDir)) {
+    try {
+      fs.writeFileSync(path.join(optDir, 'Daltoon_Bot.json'), content, 'utf8');
+    } catch(e) {}
+  }
+  console.log('[Installer] Restored unified Daltoon_Bot.json database successfully.');
+}
+
+// 4. Delete all legacy database files from backup directory, current directory, and opt directory
+for (const f of legacyFiles) {
+  for (const dir of [backupDir, installDir, optDir]) {
+    const p = path.join(dir, f);
+    if (fs.existsSync(p)) {
+      try {
+        fs.unlinkSync(p);
+      } catch(e) {}
+    }
+    const bak = p + '.bak';
+    if (fs.existsSync(bak)) {
+      try {
+        fs.unlinkSync(bak);
+      } catch(e) {}
+    }
+  }
+}
+"
 
 # 5. Install Node-modules and Build project
 echo -e "${GREEN}[4/6] Installing dependencies...${NC}"
@@ -271,32 +343,69 @@ DASH_PORT=${DASH_PORT:-$CURRENT_PORT}
 echo -e "${YELLOW}Saving configuration to database...${NC}"
 node -e "
 const fs = require('fs');
-const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-const backupDbPath = '/tmp/daltoon_db_backup/Daltoon_Bot.json';
-let db = {};
-let parseError = false;
+const path = require('path');
 
-let targetPath = dbPath;
-if (!fs.existsSync(targetPath) || fs.readFileSync(targetPath, 'utf8').trim() === '') {
-  if (fs.existsSync(backupDbPath) && fs.readFileSync(backupDbPath, 'utf8').trim() !== '') {
-    targetPath = backupDbPath;
-  }
-}
+const installDir = '$INSTALL_DIR';
+const dbPath = path.resolve(installDir, 'Daltoon_Bot.json');
 
-if (fs.existsSync(targetPath)) {
-  try { 
-    const content = fs.readFileSync(targetPath, 'utf8');
-    if (content && content.trim()) {
-      db = JSON.parse(content) || {};
+const filesToSearch = [
+  'Daltoon_Bot.json',
+  'database.json',
+  'db.json',
+  'bot_database.json'
+];
+
+const searchDirs = [
+  '.',
+  installDir,
+  '/tmp/daltoon_db_backup'
+];
+
+function getScore(p) {
+  try {
+    if (!fs.existsSync(p)) return -1;
+    const stat = fs.statSync(p);
+    const content = fs.readFileSync(p, 'utf8').trim();
+    if (!content || content === '{}' || content === '[]') return -1;
+    const parsed = JSON.parse(content);
+    let score = 1; // Base score for valid JSON
+    if (Array.isArray(parsed.users) && parsed.users.length > 0) score += parsed.users.length * 10;
+    if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) score += parsed.transactions.length * 10;
+    if (parsed.settings) {
+      if (parsed.settings.dashboardUsername) score += 20;
+      if (parsed.settings.panel_config) {
+        const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+        if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
+        if (pc.dashboardUsername) score += 50;
+      }
     }
-  } catch(e){
-    console.error('CRITICAL: Failed to parse existing database JSON. Aborting configuration write to prevent data loss!');
-    parseError = true;
+    return score > 0 ? (score * 1000000) + stat.size : -1;
+  } catch(e) { return -1; }
+}
+
+let bestFile = null;
+let bestScore = -1;
+
+for (const dir of searchDirs) {
+  for (const file of filesToSearch) {
+    const fullPath = path.resolve(dir, file);
+    const score = getScore(fullPath);
+    if (score > bestScore) {
+      bestScore = score;
+      bestFile = fullPath;
+    }
   }
 }
 
-if (parseError) {
-  process.exit(1);
+let db = {};
+if (bestFile) {
+  try {
+    console.log('Using database source from: ' + bestFile + ' (Score: ' + bestScore + ')');
+    db = JSON.parse(fs.readFileSync(bestFile, 'utf8')) || {};
+  } catch(e) {
+    console.error('CRITICAL: Failed to parse best database JSON. Aborting configuration write to prevent data loss!');
+    process.exit(1);
+  }
 }
 
 // Ensure standard keys are preserved/created to avoid any data loss or blank UI
@@ -304,9 +413,15 @@ if (!db.users) db.users = [];
 if (!db.transactions) db.transactions = [];
 if (!db.subscription_keys) db.subscription_keys = [];
 if (!db.vpn_plans) db.vpn_plans = [];
+if (!db.colleague_packages) db.colleague_packages = [];
+if (!db.colleague_accounts) db.colleague_accounts = [];
+if (!db.colleague_categories) db.colleague_categories = [];
+if (!db.inbounds) db.inbounds = [];
 if (!db.custom_buttons) db.custom_buttons = [];
+if (!db.gift_codes) db.gift_codes = [];
+if (!db.promo_codes) db.promo_codes = [];
+if (!db.tickets) db.tickets = [];
 if (!db.plan_categories) db.plan_categories = [];
-
 if (!db.settings) db.settings = {};
 
 // Merge existing config if present
@@ -329,21 +444,22 @@ db.settings.dashboardUsername = '$DASH_USER';
 db.settings.dashboardPassword = '$DASH_PASS';
 db.settings.serverPort = parseInt('$DASH_PORT');
 db.settings.panel_config = JSON.stringify(newConfig);
-if (!db.users) db.users = [];
-if (!db.transactions) db.transactions = [];
-if (!db.subscription_keys) db.subscription_keys = [];
-if (!db.vpn_plans) db.vpn_plans = [];
-if (!db.colleague_packages) db.colleague_packages = [];
-if (!db.colleague_accounts) db.colleague_accounts = [];
-if (!db.colleague_categories) db.colleague_categories = [];
-if (!db.inbounds) db.inbounds = [];
-if (!db.custom_buttons) db.custom_buttons = [];
-if (!db.gift_codes) db.gift_codes = [];
-if (!db.promo_codes) db.promo_codes = [];
-if (!db.tickets) db.tickets = [];
-if (!db.plan_categories) db.plan_categories = [];
 
 fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
+console.log('Successfully saved unified database to: ' + dbPath);
+
+// Cleanup other legacy files in the install directory to prevent scoring/sync conflicts in the future!
+for (const file of filesToSearch) {
+  if (file !== 'Daltoon_Bot.json') {
+    const legacyPath = path.resolve(installDir, file);
+    if (fs.existsSync(legacyPath)) {
+      try {
+        fs.unlinkSync(legacyPath);
+        console.log('Legacy database ' + file + ' completely deleted to avoid conflicts.');
+      } catch(e) {}
+    }
+  }
+}
 "
 
 # Allow custom port through firewall

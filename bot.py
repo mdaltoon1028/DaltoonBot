@@ -40,11 +40,12 @@ import urllib.parse
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 def get_db_path():
     """ 
-    Sync DB path logic with server.ts:
-    Search for Daltoon_Bot.json, db.json, database.json, bot_database.json that contains data.
+    Streamlined: Use ONLY Daltoon_Bot.json.
+    Migrates legacy data if Daltoon_Bot.json is missing, then completely deletes all legacy db files.
     """
-    possible_files = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"]
-    
+    target_path = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+    possible_files = ["db.json", "database.json", "bot_database.json"]
+
     def get_file_score(path):
         try:
             if not os.path.exists(path): return -1
@@ -71,29 +72,48 @@ def get_db_path():
                 return -1
         except: return -1
 
-    best_file = ""
-    best_score = -1
+    target_score = get_file_score(target_path)
+    if target_score <= 0:
+        best_file = ""
+        best_score = -1
 
+        for f in possible_files:
+            root_path = os.path.join(SCRIPT_DIR, f)
+            parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
+            
+            for p in [root_path, parent_path]:
+                score = get_file_score(p)
+                if score > best_score:
+                    best_score = score
+                    best_file = p
+
+        if best_score > -1 and best_file:
+            print(f"[Database Migration] Migrating legacy active database from {best_file} to standard {target_path}...")
+            try:
+                import shutil
+                shutil.copy2(best_file, target_path)
+                print("[Database Migration] Migration copy completed successfully.")
+            except Exception as e:
+                print(f"[Database Migration] Failed to migrate database: {e}")
+
+    # Delete all legacy files to prevent any future conflict or confusion
     for f in possible_files:
         root_path = os.path.join(SCRIPT_DIR, f)
         parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
-        
         for p in [root_path, parent_path]:
-            score = get_file_score(p)
-            if score > best_score:
-                best_score = score
-                best_file = p
-                
-    if best_score > -1 and best_file:
-        return best_file
-    
-    for f in possible_files:
-        root_path = os.path.join(SCRIPT_DIR, f)
-        parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
-        if os.path.exists(root_path): return root_path
-        if os.path.exists(parent_path): return parent_path
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                    print(f"[Database Cleanup] Legacy file {p} completely deleted.")
+                except: pass
+            # Also delete legacy backup files
+            bak_path = p + ".bak"
+            if os.path.exists(bak_path):
+                try:
+                    os.remove(bak_path)
+                except: pass
 
-    return os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
+    return target_path
 
 DB_FILE = get_db_path()
 
@@ -5233,7 +5253,21 @@ def callback_handler(call):
                     f"💰 مبلغ: {price:,} تومان\n"
                     f"🆔 اشتراک: {sub_id}"
                 )
-                notify_admins(admin_msg)
+                
+                # Notify admin
+                cfg = get_config()
+                targets = set()
+                owner_id = cfg.get("OWNER_ID")
+                if owner_id and owner_id > 0:
+                    targets.add(owner_id)
+                for adm_id in cfg.get("ADMINS", []):
+                    if adm_id and adm_id > 0:
+                        targets.add(adm_id)
+                for target_id in targets:
+                    try:
+                        bot.send_message(target_id, admin_msg, parse_mode="HTML")
+                    except Exception:
+                        pass
                 
             except Exception as e:
                 print(f"[buycust_pay Thread Error] {e}")
