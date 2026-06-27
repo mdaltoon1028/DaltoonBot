@@ -200,8 +200,8 @@ export default function ServerManagement({
     setEditingBoxIds(prev => prev.filter(x => x !== id));
     const sanitizedBoxes = pricingBoxes.map(b => ({
       ...b,
-      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 1 : Number(b.minGb),
-      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 1 : Number(b.minDays)
+      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 0 : Number(b.minGb),
+      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 0 : Number(b.minDays)
     }));
     setPricingBoxes(sanitizedBoxes);
     onSaveSettings({
@@ -214,8 +214,8 @@ export default function ServerManagement({
     setEditingBoxIds([]);
     const sanitizedBoxes = pricingBoxes.map(b => ({
       ...b,
-      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 1 : Number(b.minGb),
-      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 1 : Number(b.minDays)
+      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 0 : Number(b.minGb),
+      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 0 : Number(b.minDays)
     }));
     setPricingBoxes(sanitizedBoxes);
     onSaveSettings({
@@ -705,8 +705,9 @@ export default function ServerManagement({
                           </label>
                           <input
                             type="number"
+                            step="any"
                             value={box.minGb !== undefined && box.minGb !== null ? box.minGb : ""}
-                            onChange={(e) => handleUpdateBoxField(box.id, "minGb", e.target.value === "" ? "" : parseInt(e.target.value))}
+                            onChange={(e) => handleUpdateBoxField(box.id, "minGb", e.target.value === "" ? "" : parseFloat(e.target.value))}
                             className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
                             placeholder="1"
                           />
@@ -717,8 +718,9 @@ export default function ServerManagement({
                           </label>
                           <input
                             type="number"
+                            step="any"
                             value={box.minDays !== undefined && box.minDays !== null ? box.minDays : ""}
-                            onChange={(e) => handleUpdateBoxField(box.id, "minDays", e.target.value === "" ? "" : parseInt(e.target.value))}
+                            onChange={(e) => handleUpdateBoxField(box.id, "minDays", e.target.value === "" ? "" : parseFloat(e.target.value))}
                             className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
                             placeholder="1"
                           />

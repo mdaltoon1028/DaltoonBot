@@ -2994,7 +2994,7 @@ def handle_main_menu_callback(call):
         if user_idx >= 0:
             users[user_idx]["hasReceivedFreeTest"] = True
             db["users"] = users
-            save_json_db(db)
+            write_db_json(db)
                 
         import time
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + free_days * 24 * 60 * 60))
@@ -7435,9 +7435,9 @@ def get_custom_pricing_limits(server_id):
         for box in custom_pricing:
             if isinstance(box, dict) and str(server_id) in [str(sid) for sid in box.get("serverIds", [])]:
                 try:
-                    min_gb = int(box.get("minGb", 1))
+                    min_gb = float(box.get("minGb", 1.0))
                 except:
-                    min_gb = 1
+                    min_gb = 1.0
                 try:
                     min_days = int(box.get("minDays", 1))
                 except:
