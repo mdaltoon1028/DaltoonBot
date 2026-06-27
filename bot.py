@@ -1653,7 +1653,6 @@ def get_user_pending_purchase(tg_id):
             user.get("pendingPurchaseCustomPrice")
         )
     return None, None, None, None, None, None
-    return None, None, None, None, None, None
 
 def clear_user_pending_purchase(tg_id):
     db = read_db_json()
@@ -3082,7 +3081,7 @@ def handle_buy_pay(call):
         return
 
     # User pending data
-    pending_plan, pending_client, pending_server_id = get_user_pending_purchase(tg_id)
+    pending_plan, pending_client, pending_server_id, _, _, _ = get_user_pending_purchase(tg_id)
 
     spec = {
         "id": db_plan["id"],
@@ -3304,7 +3303,16 @@ def handle_discount_decision(call):
         return
 
     # Keep track of server_id in spec if possible
-    _, _, pending_server_id = get_user_pending_purchase(tg_id)
+    try:
+        pending_data = get_user_pending_purchase(tg_id)
+        if len(pending_data) >= 3:
+            pending_server_id = pending_data[2]
+        else:
+            pending_server_id = None
+    except Exception as e:
+        print(f"[handle_discount_decision] Error unpacking pending purchase: {e}")
+        pending_server_id = None
+
     spec = {
         "id": db_plan["id"],
         "name": db_plan["name"],
@@ -3411,8 +3419,13 @@ def send_final_purchase_message(message, plan_id, username_input, spec, edit_mes
     # Intelligent Server Name Detection
     server_id = spec.get("server_id")
     if not server_id:
-        p_plan, p_client, p_server_id, _, _, _ = get_user_pending_purchase(tg_id)
-        server_id = p_server_id
+        try:
+            pending_data = get_user_pending_purchase(tg_id)
+            if len(pending_data) >= 3:
+                p_server_id = pending_data[2]
+                server_id = p_server_id
+        except:
+            pass
         
     server_line = ""
     if server_id:
@@ -5105,107 +5118,108 @@ def callback_handler(call):
             
         bot.edit_message_text("✅ در حال ساخت کانفیگ دلخواه... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
         
-        if not is_privileged:
-            new_balance = user.get("walletBalance", 0) - price
-            update_user_balance(tg_id, new_balance)
-            if price > 0:
-                process_referral_on_purchase(user, price)
-            log_action(tg_id, user.get("username", str(tg_id)), "خرید کانفیگ دلخواه", f"کانفیگ دلخواه {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
-        else:
-            log_action(tg_id, user.get("username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"کانفیگ دلخواه {gb}GB/{days}روز ایجاد شد.")
-            
-        print(f"[buycust_pay] Creating VPN client for {username_input} on server {server_id}...")
-        try:
-            client_uuid, sub_link = add_vpn_client_api(username_input, gb, days, server_id=server_id)
-            print(f"[buycust_pay] API result: UUID={client_uuid}, SubLink={sub_link}")
-        except Exception as e:
-            print(f"[buycust_pay API Error] {e}")
-            bot.send_message(tg_id, f"❌ خطای فنی در ارتباط با پنل: {e}")
-            return
-        
-        if not sub_link:
-            print("[buycust_pay] Failed to get sub_link from add_vpn_client_api")
-            if not cfg.get("SIMULATOR_MODE"):
+        # Run API call in a separate thread to avoid blocking the bot
+        import threading
+        def run_creation():
+            try:
                 if not is_privileged:
-                    fresh_db = read_db_json()
-                    fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
-                    current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
-                    refunded_bal = current_bal + float(price)
-                    update_user_balance(tg_id, refunded_bal)
-                    log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید دلخواه", f"برگشت مبلغ {price:,} تومان به دلیل خطای اتصال x-ui.")
+                    new_balance = user.get("walletBalance", 0) - price
+                    update_user_balance(tg_id, new_balance)
+                    if price > 0:
+                        process_referral_on_purchase(user, price)
+                    log_action(tg_id, user.get("username", str(tg_id)), "خرید کانفیگ دلخواه", f"کانفیگ دلخواه {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
+                else:
+                    log_action(tg_id, user.get("username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"کانفیگ دلخواه {gb}GB/{days}روز ایجاد شد.")
+                    
+                print(f"[buycust_pay] Creating VPN client for {username_input} on server {server_id}...")
+                client_uuid, sub_link = add_vpn_client_api(username_input, gb, days, server_id=server_id)
+                print(f"[buycust_pay] API result: UUID={client_uuid}, SubLink={sub_link}")
                 
-                session = get_session()
-                last_err = getattr(session, "last_error", "خطای ناشناخته")
-                bot.send_message(
-                    tg_id,
-                    "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
-                    "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ دلخواه در این لحظه وجود ندارد.\n\n"
-                    f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
-                    f"💰 <b>مبلغ {price:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
-                    "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید.",
-                    parse_mode="HTML"
+                if not sub_link:
+                    print("[buycust_pay] Failed to get sub_link from add_vpn_client_api")
+                    if not cfg.get("SIMULATOR_MODE"):
+                        if not is_privileged:
+                            fresh_db = read_db_json()
+                            fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
+                            current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
+                            refunded_bal = current_bal + float(price)
+                            update_user_balance(tg_id, refunded_bal)
+                            log_action(tg_id, fresh_user.get("username", str(tg_id)) if fresh_user else str(tg_id), "مرجوعی سیستمی خرید دلخواه", f"برگشت مبلغ {price:,} تومان به دلیل خطای اتصال x-ui.")
+                        
+                        session = get_session()
+                        last_err = getattr(session, "last_error", "خطای ناشناخته")
+                        bot.send_message(
+                            tg_id,
+                            "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
+                            "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ دلخواه در این لحظه وجود ندارد.\n\n"
+                            f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                            f"💰 <b>مبلغ {price:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
+                            "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید.",
+                            parse_mode="HTML"
+                        )
+                        return
+                    else:
+                        import random, string, uuid
+                        client_uuid = client_uuid if client_uuid else str(uuid.uuid4())
+                        sub_link = f"{normalize_xui_url(cfg.get('SUB_URL', 'https://sub.example.com'))}/sub/{''.join(random.choices(string.ascii_lowercase + string.digits, k=16))}"
+                    
+                expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
+                sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
+                
+                print(f"[buycust_pay] Registering sub in DB: sub_id={sub_id}, user={tg_id}")
+                create_sub_key(
+                    key_id=sub_id, 
+                    tg_id=tg_id, 
+                    plan_id="custom_vol", 
+                    plan_name=f"Custom {gb}GB - {days} Days", 
+                    sub_link=sub_link, 
+                    expire_date=expire_date, 
+                    limit_gb=gb,
+                    client_name=username_input,
+                    client_uuid=client_uuid,
+                    server_id=server_id
                 )
-                return
-            else:
-                import random, string, uuid
-                client_uuid = client_uuid if client_uuid else str(uuid.uuid4())
-                sub_link = f"https://mock-sub-panel.com/sub/{''.join(random.choices(string.ascii_lowercase + string.digits, k=16))}"
-            
-        expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
-        sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
-        
-        print(f"[buycust_pay] Registering sub in DB: sub_id={sub_id}, user={tg_id}")
-        try:
-            create_sub_key(
-                key_id=sub_id, 
-                tg_id=tg_id, 
-                plan_id="custom_vol", 
-                plan_name=f"Custom {gb}GB - {days} Days", 
-                sub_link=sub_link, 
-                expire_date=expire_date, 
-                limit_gb=gb,
-                client_name=username_input,
-                client_uuid=client_uuid,
-                server_id=server_id
-            )
-            print("[buycust_pay] Successfully registered in DB.")
-        except Exception as e:
-            print(f"[buycust_pay DB Error] {e}")
-            bot.send_message(tg_id, f"❌ خطای دیتابیس در ثبت اشتراک: {e}")
-            return
-        
-        print("[buycust_pay] Fetching links...")
-        try:
-            all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
-            print(f"[buycust_pay] Fetched {len(all_links) if all_links else 0} links.")
-        except Exception as e:
-            print(f"[buycust_pay get_links Error] {e}")
-            all_links = []
-            
-        if all_links:
-            links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
-            configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
-        else:
-            configs_block = (
-                f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n"
-                f"👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n"
-                f"<code>{sub_link}</code>\n\n"
-                f"💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند."
-            )
-            
-        success_msg = (
-            f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
-            f"🛒 اشتراک: <b>کانفیگ دلخواه</b>\n"
-            f"👤 شناسه: <code>{username_input}</code>\n"
-            f"⏳ انقضا: <b>{days} روز</b> (تا {expire_date})\n"
-            f"💬 حجم بسته: <b>{gb} گیگابایت</b>\n\n"
-            f"{configs_block}"
-        )
-        print("[buycust_pay] Sending success message...")
-        bot.send_message(tg_id, success_msg, parse_mode="HTML")
-        print("[buycust_pay] Done.")
-        return
+                
+                all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
+                if all_links:
+                    links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
+                    configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+                else:
+                    configs_block = (
+                        f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n"
+                        f"👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n"
+                        f"<code>{sub_link}</code>\n\n"
+                        f"💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند."
+                    )
+                    
+                success_msg = (
+                    f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
+                    f"🛒 اشتراک: <b>کانفیگ دلخواه</b>\n"
+                    f"👤 شناسه: <code>{username_input}</code>\n"
+                    f"⏳ انقضا: <b>{days} روز</b> (تا {expire_date})\n"
+                    f"📊 ترافیک: <b>{gb} گیگابایت</b>\n"
+                    f"🖥️ سرور: <b>{server_id}</b>\n\n"
+                    f"{configs_block}\n\n"
+                    f"🆔 شناسه اشتراک: <code>{sub_id}</code>"
+                )
+                bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+                
+                # Notify admin
+                admin_msg = (
+                    f"🔔 <b>خرید کانفیگ دلخواه جدید:</b>\n\n"
+                    f"👤 کاربر: {user.get('username', 'N/A')} ({tg_id})\n"
+                    f"📊 طرح: {gb}GB / {days} روز\n"
+                    f"💰 مبلغ: {price:,} تومان\n"
+                    f"🆔 اشتراک: {sub_id}"
+                )
+                notify_admins(admin_msg)
+                
+            except Exception as e:
+                print(f"[buycust_pay Thread Error] {e}")
+                bot.send_message(tg_id, f"❌ خطای غیرمنتظره در ساخت کانفیگ: {e}")
 
+        threading.Thread(target=run_creation).start()
+        return
     if call.data.startswith("mysub_renewcustconfirm:"):
         bot.answer_callback_query(call.id)
         parts = call.data.split(":")
