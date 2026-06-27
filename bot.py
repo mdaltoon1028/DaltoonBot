@@ -1139,7 +1139,10 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
          client_uuid = str(uuid.uuid4())
          
     xui_sub_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-    total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
+    if traffic_gb < 1.0:
+        total_bytes = int(traffic_gb * 1000 * 1024 * 1024)
+    else:
+        total_bytes = int(traffic_gb * 1024 * 1024 * 1024)
     expiry_time_ms = int((time.time() + (duration_days * 24 * 60 * 60)) * 1000)
 
     safe_email = str(client_email).strip()
@@ -4075,6 +4078,15 @@ def callback_handler(call):
             used_gb = float(k.get('trafficUsedGb', 0))
             rem_gb = max(0.0, limit_gb - used_gb)
             
+            if limit_gb < 1.0:
+                limit_str = f"{int(limit_gb * 1000)} مگابایت"
+                used_str = f"{used_gb * 1000:.1f} مگابایت"
+                rem_str = f"{rem_gb * 1000:.1f} مگابایت"
+            else:
+                limit_str = f"{limit_gb:.2f} گیگابایت"
+                used_str = f"{used_gb:.2f} گیگابایت"
+                rem_str = f"{rem_gb:.2f} گیگابایت"
+            
             import random
             connected_users = random.randint(0, 1)
             status_emoji = "🟢" if k.get("status", "active") == "active" else "🔴"
@@ -4086,9 +4098,9 @@ def callback_handler(call):
                 f"📌 <b>وضعیت حساب:</b> {status_emoji} <b>فعال و برقرار</b>\n\n"
                 f"⏳ <b>تاریخ اتمام مهلت انقضا:</b> <code>{k['expireDate']}</code>\n"
                 f"📅 <b>میزان کل روز پیش‌رو باقی‌مانده:</b> <code>{remaining_days}</code> روز\n\n"
-                f"🌐 <b>سقف کل ترافیک مجاز:</b> {limit_gb:.2f} گیگابایت\n"
-                f"📉 <b>میزان حجم مصرف‌شده:</b> {used_gb:.2f} گیگابایت\n"
-                f"🪫 <b>میزان حجم خالص باقیمانده:</b> {rem_gb:.2f} گیگابایت\n\n"
+                f"🌐 <b>سقف کل ترافیک مجاز:</b> {limit_str}\n"
+                f"📉 <b>میزان حجم مصرف‌شده:</b> {used_str}\n"
+                f"🪫 <b>میزان حجم خالص باقیمانده:</b> {rem_str}\n\n"
                 f"🟢 <b>تعداد کاربر متصل همزمان آنلاین:</b> <code>{connected_users}</code> کاربر\n"
                 f"━━━━━━━━━━━━━━━━━━━━━"
             )

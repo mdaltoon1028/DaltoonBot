@@ -2474,7 +2474,9 @@ async function addVpnClientApi(
       Math.random().toString(36).substring(2, 10) +
         "-" +
         Math.random().toString(36).substring(2, 6);
-    const totalBytes = Math.floor(trafficGb * 1024 * 1024 * 1024);
+    const totalBytes = trafficGb < 1.0
+      ? Math.floor(trafficGb * 1000 * 1024 * 1024)
+      : Math.floor(trafficGb * 1024 * 1024 * 1024);
     const expiryTimeMs = Date.now() + durationDays * 24 * 60 * 60 * 1000;
 
     // Determine inbound_ids

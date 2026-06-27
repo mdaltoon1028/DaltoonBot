@@ -81,6 +81,63 @@ export default function ServerManagement({
   const [showInbounds, setShowInbounds] = useState(false);
   const [inboundsSuccess, setInboundsSuccess] = useState(false);
 
+  // Free test local states to allow smooth typing/backspacing and saving via button
+  const [localFreeTestGb, setLocalFreeTestGb] = useState<string>(
+    settings.freeTestGb !== undefined ? String(settings.freeTestGb) : "0.1"
+  );
+  const [localFreeTestDays, setLocalFreeTestDays] = useState<string>(
+    settings.freeTestDays !== undefined ? String(settings.freeTestDays) : "1"
+  );
+  const [localFreeTestDisabledMessage, setLocalFreeTestDisabledMessage] = useState<string>(
+    settings.freeTestDisabledMessage || ""
+  );
+  const [localFreeTestServerId, setLocalFreeTestServerId] = useState<string>(
+    settings.freeTestServerId || ""
+  );
+  const [localIsFreeTestActive, setLocalIsFreeTestActive] = useState<boolean>(
+    settings.isFreeTestActive !== false
+  );
+  const [freeTestSuccess, setFreeTestSuccess] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      if (settings.freeTestGb !== undefined) {
+        setLocalFreeTestGb(String(settings.freeTestGb));
+      }
+      if (settings.freeTestDisabledMessage !== undefined) {
+        setLocalFreeTestDisabledMessage(settings.freeTestDisabledMessage);
+      }
+      if (settings.freeTestServerId !== undefined) {
+        setLocalFreeTestServerId(settings.freeTestServerId);
+      } else {
+        setLocalFreeTestServerId("");
+      }
+      setLocalIsFreeTestActive(settings.isFreeTestActive !== false);
+    }
+  }, [settings.freeTestGb, settings.freeTestDisabledMessage, settings.freeTestServerId, settings.isFreeTestActive]);
+
+  // Handle durationDays specifically so that when settings.freeTestDays updates externally we can reflect it but not overwrite active typing
+  useEffect(() => {
+    if (settings && settings.freeTestDays !== undefined) {
+      setLocalFreeTestDays(String(settings.freeTestDays));
+    }
+  }, [settings.freeTestDays]);
+
+  const handleSaveFreeTestSettings = () => {
+    onSaveSettings({
+      ...settings,
+      freeTestGb: localFreeTestGb === "" ? 0.1 : parseFloat(localFreeTestGb) || 0.1,
+      freeTestDays: localFreeTestDays === "" ? 1 : parseFloat(localFreeTestDays) || 1,
+      freeTestDisabledMessage: localFreeTestDisabledMessage,
+      freeTestServerId: localFreeTestServerId || undefined,
+      isFreeTestActive: localIsFreeTestActive
+    });
+    setFreeTestSuccess(true);
+    setTimeout(() => {
+      setFreeTestSuccess(false);
+    }, 3000);
+  };
+
   const [pricingBoxes, setPricingBoxes] = useState<CustomPricingBox[]>(() => {
     return Array.isArray(settings.customPricingBoxes) ? settings.customPricingBoxes : [];
   });
@@ -141,17 +198,29 @@ export default function ServerManagement({
 
   const handleCloseAndSaveBox = (id: string) => {
     setEditingBoxIds(prev => prev.filter(x => x !== id));
+    const sanitizedBoxes = pricingBoxes.map(b => ({
+      ...b,
+      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 1 : Number(b.minGb),
+      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 1 : Number(b.minDays)
+    }));
+    setPricingBoxes(sanitizedBoxes);
     onSaveSettings({
       ...settings,
-      customPricingBoxes: pricingBoxes
+      customPricingBoxes: sanitizedBoxes
     });
   };
 
   const handleSavePricingSettings = () => {
     setEditingBoxIds([]);
+    const sanitizedBoxes = pricingBoxes.map(b => ({
+      ...b,
+      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 1 : Number(b.minGb),
+      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 1 : Number(b.minDays)
+    }));
+    setPricingBoxes(sanitizedBoxes);
     onSaveSettings({
       ...settings,
-      customPricingBoxes: pricingBoxes
+      customPricingBoxes: sanitizedBoxes
     });
   };
 
@@ -379,12 +448,9 @@ export default function ServerManagement({
               {lang === "fa" ? "انتخاب سرور تست رایگان" : "Select Free Test Server"}
             </label>
             <select
-              value={settings.freeTestServerId || ""}
+              value={localFreeTestServerId}
               onChange={(e) => {
-                onSaveSettings({
-                  ...settings,
-                  freeTestServerId: e.target.value || undefined
-                });
+                setLocalFreeTestServerId(e.target.value);
               }}
               className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none cursor-pointer"
             >
@@ -407,18 +473,15 @@ export default function ServerManagement({
               <button
                 type="button"
                 onClick={() => {
-                  onSaveSettings({
-                    ...settings,
-                    isFreeTestActive: settings.isFreeTestActive !== false ? false : true
-                  });
+                  setLocalIsFreeTestActive(!localIsFreeTestActive);
                 }}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer ${
-                  settings.isFreeTestActive !== false
+                  localIsFreeTestActive
                     ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                     : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
                 }`}
               >
-                {settings.isFreeTestActive !== false
+                {localIsFreeTestActive
                   ? (lang === "fa" ? "✅ فعال" : "✅ Enabled")
                   : (lang === "fa" ? "❌ غیرفعال" : "❌ Disabled")}
               </button>
@@ -432,12 +495,9 @@ export default function ServerManagement({
           </label>
           <input
             type="text"
-            value={settings.freeTestDisabledMessage || ""}
+            value={localFreeTestDisabledMessage}
             onChange={(e) => {
-              onSaveSettings({
-                ...settings,
-                freeTestDisabledMessage: e.target.value
-              });
+              setLocalFreeTestDisabledMessage(e.target.value);
             }}
             placeholder={lang === "fa" ? "مثلا: اکانت تست رایگان فعلا موجود نیست." : "e.g., Free test accounts are temporarily unavailable."}
             className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
@@ -451,13 +511,9 @@ export default function ServerManagement({
             </label>
             <input
               type="text"
-              value={settings.freeTestGb !== undefined ? settings.freeTestGb : "0.1"}
+              value={localFreeTestGb}
               onChange={(e) => {
-                const val = e.target.value;
-                onSaveSettings({
-                  ...settings,
-                  freeTestGb: val === "" ? undefined : parseFloat(val) || 0
-                });
+                setLocalFreeTestGb(e.target.value);
               }}
               placeholder="e.g. 0.1"
               className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold font-mono"
@@ -469,20 +525,34 @@ export default function ServerManagement({
               {lang === "fa" ? "مدت زمان تست (روز)" : "Free Test Duration (Days)"}
             </label>
             <input
-              type="number"
-              step="any"
-              value={settings.freeTestDays !== undefined ? settings.freeTestDays : 1}
+              type="text"
+              value={localFreeTestDays}
               onChange={(e) => {
-                const val = e.target.value;
-                onSaveSettings({
-                  ...settings,
-                  freeTestDays: val === "" ? undefined : parseFloat(val) || 0
-                });
+                setLocalFreeTestDays(e.target.value);
               }}
               placeholder="e.g. 1"
               className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold font-mono"
             />
           </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-gray-800/60 pt-4 mt-2">
+          {freeTestSuccess ? (
+            <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 animate-pulse">
+              <Check className="w-4 h-4" />
+              {lang === "fa" ? "تنظیمات تست رایگان با موفقیت ذخیره شد!" : "Free test settings saved successfully!"}
+            </span>
+          ) : (
+            <div></div>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveFreeTestSettings}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer shadow-md"
+          >
+            <Save className="w-4 h-4" />
+            <span>{lang === "fa" ? "ذخیره تنظیمات تست رایگان" : "Save Free Test Settings"}</span>
+          </button>
         </div>
       </div>
 
@@ -635,8 +705,8 @@ export default function ServerManagement({
                           </label>
                           <input
                             type="number"
-                            value={box.minGb !== undefined ? box.minGb : 1}
-                            onChange={(e) => handleUpdateBoxField(box.id, "minGb", e.target.value === "" ? 1 : parseInt(e.target.value) || 1)}
+                            value={box.minGb !== undefined && box.minGb !== null ? box.minGb : ""}
+                            onChange={(e) => handleUpdateBoxField(box.id, "minGb", e.target.value === "" ? "" : parseInt(e.target.value))}
                             className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
                             placeholder="1"
                           />
@@ -647,8 +717,8 @@ export default function ServerManagement({
                           </label>
                           <input
                             type="number"
-                            value={box.minDays !== undefined ? box.minDays : 1}
-                            onChange={(e) => handleUpdateBoxField(box.id, "minDays", e.target.value === "" ? 1 : parseInt(e.target.value) || 1)}
+                            value={box.minDays !== undefined && box.minDays !== null ? box.minDays : ""}
+                            onChange={(e) => handleUpdateBoxField(box.id, "minDays", e.target.value === "" ? "" : parseInt(e.target.value))}
                             className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
                             placeholder="1"
                           />
