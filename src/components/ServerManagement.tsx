@@ -391,8 +391,8 @@ export default function ServerManagement({
                     </label>
                     <input
                       type="number"
-                      value={box.pricePerGb}
-                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerGb", parseInt(e.target.value) || 0)}
+                      value={box.pricePerGb || ""}
+                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerGb", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
                       className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
                       placeholder="3000"
                     />
@@ -403,8 +403,8 @@ export default function ServerManagement({
                     </label>
                     <input
                       type="number"
-                      value={box.pricePerDay}
-                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerDay", parseInt(e.target.value) || 0)}
+                      value={box.pricePerDay || ""}
+                      onChange={(e) => handleUpdateBoxField(box.id, "pricePerDay", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
                       className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-amber-500 outline-none font-mono"
                       placeholder="2000"
                     />

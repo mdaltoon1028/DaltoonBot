@@ -513,12 +513,12 @@ export default function BotSimulator({
             `💵 قیمت هر روز: ${priceDay.toLocaleString()} تومان\n` +
             `──────────────────\n` +
             `💰 <b>جمع کل هزینه تمدید: ${totalPrice.toLocaleString()} تومان</b>\n\n` +
-            `⚠️ هزینه تمدید مستقیماً از موجودی کیف پول شما کسر خواهد شد.`
+            `👇 لطفا یکی از روش‌های پرداخت زیر را جهت تمدید فوری انتخاب نمایید:`
           : `🔄 <b>Renewal Pre-Invoice</b>\n\n` +
             `👤 Service: <code>${sub.clientName || sub.planName}</code>\n` +
             `➕ Extra Volume: <b>${renewGbVal} GB</b>\n` +
             `➕ Extra Duration: <b>${days} Days</b>\n\n` +
-            `💰 <b>Total Price: ${totalPrice.toLocaleString()} Toman</b>`;
+            `💰 <b>Total Price: ${totalPrice.toLocaleString()} Toman</b>\n\nPlease select your payment method below:`;
 
         addBotReply(
           invoiceText,
@@ -526,7 +526,10 @@ export default function BotSimulator({
           undefined,
           [
             [
-              { text: lang === "fa" ? "✅ تایید و کسر از کیف پول" : "✅ Confirm & Deduct", action: `confirm_renew_cust_val:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` },
+              { text: lang === "fa" ? "✅ پرداخت از کیف پول" : "✅ Pay from Wallet", action: `confirm_renew_cust_val:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` },
+              { text: lang === "fa" ? "💳 کارت به کارت مستقیم" : "💳 Card-to-Card Pay", action: `renew_direct_card:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` }
+            ],
+            [
               { text: lang === "fa" ? "❌ لغو" : "❌ Cancel", action: `manage_sub_${renewingSubId}` }
             ]
           ]
@@ -1421,6 +1424,80 @@ export default function BotSimulator({
       return;
     }
 
+    if (action.startsWith("renew_direct_card:")) {
+      const parts = action.split(":");
+      const subId = parts[1];
+      const gb = parseInt(parts[2]);
+      const days = parseInt(parts[3]);
+      const price = parseInt(parts[4]);
+
+      const sub = simulatedKeys.find(k => k.id === subId);
+      if (!sub) {
+        addBotReply("❌ خطا: اشتراک یافت نشد.", 500, getKeyboard());
+        return;
+      }
+
+      const cardNo = settings?.cardNumber || "۶۲۷۳-۸۱۱۰-۱۲۳۴-۵۶۷۸";
+      const cardName = settings?.cardHolder || "مدیریت دالتون";
+
+      const msgText = lang === "fa"
+        ? `💳 <b>فاکتور کارت‌به‌کارت مستقیم جهت تمدید اشتراک:</b>\n\n` +
+          `👤 نام کاربری سرویس: <code>${sub.clientName || sub.planName}</code>\n` +
+          `➕ حجم ترافیک اضافی: <b>${gb} گیگابایت</b>\n` +
+          `➕ مدت زمان تمدید: <b>${days} روز</b>\n\n` +
+          `💰 <b>مبلغ قابل پرداخت: ${price.toLocaleString()} تومان</b>\n\n` +
+          `──────────────────\n` +
+          `📌 <b>مشخصات حساب بانکی جهت واریز:</b>\n` +
+          `💳 شماره کارت: <code>${cardNo}</code>\n` +
+          `👤 نام صاحب حساب: <b>${cardName}</b>\n\n` +
+          `👇 پس از انجام کارت‌به‌کارت، روی دکمه زیر ضربه بزنید و تصویر فیش واریز را بارگذاری نمایید تا تمدید توسط ادمین تأیید شود:`
+        : `💳 <b>Direct Card-to-Card Invoice for Renewal:</b>\n\n` +
+          `👤 Service: <code>${sub.clientName || sub.planName}</code>\n` +
+          `➕ Extra Volume: <b>${gb} GB</b>\n` +
+          `➕ Extra Duration: <b>${days} Days</b>\n\n` +
+          `💰 <b>Amount Due: ${price.toLocaleString()} Toman</b>\n\n` +
+          `──────────────────\n` +
+          `📌 <b>Bank Details:</b>\n` +
+          `💳 Card: <code>${cardNo}</code>\n` +
+          `👤 Owner: <b>${cardName}</b>\n\n` +
+          `👇 After making the payment, click below to upload your transaction slip:`;
+
+      addBotReply(
+        msgText,
+        500,
+        undefined,
+        [
+          [
+            { text: lang === "fa" ? "📸 ارسال فیش واریز" : "📸 Send Receipt", action: `renew_manual_slip:${subId}:${gb}:${days}:${price}` }
+          ],
+          [
+            { text: lang === "fa" ? "🔙 برگشت" : "🔙 Back", action: `manage_sub_${subId}` }
+          ]
+        ]
+      );
+      return;
+    }
+
+    if (action.startsWith("renew_manual_slip:")) {
+      const parts = action.split(":");
+      const subId = parts[1];
+      const gb = parts[2];
+      const days = parts[3];
+      const price = parts[4];
+
+      const sub = simulatedKeys.find(k => k.id === subId);
+      const subName = sub ? (sub.clientName || sub.planName) : subId;
+
+      setInvoiceAmount(price);
+      setInvoiceDesc(
+        lang === "fa"
+          ? `تمدید مستقیم ساب ${subName} (${gb}گیگابایت - ${days}روز)`
+          : `Direct Renewal for sub ${subName} (${gb}GB - ${days}days)`
+      );
+      setShowInvoiceUpload(true);
+      return;
+    }
+
     if (action.startsWith("confirm_renew_cust_val:")) {
       const parts = action.split(":");
       const subId = parts[1];
@@ -1448,26 +1525,52 @@ export default function BotSimulator({
           return;
         }
 
-        setSimulatedUsers(prev => prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: newBal } : u));
-        setSimulatedKeys(prev => prev.map(k => {
-          if (k.id === subId) {
-            // Compute new expireDate
-            let currentExp = new Date(k.expireDate);
-            if (isNaN(currentExp.getTime()) || currentExp < new Date()) {
-              currentExp = new Date();
+        setSimulatedUsers(prev => {
+          const next = prev.map(u => u.userId === currentUser.userId ? { ...u, walletBalance: newBal } : u);
+          if (setUsers) setUsers(next);
+          return next;
+        });
+
+        setSimulatedKeys(prev => {
+          const next = prev.map(k => {
+            if (k.id === subId) {
+              let currentExp = new Date(k.expireDate);
+              if (isNaN(currentExp.getTime()) || currentExp < new Date()) {
+                currentExp = new Date();
+              }
+              currentExp.setDate(currentExp.getDate() + days);
+              const nextExpireDate = currentExp.toISOString().split("T")[0];
+              const nextTrafficLimitGb = (k.trafficLimitGb || 0) + gb;
+              return {
+                ...k,
+                expireDate: nextExpireDate,
+                trafficLimitGb: nextTrafficLimitGb,
+                status: "active" as const
+              };
             }
-            currentExp.setDate(currentExp.getDate() + days);
-            const nextExpireDate = currentExp.toISOString().split("T")[0];
-            const nextTrafficLimitGb = (k.trafficLimitGb || 0) + gb;
-            return {
-              ...k,
-              expireDate: nextExpireDate,
-              trafficLimitGb: nextTrafficLimitGb,
-              status: "active" as const
-            };
-          }
-          return k;
-        }));
+            return k;
+          });
+          if (setKeys) setKeys(next);
+          return next;
+        });
+
+        if (updateUserBalance && finalPrice > 0) {
+          updateUserBalance(currentUser.userId, -finalPrice);
+        }
+
+        // Hit actual persistent API endpoint to renew X-UI connection in real-time
+        fetch("/api/subscription-keys/renew", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: subId, addGb: gb, addDays: days })
+        }).then(res => res.json())
+          .then(data => {
+            if (data.success && data.key) {
+              if (setKeys) {
+                setKeys(prev => prev.map(k => k.id === subId ? data.key : k));
+              }
+            }
+          }).catch(err => console.warn("Failed syncing bot renewal to X-UI panel:", err));
 
         setIsTyping(true);
         setTimeout(() => {

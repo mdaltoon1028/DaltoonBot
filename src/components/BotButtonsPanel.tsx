@@ -1650,9 +1650,9 @@ export default function BotButtonsPanel({
                   <input
                     type="number"
                     className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium font-mono"
-                    value={amt}
+                    value={amt || ""}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
+                      const val = e.target.value === "" ? 0 : parseInt(e.target.value) || 0;
                       const copy = [...tempChargeAmounts];
                       copy[idx] = val;
                       setTempChargeAmounts(copy);
