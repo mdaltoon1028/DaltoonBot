@@ -4839,7 +4839,11 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
       });
     }
 
-    fs.writeFileSync(dbJsonPath, JSON.stringify(parsed, null, 2), "utf8");
+    const writeSuccess = writeJsonDb(parsed);
+    
+    if (!writeSuccess) {
+      return res.status(500).json({ success: false, error: "خطا در ذخیره بکاپ به دلیل مشکلات سیستمی (Safeguard). فایل ممکن است نامعتبر باشد." });
+    }
 
     // Attempt dynamic python bot restart to apply configurations immediately
     startPythonBot();

@@ -2887,9 +2887,7 @@ def handle_main_menu_callback(call):
         if user_idx >= 0:
             users[user_idx]["hasReceivedFreeTest"] = True
             db["users"] = users
-            import json
-            with open("Daltoon_Bot.json", "w", encoding="utf-8") as f:
-                json.dump(db, f, ensure_ascii=False, indent=2)
+            save_json_db(db)
                 
         import time
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 1 * 24 * 60 * 60))

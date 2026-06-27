@@ -10,4 +10,5 @@ services:
     environment:
       - NODE_ENV=production
     volumes:
+      - ./Daltoon_Bot.json:/app/Daltoon_Bot.json
       - ./database.json:/app/database.json
