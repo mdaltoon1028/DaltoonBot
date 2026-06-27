@@ -2176,6 +2176,39 @@ def get_cancel_keyboard():
     markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
     return markup
 
+def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, price, sub_id):
+    try:
+        db = read_db_json()
+        user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
+        username_val = user.get("username", "N/A") if user else "N/A"
+        
+        price_display = f"{int(price):,} تومان" if price > 0 else "رایگان / تست"
+        
+        admin_msg = (
+            f"🔔 <b>{purchase_type_title}:</b>\n\n"
+            f"👤 کاربر: @{username_val} (<code>{tg_id}</code>)\n"
+            f"📊 طرح: {plan_details_str}\n"
+            f"💰 مبلغ: {price_display}\n"
+            f"🆔 اشتراک: {sub_id}"
+        )
+        
+        cfg = get_config()
+        targets = set()
+        owner_id = cfg.get("OWNER_ID")
+        if owner_id and owner_id > 0:
+            targets.add(owner_id)
+        for adm_id in cfg.get("ADMINS", []):
+            if adm_id and adm_id > 0:
+                targets.add(adm_id)
+                
+        for target_id in targets:
+            try:
+                bot.send_message(target_id, admin_msg, parse_mode="HTML")
+            except Exception as ex:
+                print(f"[Admin Notify Warning] {ex}")
+    except Exception as e:
+        print(f"[notify_admins_of_purchase Error] {e}")
+
 def get_main_reply_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     markup.add(types.KeyboardButton("🔙 بازگشت به منوی اصلی"))
@@ -3015,6 +3048,8 @@ def handle_main_menu_callback(call):
             server_id=active_server_id
         )
         
+        notify_admins_of_purchase(tg_id, "اکانت تست رایگان جدید", f"{free_gb_str} / {free_days_str}", 0, sub_id)
+        
         cfg_settings = get_config()
         success_note = cfg_settings.get("PURCHASE_SUCCESS_NOTE", "").strip()
         note_attach = cfg_settings.get("PURCHASE_SUCCESS_ATTACHMENT", None)
@@ -3354,6 +3389,9 @@ def handle_buy_pay(call):
             client_uuid=client_uuid,
             server_id=spec.get("server_id")
         )
+        
+        notify_admins_of_purchase(tg_id, "خرید اشتراک جدید (کیف پول)", f"{spec['name']} ({spec['traffic']}GB / {spec['duration']} روز)", spec['price'], sub_id)
+        
         clear_user_pending_purchase(tg_id)
         
         cfg_settings = get_config()
@@ -3887,7 +3925,7 @@ def callback_handler(call):
         return
 
     # My Subscriptions Handlers
-    if call.data.startswith("mysub_"):
+    if call.data.startswith("mysub_") and not call.data.startswith("mysub_renewcustconfirm:"):
         bot.answer_callback_query(call.id)
         parts = call.data.split("_", 2)
         if len(parts) < 3:
@@ -4311,6 +4349,8 @@ def callback_handler(call):
                     k['subLink'] = sub_link
                     
                 write_db_json(db)
+                
+                notify_admins_of_purchase(tg_id, "تمدید اشتراک (کیف پول)", f"طرح: {spec['name']} ({spec['traffic']}GB / {spec['duration']} روز) برای سرویس {client_name}", spec['price'], target_sub_id)
                 
                 log_action(
                     tg_id,
@@ -5505,6 +5545,8 @@ def callback_handler(call):
                 k['subLink'] = sub_link
                 
             write_db_json(db)
+            
+            notify_admins_of_purchase(tg_id, "تمدید اشتراک دلخواه (کیف پول)", f"افزودن: {gb}GB / {days} روز برای سرویس {client_name}", price, target_sub_id)
             
             success_text = (
                 f"🎉 <b>اشتراک شما با موفقیت تمدید شد!</b>\n\n"
@@ -7403,7 +7445,8 @@ def handle_receipt_upload(message):
                         f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
                         f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
                         f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
-                        f"🆔 شناسه: <code>{tx_id}</code>\n\n"
+                        f"🆔 شناسه: <code>{tx_id}</code>\n"
+                        f"📝 جزئیات تراکنش: {tx_description}\n\n"
                         f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت {nickname} سرور مراجعه کنید."
                     )
                     bot.send_message(target_id, admin_msg, parse_mode="HTML")
@@ -7479,13 +7522,15 @@ def process_colleague_change_password_pass(message, acc_id, new_user):
 def get_custom_pricing_limits(server_id):
     db = read_db_json()
     settings_data = db.get("settings", {})
-    import json
-    try:
-        panel_config = json.loads(settings_data.get("panel_config", "{}"))
-    except:
-        panel_config = {}
-    
-    custom_pricing = panel_config.get("customPricingBoxes", [])
+    custom_pricing = settings_data.get("customPricingBoxes")
+    if not custom_pricing:
+        import json
+        try:
+            panel_config = json.loads(settings_data.get("panel_config", "{}"))
+            custom_pricing = panel_config.get("customPricingBoxes", [])
+        except:
+            custom_pricing = []
+            
     min_gb = 1
     min_days = 1
     
@@ -7606,14 +7651,16 @@ def process_custom_vol_days(message, server_id, username_input, gb):
     except Exception:
         panel_config = {}
         
-    custom_pricing = panel_config.get("customPricingBoxes", [])
+    custom_pricing = settings_data.get("customPricingBoxes")
+    if not custom_pricing:
+        custom_pricing = panel_config.get("customPricingBoxes", [])
     
     price_gb = 3000
     price_day = 2000
     
     if isinstance(custom_pricing, list):
         for box in custom_pricing:
-            if isinstance(box, dict) and server_id in box.get("serverIds", []):
+            if isinstance(box, dict) and str(server_id) in [str(sid) for sid in box.get("serverIds", [])]:
                 try:
                     price_gb = int(box.get("pricePerGb", 3000))
                     price_day = int(box.get("pricePerDay", 2000))
@@ -7747,14 +7794,16 @@ def process_renew_days(message, target_sub_id, gb):
     except Exception:
         panel_config = {}
         
-    custom_pricing = panel_config.get("customPricingBoxes", [])
+    custom_pricing = settings_data.get("customPricingBoxes")
+    if not custom_pricing:
+        custom_pricing = panel_config.get("customPricingBoxes", [])
     
     price_gb = 3000
     price_day = 2000
     
     if isinstance(custom_pricing, list):
         for box in custom_pricing:
-            if isinstance(box, dict) and server_id in box.get("serverIds", []):
+            if isinstance(box, dict) and str(server_id) in [str(sid) for sid in box.get("serverIds", [])]:
                 try:
                     price_gb = int(box.get("pricePerGb", 3000))
                     price_day = int(box.get("pricePerDay", 2000))
