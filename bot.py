@@ -7236,6 +7236,7 @@ def process_custom_vol_gb(message, server_id, username_input):
     bot.register_next_step_handler(msg, process_custom_vol_days, server_id, username_input, gb)
 
 def process_custom_vol_days(message, server_id, username_input, gb):
+    tg_id = message.from_user.id
     text = message.text.strip() if message.text else ""
     if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
         main_menu_message(message)
@@ -7256,6 +7257,11 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         bot.register_next_step_handler(msg, process_custom_vol_days, server_id, username_input, gb)
         return
         
+    try:
+        gb = int(gb)
+    except:
+        gb = 0
+
     cfg = get_config()
     db = read_db_json()
     settings_data = db.get("settings", {})
@@ -7275,16 +7281,24 @@ def process_custom_vol_days(message, server_id, username_input, gb):
     if isinstance(custom_pricing, list):
         for box in custom_pricing:
             if isinstance(box, dict) and server_id in box.get("serverIds", []):
-                price_gb = box.get("pricePerGb", 3000)
-                price_day = box.get("pricePerDay", 2000)
+                try:
+                    price_gb = int(box.get("pricePerGb", 3000))
+                    price_day = int(box.get("pricePerDay", 2000))
+                except:
+                    price_gb = 3000
+                    price_day = 2000
                 break
                 
-    total_price = (gb * price_gb) + (days * price_day)
+    try:
+        total_price = (gb * price_gb) + (days * price_day)
+    except Exception as e:
+        print(f"Error calculating price: {e}")
+        total_price = 0
     
     server_name = "سرور انتخابی"
     servers = panel_config.get("servers", [])
     for s in servers:
-        if str(s.get("id")) == server_id:
+        if str(s.get("id")) == str(server_id):
             server_name = s.get("name")
             break
             
@@ -7294,10 +7308,10 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         f"👤 نام کاربری: <code>{username_input}</code>\n"
         f"🔻 حجم درخواستی: <b>{gb} گیگابایت</b>\n"
         f"⏳ مدت زمان: <b>{days} روز</b>\n\n"
-        f"💵 هزینه هر گیگابایت: {price_gb:,} تومان\n"
-        f"💵 هزینه هر روز: {price_day:,} تومان\n"
+        f"💵 هزینه هر گیگابایت: {int(price_gb):,} تومان\n"
+        f"💵 هزینه هر روز: {int(price_day):,} تومان\n"
         "──────────────────\n"
-        f"💰 <b>جمع کل: {total_price:,} تومان</b>\n\n"
+        f"💰 <b>جمع کل: {int(total_price):,} تومان</b>\n\n"
         "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
     )
     
@@ -7396,21 +7410,29 @@ def process_renew_days(message, target_sub_id, gb):
     if isinstance(custom_pricing, list):
         for box in custom_pricing:
             if isinstance(box, dict) and server_id in box.get("serverIds", []):
-                price_gb = box.get("pricePerGb", 3000)
-                price_day = box.get("pricePerDay", 2000)
+                try:
+                    price_gb = int(box.get("pricePerGb", 3000))
+                    price_day = int(box.get("pricePerDay", 2000))
+                except:
+                    price_gb = 3000
+                    price_day = 2000
                 break
                 
-    total_price = (gb * price_gb) + (days * price_day)
+    try:
+        total_price = (gb * price_gb) + (days * price_day)
+    except Exception as e:
+        print(f"Error calculating renewal price: {e}")
+        total_price = 0
     
     invoice_text = (
         "🔄 <b>پیش‌فاکتور تمدید و ارتقای اشتراک</b>\n\n"
         f"👤 نام کاربری سرویس: <code>{k.get('clientName')}</code>\n"
         f"➕ حجم ترافیک اضافی: <b>{gb} گیگابایت</b>\n"
         f"➕ مدت زمان تمدید: <b>{days} روز</b>\n\n"
-        f"💵 قیمت هر گیگابایت: {price_gb:,} تومان\n"
-        f"💵 قیمت هر روز: {price_day:,} تومان\n"
+        f"💵 قیمت هر گیگابایت: {int(price_gb):,} تومان\n"
+        f"💵 قیمت هر روز: {int(price_day):,} تومان\n"
         "──────────────────\n"
-        f"💰 <b>جمع کل هزینه تمدید: {total_price:,} تومان</b>\n\n"
+        f"💰 <b>جمع کل هزینه تمدید: {int(total_price):,} تومان</b>\n\n"
         "⚠️ هزینه تمدید مستقیماً از موجودی کیف پول شما کسر خواهد شد."
     )
     
