@@ -3033,6 +3033,11 @@ def handle_buy_pay(call):
     
     tg_id = call.from_user.id
     cfg = get_config()
+    
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
+
     db = read_db_json()
     db_plans = db.get("vpn_plans", [])
     db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
@@ -3083,7 +3088,12 @@ def handle_buy_pay(call):
             spec["price"] = max(0, spec["price"] - discount_amount)
             spec["applied_promo"] = promo_code
 
-    if method == "card":
+        if is_privileged:
+            bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
+            call.data = f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"
+            handle_buy_pay(call)
+            return
+
         bot.answer_callback_query(call.id)
         text_response = (
             f"🛒 <b>خرید اشتراک (کارت به کارت)</b>\n"
@@ -3398,7 +3408,7 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
     is_privileged = is_owner or is_admin
     
     if is_privileged:
-        markup.add(types.InlineKeyboardButton("🎁 تایید مستقیم (ایجاد کانفیگ ادمین)", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
+        markup.add(types.InlineKeyboardButton("🎁 تایید مستقیم (رایگان برای ادمین)", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
     else:
         markup.add(types.InlineKeyboardButton("💳 پرداخت از موجودی کیف پول", callback_data=f"buy_pay:wallet:{plan_id}:{username_input}:{promo_code}"))
         markup.add(types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buy_pay:card:{plan_id}:{username_input}:{promo_code}"))
@@ -4482,10 +4492,21 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}"),
                 types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"colu_toggle_{acc_id}_{sub_id}")
             )
+            markup.row(types.InlineKeyboardButton("🚀 دریافت لینک‌های اتصال مستقیم", callback_data=f"colu_links_{acc_id}_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🔄 تغییر لینک (Reset)", callback_data=f"colu_resetuuid_{acc_id}_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
             
+        elif action == "links":
+            # show all VLESS links
+            vless_links = get_client_all_links(sub.get("clientName", "User"), sub.get("clientUuid"), sub.get("subLink"), server_id=sub.get("serverId"))
+            links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub.get('subLink')}</code>"
+            
+            text = f"🚀 <b>لینک‌های اتصال مستقیم برای {sub.get('clientName', 'نامشخص')}:</b>\n\n{links_text}"
+            markup = types.InlineKeyboardMarkup()
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"colu_view_{acc_id}_{sub_id}"))
+            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+
         elif action == "toggle":
             # Toggle logic
             new_status = "inactive" if sub.get("status", "active") == "active" else "active"
@@ -4534,10 +4555,11 @@ def callback_handler(call):
                 types.InlineKeyboardButton("🗑 حذف", callback_data=f"colu_delete_{acc_id}_{sub_id}"),
                 types.InlineKeyboardButton("⚡ فعال/غیرفعال", callback_data=f"colu_toggle_{acc_id}_{sub_id}")
             )
+            markup.row(types.InlineKeyboardButton("🚀 دریافت لینک‌های اتصال مستقیم", callback_data=f"colu_links_{acc_id}_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🔄 تغییر لینک (Reset)", callback_data=f"colu_resetuuid_{acc_id}_{sub_id}"))
             markup.row(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data=f"col_lusers_{acc_id}"))
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
-
+        
         elif action == "renew":
             # Just request how much additional traffic to assign (which deducts from their bulk) and extend days?
             # Or just redirect to process_col_renew_user (needs to be implemented)
@@ -4714,7 +4736,10 @@ def callback_handler(call):
             bot.edit_message_text("⏳ در حال ایجاد حساب و نهایی‌سازی... لطفاً کمی منتظر بمانید.", chat_id=call.message.chat.id, message_id=call.message.message_id)
             user = get_user_data(tg_id)
             bal = user.get("walletBalance", 0)
-            if not is_privileged and bal < package["price"]:
+            
+            if is_privileged:
+                bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین (رایگان)")
+            elif bal < package["price"]:
                 bot.send_message(tg_id, "❌ موجودی کیف پول شما برای این خرید کافی نیست.", reply_markup=get_custom_keyboard())
                 return
             
@@ -4725,6 +4750,8 @@ def callback_handler(call):
                     log_transaction(tg_id, package["price"], f"{action}_colleague_package", f"کسر شارژ برای بسته همکار", "out")
                     if package["price"] > 0:
                         process_referral_on_purchase(user, package["price"])
+                else:
+                    log_action(tg_id, user.get("username", str(tg_id)), f"{action}_colleague_admin", f"بسته همکار {package['title']} رایگان فعال شد.")
                 
                 finalize_colleague_purchase(tg_id, req, package, call.message)
             except Exception as e:
@@ -4732,6 +4759,12 @@ def callback_handler(call):
                 bot.send_message(tg_id, f"❌ خطای سیستمی در پردازش نهایی: {e}")
 
         elif method == "card":
+            if is_privileged:
+                bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
+                call.data = "col_pay:wallet"
+                handle_callback_query(call)
+                return
+
             # initiate card payment
             amount = package["price"]
             
@@ -4961,8 +4994,13 @@ def callback_handler(call):
         db = read_db_json()
         cfg = get_config()
 
-        if method == "card":
-            bot.answer_callback_query(call.id)
+        if is_privileged:
+            bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
+            call.data = f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{price}"
+            handle_callback_query(call) # Re-trigger with wallet method
+            return
+
+        bot.answer_callback_query(call.id)
             set_user_pending_purchase(tg_id, "custom_vol", username_input, server_id, gb, days, price)
             text_response = (
                 f"🛒 <b>خرید کانفیگ دلخواه (کارت به کارت)</b>\n"
@@ -6026,7 +6064,7 @@ def process_col_create_days(message, acc, name, gb):
         f"همکار کانفیگی با نام '{full_name}' ({gb} گیگ - {days} روز) ایجاد کرد."
     )
     
-    bot.send_message(message.chat.id, "✅ کانفیگ در پنل X-UI ایجاد شد.", reply_markup=get_custom_keyboard())
+    bot.send_message(message.chat.id, "✅ کانفیگ در پنل X-UI ایجاد شد.")
     
     cfg_settings = get_config()
     success_note = cfg_settings.get("PURCHASE_SUCCESS_NOTE", "").strip()
@@ -6045,19 +6083,18 @@ def process_col_create_days(message, acc, name, gb):
         f"👤 <b>نام:</b> {full_name}\n"
         f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
         f"⏳ <b>اعتبار:</b> {days} روز\n\n"
-        f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
+        f"🔗 <b>لینک سابسکریپشن (قابل کپی):</b>\n<code>{sub_link}</code>\n\n"
+        f"👇 جهت کپی کردن لینک‌های مستقیم، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
         f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
     )
     
-    # Build markup with copy button at the top, and append custom menu keys
+    # Build markup with copy button at the top
     markup = types.InlineKeyboardMarkup(row_width=2)
     add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
     
-    from_kbd = get_custom_keyboard()
-    if from_kbd and hasattr(from_kbd, 'keyboard'):
-        for row in from_kbd.keyboard:
-            markup.keyboard.append(row)
-            
+    # Do NOT append custom menu keys here as this is colleague flow
+    # markup.add(types.InlineKeyboardButton("🔙 بازگشت به پنل همکار", callback_data=f"col_panel_{live_acc['id']}"))
+    
     try:
         import urllib.parse
         qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
@@ -6451,7 +6488,7 @@ def process_colleague_login_password(message, acc):
                 break
         write_db_json(db)
 
-    bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود.", reply_markup=get_custom_keyboard())
+    bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود.", reply_markup=types.ReplyKeyboardRemove())
     show_colleague_panel_msg(message, acc)
     return
 
@@ -6882,33 +6919,40 @@ def handle_master_media_upload(message):
     is_owner = bool(int(tg_id) == int(cfg.get("OWNER_ID", 0)))
     is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
     
-    # If the user is an admin or owner, solve their request by giving them the File ID instantly!
+    # If the user is an admin or owner, check if they have a pending purchase/charge
+    # If they are NOT in a purchase flow, give them the File ID instantly!
     if is_owner or is_admin:
-        file_id = None
-        media_type = "نامشخص"
-        if message.content_type == 'photo':
-            file_id = message.photo[-1].file_id
-            media_type = "تصویر (Photo)"
-        elif message.content_type == 'video':
-            file_id = message.video.file_id
-            media_type = "ویدیو (Video)"
-        elif message.content_type == 'animation':
-            file_id = message.animation.file_id
-            media_type = "انیمیشن/GIF (Animation)"
-        elif message.content_type == 'document':
-            file_id = message.document.file_id
-            media_type = "سند (Document)"
-            
-        if file_id:
-            reply_txt = (
-                f"🔑 <b>مکانیزم استخراج شناسه رسانه ربات دالتون</b>\n\n"
-                f"📂 نوع فایل ارسالی: <b>{media_type}</b>\n"
-                f"📌 شناسه فایل (File ID):\n"
-                f"<code>{file_id}</code>\n\n"
-                f"💡 <i>ادمین گرامی، می‌توانید با کپی کردن شناسه بالا، آن را در پنل وب مدیریت در کادر کلاینت مربوطه بگذارید تا کاربرانتان آموزشها را ویدیویی دریافت کنند!</i>"
-            )
-            bot.reply_to(message, reply_txt, parse_mode="HTML")
-            return
+        p_plan, _, _, _, _, _ = get_user_pending_purchase(tg_id)
+        db_p = read_db_json()
+        user_p = next((u for u in db_p.get("users", []) if u["userId"] == tg_id), None)
+        has_pending_charge = user_p.get("pendingChargeAmount") if user_p else None
+        
+        if not p_plan and not has_pending_charge:
+            file_id = None
+            media_type = "نامشخص"
+            if message.content_type == 'photo':
+                file_id = message.photo[-1].file_id
+                media_type = "تصویر (Photo)"
+            elif message.content_type == 'video':
+                file_id = message.video.file_id
+                media_type = "ویدیو (Video)"
+            elif message.content_type == 'animation':
+                file_id = message.animation.file_id
+                media_type = "انیمیشن/GIF (Animation)"
+            elif message.content_type == 'document':
+                file_id = message.document.file_id
+                media_type = "سند (Document)"
+                
+            if file_id:
+                reply_txt = (
+                    f"🔑 <b>مکانیزم استخراج شناسه رسانه ربات دالتون</b>\n\n"
+                    f"📂 نوع فایل ارسالی: <b>{media_type}</b>\n"
+                    f"📌 شناسه فایل (File ID):\n"
+                    f"<code>{file_id}</code>\n\n"
+                    f"💡 <i>ادمین گرامی، می‌توانید با کپی کردن شناسه بالا، آن را در پنل وب مدیریت در کادر کلاینت مربوطه بگذارید تا کاربرانتان آموزشها را ویدیویی دریافت کنند!</i>"
+                )
+                bot.reply_to(message, reply_txt, parse_mode="HTML")
+                return
 
     # Non-admins flow
     if message.content_type in ['photo', 'document']:
@@ -7254,13 +7298,22 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
     )
     
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
+
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("💰 پرداخت از موجودی کیف پول", callback_data=f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
-        types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buycust_pay:card:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
-        types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"buycust_pay:stars:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
-        types.InlineKeyboardButton("❌ لغو و بازگشت", callback_data=f"srvsel_{server_id}")
-    )
+    if is_privileged:
+        markup.add(
+            types.InlineKeyboardButton("🎁 تایید مستقیم (رایگان برای ادمین)", callback_data=f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+        )
+    else:
+        markup.add(
+            types.InlineKeyboardButton("💰 پرداخت از موجودی کیف پول", callback_data=f"buycust_pay:wallet:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+            types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"buycust_pay:card:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+            types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"buycust_pay:stars:{server_id}:{username_input}:{gb}:{days}:{total_price}"),
+        )
+    markup.add(types.InlineKeyboardButton("❌ لغو و بازگشت", callback_data=f"srvsel_{server_id}"))
     
     bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
 
