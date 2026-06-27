@@ -584,11 +584,11 @@ export default function App() {
         !settings.botToken ||
         settings.botToken.trim() === "" ||
         settings.botToken === "DUMMY_TOKEN" ||
-        !settings.botNickname ||
-        settings.botNickname.trim() === "" ||
-        settings.botNickname === "Daltoon" ||
         !settings.ownerId ||
         Number(settings.ownerId) === 0;
+
+      // Only force setup if critical config (Token/Owner) is missing OR if it's explicitly a new install
+      // If we have a token but missing nickname, we don't block the whole dashboard anymore.
       if (!isDemoEnv && (isMissingConfig || isNewInstall === true)) {
         setShowSetupModal(true);
       }

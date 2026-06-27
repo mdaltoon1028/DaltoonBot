@@ -178,8 +178,8 @@ interface DbSchema {
 function readJsonDb(): DbSchema {
   try {
     if (!fs.existsSync(dbJsonPath)) {
-      console.log(
-        "[Database] JSON database not found. Seeding initial templates...",
+      console.warn(
+        `[Database] JSON database not found at ${dbJsonPath}. Returning default structure but NOT writing to disk yet to avoid accidental wipes.`,
       );
       const defaultDb: DbSchema = {
         users: [],
@@ -197,66 +197,24 @@ function readJsonDb(): DbSchema {
         plan_categories: [],
         settings: {
           panel_config: JSON.stringify({
-            botToken: process.env.BOT_TOKEN || "",
-            botNickname: "",
-            baseUrl: "",
-            panelUrl: "",
-            panelUsername: "",
-            panelPassword: "",
-            activeInboundIds: [],
+            botToken: process.env.BOT_TOKEN || "DUMMY_TOKEN",
+            botNickname: "Daltoon",
             ownerId: process.env.OWNER_ID ? Number(process.env.OWNER_ID) : 0,
             cardNumber: process.env.CARD_NUMBER || "",
             cardHolder: process.env.CARD_HOLDER || "",
-            bankName: "",
-            welcomeText: "",
-            supportText: "",
-            btnTextGuides: "",
-            guidesText: "",
-            // Disable features by default
-            hideSupport: true,
-            hideBuy: true,
-            hideProfile: true,
-            hideWallet: true,
-            // Disable all individual bot buttons by default
-            hideBtnBuyNew: true,
-            hideBtnMySubs: true,
-            hideBtnGuides: true,
-            hideBtnProfile: true,
-            hideBtnSupport: true,
-            hideBtnTicketSupport: true,
-            hideBtnFreeTest: true,
-            hideBtnInstantSupport: true,
-            hideBtnFeedback: true,
-            hideBtnWallet: true,
-            hideBtnReferral: true,
-            hideBtnColleagues: true,
-            hideBtnAiChat: true,
-            // Turn off all checkmarks by default
-            gatewayStarsStatus: false,
-            autoWarningConfigBtn: false,
-            autoWarningNoConnectionBtn: false,
-            autoWarningFirstConnectionBtn: false,
-            mandatoryJoinActive: false,
-            // Automatic backup turned on by default, set to hourly
-            autoBackupEnabled: true,
-            autoBackupInterval: "hourly",
-            btnTextWallet: "شارژ کیف پول 💳",
-            walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
             dashboardUsername: process.env.DASHBOARD_USERNAME || "Daltoon",
             dashboardPassword: process.env.DASHBOARD_PASSWORD || "Daltoon10",
-            serverPort: process.env.DASHBOARD_PORT
-              ? parseInt(process.env.DASHBOARD_PORT, 10)
-              : 3000,
-            panelConnectionActive: false,
-            autoRefreshInterval: 0,
-            admins: [],
+            serverPort: 3000,
           }),
         },
+        isNewInstall: true,
       };
-      fs.writeFileSync(dbJsonPath, JSON.stringify(defaultDb, null, 2), "utf8");
-      return { ...defaultDb, isNewInstall: true };
+      return defaultDb;
     }
     const raw = fs.readFileSync(dbJsonPath, "utf8");
+    if (!raw || raw.trim() === "") {
+        throw new Error("Database file is empty");
+    }
     const db = JSON.parse(raw);
     db.isNewInstall = false;
 
@@ -283,23 +241,9 @@ function readJsonDb(): DbSchema {
       }
     }
 
-    // Seed vpn_plans ONLY if the database was just created from scratch
-    if (db.isNewInstall && (!db.vpn_plans || db.vpn_plans.length === 0)) {
-      db.vpn_plans = [];
-      modified = true;
-    }
-
-    // Seed plan_categories ONLY if the database was just created from scratch
-    if (
-      db.isNewInstall &&
-      (!db.plan_categories || db.plan_categories.length === 0)
-    ) {
-      db.plan_categories = [];
-      modified = true;
-    }
-
     if (modified) {
-      fs.writeFileSync(dbJsonPath, JSON.stringify(db, null, 2), "utf8");
+      // Use writeJsonDb instead of direct write to respect safeguards
+      writeJsonDb(db);
     }
 
     return db;
@@ -327,13 +271,13 @@ function readJsonDb(): DbSchema {
 }
 
 // Function to write back data
-function writeJsonDb(data: DbSchema) {
-  if (!data) return;
+function writeJsonDb(data: DbSchema): boolean {
+  if (!data) return false;
   if ((data as any)._isReadError) {
     console.error(
       "[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data.",
     );
-    return;
+    return false;
   }
 
   // Safeguard: refuse to overwrite if existing file is large but new data is empty
@@ -353,7 +297,7 @@ function writeJsonDb(data: DbSchema) {
 
         if (!hasUsers && !hasTransactions && !hasToken) {
           console.error("[Database] CRITICAL Safeguard: Refusing to overwrite populated database with empty/reset structure!");
-          return;
+          return false;
         }
       }
     }
@@ -363,8 +307,10 @@ function writeJsonDb(data: DbSchema) {
     const tmpPath = dbJsonPath + ".tmp";
     fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
     fs.renameSync(tmpPath, dbJsonPath);
-  } catch (err) {
-    console.error("[Database] Write error to JSON store:", err);
+    return true;
+  } catch (err: any) {
+    console.error("[Database Write Error]", err.message);
+    return false;
   }
 }
 
@@ -2046,7 +1992,14 @@ app.post("/api/settings", async (req, res) => {
     );
 
     db.settings.panel_config = configValue;
-    writeJsonDb(db);
+    const saveSuccess = writeJsonDb(db);
+
+    if (!saveSuccess) {
+      return res.status(500).json({ 
+        success: false, 
+        error: "خطا در ذخیره دیتابیس. فایل ممکن است قفل باشد یا فضای دیسک پر شده باشد." 
+      });
+    }
 
     // Reset cached AI client so newly saved GEMINI_API_KEY settings will take effect immediately
     aiClient = null;
@@ -5151,9 +5104,9 @@ app.post("/api/system/update", async (req, res) => {
     // Run update sequence asynchronously
     setTimeout(() => {
       console.log(
-        "[Auto-Update] Starting background update sequence (stash -> pull)...",
+        "[Auto-Update] Starting background update sequence (stash -> pull -> pop)...",
       );
-      exec("git stash && git pull || true", (pullError: any) => {
+      exec("git stash && git pull && git stash pop || true", (pullError: any) => {
         // Increment version in package.json AFTER git pull so it's not stashed away!
         try {
           const pkgPath = path.join(process.cwd(), "package.json");
