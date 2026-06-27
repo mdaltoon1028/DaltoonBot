@@ -99,16 +99,35 @@ DB_FILE = get_db_path()
 
 def read_db_json():
     """ Read core database structure always from shared json file """
+    default_db = {
+        "users": [],
+        "transactions": [],
+        "subscription_keys": [],
+        "vpn_plans": [],
+        "colleague_packages": [],
+        "colleague_accounts": [],
+        "colleague_categories": [],
+        "inbounds": [],
+        "custom_buttons": [],
+        "settings": {},
+        "tickets": [],
+        "logs": []
+    }
     if not os.path.exists(DB_FILE):
-        return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
+        return default_db
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
             content = f.read().strip()
-            if not content: return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}}
-            return json.loads(content)
+            if not content: return default_db
+            data = json.loads(content)
+            # Ensure all keys exist
+            for key, val in default_db.items():
+                if key not in data:
+                    data[key] = val
+            return data
     except Exception as e:
         print(f"[JSON Database Error] {e}")
-        return {"users": [], "transactions": [], "vpn_plans": [], "settings": {}, "error": True}
+        return default_db
 
 def write_db_json(data):
     """ Atomic persistence for the shared JSON structure """
@@ -390,7 +409,7 @@ def login_xui(server_id=None, force=False):
     
     server = None
     if server_id:
-        server = next((s for s in servers if s.get("id") == server_id), None)
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
     
     if not server and servers:
         # Fallback to first active server
@@ -729,7 +748,7 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
     
     server = None
     if server_id:
-        server = next((s for s in servers if s.get("id") == server_id), None)
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
     
     if not server and servers:
         server = next((s for s in servers if s.get("status") == "active"), servers[0])
@@ -987,7 +1006,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     
     server = None
     if server_id:
-        server = next((s for s in servers if s.get("id") == server_id), None)
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
     if not server and servers:
         server = next((s for s in servers if s.get("status") == "active"), servers[0])
         
@@ -1201,7 +1220,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server
     
     server = None
     if server_id:
-        server = next((s for s in servers if s.get("id") == server_id), None)
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
     if not server and servers:
         server = next((s for s in servers if s.get("status") == "active"), servers[0])
         
@@ -1393,7 +1412,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
     
     server = None
     if server_id:
-        server = next((s for s in servers if s.get("id") == server_id), None)
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
     if not server and servers:
         server = next((s for s in servers if s.get("status") == "active"), servers[0])
         
@@ -3135,7 +3154,7 @@ def handle_buy_pay(call):
             # log 
             log_action(tg_id, user.get("username", str(tg_id)), "خرید از کیف پول", f"بسته {spec['name']} مبلغ {spec['price']:,} تومان کسر شد.")
         else:
-            log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"بسته {spec['name']} بصورت رایگان ایجاد شد.")
+            log_action(tg_id, user.get("username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"بسته {spec['name']} بصورت رایگان ایجاد شد.")
         
         # API creation
         cfg = get_config()
@@ -3381,7 +3400,7 @@ def send_final_purchase_message(message, plan_id, username_input, spec):
     server_line = ""
     if server_id:
         servers = cfg.get("SERVERS", [])
-        server_obj = next((s for s in servers if s.get("id") == server_id), None)
+        server_obj = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         if server_obj:
             server_name = server_obj.get("name", "")
             if server_name:
@@ -5068,11 +5087,19 @@ def callback_handler(call):
                 process_referral_on_purchase(user, price)
             log_action(tg_id, user.get("username", str(tg_id)), "خرید کانفیگ دلخواه", f"کانفیگ دلخواه {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
         else:
-            log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"کانفیگ دلخواه {gb}GB/{days}روز ایجاد شد.")
+            log_action(tg_id, user.get("username", str(tg_id)) if user else str(tg_id), "ساخت مستقیم توسط ادمین", f"کانفیگ دلخواه {gb}GB/{days}روز ایجاد شد.")
             
-        client_uuid, sub_link = add_vpn_client_api(username_input, gb, days, server_id=server_id)
+        print(f"[buycust_pay] Creating VPN client for {username_input} on server {server_id}...")
+        try:
+            client_uuid, sub_link = add_vpn_client_api(username_input, gb, days, server_id=server_id)
+            print(f"[buycust_pay] API result: UUID={client_uuid}, SubLink={sub_link}")
+        except Exception as e:
+            print(f"[buycust_pay API Error] {e}")
+            bot.send_message(tg_id, f"❌ خطای فنی در ارتباط با پنل: {e}")
+            return
         
         if not sub_link:
+            print("[buycust_pay] Failed to get sub_link from add_vpn_client_api")
             if not cfg.get("SIMULATOR_MODE"):
                 if not is_privileged:
                     fresh_db = read_db_json()
@@ -5102,20 +5129,34 @@ def callback_handler(call):
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
         sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
         
-        create_sub_key(
-            key_id=sub_id, 
-            tg_id=tg_id, 
-            plan_id="custom_vol", 
-            plan_name=f"Custom {gb}GB - {days} Days", 
-            sub_link=sub_link, 
-            expire_date=expire_date, 
-            limit_gb=gb,
-            client_name=username_input,
-            client_uuid=client_uuid,
-            server_id=server_id
-        )
+        print(f"[buycust_pay] Registering sub in DB: sub_id={sub_id}, user={tg_id}")
+        try:
+            create_sub_key(
+                key_id=sub_id, 
+                tg_id=tg_id, 
+                plan_id="custom_vol", 
+                plan_name=f"Custom {gb}GB - {days} Days", 
+                sub_link=sub_link, 
+                expire_date=expire_date, 
+                limit_gb=gb,
+                client_name=username_input,
+                client_uuid=client_uuid,
+                server_id=server_id
+            )
+            print("[buycust_pay] Successfully registered in DB.")
+        except Exception as e:
+            print(f"[buycust_pay DB Error] {e}")
+            bot.send_message(tg_id, f"❌ خطای دیتابیس در ثبت اشتراک: {e}")
+            return
         
-        all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
+        print("[buycust_pay] Fetching links...")
+        try:
+            all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
+            print(f"[buycust_pay] Fetched {len(all_links) if all_links else 0} links.")
+        except Exception as e:
+            print(f"[buycust_pay get_links Error] {e}")
+            all_links = []
+            
         if all_links:
             links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
             configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
@@ -5130,7 +5171,9 @@ def callback_handler(call):
             f"💬 حجم بسته: <b>{gb} گیگابایت</b>\n\n"
             f"{configs_block}"
         )
+        print("[buycust_pay] Sending success message...")
         bot.send_message(tg_id, success_msg, parse_mode="HTML")
+        print("[buycust_pay] Done.")
         return
 
     if call.data.startswith("mysub_renewcustconfirm:"):
@@ -5176,7 +5219,7 @@ def callback_handler(call):
                 update_user_balance(tg_id, new_balance)
                 log_action(tg_id, user.get("username", str(tg_id)), "تمدید اشتراک دلخواه", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
             else:
-                log_action(tg_id, getattr(user, "username", str(tg_id)) if user else str(tg_id), "تمدید مستقیم ادمین", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز شد.")
+                log_action(tg_id, user.get("username", str(tg_id)) if user else str(tg_id), "تمدید مستقیم ادمین", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز شد.")
                 
             from datetime import datetime, timedelta
             try:
