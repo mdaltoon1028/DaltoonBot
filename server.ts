@@ -3976,6 +3976,174 @@ app.post("/api/transactions/approve", async (req, res) => {
             } catch (e: any) {
               messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ: ${e.message}`;
             }
+          } else if (tx.planId === "custom_vol") {
+            const clientName = tx.clientName || `user_${tx.userId}`;
+            const settings = getSystemSettings(db);
+            const customGb = Number(tx.customGb) || 10;
+            const customDays = Number(tx.customDays) || 30;
+
+            try {
+              const vpnResult = await addVpnClientApi(
+                clientName,
+                customGb,
+                customDays,
+                settings,
+                undefined,
+                tx.serverId,
+              );
+              if (vpnResult.success && vpnResult.subLink) {
+                const subLink = vpnResult.subLink;
+
+                let vlessLinks: string[] = [];
+                try {
+                  const fetchRef = globalThis.fetch || fetch;
+                  const res = await fetchRef(subLink);
+                  if (res.ok) {
+                    const text = await res.text();
+                    const decoded = Buffer.from(text, "base64").toString(
+                      "utf-8",
+                    );
+                    vlessLinks = decoded
+                      .split("\n")
+                      .filter(
+                        (l) => l.trim().length > 0 && l.startsWith("vless://"),
+                      );
+                  }
+                } catch (e) {}
+
+                let linksDisplay = "";
+                if (vlessLinks.length > 0) {
+                  const linksText = vlessLinks
+                    .map((l) => `<code>${l}</code>`)
+                    .join("\n\n");
+                  linksDisplay = `🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksText}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
+                } else {
+                  linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
+                }
+
+                messageTextForNotif = `✅ <b>کانفیگ دلخواه شما آماده شد!</b>\n\n📦 حجم: <b>${customGb} گیگابایت</b> | زمان: <b>${customDays} روز</b>\n\n${linksDisplay}`;
+
+                if (!db.subscription_keys) db.subscription_keys = [];
+                const randomId =
+                  "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+                const expireDate = new Date(
+                  Date.now() + customDays * 24 * 60 * 60 * 1000,
+                )
+                  .toISOString()
+                  .split("T")[0];
+
+                db.subscription_keys.push({
+                  id: randomId,
+                  userId: Number(tx.userId),
+                  planId: "custom_vol",
+                  planName: `کانفیگ دلخواه ${customGb}GB`,
+                  clientName: clientName,
+                  clientUuid: vpnResult.clientUuid || "",
+                  subLink: subLink,
+                  expireDate: expireDate,
+                  trafficLimitGb: customGb,
+                  trafficUsedGb: 0,
+                  createdAtMs: Date.now(),
+                  status: "active",
+                  serverId: tx.serverId,
+                });
+
+                tx._generatedSubId = randomId;
+                tx._generatedSubLink = subLink;
+
+                if (!db.logs) db.logs = [];
+                db.logs.push({
+                  id: Math.random().toString(36).substring(2, 9),
+                  date: new Date().toISOString(),
+                  userId: Number(tx.userId),
+                  username: tx.username || `user_${tx.userId}`,
+                  action: "تحویل کانفیگ",
+                  details: `اشتراک برای کانفیگ دلخواه با نام ${clientName} تحویل داده شد.`,
+                });
+              } else {
+                tx.status = "failed";
+                messageTextForNotif = `❌ <b>خطا در ساخت کانفیگ دلخواه!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت ساخت کانفیگ رخ داد:\n<code>${vpnResult.error || "خطای نامشخص"}</code>\n\nلطفاً موضوع را با پشتیبانی هماهنگ فرمایید.`;
+              }
+            } catch (e: any) {
+              messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ دلخواه: ${e.message}`;
+            }
+          } else if (tx.planId === "custom_renew") {
+            const targetSubId = tx.clientName;
+            const settings = getSystemSettings(db);
+            const customGb = Number(tx.customGb) || 10;
+            const customDays = Number(tx.customDays) || 30;
+
+            const subscription_keys = db.subscription_keys || [];
+            const k = subscription_keys.find(
+              (sub: any) => sub.id === targetSubId,
+            );
+
+            if (k) {
+              const clientName = k.clientName;
+              const serverId = k.serverId;
+
+              let expDt = new Date();
+              try {
+                const parsed = new Date(k.expireDate);
+                if (!isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+                  expDt = parsed;
+                }
+              } catch (e) {}
+
+              const newExpDt = new Date(
+                expDt.getTime() + customDays * 24 * 60 * 60 * 1000,
+              );
+              const newExpireDateStr = newExpDt.toISOString().split("T")[0];
+              const newLimitGb = (Number(k.trafficLimitGb) || 0) + customGb;
+
+              const remainingDays = Math.max(
+                1,
+                Math.ceil(
+                  (newExpDt.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+                ),
+              );
+
+              try {
+                await deleteVpnClientApi(clientName, serverId);
+                const addResult = await addVpnClientApi(
+                  clientName,
+                  newLimitGb,
+                  remainingDays,
+                  settings,
+                  k.clientUuid,
+                  serverId,
+                );
+
+                if (addResult.success && addResult.subLink) {
+                  k.expireDate = newExpireDateStr;
+                  k.trafficLimitGb = newLimitGb;
+                  k.subLink = addResult.subLink;
+
+                  messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n👤 سرویس: <code>${clientName}</code>\n➕ حجم ترافیک افزوده شده: <b>${customGb} گیگابایت</b>\n➕ مدت زمان افزوده شده: <b>${customDays} روز</b>\n\n📅 تاریخ انقضای جدید: <b>${newExpireDateStr}</b>\n📊 حجم کل جدید: <b>${newLimitGb} گیگابایت</b>`;
+
+                  tx._generatedSubId = k.id;
+                  tx._generatedSubLink = addResult.subLink;
+
+                  if (!db.logs) db.logs = [];
+                  db.logs.push({
+                    id: Math.random().toString(36).substring(2, 9),
+                    date: new Date().toISOString(),
+                    userId: Number(tx.userId),
+                    username: tx.username || `user_${tx.userId}`,
+                    action: "تمدید اشتراک",
+                    details: `اشتراک ${clientName} تمدید شد (فیش تایید شد).`,
+                  });
+                } else {
+                  tx.status = "failed";
+                  messageTextForNotif = `❌ <b>خطا در اعمال تمدید اشتراک!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت تمدید اشتراک رخ داد:\n<code>${addResult.error || "خطای نامشخص"}</code>\n\nلطفاً موضوع را با پشتیبانی هماهنگ فرمایید.`;
+                }
+              } catch (apiErr: any) {
+                tx.status = "failed";
+                messageTextForNotif = `❌ خطا در اعمال تمدید اشتراک روی سرور: ${apiErr.message}`;
+              }
+            } else {
+              messageTextForNotif = `❌ خطا: اشتراک مورد نظر جهت تمدید یافت نشد.`;
+            }
           } else {
             messageTextForNotif = `❌ خطا: پلان مورد نظر یافت نشد. با پشتیبانی هماهنگ کنید.`;
           }

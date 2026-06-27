@@ -177,6 +177,11 @@ export interface Transaction {
   status: "pending" | "approved" | "rejected";
   date: string;
   description?: string;
+  customGb?: number;
+  customDays?: number;
+  planId?: string;
+  clientName?: string;
+  serverId?: string;
 }
 
 export interface VpnPlan {

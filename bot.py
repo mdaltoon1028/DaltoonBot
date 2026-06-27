@@ -5374,12 +5374,21 @@ def callback_handler(call):
         threading.Thread(target=run_creation).start()
         return
     if call.data.startswith("mysub_renewcustconfirm:"):
-        bot.answer_callback_query(call.id)
         parts = call.data.split(":")
-        target_sub_id = parts[1]
-        gb = int(parts[2])
-        days = int(parts[3])
-        price = int(parts[4])
+        # Format: mysub_renewcustconfirm:method:target_sub_id:gb:days:price
+        # or old format: mysub_renewcustconfirm:target_sub_id:gb:days:price (defaults to wallet)
+        if len(parts) == 6:
+            method = parts[1]
+            target_sub_id = parts[2]
+            gb = int(parts[3])
+            days = int(parts[4])
+            price = int(parts[5])
+        else:
+            method = "wallet"
+            target_sub_id = parts[1]
+            gb = int(parts[2])
+            days = int(parts[3])
+            price = int(parts[4])
         
         tg_id = call.from_user.id
         db = read_db_json()
@@ -5387,7 +5396,7 @@ def callback_handler(call):
         k = next((sub for sub in subscription_keys if sub["id"] == target_sub_id and sub["userId"] == tg_id), None)
         
         if not k:
-            bot.send_message(call.message.chat.id, "❌ خطا: اشتراک یافت نشد یا متعلق به شما نیست.")
+            bot.answer_callback_query(call.id, "❌ خطا: اشتراک یافت نشد یا متعلق به شما نیست.", show_alert=True)
             return
             
         client_name = k.get("clientName", k.get("planName", "سرویس بدون نام"))
@@ -5398,6 +5407,45 @@ def callback_handler(call):
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
         
+        if method == "card":
+            if is_privileged:
+                bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
+                method = "wallet"
+            else:
+                bot.answer_callback_query(call.id)
+                set_user_pending_purchase(tg_id, "custom_renew", target_sub_id, server_id=k.get("serverId"), custom_gb=gb, custom_days=days, custom_price=price)
+                text_response = (
+                    f"🔄 <b>تمدید اشتراک (کارت به کارت)</b>\n\n"
+                    f"👤 نام کاربری سرویس: <code>{client_name}</code>\n"
+                    f"📊 حجم درخواستی: <b>{gb} گیگابایت</b>\n"
+                    f"⏳ مدت زمان تمدید: <b>{days} روز</b>\n"
+                    f"💰 مبلغ قابل پرداخت: <b>{price:,} تومان</b>\n\n"
+                    f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
+                    f"📥 شماره کارت ۱۶ رقمی:\n"
+                    f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
+                    f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+                    f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت بررسی و اعمال تمدید برای ادمین ارسال شود."
+                )
+                bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
+                return
+
+        if method == "stars":
+            bot.answer_callback_query(call.id)
+            text_response = (
+                f"🔄 <b>تمدید اشتراک (پرداخت با Telegram Stars)</b>\n\n"
+                f"👤 نام کاربری سرویس: <code>{client_name}</code>\n"
+                f"📊 حجم درخواستی: <b>{gb} گیگابایت</b>\n"
+                f"⏳ مدت زمان تمدید: <b>{days} روز</b>\n"
+                f"💰 مبلغ نهایی: <b>{price:,} تومان</b>\n\n"
+                f"در اینجا کاربر به درگاه پرداخت Stars تلگرام متصل خواهد شد.\n"
+            )
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("✅ پایان و تایید فرضی پرداخت", callback_data="btn_back_home"))
+            markup.add(types.InlineKeyboardButton("❌ انصراف", callback_data="btn_back_home"))
+            bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        bot.answer_callback_query(call.id)
         if not is_privileged and (not user or user.get("walletBalance", 0) < price):
             bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.")
             return
@@ -7242,7 +7290,7 @@ def handle_receipt_upload(message):
                 extracted_amount = 200000  # Default to 200k if unspecified
     else:
         # Get plan price
-        if pending_plan_id == "custom_vol" and p_price:
+        if pending_plan_id in ["custom_vol", "custom_renew"] and p_price:
             extracted_amount = int(p_price)
         else:
             db = read_db_json()
@@ -7292,6 +7340,11 @@ def handle_receipt_upload(message):
             if pending_plan_id:
                 if pending_plan_id == "custom_vol":
                     tx_description = f"خرید دلخواه: {p_gb}GB/{p_days}روز, نام کاربری: {pending_username}, سرور: {pending_server_id}"
+                elif pending_plan_id == "custom_renew":
+                    sub_keys = db.get("subscription_keys", [])
+                    sk = next((s for s in sub_keys if s["id"] == pending_username), None)
+                    sub_client_name = sk.get("clientName", "سرویس") if sk else "سرویس"
+                    tx_description = f"تمدید دلخواه: {p_gb}GB/{p_days}روز, سرویس: {sub_client_name} (شناسه: {pending_username})"
                 else:
                     tx_description = f"خرید پلان: {pending_plan_id}, نام کاربری: {pending_username}"
 
@@ -7310,6 +7363,9 @@ def handle_receipt_upload(message):
                 new_tx["clientName"] = pending_username
                 new_tx["serverId"] = pending_server_id
                 new_tx["type"] = "PLAN_PURCHASE"
+                if pending_plan_id in ["custom_vol", "custom_renew"]:
+                    new_tx["customGb"] = p_gb
+                    new_tx["customDays"] = p_days
             
             db["transactions"].insert(0, new_tx)
             write_db_json(db)
@@ -7722,14 +7778,26 @@ def process_renew_days(message, target_sub_id, gb):
         f"💵 قیمت هر روز: {int(price_day):,} تومان\n"
         "──────────────────\n"
         f"💰 <b>جمع کل هزینه تمدید: {int(total_price):,} تومان</b>\n\n"
-        "⚠️ هزینه تمدید مستقیماً از موجودی کیف پول شما کسر خواهد شد."
+        "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
     )
     
+    tg_id = message.from_user.id
+    is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+    is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
+    is_privileged = is_owner or is_admin
+
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("✅ تایید و کسر از کیف پول", callback_data=f"mysub_renewcustconfirm:{target_sub_id}:{gb}:{days}:{total_price}"),
-        types.InlineKeyboardButton("❌ لغو", callback_data=f"mysub_manage_{target_sub_id}")
-    )
+    if is_privileged:
+        markup.add(
+            types.InlineKeyboardButton("🎁 تایید مستقیم (رایگان برای ادمین)", callback_data=f"mysub_renewcustconfirm:wallet:{target_sub_id}:{gb}:{days}:{total_price}"),
+        )
+    else:
+        markup.add(
+            types.InlineKeyboardButton("💰 پرداخت از موجودی کیف پول", callback_data=f"mysub_renewcustconfirm:wallet:{target_sub_id}:{gb}:{days}:{total_price}"),
+            types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"mysub_renewcustconfirm:card:{target_sub_id}:{gb}:{days}:{total_price}"),
+            types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"mysub_renewcustconfirm:stars:{target_sub_id}:{gb}:{days}:{total_price}"),
+        )
+    markup.add(types.InlineKeyboardButton("❌ لغو", callback_data=f"mysub_manage_{target_sub_id}"))
     
     bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
 
