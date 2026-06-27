@@ -63,7 +63,7 @@ const dbJsonPath = (() => {
             config.botToken !== "DUMMY_TOKEN" &&
             config.botToken.trim() !== ""
           ) {
-            score += 100;
+            score += 50000;
           }
         } catch (err) {}
       }
@@ -328,12 +328,37 @@ function readJsonDb(): DbSchema {
 
 // Function to write back data
 function writeJsonDb(data: DbSchema) {
+  if (!data) return;
   if ((data as any)._isReadError) {
     console.error(
       "[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data.",
     );
     return;
   }
+
+  // Safeguard: refuse to overwrite if existing file is large but new data is empty
+  try {
+    if (fs.existsSync(dbJsonPath)) {
+      const stats = fs.statSync(dbJsonPath);
+      // If the file is reasonably large (already contains data)
+      if (stats.size > 1000) {
+        const hasUsers = Array.isArray(data.users) && data.users.length > 0;
+        const hasTransactions = Array.isArray(data.transactions) && data.transactions.length > 0;
+        
+        let hasToken = false;
+        try {
+          const cfg = JSON.parse(data.settings?.panel_config || "{}");
+          hasToken = !!(cfg.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
+        } catch(err) {}
+
+        if (!hasUsers && !hasTransactions && !hasToken) {
+          console.error("[Database] CRITICAL Safeguard: Refusing to overwrite populated database with empty/reset structure!");
+          return;
+        }
+      }
+    }
+  } catch (err) {}
+
   try {
     const tmpPath = dbJsonPath + ".tmp";
     fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");

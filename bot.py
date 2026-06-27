@@ -64,7 +64,7 @@ def get_db_path():
                     
                 settings = data.get("settings", {})
                 if settings.get("BOT_TOKEN") or settings.get("botToken") or settings.get("panel_config"):
-                    score += 100
+                    score += 50000
                     
                 if score > 0:
                     return (score * 1000000) + size
@@ -135,14 +135,38 @@ def read_db_json():
                     data[key] = val
             return data
     except Exception as e:
-        print(f"[JSON Database Error] {e}")
+        print(f"[JSON Database Error] Could not read {DB_FILE}: {e}")
+        # Critical: if file exists but is unreadable, do NOT return default_db to avoid overwriting it later
+        if os.path.exists(DB_FILE):
+            raise Exception(f"Database file {DB_FILE} exists but is unreadable/corrupt. Manual intervention required to avoid data loss.")
         return default_db
 
 def write_db_json(data):
-    """ Atomic persistence for the shared JSON structure """
-    if not data or (not data.get("users") and not data.get("settings") and data.get("error")):
-        print("[JSON Database Write Warning] Refusing to write empty or error-state database to avoid data loss.")
+    """ Atomic persistence for the shared JSON structure with strict safeguards """
+    if not data:
         return False
+        
+    # Safeguard: Never overwrite if it looks like a reset/empty database unless it's a fresh install
+    has_users = isinstance(data.get("users"), list) and len(data.get("users")) > 0
+    has_transactions = isinstance(data.get("transactions"), list) and len(data.get("transactions")) > 0
+    has_plans = isinstance(data.get("vpn_plans"), list) and len(data.get("vpn_plans")) > 0
+    
+    settings = data.get("settings", {})
+    panel_cfg = settings.get("panel_config", "{}")
+    if isinstance(panel_cfg, str):
+        try:
+            panel_cfg = json.loads(panel_cfg)
+        except:
+            panel_cfg = {}
+            
+    has_token = bool(panel_cfg.get("botToken") or panel_cfg.get("bot_token") or settings.get("botToken") or settings.get("BOT_TOKEN"))
+    
+    # If file already exists and contains data, but the new 'data' is empty, REFUSE.
+    if os.path.exists(DB_FILE) and os.path.getsize(DB_FILE) > 100:
+        if not has_users and not has_transactions and not has_plans and not has_token:
+            print("[JSON Database Write CRITICAL] Refusing to overwrite populated database with empty/reset data structure.")
+            return False
+
     try:
         tmp_file = DB_FILE + ".tmp"
         with open(tmp_file, "w", encoding="utf-8") as f:
