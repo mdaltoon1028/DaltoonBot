@@ -4362,7 +4362,6 @@ def callback_handler(call):
             accounts[acc_idx] = live_acc
             db["colleague_accounts"] = accounts
             
-            import time
             expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 24 * 60 * 60))
             sub_id = f"SUB-{int(time.time()) % 9000 + 1000}"
             
@@ -5207,7 +5206,7 @@ def callback_handler(call):
                 # Notify admin
                 admin_msg = (
                     f"🔔 <b>خرید کانفیگ دلخواه جدید:</b>\n\n"
-                    f"👤 کاربر: {user.get('username', 'N/A')} ({tg_id})\n"
+                    f"👤 کاربر: {user.get('username', 'N/A') if user else 'N/A'} ({tg_id})\n"
                     f"📊 طرح: {gb}GB / {days} روز\n"
                     f"💰 مبلغ: {price:,} تومان\n"
                     f"🆔 اشتراک: {sub_id}"
