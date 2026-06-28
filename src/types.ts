@@ -137,6 +137,12 @@ export interface PanelSettings {
 
   simulatorMode?: boolean;
   customPricingBoxes?: CustomPricingBox[];
+
+  // Advanced AI Search
+  aiSearchEnabled?: boolean;
+  googleSearchApiKey?: string;
+  googleSearchCx?: string;
+  braveSearchApiKey?: string;
 }
 
 export interface CustomPricingBox {

@@ -1568,6 +1568,69 @@ function getAiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// Helper to perform web search using Google Custom Search API or Brave Search API
+async function performWebSearch(query: string, googleKey?: string, cx?: string, braveKey?: string): Promise<string> {
+  if (!query) return "";
+  let resultsText = "";
+
+  // 1. Try Google Custom Search API
+  if (googleKey && googleKey.trim() !== "") {
+    const searchCx = cx && cx.trim() !== "" ? cx.trim() : "";
+    try {
+      console.log(`[Web Search] Querying Google Custom Search API for: "${query}"`);
+      const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(googleKey.trim())}&cx=${encodeURIComponent(searchCx)}&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data: any = await res.json();
+        const items = data.items || [];
+        if (items.length > 0) {
+          resultsText += `نتایج جستجوی گوگل برای "${query}":\n`;
+          items.slice(0, 5).forEach((item: any, idx: number) => {
+            resultsText += `[${idx + 1}] عنوان: ${item.title}\nتوضیحات: ${item.snippet}\nلینک: ${item.link}\n\n`;
+          });
+        }
+      } else {
+        const errText = await res.text();
+        console.error(`[Web Search] Google Search API error:`, errText);
+      }
+    } catch (err) {
+      console.error(`[Web Search] Failed Google Search:`, err);
+    }
+  }
+
+  // 2. Try Brave Search API if Google didn't return results
+  if (resultsText === "" && braveKey && braveKey.trim() !== "") {
+    try {
+      console.log(`[Web Search] Querying Brave Search API for: "${query}"`);
+      const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          "Accept-Encoding": "gzip",
+          "X-Subscription-Token": braveKey.trim()
+        }
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        const items = data.web?.results || [];
+        if (items.length > 0) {
+          resultsText += `نتایج جستجوی وب (Brave) برای "${query}":\n`;
+          items.slice(0, 5).forEach((item: any, idx: number) => {
+            resultsText += `[${idx + 1}] عنوان: ${item.title}\nتوضیحات: ${item.description}\nلینک: ${item.url}\n\n`;
+          });
+        }
+      } else {
+        const errText = await res.text();
+        console.error(`[Web Search] Brave Search API error:`, errText);
+      }
+    } catch (err) {
+      console.error(`[Web Search] Failed Brave Search:`, err);
+    }
+  }
+
+  return resultsText;
+}
+
 app.post("/api/ai/chat", async (req, res) => {
   try {
     const { message, userId, type } = req.body;
@@ -1583,6 +1646,23 @@ app.post("/api/ai/chat", async (req, res) => {
     const activeUsersCount = (dbData.users || []).filter(
       (u: any) => u.status === "active",
     ).length;
+
+    const aiSearchEnabled = systemSettings.aiSearchEnabled !== false;
+
+    // Custom Web Search Context (Google / Brave Search fallback for custom models)
+    let injectedSearchContext = "";
+    if (aiSearchEnabled) {
+      const googleKey = systemSettings.googleSearchApiKey || process.env.GOOGLE_SEARCH_API_KEY || "";
+      const googleCx = systemSettings.googleSearchCx || process.env.GOOGLE_SEARCH_CX || "";
+      const braveKey = systemSettings.braveSearchApiKey || process.env.BRAVE_SEARCH_API_KEY || "";
+      
+      if ((googleKey && googleKey.trim() !== "") || (braveKey && braveKey.trim() !== "")) {
+        const searchResults = await performWebSearch(message, googleKey, googleCx, braveKey);
+        if (searchResults && searchResults.trim() !== "") {
+          injectedSearchContext = `\n\n[اطلاعات زنده جستجوی وب]\nاطلاعات زیر آخرین نتایج جستجوی اینترنت درباره سوال کاربر است. از این اطلاعات برای پاسخ به سوالات مربوط به رویدادهای روز استفاده کنید:\n${searchResults}`;
+        }
+      }
+    }
 
     let geminiApiKey = systemSettings.geminiApiKey || "";
 
@@ -1640,9 +1720,9 @@ app.post("/api/ai/chat", async (req, res) => {
 اطلاعات فعلی سیستم:
 - تعرفه ها: ${JSON.stringify(dbData.vpn_plans || [])}
 - تعداد کاربران: ${activeUsersCount}
-- راهنما: ${systemSettings.supportText || ""}`;
+- راهنما: ${systemSettings.supportText || ""}${injectedSearchContext}`;
     } else {
-      systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.`;
+      systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.${injectedSearchContext}`;
     }
 
     if (isDirectGemini) {
@@ -1654,18 +1734,45 @@ app.post("/api/ai/chat", async (req, res) => {
         apiKey: apiKeyToUse,
       });
 
-      const modelName = finalModelName || "gemini-2.5-flash";
+      const modelName = finalModelName || "gemini-3.5-flash";
+      
+      const configObj: any = {
+        systemInstruction: systemPrompt,
+        temperature: 0.7,
+      };
+
+      if (aiSearchEnabled) {
+        configObj.tools = [{ googleSearch: {} }];
+      }
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: message,
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: 0.7,
-        },
+        config: configObj,
       });
 
       if (response && response.text) {
-        return res.json({ response: response.text });
+        let replyText = response.text;
+        
+        // Extract references if available
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (chunks && chunks.length > 0) {
+          let refs = "\n\n🌐 **منابع جستجو:**\n";
+          let hasRefs = false;
+          const seenUris = new Set<string>();
+          chunks.forEach((chunk: any) => {
+            if (chunk.web && chunk.web.uri && !seenUris.has(chunk.web.uri)) {
+              seenUris.add(chunk.web.uri);
+              refs += `- [${chunk.web.title || "منبع"}](${chunk.web.uri})\n`;
+              hasRefs = true;
+            }
+          });
+          if (hasRefs) {
+            replyText += refs;
+          }
+        }
+
+        return res.json({ response: replyText });
       } else {
         throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
       }

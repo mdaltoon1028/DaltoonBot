@@ -30,6 +30,7 @@ import {
   X,
   Code,
   Brain,
+  Globe,
 } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -67,6 +68,13 @@ export default function SettingsPanel({
   const [simulatorMode, setSimulatorMode] = useState(
     settings.simulatorMode || false,
   );
+
+  const [aiSearchEnabled, setAiSearchEnabled] = useState(
+    settings.aiSearchEnabled !== undefined ? settings.aiSearchEnabled : true,
+  );
+  const [googleSearchApiKey, setGoogleSearchApiKey] = useState(settings.googleSearchApiKey || "");
+  const [googleSearchCx, setGoogleSearchCx] = useState(settings.googleSearchCx || "");
+  const [braveSearchApiKey, setBraveSearchApiKey] = useState(settings.braveSearchApiKey || "");
 
   const [testingGemini, setTestingGemini] = useState(false);
   const [geminiTestResult, setGeminiTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -222,6 +230,10 @@ export default function SettingsPanel({
       customAiApiKey,
       aiBaseUrl,
       aiModelName,
+      aiSearchEnabled,
+      googleSearchApiKey,
+      googleSearchCx,
+      braveSearchApiKey,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -257,6 +269,10 @@ export default function SettingsPanel({
       customAiApiKey,
       aiBaseUrl,
       aiModelName,
+      aiSearchEnabled,
+      googleSearchApiKey,
+      googleSearchCx,
+      braveSearchApiKey,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -497,6 +513,10 @@ export default function SettingsPanel({
       customAiApiKey,
       aiBaseUrl,
       aiModelName,
+      aiSearchEnabled,
+      googleSearchApiKey,
+      googleSearchCx,
+      braveSearchApiKey,
       cardNumber,
       cardHolder: bankOwner,
       bankName,
@@ -1030,6 +1050,90 @@ export default function SettingsPanel({
                 ? "مثال‌ها: gemini-2.5-flash (پیش‌فرض جیمینای)، Meta-Llama-3-8B-Instruct (برای AwanLLM)"
                 : "Examples: gemini-2.5-flash (default Gemini), Meta-Llama-3-8B-Instruct (for AwanLLM)"}
             </span>
+          </div>
+
+          {/* Web Search Section */}
+          <div className="md:col-span-2 border-t border-gray-800/60 pt-4 mt-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-xs font-semibold text-white flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-emerald-400" />
+                  {lang === "fa" ? "فعالسازی جستجوی وب (Web Search / Grounding)" : "Enable Web Search / Grounding"}
+                </label>
+                <p className="text-[10px] text-gray-400">
+                  {lang === "fa"
+                    ? "به مدل اجازه می‌دهد قبل از پاسخ دادن، اطلاعات به‌روز را از اینترنت جستجو کند (برای جیمینای کاملاً رایگان و خودکار است)."
+                    : "Allows the model to search the web for up-to-date information (fully automated for Gemini)."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiSearchEnabled(!aiSearchEnabled)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  aiSearchEnabled ? "bg-emerald-600" : "bg-gray-800"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    aiSearchEnabled ? (lang === "fa" ? "-translate-x-5" : "translate-x-5") : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {aiSearchEnabled && (
+              <div className="bg-[#05070c] border border-gray-800/40 p-3.5 rounded-lg space-y-3 animate-fadeIn">
+                <p className="text-[10px] text-indigo-300 leading-relaxed">
+                  {lang === "fa"
+                    ? "💡 جیمینای از سیستم جستجوی داخلی گوگل استفاده می‌کند و نیازی به تنظیمات اضافی ندارد. اما در صورتی که از سایر مدل‌ها (مانند Groq, Llama, DeepSeek و ...) استفاده می‌کنید، برای جستجو در وب باید کلید API گوگل یا Brave را در زیر ست کنید:"
+                    : "💡 Gemini uses Google's built-in search tool natively with no keys required. However, for custom models (Groq, Llama, DeepSeek, etc.), you can configure a Google Custom Search or Brave Search API Key below:"}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Google Custom Search API Key */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+                      {lang === "fa" ? "کلید API گوگل سرچ (Google Search API Key):" : "Google Search API Key:"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="AIzaSy..."
+                      className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                      value={googleSearchApiKey}
+                      onChange={(e) => setGoogleSearchApiKey(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Google Custom Search Engine CX */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+                      {lang === "fa" ? "شناسه موتور جستجو (Search Engine CX ID):" : "Search Engine CX ID:"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1a2b3c4d5e6f7g8h9"
+                      className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                      value={googleSearchCx}
+                      onChange={(e) => setGoogleSearchCx(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Brave Search API Key */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+                      {lang === "fa" ? "کلید API جستجوی بریو (Brave Search API Key):" : "Brave Search API Key:"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="BSAp..."
+                      className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                      value={braveSearchApiKey}
+                      onChange={(e) => setBraveSearchApiKey(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5 md:col-span-2 mt-2">
