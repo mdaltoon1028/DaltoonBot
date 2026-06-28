@@ -454,13 +454,20 @@ def get_api_prefix(base_url, session):
     for prefix in candidates:
         url = f"{base_url}{prefix}/inbounds/list"
         try:
-            # Bypass XUISession.request to prevent infinite recursion
-            res = requests.Session.request(session, "GET", url, timeout=5, verify=False)
+            # Create a clean requests.Session to avoid recursion and safely copy cookies & headers
+            temp_session = requests.Session()
+            temp_session.cookies.update(session.cookies)
+            temp_session.headers.update({k: v for k, v in session.headers.items() if k != "Authorization"})
+            if "Authorization" in session.headers:
+                temp_session.headers["Authorization"] = session.headers["Authorization"]
+            
+            res = temp_session.get(url, timeout=5, verify=False)
             if res.status_code != 404:
                 print(f"[API Path Auto-Detect] Found working API path prefix: '{prefix}' for URL: {base_url}")
                 _api_prefix_cache[base_url] = prefix
                 return prefix
         except Exception as e:
+            print(f"[API Path Auto-Detect Debug] Candidate {url} failed: {e}")
             pass
             
     print(f"[API Path Auto-Detect] All candidates returned 404 or timed out for: {base_url}. Defaulting to '/panel/api'")
