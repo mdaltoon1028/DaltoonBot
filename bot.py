@@ -5202,11 +5202,12 @@ def callback_handler(call):
 
         msg = bot.send_message(
             call.message.chat.id,
-            "✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>",
+            "🔻 <b>لطفاً ترافیک مورد نیاز خود را به گیگابایت (GB) وارد کنید:</b>\n"
+            "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
-        bot.register_next_step_handler(msg, process_custom_vol_username, server_id)
+        bot.register_next_step_handler(msg, process_custom_vol_gb, server_id)
         return
 
     if call.data.startswith("buycust_pay:"):
@@ -5652,6 +5653,37 @@ def callback_handler(call):
             handle_discount_decision(call)
         except Exception as e:
             print(f"[Callback Error hasdisc] {e}")
+            try:
+                bot.answer_callback_query(call.id, f"⚠️ خطایی رخ داد: {e}", show_alert=True)
+            except: pass
+        return
+
+    elif call.data.startswith("hascustdisc:"):
+        try:
+            parts = call.data.split(":")
+            # hascustdisc:{decision}:{server_id}:{username_input}:{gb}:{days}
+            decision = parts[1]
+            server_id = parts[2]
+            username_input = parts[3]
+            gb = int(parts[4])
+            days = int(parts[5])
+            
+            if decision == "yes":
+                bot.answer_callback_query(call.id)
+                msg = bot.edit_message_text(
+                    "🎟️ <b>لطفاً کد تخفیف خود را وارد کنید:</b>\n"
+                    "(در صورت انصراف می‌توانید کد اشتباه بزنید یا عملیات را لغو کنید)",
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    parse_mode="HTML",
+                    reply_markup=get_cancel_keyboard()
+                )
+                bot.register_next_step_handler(msg, process_custom_vol_promo_input, server_id, username_input, gb, days)
+            else:
+                bot.answer_callback_query(call.id)
+                send_final_custom_purchase_message(call.message, server_id, username_input, gb, days)
+        except Exception as e:
+            print(f"[Callback Error hascustdisc] {e}")
             try:
                 bot.answer_callback_query(call.id, f"⚠️ خطایی رخ داد: {e}", show_alert=True)
             except: pass
@@ -7548,36 +7580,7 @@ def get_custom_pricing_limits(server_id):
                 break
     return min_gb, min_days
 
-def process_custom_vol_username(message, server_id):
-    text = message.text.strip() if message.text else ""
-    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
-        main_menu_message(message)
-        return
-        
-    import re
-    if not re.match(r"^[a-zA-Z0-9_-]+$", text):
-        msg = bot.reply_to(
-            message,
-            "❌ <b>نام کاربری نامعتبر است!</b>\n"
-            "لطفاً فقط از حروف انگلیسی، اعداد و خط تیره استفاده نمایید (بدون فاصله):",
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard()
-        )
-        bot.register_next_step_handler(msg, process_custom_vol_username, server_id)
-        return
-        
-    username_input = text
-    msg = bot.send_message(
-        message.chat.id,
-        f"👤 نام کاربری: <code>{username_input}</code>\n\n"
-        "🔻 لطفاً ترافیک مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n"
-        "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
-        parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
-    )
-    bot.register_next_step_handler(msg, process_custom_vol_gb, server_id, username_input)
-
-def process_custom_vol_gb(message, server_id, username_input):
+def process_custom_vol_gb(message, server_id):
     text = message.text.strip() if message.text else ""
     if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
         main_menu_message(message)
@@ -7597,22 +7600,20 @@ def process_custom_vol_gb(message, server_id, username_input):
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
-        bot.register_next_step_handler(msg, process_custom_vol_gb, server_id, username_input)
+        bot.register_next_step_handler(msg, process_custom_vol_gb, server_id)
         return
         
     msg = bot.send_message(
         message.chat.id,
-        f"👤 نام کاربری: <code>{username_input}</code>\n"
         f"🔻 حجم انتخابی: <code>{gb} GB</code>\n\n"
         "⏳ لطفاً تعداد روزهای فعال بودن اشتراک را به <b>روز (Days)</b> وارد کنید:\n"
         "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
         parse_mode="HTML",
         reply_markup=get_cancel_keyboard()
     )
-    bot.register_next_step_handler(msg, process_custom_vol_days, server_id, username_input, gb)
+    bot.register_next_step_handler(msg, process_custom_vol_days, server_id, gb)
 
-def process_custom_vol_days(message, server_id, username_input, gb):
-    tg_id = message.from_user.id
+def process_custom_vol_days(message, server_id, gb):
     text = message.text.strip() if message.text else ""
     if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
         main_menu_message(message)
@@ -7632,14 +7633,65 @@ def process_custom_vol_days(message, server_id, username_input, gb):
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )
-        bot.register_next_step_handler(msg, process_custom_vol_days, server_id, username_input, gb)
+        bot.register_next_step_handler(msg, process_custom_vol_days, server_id, gb)
         return
         
-    try:
-        gb = int(gb)
-    except:
-        gb = 0
+    msg = bot.send_message(
+        message.chat.id,
+        f"🔻 حجم انتخابی: <code>{gb} GB</code>\n"
+        f"⏳ مدت زمان: <code>{days} روز</code>\n\n"
+        "✍️ <b>لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:</b>",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    bot.register_next_step_handler(msg, process_custom_vol_username, server_id, gb, days)
 
+def process_custom_vol_username(message, server_id, gb, days):
+    text = message.text.strip() if message.text else ""
+    if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+        main_menu_message(message)
+        return
+        
+    import re
+    if not re.match(r"^[a-zA-Z0-9_-]+$", text):
+        msg = bot.reply_to(
+            message,
+            "❌ <b>نام کاربری نامعتبر است!</b>\n"
+            "لطفاً فقط از حروف انگلیسی، اعداد و خط تیره استفاده نمایید (بدون فاصله):",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_username, server_id, gb, days)
+        return
+        
+    if check_client_exists(text):
+        msg = bot.reply_to(
+            message,
+            "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n"
+            "لطفاً از یک نام کاربری دیگر استفاده کنید:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_username, server_id, gb, days)
+        return
+        
+    username_input = text
+    
+    # User request: Ask for discount code after entering name
+    markup = types.InlineKeyboardMarkup()
+    markup.row(
+        types.InlineKeyboardButton("✅ بله، دارم", callback_data=f"hascustdisc:yes:{server_id}:{username_input}:{gb}:{days}"),
+        types.InlineKeyboardButton("❌ خیر، ندارم", callback_data=f"hascustdisc:no:{server_id}:{username_input}:{gb}:{days}")
+    )
+    bot.send_message(
+        message.chat.id,
+        "🎁 <b>آیا کد تخفیف دارید؟</b>",
+        parse_mode="HTML",
+        reply_markup=markup
+    )
+
+def send_final_custom_purchase_message(message, server_id, username_input, gb, days, applied_promo=None, discount_amount=0):
+    tg_id = message.chat.id if hasattr(message, 'chat') else message.from_user.id
     cfg = get_config()
     db = read_db_json()
     settings_data = db.get("settings", {})
@@ -7674,6 +7726,9 @@ def process_custom_vol_days(message, server_id, username_input, gb):
     except Exception as e:
         print(f"Error calculating price: {e}")
         total_price = 0
+        
+    original_price = total_price
+    total_price = max(0, total_price - discount_amount)
     
     server_name = "سرور انتخابی"
     servers = panel_config.get("servers", [])
@@ -7682,6 +7737,10 @@ def process_custom_vol_days(message, server_id, username_input, gb):
             server_name = s.get("name")
             break
             
+    price_text = f"{int(total_price):,} تومان"
+    if applied_promo:
+        price_text = f"<s>{int(original_price):,}</s> ➡️ <b>{int(total_price):,} تومان</b> (با کد تخفیف)"
+        
     invoice_text = (
         "📊 <b>پیش‌فاکتور ساخت کانفیگ دلخواه</b>\n\n"
         f"🌐 سرور: <b>{server_name}</b>\n"
@@ -7691,7 +7750,7 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         f"💵 هزینه هر گیگابایت: {int(price_gb):,} تومان\n"
         f"💵 هزینه هر روز: {int(price_day):,} تومان\n"
         "──────────────────\n"
-        f"💰 <b>جمع کل: {int(total_price):,} تومان</b>\n\n"
+        f"💰 <b>جمع کل: {price_text}</b>\n\n"
         "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
     )
     
@@ -7712,7 +7771,108 @@ def process_custom_vol_days(message, server_id, username_input, gb):
         )
     markup.add(types.InlineKeyboardButton("❌ لغو و بازگشت", callback_data=f"srvsel_{server_id}"))
     
-    bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
+    chat_id = message.chat.id if hasattr(message, 'chat') else tg_id
+    bot.send_message(chat_id, invoice_text, parse_mode="HTML", reply_markup=markup)
+
+def process_custom_vol_promo_input(message, server_id, username_input, gb, days):
+    tg_id = message.from_user.id
+    if not message.text: return
+    code_text = message.text.strip().upper()
+    
+    if "انصراف" in code_text or code_text == "/START":
+        bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
+        return
+
+    db = read_db_json()
+    promo_codes = db.get("promo_codes", [])
+    promo = next((p for p in promo_codes if p["code"].upper() == code_text), None)
+    
+    if not promo:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hascustdisc:no:{server_id}:{username_input}:{gb}:{days}"))
+        msg = bot.send_message(
+            message.chat.id,
+            "❌ <b>لطفا کد تخفیف رو صحیح وارد کنید یا در صورت نیاز انصراف بزنید و به پرداخت ادامه دهید:</b>",
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        bot.register_next_step_handler(msg, process_custom_vol_promo_input, server_id, username_input, gb, days)
+        return
+
+    # Check if promo code is expired
+    duration_days = promo.get("durationDays")
+    created_at_str = promo.get("createdAt")
+    if duration_days and created_at_str:
+        from datetime import datetime
+        try:
+            clean_str = created_at_str.replace("Z", "")
+            if "." in clean_str:
+                clean_str = clean_str.split(".")[0]
+            created_dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
+            now_dt = datetime.utcnow()
+            delta = now_dt - created_dt
+            if delta.days >= duration_days:
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hascustdisc:no:{server_id}:{username_input}:{gb}:{days}"))
+                bot.send_message(
+                    message.chat.id, 
+                    "❌ <b>مهلت زمانی و انقضای استفاده از این کد تخفیف به پایان رسیده است!</b>", 
+                    parse_mode="HTML",
+                    reply_markup=markup
+                )
+                return
+        except Exception as ex:
+            print(f"[Promo code parse date error]: {ex}")
+
+    # Check usage limits
+    if promo.get("totalUsage", 0) >= promo.get("maxUsage", 9999):
+        bot.send_message(message.chat.id, "❌ متاسفانه ظرفیت استفاده از این کد تخفیف به پایان رسیده است.")
+        send_final_custom_purchase_message(message, server_id, username_input, gb, days)
+        return
+
+    # Calculate price to apply discount
+    cfg = get_config()
+    settings_data = db.get("settings", {})
+    
+    import json
+    panel_config_str = settings_data.get("panel_config", "{}")
+    try:
+        panel_config = json.loads(panel_config_str)
+    except Exception:
+        panel_config = {}
+        
+    custom_pricing = settings_data.get("customPricingBoxes")
+    if not custom_pricing:
+        custom_pricing = panel_config.get("customPricingBoxes", [])
+    
+    price_gb = 3000
+    price_day = 2000
+    
+    if isinstance(custom_pricing, list):
+        for box in custom_pricing:
+            if isinstance(box, dict) and str(server_id) in [str(sid) for sid in box.get("serverIds", [])]:
+                try:
+                    price_gb = int(box.get("pricePerGb", 3000))
+                    price_day = int(box.get("pricePerDay", 2000))
+                except:
+                    price_gb = 3000
+                    price_day = 2000
+                break
+                
+    try:
+        total_price = (gb * price_gb) + (days * price_day)
+    except:
+        total_price = 0
+
+    # Apply discount
+    discount_amount = 0
+    if promo["type"] == "percent":
+        discount_amount = int(total_price * (promo["value"] / 100))
+    elif promo["type"] == "fixed_amount":
+        discount_amount = int(promo["value"])
+    
+    bot.send_message(message.chat.id, f"✅ <b>کد تخفیف اعمال شد!</b>\n💰 مبلغ تخفیف: {discount_amount:,} تومان")
+    send_final_custom_purchase_message(message, server_id, username_input, gb, days, applied_promo=code_text, discount_amount=discount_amount)
 
 def process_renew_gb(message, target_sub_id):
     text = message.text.strip() if message.text else ""
