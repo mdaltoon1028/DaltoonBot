@@ -5321,6 +5321,7 @@ def callback_handler(call):
         # Run API call in a separate thread to avoid blocking the bot
         import threading
         def run_creation():
+            cfg = get_config()
             try:
                 if not is_privileged:
                     new_balance = user.get("walletBalance", 0) - price
