@@ -7574,14 +7574,15 @@ def process_colleague_change_password_pass(message, acc_id, new_user):
 def get_custom_pricing_limits(server_id):
     db = read_db_json()
     settings_data = db.get("settings", {})
-    custom_pricing = settings_data.get("customPricingBoxes")
+    import json
+    try:
+        panel_config = json.loads(settings_data.get("panel_config", "{}"))
+        custom_pricing = panel_config.get("customPricingBoxes", [])
+    except:
+        panel_config = {}
+        custom_pricing = []
     if not custom_pricing:
-        import json
-        try:
-            panel_config = json.loads(settings_data.get("panel_config", "{}"))
-            custom_pricing = panel_config.get("customPricingBoxes", [])
-        except:
-            custom_pricing = []
+        custom_pricing = settings_data.get("customPricingBoxes", [])
             
     min_gb = 1
     min_days = 1
@@ -7723,9 +7724,9 @@ def send_final_custom_purchase_message(message, server_id, username_input, gb, d
     except Exception:
         panel_config = {}
         
-    custom_pricing = settings_data.get("customPricingBoxes")
+    custom_pricing = panel_config.get("customPricingBoxes")
     if not custom_pricing:
-        custom_pricing = panel_config.get("customPricingBoxes", [])
+        custom_pricing = settings_data.get("customPricingBoxes", [])
     
     price_gb = 3000
     price_day = 2000
@@ -7861,9 +7862,9 @@ def process_custom_vol_promo_input(message, server_id, username_input, gb, days)
     except Exception:
         panel_config = {}
         
-    custom_pricing = settings_data.get("customPricingBoxes")
+    custom_pricing = panel_config.get("customPricingBoxes")
     if not custom_pricing:
-        custom_pricing = panel_config.get("customPricingBoxes", [])
+        custom_pricing = settings_data.get("customPricingBoxes", [])
     
     price_gb = 3000
     price_day = 2000
@@ -7974,9 +7975,9 @@ def process_renew_days(message, target_sub_id, gb):
     except Exception:
         panel_config = {}
         
-    custom_pricing = settings_data.get("customPricingBoxes")
+    custom_pricing = panel_config.get("customPricingBoxes")
     if not custom_pricing:
-        custom_pricing = panel_config.get("customPricingBoxes", [])
+        custom_pricing = settings_data.get("customPricingBoxes", [])
     
     price_gb = 3000
     price_day = 2000
