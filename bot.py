@@ -5402,7 +5402,22 @@ def callback_handler(call):
                     f"{configs_block}\n\n"
                     f"🆔 شناسه اشتراک: <code>{sub_id}</code>"
                 )
-                bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=get_custom_keyboard())
+                
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+                markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
+                markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
+                markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+                
+                try:
+                    import urllib.parse
+                    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+                    bot.send_photo(tg_id, qr_url, caption=success_msg, parse_mode="HTML", reply_markup=markup)
+                except Exception as e:
+                    print(f"[Bot Warning] Failed to send custom QR Photo: {e}")
+                    bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=markup)
+                    
+                send_purchase_success_note_if_any(tg_id, only_media=True)
                 
                 # Notify admin
                 admin_msg = (
