@@ -439,7 +439,8 @@ cfg_boot = get_config()
 # Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML", threaded=True, num_threads=30)
 
-_session = None
+_sessions = {}
+_session_default = None
 _api_prefix_cache = {}
 
 def get_api_prefix(base_url, session):
@@ -454,10 +455,13 @@ def get_api_prefix(base_url, session):
     for prefix in candidates:
         url = f"{base_url}{prefix}/inbounds/list"
         try:
-            # Create a clean requests.Session to avoid recursion and safely copy cookies & headers
             temp_session = requests.Session()
-            temp_session.cookies.update(session.cookies)
-            temp_session.headers.update({k: v for k, v in session.headers.items() if k != "Authorization"})
+            # Construct a raw Cookie header to bypass any domain-restricted or port-restricted cookie jar matching rules
+            cookie_str = "; ".join([f"{c.name}={c.value}" for c in session.cookies])
+            if cookie_str:
+                temp_session.headers["Cookie"] = cookie_str
+                
+            temp_session.headers.update({k: v for k, v in session.headers.items() if k not in ["Authorization", "Cookie"]})
             if "Authorization" in session.headers:
                 temp_session.headers["Authorization"] = session.headers["Authorization"]
             
@@ -474,28 +478,71 @@ def get_api_prefix(base_url, session):
     _api_prefix_cache[base_url] = "/panel/api"
     return "/panel/api"
 
-def get_session():
-    global _session
-    if _session is None:
-        import requests
-        
-        class XUISession(requests.Session):
-            def request(self, method, url, *args, **kwargs):
-                if "/panel/api/" in url:
-                    idx = url.find("/panel/api/")
-                    base_url = url[:idx]
-                    suffix = url[idx + len("/panel/api/"):]
-                    prefix = get_api_prefix(base_url, self)
-                    url = f"{base_url}{prefix}/{suffix}"
-                return super().request(method, url, *args, **kwargs)
-                
-        _session = XUISession()
-        _session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.9,fa;q=0.8"
-        })
-    return _session
+def create_new_xui_session():
+    import requests
+    
+    class XUISession(requests.Session):
+        def request(self, method, url, *args, **kwargs):
+            if "/panel/api/" in url:
+                idx = url.find("/panel/api/")
+                base_url = url[:idx]
+                suffix = url[idx + len("/panel/api/"):]
+                prefix = get_api_prefix(base_url, self)
+                url = f"{base_url}{prefix}/{suffix}"
+            return super().request(method, url, *args, **kwargs)
+            
+    session = XUISession()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fa;q=0.8"
+    })
+    return session
+
+def get_session(server_id=None, base_url=None):
+    global _sessions, _session_default
+    
+    key = None
+    if server_id is not None:
+        key = f"server_{server_id}"
+    elif base_url is not None:
+        base_url = base_url.rstrip("/")
+        try:
+            cfg = get_config()
+            servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
+            for s in servers:
+                s_url = s.get("panelUrl", "").rstrip("/")
+                if s_url == base_url or s_url.replace("https://", "http://") == base_url.replace("https://", "http://"):
+                    key = f"server_{s.get('id')}"
+                    break
+        except Exception as e:
+            print(f"[get_session key resolution error] {e}")
+        if not key:
+            key = f"url_{base_url}"
+            
+    if key:
+        if key not in _sessions:
+            _sessions[key] = create_new_xui_session()
+        return _sessions[key]
+    else:
+        try:
+            cfg = get_config()
+            servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
+            active_server = next((s for s in servers if s.get("status") == "active"), None)
+            if not active_server and servers:
+                active_server = servers[0]
+            if active_server:
+                s_id = active_server.get("id")
+                key = f"server_{s_id}"
+                if key not in _sessions:
+                    _sessions[key] = create_new_xui_session()
+                return _sessions[key]
+        except Exception as e:
+            print(f"[get_session fallback error] {e}")
+            
+        if _session_default is None:
+            _session_default = create_new_xui_session()
+        return _session_default
 
 # Clean SSL Warnings inside Python requests
 try:
@@ -550,7 +597,7 @@ def login_xui(server_id=None, force=False):
         
     if panel_type in ["rebecca", "pasarguard"]:
         try:
-            session = get_session()
+            session = get_session(server_id=server_id)
             session.cookies.clear()
             session.headers.pop("Authorization", None)
             session.headers.pop("X-Csrf-Token", None)
@@ -623,13 +670,13 @@ def login_xui(server_id=None, force=False):
         except Exception as e:
             err_msg = f"Connection error: {str(e)}"
             print(f"[Panel API] {err_msg}")
-            get_session().last_login_error = err_msg
+            session.last_login_error = err_msg
             return False
 
     try:
         # 1. Initial GET handshake to fetch cookies and extract csrf-token if present
         print(f"[Sanaei X-UI API] Connecting to handshake URL: {base_url}")
-        session = get_session()
+        session = get_session(server_id=server_id)
         session.cookies.clear()
         session.headers.pop("Authorization", None)
         session.headers.pop("X-Csrf-Token", None)
@@ -656,16 +703,16 @@ def login_xui(server_id=None, force=False):
         }
         if csrf_token:
             headers["X-Csrf-Token"] = csrf_token
-            get_session().headers.update({"X-Csrf-Token": csrf_token})
+            session.headers.update({"X-Csrf-Token": csrf_token})
             print(f"[Sanaei X-UI API] CSRF token applied to session headers.")
 
         print(f"[Sanaei X-UI API] Posting login credentials to {login_url}")
-        response = get_session().post(login_url, data=login_data, headers=headers, timeout=20, verify=False)
+        response = session.post(login_url, data=login_data, headers=headers, timeout=20, verify=False)
         
         if response.status_code != 200:
             err_msg = f"Login failed (Status: {response.status_code})"
             print(f"[Sanaei X-UI API] {err_msg}")
-            get_session().last_login_error = err_msg
+            session.last_login_error = err_msg
             return False
 
         # After login, the panel might issue a NEW CSRF token or update cookies
@@ -680,7 +727,7 @@ def login_xui(server_id=None, force=False):
                  match = re.search(r'<meta\s+name="csrf-token"\s+content="([^"]+)"', response.text)
                  if match:
                      new_token = match.group(1)
-                     get_session().headers.update({"X-Csrf-Token": new_token})
+                     session.headers.update({"X-Csrf-Token": new_token})
                      print(f"[Sanaei X-UI API] New POST-login CSRF token detected in body: {new_token}")
         try:
             res_json = response.json()
@@ -1136,11 +1183,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     if not login_xui(server_id):
         print("[Sanaei API Error] Skipping user creation - login failed.")
-        session = get_session()
+        session = get_session(server_id=server_id)
         session.last_error = getattr(session, "last_login_error", "ورود به پنل ناموفق بود.")
         return None, None
 
-    session = get_session()
+    session = get_session(server_id=server_id)
 
     if not client_uuid:
          client_uuid = str(uuid.uuid4())
@@ -1220,7 +1267,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             if res.status_code == 401:
                 print(f"[{panel_type} API] Got 401 Unauthorized, forcing login retry...")
                 if login_xui(server_id, force=True):
-                    session = get_session()
+                    session = get_session(server_id=server_id)
                     res = session.post(f"{base_url}/api/user", json=payload, headers=headers, timeout=20, verify=False)
             if res.ok:
                 rj = res.json()
@@ -1289,7 +1336,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
         if u_res.status_code == 401:
             print(f"[Sanaei API] Got 401 Unauthorized, forcing login retry...")
             if login_xui(server_id, force=True):
-                session = get_session()
+                session = get_session(server_id=server_id)
                 u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
         if u_res.ok and u_res.json().get("success"):
             print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
@@ -1313,7 +1360,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             if c_res.status_code == 401:
                 print(f"[Sanaei Classic API] Got 401 Unauthorized, forcing login retry...")
                 if login_xui(server_id, force=True):
-                    session = get_session()
+                    session = get_session(server_id=server_id)
                     c_res = session.post(classic_url, json=classic_payload, headers=headers, timeout=20, verify=False)
             if c_res.ok and c_res.json().get("success"):
                 success_count += 1
@@ -1354,7 +1401,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server
     if not login_xui(server_id):
         return False
         
-    session = get_session()
+    session = get_session(server_id=server_id)
         
     safe_email = ""
     if client_email:
@@ -1374,7 +1421,7 @@ def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server
             if res.status_code == 401:
                 print(f"[{panel_type} API] Got 401 Unauthorized in modify, forcing login retry...")
                 if login_xui(server_id, force=True):
-                    session = get_session()
+                    session = get_session(server_id=server_id)
                     res = session.put(f"{base_url}/api/user/{safe_email}/disabled", json={"status": status_str}, headers=headers, timeout=20, verify=False)
             if res.ok:
                 return True
@@ -1547,7 +1594,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
         print(f"[Sanaei API Error] Login failed in delete_vpn_client_api for server_id: {server_id}")
         return False
         
-    session = get_session()
+    session = get_session(server_id=server_id)
         
     import re
     safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
@@ -1561,7 +1608,7 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
             if res.status_code == 401:
                 print(f"[{panel_type} API] Got 401 Unauthorized in delete, forcing login retry...")
                 if login_xui(server_id, force=True):
-                    session = get_session()
+                    session = get_session(server_id=server_id)
                     res = session.delete(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
             if res.ok:
                 return True
