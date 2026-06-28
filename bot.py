@@ -5102,7 +5102,7 @@ def callback_handler(call):
                 elif "voip" in cat.lower() or "unlimited" in cat.lower(): emoji = "🚀"
                 elif "premium" in cat.lower(): emoji = "💎"
             
-            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{server_id}_{cat}"))
+            markup.add(types.InlineKeyboardButton(f"{emoji} {cat}", callback_data=f"plcat_{server_id}:{cat}"))
         
         markup.add(types.InlineKeyboardButton("✨ ساخت کانفیگ با حجم دلخواه", callback_data=f"custom_vol_{server_id}"))
         
@@ -5120,7 +5120,11 @@ def callback_handler(call):
         server_id = ""
         category_name = ""
         
-        if data_stripped.startswith("srv_"):
+        if ":" in data_stripped:
+            parts = data_stripped.split(":", 1)
+            server_id = parts[0]
+            category_name = parts[1]
+        elif data_stripped.startswith("srv_"):
             parts = data_stripped.split("_", 2)
             if len(parts) == 3:
                 server_id = f"{parts[0]}_{parts[1]}"
@@ -5128,7 +5132,23 @@ def callback_handler(call):
             else:
                 category_name = data_stripped
         else:
-            category_name = data_stripped
+            cfg = get_config()
+            servers = cfg.get("SERVERS", [])
+            matched = False
+            for srv in servers:
+                srv_id_str = str(srv.get("id"))
+                if data_stripped.startswith(srv_id_str + "_"):
+                    server_id = srv_id_str
+                    category_name = data_stripped[len(srv_id_str)+1:]
+                    matched = True
+                    break
+            if not matched:
+                if "_" in data_stripped:
+                    parts = data_stripped.split("_", 1)
+                    server_id = parts[0]
+                    category_name = parts[1]
+                else:
+                    category_name = data_stripped
         
         db = read_db_json()
         db_plans = db.get("vpn_plans", [])

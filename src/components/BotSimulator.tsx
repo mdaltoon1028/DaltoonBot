@@ -1088,13 +1088,19 @@ export default function BotSimulator({
       const inlineCats: any[] = [];
       definedCats.forEach(c => {
         if (plans.some(p => p.category?.toLowerCase() === c.name.toLowerCase())) {
-          inlineCats.push({ text: `${c.emoji || "⚡"} ${c.name}`, action: `plcat_${serverId}_${c.name}` });
+          inlineCats.push({ text: `${c.emoji || "⚡"} ${c.name}`, action: `plcat_${serverId}:${c.name}` });
           cats.delete(c.name);
         }
       });
       cats.forEach(c => {
-        inlineCats.push({ text: `⚡ ${c}`, action: `plcat_${serverId}_${c}` });
+        inlineCats.push({ text: `⚡ ${c}`, action: `plcat_${serverId}:${c}` });
       });
+
+      if (serverId) {
+        inlineCats.push([
+          { text: lang === "fa" ? "✨ ساخت کانفیگ با حجم دلخواه" : "✨ Create Custom Volume Config", action: `custom_vol_${serverId}` }
+        ]);
+      }
 
       inlineCats.push([
         { text: lang === "fa" ? "🔙 بازگشت به لیست سرورها" : "🔙 Back to Servers", action: (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") },
@@ -1116,11 +1122,31 @@ export default function BotSimulator({
       let serverId = "";
       let catName = action.replace("plcat_", "");
       
-      // Extract serverId if it exists (plcat_srv_xxxxxx_CATEGORY)
-      if (catName.startsWith("srv_")) {
+      if (catName.includes(":")) {
+        const parts = catName.split(":");
+        serverId = parts[0];
+        catName = parts[1];
+      } else if (catName.startsWith("srv_")) {
         const parts = catName.split("_");
         serverId = parts[0] + "_" + parts[1];
         catName = parts.slice(2).join("_");
+      } else {
+        const servers = settings?.servers || [];
+        let matched = false;
+        for (const srv of servers) {
+          const srvIdStr = String(srv.id);
+          if (catName.startsWith(srvIdStr + "_")) {
+            serverId = srvIdStr;
+            catName = catName.substring(srvIdStr.length + 1);
+            matched = true;
+            break;
+          }
+        }
+        if (!matched && catName.includes("_")) {
+          const idx = catName.indexOf("_");
+          serverId = catName.substring(0, idx);
+          catName = catName.substring(idx + 1);
+        }
       }
       
       const filteredPlans = plans.filter(p => (p.category || (lang === "fa" ? "سایر" : "Others")).toLowerCase() === catName.toLowerCase());
@@ -1130,6 +1156,12 @@ export default function BotSimulator({
         action: serverId ? `buy_${serverId}_${p.id}` : `buy_${p.id}`
       }));
       
+      if (serverId) {
+        inlinePlans.push([
+          { text: lang === "fa" ? "✨ ساخت کانفیگ با حجم دلخواه" : "✨ Create Custom Volume Config", action: `custom_vol_${serverId}` }
+        ]);
+      }
+
       inlinePlans.push([
         { text: lang === "fa" ? "🔙 بازگشت به دسته‌بندی‌ها" : "🔙 Back to Categories", action: serverId ? `srvsel_${serverId}` : (settings?.btnTextBuyNew || "🛒 خرید اشتراک جدید") },
         { text: lang === "fa" ? "🏠 منوی اصلی" : "🏠 Main Menu", action: "btn_back_home" }
