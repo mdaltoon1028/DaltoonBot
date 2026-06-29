@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ColleaguePackage, ColleagueAccount, ColleagueCategory, PlanCategory, PanelSettings } from "../types";
-import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity, Layers, Smile } from "lucide-react";
+import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity, Layers, Smile, ChevronUp, ChevronDown } from "lucide-react";
 import MultiServerConfig from "./MultiServerConfig";
 
 interface Props {
@@ -196,6 +196,54 @@ export default function ColleaguesManagement({
       showToast(err.message, "error");
     }
     setLoading(false);
+  };
+
+  const handleMovePackage = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= packages.length) return;
+
+    const newPackages = [...packages];
+    const temp = newPackages[index];
+    newPackages[index] = newPackages[targetIndex];
+    newPackages[targetIndex] = temp;
+
+    setPackages(newPackages);
+
+    try {
+      const response = await fetch("/api/colleague-packages/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newPackages.map(p => p.id) })
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of colleague packages");
+      }
+    } catch (err) {
+      console.error("Error reordering colleague packages:", err);
+    }
+  };
+
+  const handleSetPackagePosition = async (index: number, newPositionIndex: number) => {
+    if (newPositionIndex < 0 || newPositionIndex >= packages.length || index === newPositionIndex) return;
+
+    const newPackages = [...packages];
+    const [movedPkg] = newPackages.splice(index, 1);
+    newPackages.splice(newPositionIndex, 0, movedPkg);
+
+    setPackages(newPackages);
+
+    try {
+      const response = await fetch("/api/colleague-packages/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newPackages.map(p => p.id) })
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of colleague packages");
+      }
+    } catch (err) {
+      console.error("Error reordering colleague packages:", err);
+    }
   };
 
   const deletePackage = async (id: string) => {
@@ -522,44 +570,94 @@ export default function ColleaguesManagement({
 
           <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {packages.map(p => (
-                <div key={p.id} className="bg-slate-800/50 p-4 rounded-xl border border-white/10 relative">
-                <button
-                  onClick={() => deletePackage(p.id)}
-                  disabled={loading}
-                  className="absolute top-2 left-2 p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-md"
-                >
-                  <Trash className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    setEditPackageId(p.id);
-                    setPTitle(p.title);
-                    setPPrice(String(p.price));
-                    setPTraffic(String(p.trafficGb));
-                    setPMinCreateGb(p.minCreateGb ? String(p.minCreateGb) : "");
-                    setPCategory(p.category || "");
-                    setPDesc(p.description || "");
-                    setShowAddPackage(true);
-                  }}
-                  className="absolute top-2 left-10 p-1.5 text-blue-400 hover:bg-blue-500/20 rounded-md text-sm font-bold"
-                >
-                  {lang === "fa" ? "ویرایش" : "Edit"}
-                </button>
-                <h4 className="text-white font-bold text-lg pr-4">{p.title}</h4>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-300">
-                  <span className="text-indigo-400 font-bold whitespace-nowrap">💰 {p.price.toLocaleString()} تومان</span>
-                  <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
-                  <span className="text-amber-400 font-bold whitespace-nowrap">⚠️ حداقل حجم ساخت: {p.minCreateGb || 1} گیگابایت</span>
-                  {p.category && (
-                    <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
-                      {colleagueCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
-                    </span>
-                  )}
+              {packages.map((p, index) => (
+                <div key={p.id} className="bg-slate-800/50 p-4 rounded-xl border border-white/10 relative flex flex-col justify-between">
+                  <div>
+                    {/* Order & Reordering Controls (Dropdown & Arrows) */}
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2.5 mb-3.5">
+                      <span className="text-[11px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-2 py-0.5 rounded border border-white/5">
+                        <Layers className="w-3 h-3 text-indigo-400" />
+                        {lang === "fa" ? `جایگاه: ${index + 1}` : `Rank: ${index + 1}`}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleMovePackage(index, "up")}
+                          disabled={index === 0}
+                          className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                          title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMovePackage(index, "down")}
+                          disabled={index === packages.length - 1}
+                          className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                          title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                        <select
+                          value={index}
+                          onChange={(e) => handleSetPackagePosition(index, Number(e.target.value))}
+                          className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          title={lang === "fa" ? "انتخاب مستقیم جایگاه" : "Direct Position Selection"}
+                        >
+                          {packages.map((_, idx) => (
+                            <option key={idx} value={idx}>
+                              {idx + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Original Edit/Delete buttons repositioned elegantly in content layout */}
+                    <div className="flex justify-between items-start">
+                      <h4 className="text-white font-bold text-lg pr-4">{p.title}</h4>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditPackageId(p.id);
+                            setPTitle(p.title);
+                            setPPrice(String(p.price));
+                            setPTraffic(String(p.trafficGb));
+                            setPMinCreateGb(p.minCreateGb ? String(p.minCreateGb) : "");
+                            setPCategory(p.category || "");
+                            setPDesc(p.description || "");
+                            setShowAddPackage(true);
+                          }}
+                          className="p-1.5 text-blue-400 hover:bg-blue-500/20 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>{lang === "fa" ? "ویرایش" : "Edit"}</span>
+                        </button>
+                        <button
+                          onClick={() => deletePackage(p.id)}
+                          disabled={loading}
+                          className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-md flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                          <span className="text-xs font-bold">{lang === "fa" ? "حذف" : "Delete"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-300">
+                      <span className="text-indigo-400 font-bold whitespace-nowrap">💰 {p.price.toLocaleString()} تومان</span>
+                      <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
+                      <span className="text-amber-400 font-bold whitespace-nowrap">⚠️ حداقل حجم ساخت: {p.minCreateGb || 1} گیگابایت</span>
+                      {p.category && (
+                        <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
+                          {colleagueCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">{p.description}</p>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">{p.description}</p>
-              </div>
-            ))}
+              ))}
             {packages.length === 0 && (
               <div className="col-span-full text-center py-8 text-gray-500">
                 {lang === "fa" ? "هیچ پکیجی ثبت نشده است." : "No packages found."}

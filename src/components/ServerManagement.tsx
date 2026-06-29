@@ -248,6 +248,54 @@ export default function ServerManagement({
     setShowAddForm(true);
   };
 
+  const handleMovePlan = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= vpnPlans.length) return;
+
+    const newPlans = [...vpnPlans];
+    const temp = newPlans[index];
+    newPlans[index] = newPlans[targetIndex];
+    newPlans[targetIndex] = temp;
+
+    setVpnPlans(newPlans);
+
+    try {
+      const response = await fetch("/api/vpn-plans/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newPlans.map(p => p.id) })
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of plans");
+      }
+    } catch (err) {
+      console.error("Error reordering plans:", err);
+    }
+  };
+
+  const handleSetPlanPosition = async (index: number, newPositionIndex: number) => {
+    if (newPositionIndex < 0 || newPositionIndex >= vpnPlans.length || index === newPositionIndex) return;
+
+    const newPlans = [...vpnPlans];
+    const [movedPlan] = newPlans.splice(index, 1);
+    newPlans.splice(newPositionIndex, 0, movedPlan);
+
+    setVpnPlans(newPlans);
+
+    try {
+      const response = await fetch("/api/vpn-plans/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newPlans.map(p => p.id) })
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of plans");
+      }
+    } catch (err) {
+      console.error("Error reordering plans:", err);
+    }
+  };
+
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -1083,12 +1131,52 @@ export default function ServerManagement({
           ) : (
             <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {vpnPlans.map((plan) => {
+                {vpnPlans.map((plan, index) => {
                 const isConfirmDeleting = confirmDeletingId === plan.id;
 
                 return (
                   <div key={plan.id} className="bg-slate-950/60 border border-slate-900 rounded-2xl p-5 shadow-sm hover:border-slate-800 transition flex flex-col justify-between">
                     
+                    {/* Order & Reordering Controls (Dropdown & Arrows) */}
+                    <div className="flex justify-between items-center border-b border-slate-900 pb-2.5 mb-3.5">
+                      <span className="text-[11px] font-mono text-gray-500 font-semibold flex items-center gap-1 bg-slate-900/40 px-2 py-0.5 rounded-md border border-slate-900/60">
+                        <Layers className="w-3 h-3 text-indigo-400" />
+                        {lang === "fa" ? `جایگاه: ${index + 1}` : `Rank: ${index + 1}`}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleMovePlan(index, "up")}
+                          disabled={index === 0}
+                          className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                          title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMovePlan(index, "down")}
+                          disabled={index === vpnPlans.length - 1}
+                          className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                          title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                        <select
+                          value={index}
+                          onChange={(e) => handleSetPlanPosition(index, Number(e.target.value))}
+                          className="bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          title={lang === "fa" ? "انتخاب مستقیم جایگاه" : "Direct Position Selection"}
+                        >
+                          {vpnPlans.map((_, idx) => (
+                            <option key={idx} value={idx}>
+                              {idx + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
                     {/* Package Info Header */}
                     <div className="space-y-4">
                       <div className="flex justify-between items-start gap-2">

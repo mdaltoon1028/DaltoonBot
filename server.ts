@@ -1042,6 +1042,36 @@ app.post("/api/colleague-packages/delete", (req, res) => {
   res.json({ success: true, colleaguePackages: db.colleague_packages });
 });
 
+app.post("/api/colleague-packages/reorder", (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
+    }
+    const db = readJsonDb();
+    if (!db.colleague_packages) db.colleague_packages = [];
+
+    const pkgsMap = new Map(db.colleague_packages.map((p: any) => [p.id, p]));
+    const sortedPkgs: any[] = [];
+    orderedIds.forEach((id: string) => {
+      const pkg = pkgsMap.get(id);
+      if (pkg) {
+        sortedPkgs.push(pkg);
+        pkgsMap.delete(id);
+      }
+    });
+    pkgsMap.forEach((pkg) => {
+      sortedPkgs.push(pkg);
+    });
+
+    db.colleague_packages = sortedPkgs;
+    writeJsonDb(db);
+    res.json({ success: true, colleaguePackages: db.colleague_packages });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // --- Colleague Category Endpoints ---
 app.get("/api/colleague-categories", (req, res) => {
   const db = readJsonDb();
@@ -4923,6 +4953,36 @@ app.post("/api/vpn-plans/delete", async (req, res) => {
     if (!db.vpn_plans) db.vpn_plans = [];
 
     db.vpn_plans = db.vpn_plans.filter((p) => p.id !== id);
+    writeJsonDb(db);
+    res.json({ success: true, vpnPlans: db.vpn_plans });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/vpn-plans/reorder", async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
+    }
+    const db = readJsonDb();
+    if (!db.vpn_plans) db.vpn_plans = [];
+
+    const plansMap = new Map(db.vpn_plans.map((p: any) => [p.id, p]));
+    const sortedPlans: any[] = [];
+    orderedIds.forEach((id: string) => {
+      const plan = plansMap.get(id);
+      if (plan) {
+        sortedPlans.push(plan);
+        plansMap.delete(id);
+      }
+    });
+    plansMap.forEach((plan) => {
+      sortedPlans.push(plan);
+    });
+
+    db.vpn_plans = sortedPlans;
     writeJsonDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
   } catch (error: any) {
