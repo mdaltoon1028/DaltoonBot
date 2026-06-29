@@ -133,6 +133,9 @@ const dbJsonPath = (() => {
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
+  if (process.env.PORT && !isNaN(Number(process.env.PORT))) {
+    return Number(process.env.PORT);
+  }
   // Try to load port from database
   try {
     if (fs.existsSync(dbJsonPath)) {
@@ -397,14 +400,16 @@ function getSystemSettings(db?: any) {
     ...parsedSettings,
   };
 
-  if (!settings.botToken && process.env.BOT_TOKEN)
+  if (process.env.BOT_TOKEN)
     settings.botToken = process.env.BOT_TOKEN;
-  if (!settings.ownerId && process.env.OWNER_ID)
+  if (process.env.OWNER_ID)
     settings.ownerId = Number(process.env.OWNER_ID);
-  if (!settings.dashboardUsername && process.env.PANEL_USER)
-    settings.dashboardUsername = process.env.PANEL_USER;
-  if (!settings.dashboardPassword && process.env.PANEL_PASS)
-    settings.dashboardPassword = process.env.PANEL_PASS;
+  if (process.env.DASHBOARD_USERNAME || process.env.PANEL_USER)
+    settings.dashboardUsername = process.env.DASHBOARD_USERNAME || process.env.PANEL_USER;
+  if (process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS)
+    settings.dashboardPassword = process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS;
+  if (process.env.PORT)
+    settings.serverPort = Number(process.env.PORT);
 
   return settings;
 }
@@ -5298,6 +5303,33 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
         .json({ success: false, error: "اطلاعات فایل بکاپ نامعتبر است." });
     }
 
+    // Preserve current active critical settings if they are customized
+    let preservedConfig: any = {};
+    try {
+      const currentDb = readJsonDb();
+      if (currentDb && currentDb.settings && currentDb.settings.panel_config) {
+        const pc =
+          typeof currentDb.settings.panel_config === "string"
+            ? JSON.parse(currentDb.settings.panel_config)
+            : currentDb.settings.panel_config;
+        if (pc.dashboardUsername && pc.dashboardUsername !== "Daltoon") {
+          preservedConfig.dashboardUsername = pc.dashboardUsername;
+        }
+        if (pc.dashboardPassword && pc.dashboardPassword !== "Daltoon10") {
+          preservedConfig.dashboardPassword = pc.dashboardPassword;
+        }
+        if (pc.serverPort && Number(pc.serverPort) !== 3000) {
+          preservedConfig.serverPort = Number(pc.serverPort);
+        }
+        if (pc.botToken && pc.botToken !== "DUMMY_TOKEN") {
+          preservedConfig.botToken = pc.botToken;
+        }
+        if (pc.ownerId && Number(pc.ownerId) !== 0) {
+          preservedConfig.ownerId = Number(pc.ownerId);
+        }
+      }
+    } catch (e) {}
+
     // Always keep backup data clean and minimal
     if (parsed.transactions && Array.isArray(parsed.transactions)) {
       parsed.transactions = parsed.transactions.map((t: any) => {
@@ -5310,6 +5342,20 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
         }
         return t;
       });
+    }
+
+    // Merge preserved active config into restored database settings
+    if (Object.keys(preservedConfig).length > 0) {
+      if (!parsed.settings) parsed.settings = {};
+      if (!parsed.settings.panel_config) parsed.settings.panel_config = "{}";
+      try {
+        let pc =
+          typeof parsed.settings.panel_config === "string"
+            ? JSON.parse(parsed.settings.panel_config)
+            : parsed.settings.panel_config;
+        pc = { ...pc, ...preservedConfig };
+        parsed.settings.panel_config = JSON.stringify(pc);
+      } catch (e) {}
     }
 
     const writeSuccess = writeJsonDb(parsed);
