@@ -44,7 +44,7 @@ def get_db_path():
     Migrates legacy data if Daltoon_Bot.json is missing, then completely deletes all legacy db files.
     """
     target_path = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
-    possible_files = ["db.json", "database.json", "bot_database.json"]
+    possible_files = ["db.json", "database.json", "bot_database.json", "Daltoon_bot.json"]
 
     def get_file_score(path):
         try:
@@ -87,7 +87,7 @@ def get_db_path():
                     best_score = score
                     best_file = p
 
-        if best_score > -1 and best_file:
+        if best_score > -1 and best_file and best_file.lower() != target_path.lower():
             print(f"[Database Migration] Migrating legacy active database from {best_file} to standard {target_path}...")
             try:
                 import shutil
@@ -101,14 +101,14 @@ def get_db_path():
         root_path = os.path.join(SCRIPT_DIR, f)
         parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
         for p in [root_path, parent_path]:
-            if os.path.exists(p):
+            if p.lower() != target_path.lower() and os.path.exists(p):
                 try:
                     os.remove(p)
                     print(f"[Database Cleanup] Legacy file {p} completely deleted.")
                 except: pass
             # Also delete legacy backup files
             bak_path = p + ".bak"
-            if os.path.exists(bak_path):
+            if bak_path.lower() != (target_path + ".bak").lower() and os.path.exists(bak_path):
                 try:
                     os.remove(bak_path)
                 except: pass

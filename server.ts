@@ -31,7 +31,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 // Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
 const dbJsonPath = (() => {
   const targetPath = path.resolve(process.cwd(), "Daltoon_Bot.json");
-  const possibleFiles = ["db.json", "database.json", "bot_database.json"];
+  const possibleFiles = ["db.json", "database.json", "bot_database.json", "Daltoon_bot.json"];
 
   // Helper inspect file for actual registered data
   const getFileScore = (filePath: string): number => {
@@ -93,7 +93,7 @@ const dbJsonPath = (() => {
       }
     }
 
-    if (bestScore > -1 && bestFile) {
+    if (bestScore > -1 && bestFile && bestFile.toLowerCase() !== targetPath.toLowerCase()) {
       console.log(`[Database Migration] Migrating active database from legacy ${bestFile} to standard ${targetPath}...`);
       try {
         const rawData = fs.readFileSync(bestFile, "utf8");
@@ -112,7 +112,7 @@ const dbJsonPath = (() => {
     const parentPath = path.resolve(_dirname, "..", f);
 
     for (const p of [rootPath, scriptPath, parentPath]) {
-      if (fs.existsSync(p)) {
+      if (p.toLowerCase() !== targetPath.toLowerCase() && fs.existsSync(p)) {
         try {
           fs.unlinkSync(p);
           console.log(`[Database Cleanup] Legacy file ${p} has been completely deleted.`);
@@ -120,7 +120,7 @@ const dbJsonPath = (() => {
       }
       // Also clean up any .bak files to keep directory super tidy
       const bakPath = p + ".bak";
-      if (fs.existsSync(bakPath)) {
+      if (bakPath.toLowerCase() !== (targetPath + ".bak").toLowerCase() && fs.existsSync(bakPath)) {
         try {
           fs.unlinkSync(bakPath);
         } catch (e) {}
