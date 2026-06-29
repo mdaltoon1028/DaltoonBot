@@ -6220,7 +6220,13 @@ def process_ai_support(message):
         if response.status_code == 200:
             data = response.json()
             reply = data.get("response", "پاسخی دریافت نشد.")
-            msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
+            try:
+                msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
+            except Exception:
+                try:
+                    msg = bot.send_message(message.chat.id, reply)
+                except Exception as inner_e:
+                    raise inner_e
             bot.register_next_step_handler(msg, process_ai_support)
         else:
             try:
@@ -6261,7 +6267,13 @@ def process_ai_general(message):
         if response.status_code == 200:
             data = response.json()
             reply = data.get("response", "پاسخی دریافت نشد.")
-            msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
+            try:
+                msg = bot.send_message(message.chat.id, reply, parse_mode="Markdown")
+            except Exception:
+                try:
+                    msg = bot.send_message(message.chat.id, reply)
+                except Exception as inner_e:
+                    raise inner_e
             bot.register_next_step_handler(msg, process_ai_general)
         else:
             try:
