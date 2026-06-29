@@ -1794,7 +1794,7 @@ app.post("/api/ai/chat", async (req, res) => {
         apiKey: apiKeyToUse,
       });
 
-      const modelName = finalModelName || "gemini-3.5-flash";
+      const modelName = finalModelName || "gemini-2.5-flash";
       
       const configObj: any = {
         systemInstruction: systemPrompt,
