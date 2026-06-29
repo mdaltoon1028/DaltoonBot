@@ -2085,6 +2085,13 @@ def update_user_balance(tg_id, new_balance):
         user["walletBalance"] = max(0.0, float(new_balance))
         write_db_json(db)
 
+def update_user_pinned_seen(tg_id, pinned_text):
+    db = read_db_json()
+    user = next((u for u in db["users"] if str(u.get("userId")) == str(tg_id)), None)
+    if user:
+        user["lastPinnedMsgSeen"] = pinned_text
+        write_db_json(db)
+
 def log_transaction(tg_id, amount, action, details, flow_type="out"):
     import time
     db = read_db_json()
@@ -2453,11 +2460,13 @@ def start_cmd(message):
     pinned_active = cfg.get("PINNED_MESSAGE_ACTIVE", False)
     pinned_text = cfg.get("PINNED_MESSAGE_TEXT")
     if pinned_active and pinned_text:
-        try:
-            sent_pin_msg = bot.send_message(message.chat.id, pinned_text, parse_mode="HTML")
-            bot.pin_chat_message(message.chat.id, sent_pin_msg.message_id, disable_notification=True)
-        except Exception as pin_err:
-            print(f"Error pinning message in start_cmd: {pin_err}")
+        if not user or user.get("lastPinnedMsgSeen") != pinned_text:
+            try:
+                sent_pin_msg = bot.send_message(message.chat.id, pinned_text, parse_mode="HTML")
+                bot.pin_chat_message(message.chat.id, sent_pin_msg.message_id, disable_notification=True)
+                update_user_pinned_seen(tg_id, pinned_text)
+            except Exception as pin_err:
+                print(f"Error pinning message in start_cmd: {pin_err}")
 
 @bot.message_handler(commands=['buy'])
 def buy_cmd(message):
@@ -7392,6 +7401,14 @@ def process_custom_charge_amount(message):
         f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
     )
     bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=get_cancel_keyboard())
+
+# --- Auto-delete pinned message notification (service message) ---
+@bot.message_handler(content_types=['pinned_message'])
+def handle_pinned_service_message(message):
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        print(f"Error deleting pinned service message: {e}")
 
 # --- Photo, Video & Document Master Media Handler ---
 @bot.message_handler(content_types=['photo', 'document', 'video', 'animation'])
