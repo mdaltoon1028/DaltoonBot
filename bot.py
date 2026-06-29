@@ -2720,7 +2720,8 @@ def handle_main_menu_callback(call):
             if c not in cats: cats[c] = []
             cats[c].append(p)
         
-        sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
+        cat_index_map = {c.get('name'): i for i, c in enumerate(col_cats) if c.get('name')}
+        sorted_cat_names = sorted(cats.keys(), key=lambda x: cat_index_map.get(x, 9999))
         
         text += "📁 لطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:"
         
@@ -2762,6 +2763,8 @@ def handle_main_menu_callback(call):
         return
 
     elif action == "mm_btn_DUMMY_":
+        col_cats = db.get("colleague_categories", [])
+        cat_index_map = {c.get('name'): i for i, c in enumerate(col_cats) if c.get('name')}
         
         if packages:
             # Group by category
@@ -2772,7 +2775,7 @@ def handle_main_menu_callback(call):
                 cats[c].append(p)
             
             # Sort categories
-            sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
+            sorted_cat_names = sorted(cats.keys(), key=lambda x: cat_index_map.get(x, 9999))
             
             for cat_name in sorted_cat_names:
                 cat_info = cat_dict.get(cat_name)
@@ -2795,7 +2798,7 @@ def handle_main_menu_callback(call):
                 if c not in cats: cats[c] = []
                 cats[c].append(p)
             
-            sorted_cat_names = sorted(cats.keys(), key=lambda x: 0 if "پلن" in x or "Plan" in x else 1)
+            sorted_cat_names = sorted(cats.keys(), key=lambda x: cat_index_map.get(x, 9999))
             
             for cat_name in sorted_cat_names:
                 # Add a header button/indicator if multiple categories

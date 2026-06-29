@@ -296,6 +296,54 @@ export default function ServerManagement({
     }
   };
 
+  const handleMovePlanCategory = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= planCategories.length) return;
+
+    const newCats = [...planCategories];
+    const temp = newCats[index];
+    newCats[index] = newCats[targetIndex];
+    newCats[targetIndex] = temp;
+
+    setPlanCategories(newCats);
+
+    try {
+      const response = await fetch("/api/plan-categories/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newCats.map(c => c.id) })
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of plan categories");
+      }
+    } catch (err) {
+      console.error("Error reordering plan categories:", err);
+    }
+  };
+
+  const handleSetPlanCategoryPosition = async (index: number, newPositionIndex: number) => {
+    if (newPositionIndex < 0 || newPositionIndex >= planCategories.length || index === newPositionIndex) return;
+
+    const newCats = [...planCategories];
+    const [movedCat] = newCats.splice(index, 1);
+    newCats.splice(newPositionIndex, 0, movedCat);
+
+    setPlanCategories(newCats);
+
+    try {
+      const response = await fetch("/api/plan-categories/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newCats.map(c => c.id) })
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of plan categories");
+      }
+    } catch (err) {
+      console.error("Error reordering plan categories:", err);
+    }
+  };
+
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -901,34 +949,76 @@ export default function ServerManagement({
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {planCategories.map(cat => (
-            <div key={cat.id} className="bg-[#1c253b] border border-gray-800 p-4 rounded-xl hover:border-purple-500/50 transition-all flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{cat.emoji}</span>
-                <span className="text-sm font-bold text-white">{cat.name}</span>
+          {planCategories.map((cat, index) => (
+            <div key={cat.id} className="bg-[#1c253b] border border-gray-800 p-4 rounded-xl hover:border-purple-500/50 transition-all flex flex-col justify-between gap-3.5 shadow-sm">
+              {/* Order & Reordering Controls */}
+              <div className="flex justify-between items-center border-b border-gray-800 pb-2 mb-1">
+                <span className="text-[10px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-1.5 py-0.5 rounded border border-gray-800">
+                  <Layers className="w-2.5 h-2.5 text-indigo-400" />
+                  {lang === "fa" ? `جایگاه: ${index + 1}` : `Rank: ${index + 1}`}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleMovePlanCategory(index, "up")}
+                    disabled={index === 0}
+                    className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                    title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                  >
+                    <ChevronUp className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMovePlanCategory(index, "down")}
+                    disabled={index === planCategories.length - 1}
+                    className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                    title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  <select
+                    value={index}
+                    onChange={(e) => handleSetPlanCategoryPosition(index, Number(e.target.value))}
+                    className="bg-slate-900 border border-slate-800 rounded px-1 py-0.5 text-[9px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    title={lang === "fa" ? "انتخاب مستقیم جایگاه" : "Direct Position Selection"}
+                  >
+                    {planCategories.map((_, idx) => (
+                      <option key={idx} value={idx}>
+                        {idx + 1}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setEditingCategoryId(cat.id);
-                    setCatName(cat.name);
-                    setCatEmoji(cat.emoji || "⚡️");
-                    setIsAddingCat(false);
-                  }}
-                  className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors"
-                  title={lang === "fa" ? "ویرایش" : "Edit"}
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => {
-                    handleDeleteCategory(cat.id);
-                  }}
-                  className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
-                  title={lang === "fa" ? "حذف" : "Delete"}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{cat.emoji}</span>
+                  <span className="text-sm font-bold text-white">{cat.name}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingCategoryId(cat.id);
+                      setCatName(cat.name);
+                      setCatEmoji(cat.emoji || "⚡️");
+                      setIsAddingCat(false);
+                    }}
+                    className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors"
+                    title={lang === "fa" ? "ویرایش" : "Edit"}
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleDeleteCategory(cat.id);
+                    }}
+                    className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
+                    title={lang === "fa" ? "حذف" : "Delete"}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}

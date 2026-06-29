@@ -1,6 +1,30 @@
 import React, { useState } from "react";
-import { ColleaguePackage, ColleagueAccount, ColleagueCategory, PlanCategory, PanelSettings } from "../types";
-import { Plus, Trash, Copy, CheckCircle2, Ticket, RotateCcw, Pencil, AlertCircle, X, Shield, Star, Zap, Infinity, Layers, Smile, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  ColleaguePackage,
+  ColleagueAccount,
+  ColleagueCategory,
+  PlanCategory,
+  PanelSettings,
+} from "../types";
+import {
+  Plus,
+  Trash,
+  Copy,
+  CheckCircle2,
+  Ticket,
+  RotateCcw,
+  Pencil,
+  AlertCircle,
+  X,
+  Shield,
+  Star,
+  Zap,
+  Infinity,
+  Layers,
+  Smile,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import MultiServerConfig from "./MultiServerConfig";
 
 interface Props {
@@ -16,25 +40,36 @@ interface Props {
   setColleagueCategories?: (c: ColleagueCategory[]) => void;
 }
 
-export default function ColleaguesManagement({ 
-  packages, 
-  accounts, 
-  setPackages, 
-  setAccounts, 
+export default function ColleaguesManagement({
+  packages,
+  accounts,
+  setPackages,
+  setAccounts,
   lang,
   settings,
   onSaveSettings,
-  planCategories = [], 
-  colleagueCategories = [], 
-  setColleagueCategories 
+  planCategories = [],
+  colleagueCategories = [],
+  setColleagueCategories,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"packages" | "accounts" | "categories" | "servers">("servers");
+  const [activeTab, setActiveTab] = useState<
+    "packages" | "accounts" | "categories" | "servers"
+  >("servers");
   const [loading, setLoading] = useState(false);
 
-  const [localToast, setLocalToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [localToast, setLocalToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success",
+  ) => {
     setLocalToast({ message, type });
     setTimeout(() => setLocalToast(null), 4000);
   };
@@ -43,7 +78,10 @@ export default function ColleaguesManagement({
     if (!text) return;
     let success = false;
     try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      if (
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === "function"
+      ) {
         navigator.clipboard.writeText(text);
         success = true;
       }
@@ -75,11 +113,7 @@ export default function ColleaguesManagement({
       }
     }
 
-    showToast(
-      lang === "fa"
-        ? `✅ ${label} کپی شد!`
-        : `✅ ${label} copied!`
-    );
+    showToast(lang === "fa" ? `✅ ${label} کپی شد!` : `✅ ${label} copied!`);
   };
 
   // Package Form
@@ -120,16 +154,19 @@ export default function ColleaguesManagement({
       const res = await fetch("/api/colleague-categories/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          id: catEditingId || Math.random().toString(36).substring(2, 9), 
-          name: catName, 
-          emoji: catEmoji 
-        })
+        body: JSON.stringify({
+          id: catEditingId || Math.random().toString(36).substring(2, 9),
+          name: catName,
+          emoji: catEmoji,
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setColleagueCategories?.(data.colleagueCategories);
-        showToast(lang === "fa" ? "دسته همکار ذخیره شد." : "Category saved.", "success");
+        showToast(
+          lang === "fa" ? "دسته همکار ذخیره شد." : "Category saved.",
+          "success",
+        );
         setShowAddCategory(false);
         setCatName("");
         setCatEmoji("📁");
@@ -144,27 +181,92 @@ export default function ColleaguesManagement({
 
   const deleteCategory = async (id: string) => {
     setConfirmAction({
-      message: lang === "fa" ? "آیا از حذف این دسته‌بندی اطمینان دارید؟" : "Are you sure you want to delete this category?",
+      message:
+        lang === "fa"
+          ? "آیا از حذف این دسته‌بندی اطمینان دارید؟"
+          : "Are you sure you want to delete this category?",
       onConfirm: async () => {
         setLoading(true);
         try {
           const res = await fetch("/api/colleague-categories/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id })
+            body: JSON.stringify({ id }),
           });
           const data = await res.json();
           if (data.success) {
             setColleagueCategories?.(data.colleagueCategories);
-            showToast(lang === "fa" ? "دسته حذف شد." : "Category deleted.", "success");
+            showToast(
+              lang === "fa" ? "دسته حذف شد." : "Category deleted.",
+              "success",
+            );
           }
         } catch (err: any) {
           showToast(err.message, "error");
         } finally {
           setLoading(false);
         }
-      }
+      },
     });
+  };
+
+  const handleMoveColleagueCategory = async (
+    index: number,
+    direction: "up" | "down",
+  ) => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= colleagueCategories.length) return;
+
+    const newCats = [...colleagueCategories];
+    const temp = newCats[index];
+    newCats[index] = newCats[targetIndex];
+    newCats[targetIndex] = temp;
+
+    setColleagueCategories?.(newCats);
+
+    try {
+      const response = await fetch("/api/colleague-categories/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newCats.map((c) => c.id) }),
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of colleague categories");
+      }
+    } catch (err) {
+      console.error("Error reordering colleague categories:", err);
+    }
+  };
+
+  const handleSetColleagueCategoryPosition = async (
+    index: number,
+    newPositionIndex: number,
+  ) => {
+    if (
+      newPositionIndex < 0 ||
+      newPositionIndex >= colleagueCategories.length ||
+      index === newPositionIndex
+    )
+      return;
+
+    const newCats = [...colleagueCategories];
+    const [movedCat] = newCats.splice(index, 1);
+    newCats.splice(newPositionIndex, 0, movedCat);
+
+    setColleagueCategories?.(newCats);
+
+    try {
+      const response = await fetch("/api/colleague-categories/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: newCats.map((c) => c.id) }),
+      });
+      if (!response.ok) {
+        console.error("Failed to persist new order of colleague categories");
+      }
+    } catch (err) {
+      console.error("Error reordering colleague categories:", err);
+    }
   };
 
   const savePackage = async () => {
@@ -175,20 +277,29 @@ export default function ColleaguesManagement({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editPackageId || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
+          id:
+            editPackageId ||
+            (window.crypto && crypto.randomUUID
+              ? crypto.randomUUID()
+              : Math.random().toString(36).substring(2, 15)),
           title: pTitle,
           price: Number(pPrice),
           trafficGb: Number(pTraffic),
           category: pCategory,
           description: pDesc,
-          minCreateGb: pMinCreateGb ? Number(pMinCreateGb) : 1
-        })
+          minCreateGb: pMinCreateGb ? Number(pMinCreateGb) : 1,
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setPackages(data.colleaguePackages);
         resetPackageForm();
-        showToast(lang === "fa" ? "بسته با موفقیت ذخیره شد." : "Package saved successfully.", "success");
+        showToast(
+          lang === "fa"
+            ? "بسته با موفقیت ذخیره شد."
+            : "Package saved successfully.",
+          "success",
+        );
       } else {
         showToast(data.error, "error");
       }
@@ -213,7 +324,7 @@ export default function ColleaguesManagement({
       const response = await fetch("/api/colleague-packages/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: newPackages.map(p => p.id) })
+        body: JSON.stringify({ orderedIds: newPackages.map((p) => p.id) }),
       });
       if (!response.ok) {
         console.error("Failed to persist new order of colleague packages");
@@ -223,8 +334,16 @@ export default function ColleaguesManagement({
     }
   };
 
-  const handleSetPackagePosition = async (index: number, newPositionIndex: number) => {
-    if (newPositionIndex < 0 || newPositionIndex >= packages.length || index === newPositionIndex) return;
+  const handleSetPackagePosition = async (
+    index: number,
+    newPositionIndex: number,
+  ) => {
+    if (
+      newPositionIndex < 0 ||
+      newPositionIndex >= packages.length ||
+      index === newPositionIndex
+    )
+      return;
 
     const newPackages = [...packages];
     const [movedPkg] = newPackages.splice(index, 1);
@@ -236,7 +355,7 @@ export default function ColleaguesManagement({
       const response = await fetch("/api/colleague-packages/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: newPackages.map(p => p.id) })
+        body: JSON.stringify({ orderedIds: newPackages.map((p) => p.id) }),
       });
       if (!response.ok) {
         console.error("Failed to persist new order of colleague packages");
@@ -248,19 +367,27 @@ export default function ColleaguesManagement({
 
   const deletePackage = async (id: string) => {
     setConfirmAction({
-      message: lang === "fa" ? "آیا از حذف این بسته اطمینان دارید؟" : "Are you sure you want to delete this package?",
+      message:
+        lang === "fa"
+          ? "آیا از حذف این بسته اطمینان دارید؟"
+          : "Are you sure you want to delete this package?",
       onConfirm: async () => {
         setLoading(true);
         try {
           const res = await fetch("/api/colleague-packages/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id })
+            body: JSON.stringify({ id }),
           });
           const data = await res.json();
           if (data.success) {
             setPackages(data.colleaguePackages);
-            showToast(lang === "fa" ? "بسته با موفقیت حذف شد." : "Package deleted successfully.", "success");
+            showToast(
+              lang === "fa"
+                ? "بسته با موفقیت حذف شد."
+                : "Package deleted successfully.",
+              "success",
+            );
           } else {
             showToast(data.error, "error");
           }
@@ -268,25 +395,33 @@ export default function ColleaguesManagement({
           showToast(err.message, "error");
         }
         setLoading(false);
-      }
+      },
     });
   };
 
   const deleteAccount = async (id: string) => {
     setConfirmAction({
-      message: lang === "fa" ? "آیا از حذف این حساب مستقل همکار اطمینان دارید؟" : "Are you sure you want to delete this colleague account?",
+      message:
+        lang === "fa"
+          ? "آیا از حذف این حساب مستقل همکار اطمینان دارید؟"
+          : "Are you sure you want to delete this colleague account?",
       onConfirm: async () => {
         setLoading(true);
         try {
           const res = await fetch("/api/colleague-accounts/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id })
+            body: JSON.stringify({ id }),
           });
           const data = await res.json();
           if (data.success) {
             setAccounts(data.colleagueAccounts);
-            showToast(lang === "fa" ? "حساب همکار حذف شد." : "Account deleted successfully.", "success");
+            showToast(
+              lang === "fa"
+                ? "حساب همکار حذف شد."
+                : "Account deleted successfully.",
+              "success",
+            );
           } else {
             showToast(data.error, "error");
           }
@@ -294,25 +429,33 @@ export default function ColleaguesManagement({
           showToast(err.message, "error");
         }
         setLoading(false);
-      }
+      },
     });
   };
 
   const resetAccount = async (id: string) => {
     setConfirmAction({
-      message: lang === "fa" ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟" : "Are you sure you want to reset credentials for this account?",
+      message:
+        lang === "fa"
+          ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟"
+          : "Are you sure you want to reset credentials for this account?",
       onConfirm: async () => {
         setLoading(true);
         try {
           const res = await fetch("/api/colleague-accounts/reset", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id })
+            body: JSON.stringify({ id }),
           });
           const data = await res.json();
           if (data.success) {
             setAccounts(data.colleagueAccounts);
-            showToast(lang === "fa" ? "مشخصات اتصال نمایندگی با موفقیت ریست شد." : "Credentials reset successfully.", "success");
+            showToast(
+              lang === "fa"
+                ? "مشخصات اتصال نمایندگی با موفقیت ریست شد."
+                : "Credentials reset successfully.",
+              "success",
+            );
           } else {
             showToast(data.error, "error");
           }
@@ -320,7 +463,7 @@ export default function ColleaguesManagement({
           showToast(err.message, "error");
         }
         setLoading(false);
-      }
+      },
     });
   };
 
@@ -331,13 +474,21 @@ export default function ColleaguesManagement({
       const res = await fetch("/api/colleague-accounts/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editAccountId, trafficGb: Number(aTraffic) })
+        body: JSON.stringify({
+          id: editAccountId,
+          trafficGb: Number(aTraffic),
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setAccounts(data.colleagueAccounts);
         setEditAccountId(null);
-        showToast(lang === "fa" ? "تغییرات با موفقیت ذخیره شد." : "Changes saved successfully.", "success");
+        showToast(
+          lang === "fa"
+            ? "تغییرات با موفقیت ذخیره شد."
+            : "Changes saved successfully.",
+          "success",
+        );
       } else {
         showToast(data.error, "error");
       }
@@ -350,20 +501,28 @@ export default function ColleaguesManagement({
   const resetAccountUsage = async () => {
     if (!editAccountId) return;
     setConfirmAction({
-      message: lang === "fa" ? "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟" : "Are you sure you want to reset usage to zero?",
+      message:
+        lang === "fa"
+          ? "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟"
+          : "Are you sure you want to reset usage to zero?",
       onConfirm: async () => {
         setLoading(true);
         try {
           const res = await fetch("/api/colleague-accounts/reset-usage", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: editAccountId })
+            body: JSON.stringify({ id: editAccountId }),
           });
           const data = await res.json();
           if (data.success) {
             setAccounts(data.colleagueAccounts);
             setEditAccountId(null);
-            showToast(lang === "fa" ? "حجم مصرفی همکار با موفقیت صفر شد." : "Usage reset successfully.", "success");
+            showToast(
+              lang === "fa"
+                ? "حجم مصرفی همکار با موفقیت صفر شد."
+                : "Usage reset successfully.",
+              "success",
+            );
           } else {
             showToast(data.error, "error");
           }
@@ -371,7 +530,7 @@ export default function ColleaguesManagement({
           showToast(err.message, "error");
         }
         setLoading(false);
-      }
+      },
     });
   };
 
@@ -403,94 +562,174 @@ export default function ColleaguesManagement({
         <div className="space-y-6 animate-in fade-in duration-500">
           {/* Integrated Category Management */}
           <div className="bg-slate-900/40 rounded-2xl p-5 border border-slate-800 backdrop-blur-sm">
-             <div className="flex items-center justify-between mb-4">
-               <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                   <Layers className="text-indigo-400 w-4 h-4" />
-                 </div>
-                 <h4 className="text-white font-bold text-sm">{lang === "fa" ? "مدیریت دسته‌بندی‌ها" : "Categories"}</h4>
-               </div>
-               <button 
-                 onClick={() => {
-                   setCatEditingId(null);
-                   setCatName("");
-                   setCatEmoji("📁");
-                   setShowAddCategory(!showAddCategory);
-                 }}
-                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600 hover:text-white text-[11px] font-bold transition-all"
-               >
-                 {showAddCategory ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                 {lang === "fa" ? "تعریف دسته" : "Add Category"}
-               </button>
-             </div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                  <Layers className="text-indigo-400 w-4 h-4" />
+                </div>
+                <h4 className="text-white font-bold text-sm">
+                  {lang === "fa" ? "مدیریت دسته‌بندی‌ها" : "Categories"}
+                </h4>
+              </div>
+              <button
+                onClick={() => {
+                  setCatEditingId(null);
+                  setCatName("");
+                  setCatEmoji("📁");
+                  setShowAddCategory(!showAddCategory);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600 hover:text-white text-[11px] font-bold transition-all"
+              >
+                {showAddCategory ? (
+                  <X className="w-3.5 h-3.5" />
+                ) : (
+                  <Plus className="w-3.5 h-3.5" />
+                )}
+                {lang === "fa" ? "تعریف دسته" : "Add Category"}
+              </button>
+            </div>
 
-             {showAddCategory && (
-               <div className="mb-4 p-4 bg-slate-950/40 rounded-xl border border-slate-800 animate-in zoom-in-95 duration-200">
-                 <div className="flex flex-wrap gap-4 items-end">
-                   <div className="flex-1 min-w-[200px]">
-                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1"> {lang === "fa" ? "نام دسته‌بندی" : "Name"} </label>
-                     <input 
-                       type="text" 
-                       value={catName} 
-                       onChange={e => setCatName(e.target.value)}
-                       className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500/50 outline-none"
-                     />
-                   </div>
-                   <div className="w-32">
-                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1"> {lang === "fa" ? "ایموجی" : "Emoji"} </label>
-                     <div className="flex gap-1.5">
-                       <input 
-                         type="text" 
-                         value={catEmoji} 
-                         onChange={e => setCatEmoji(e.target.value)}
-                         className="w-10 bg-slate-900 border border-slate-800 rounded-lg py-2 text-center text-sm"
-                       />
-                       <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg overflow-x-auto">
-                        {['📁', '⭐', '🚀', '💎'].map(em => (
-                          <button key={em} onClick={() => setCatEmoji(em)} className={`w-6 h-6 flex items-center justify-center rounded text-xs hover:bg-white/5 ${catEmoji === em ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>{em}</button>
-                         ))}
+            {showAddCategory && (
+              <div className="mb-4 p-4 bg-slate-950/40 rounded-xl border border-slate-800 animate-in zoom-in-95 duration-200">
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
+                      {" "}
+                      {lang === "fa" ? "نام دسته‌بندی" : "Name"}{" "}
+                    </label>
+                    <input
+                      type="text"
+                      value={catName}
+                      onChange={(e) => setCatName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500/50 outline-none"
+                    />
+                  </div>
+                  <div className="w-32">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
+                      {" "}
+                      {lang === "fa" ? "ایموجی" : "Emoji"}{" "}
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={catEmoji}
+                        onChange={(e) => setCatEmoji(e.target.value)}
+                        className="w-10 bg-slate-900 border border-slate-800 rounded-lg py-2 text-center text-sm"
+                      />
+                      <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg overflow-x-auto">
+                        {["📁", "⭐", "🚀", "💎"].map((em) => (
+                          <button
+                            key={em}
+                            onClick={() => setCatEmoji(em)}
+                            className={`w-6 h-6 flex items-center justify-center rounded text-xs hover:bg-white/5 ${catEmoji === em ? "bg-indigo-500/20 text-indigo-400" : ""}`}
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveCategory}
+                      disabled={loading}
+                      className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-50"
+                    >
+                      {loading ? "..." : lang === "fa" ? "ذخیره" : "Save"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                       </div>
-                     </div>
-                   </div>
-                   <div className="flex gap-2">
-                     <button onClick={saveCategory} disabled={loading} className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-50">
-                       {loading ? "..." : (lang === "fa" ? "ذخیره" : "Save")}
-                     </button>
-                   </div>
-                 </div>
-               </div>
-             )}
-
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-               {colleagueCategories.map(cat => (
-                 <div key={cat.id} className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl hover:border-indigo-500/50 transition-all flex items-center justify-between shadow-sm">
-                   <div className="flex items-center gap-3">
-                     <span className="text-2xl">{cat.emoji}</span>
-                     <span className="text-sm font-bold text-slate-200">{cat.name}</span>
-                   </div>
-                   <div className="flex gap-2">
-                     <button 
-                       onClick={() => {
-                         setCatName(cat.name); 
-                         setCatEmoji(cat.emoji); 
-                         setCatEditingId(cat.id); 
-                         setShowAddCategory(true);
-                       }} 
-                       className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors"
-                     >
-                       <Pencil className="w-3.5 h-3.5" />
-                     </button>
-                     <button 
-                       onClick={() => deleteCategory(cat.id)} 
-                       className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
-                     >
-                       <Trash className="w-3.5 h-3.5" />
-                     </button>
-                   </div>
-                 </div>
-               ))}
-             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+              {colleagueCategories.map((cat, index) => (
+                <div
+                  key={cat.id}
+                  className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl hover:border-indigo-500/50 transition-all flex flex-col justify-between gap-3 shadow-sm"
+                >
+                  {/* Order & Reordering Controls */}
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1">
+                    <span className="text-[10px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-1.5 py-0.5 rounded border border-white/5">
+                      <Layers className="w-2.5 h-2.5 text-indigo-400" />
+                      {lang === "fa"
+                        ? `جایگاه: ${index + 1}`
+                        : `Rank: ${index + 1}`}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveColleagueCategory(index, "up")}
+                        disabled={index === 0}
+                        className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                        title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleMoveColleagueCategory(index, "down")
+                        }
+                        disabled={index === colleagueCategories.length - 1}
+                        className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
+                        title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                      <select
+                        value={index}
+                        onChange={(e) =>
+                          handleSetColleagueCategoryPosition(
+                            index,
+                            Number(e.target.value),
+                          )
+                        }
+                        className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[9px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        title={
+                          lang === "fa"
+                            ? "انتخاب مستقیم جایگاه"
+                            : "Direct Position Selection"
+                        }
+                      >
+                        {colleagueCategories.map((_, idx) => (
+                          <option key={idx} value={idx}>
+                            {idx + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex w-full items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{cat.emoji}</span>
+                      <span className="text-sm font-bold text-slate-200">
+                        {cat.name}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setCatName(cat.name);
+                          setCatEmoji(cat.emoji);
+                          setCatEditingId(cat.id);
+                          setShowAddCategory(true);
+                        }}
+                        className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteCategory(cat.id)}
+                        className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end">
@@ -505,49 +744,103 @@ export default function ColleaguesManagement({
 
           {showAddPackage && (
             <div className="bg-slate-800/80 p-4 rounded-xl border border-indigo-500/30">
-              <h3 className="text-white font-bold mb-4">{editPackageId ? (lang === "fa" ? "ویرایش پکیج" : "Edit Package") : (lang === "fa" ? "ثبت پکیج جدید" : "Register New Package")}</h3>
+              <h3 className="text-white font-bold mb-4">
+                {editPackageId
+                  ? lang === "fa"
+                    ? "ویرایش پکیج"
+                    : "Edit Package"
+                  : lang === "fa"
+                    ? "ثبت پکیج جدید"
+                    : "Register New Package"}
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "عنوان پکیج" : "Title"}</label>
-                  <input type="text" value={pTitle} onChange={e => setPTitle(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {lang === "fa" ? "عنوان پکیج" : "Title"}
+                  </label>
+                  <input
+                    type="text"
+                    value={pTitle}
+                    onChange={(e) => setPTitle(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "قیمت (تومان)" : "Price (IRT)"}</label>
-                  <input type="number" value={pPrice} onChange={e => setPPrice(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {lang === "fa" ? "قیمت (تومان)" : "Price (IRT)"}
+                  </label>
+                  <input
+                    type="number"
+                    value={pPrice}
+                    onChange={(e) => setPPrice(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "حجم (گیگابایت)" : "Traffic (GB)"}</label>
-                  <input type="number" value={pTraffic} onChange={e => setPTraffic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {lang === "fa" ? "حجم (گیگابایت)" : "Traffic (GB)"}
+                  </label>
+                  <input
+                    type="number"
+                    value={pTraffic}
+                    onChange={(e) => setPTraffic(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "حداقل حجم ساخت کلاینت" : "Min GB per Client"}</label>
-                  <input type="number" placeholder="1" value={pMinCreateGb} onChange={e => setPMinCreateGb(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {lang === "fa"
+                      ? "حداقل حجم ساخت کلاینت"
+                      : "Min GB per Client"}
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="1"
+                    value={pMinCreateGb}
+                    onChange={(e) => setPMinCreateGb(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "دسته‌بندی" : "Category"}</label>
-                   <div className="flex gap-2">
-                     <select 
-                       value={pCategory} 
-                       onChange={e => setPCategory(e.target.value)}
-                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                     >
-                       <option value="">{lang === "fa" ? "بدون دسته‌بندی" : "No Category"}</option>
-                       {colleagueCategories.map(cat => (
-                         <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
-                       ))}
-                     </select>
-                     <input 
-                       type="text" 
-                       placeholder={lang === "fa" ? "دستی..." : "Manual..."}
-                       value={pCategory}
-                       onChange={e => setPCategory(e.target.value)}
-                       className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-white text-xs"
-                     />
-                   </div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {lang === "fa" ? "دسته‌بندی" : "Category"}
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={pCategory}
+                      onChange={(e) => setPCategory(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                    >
+                      <option value="">
+                        {lang === "fa" ? "بدون دسته‌بندی" : "No Category"}
+                      </option>
+                      {colleagueCategories.map((cat) => (
+                        <option key={cat.id} value={cat.name}>
+                          {cat.emoji} {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder={lang === "fa" ? "دستی..." : "Manual..."}
+                      value={pCategory}
+                      onChange={(e) => setPCategory(e.target.value)}
+                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-white text-xs"
+                    />
+                  </div>
                 </div>
                 <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "توضیحات پکیج (نمایش به کاربر)" : "Description"}</label>
-                  <textarea value={pDesc} onChange={e => setPDesc(e.target.value)} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {lang === "fa"
+                      ? "توضیحات پکیج (نمایش به کاربر)"
+                      : "Description"}
+                  </label>
+                  <textarea
+                    value={pDesc}
+                    onChange={(e) => setPDesc(e.target.value)}
+                    rows={3}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
                 </div>
               </div>
               <div className="flex gap-2 mt-4 mt-4">
@@ -556,7 +849,11 @@ export default function ColleaguesManagement({
                   onClick={savePackage}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm"
                 >
-                  {loading ? "..." : (lang === "fa" ? "ذخیره پکیج" : "Save Package")}
+                  {loading
+                    ? "..."
+                    : lang === "fa"
+                      ? "ذخیره پکیج"
+                      : "Save Package"}
                 </button>
                 <button
                   onClick={resetPackageForm}
@@ -571,13 +868,18 @@ export default function ColleaguesManagement({
           <div className="overflow-y-auto max-h-[600px] custom-scrollbar pr-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {packages.map((p, index) => (
-                <div key={p.id} className="bg-slate-800/50 p-4 rounded-xl border border-white/10 relative flex flex-col justify-between">
+                <div
+                  key={p.id}
+                  className="bg-slate-800/50 p-4 rounded-xl border border-white/10 relative flex flex-col justify-between"
+                >
                   <div>
                     {/* Order & Reordering Controls (Dropdown & Arrows) */}
                     <div className="flex justify-between items-center border-b border-white/5 pb-2.5 mb-3.5">
                       <span className="text-[11px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-2 py-0.5 rounded border border-white/5">
                         <Layers className="w-3 h-3 text-indigo-400" />
-                        {lang === "fa" ? `جایگاه: ${index + 1}` : `Rank: ${index + 1}`}
+                        {lang === "fa"
+                          ? `جایگاه: ${index + 1}`
+                          : `Rank: ${index + 1}`}
                       </span>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -594,15 +896,26 @@ export default function ColleaguesManagement({
                           onClick={() => handleMovePackage(index, "down")}
                           disabled={index === packages.length - 1}
                           className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                          title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                          title={
+                            lang === "fa" ? "انتقال به پایین" : "Move Down"
+                          }
                         >
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
                         <select
                           value={index}
-                          onChange={(e) => handleSetPackagePosition(index, Number(e.target.value))}
+                          onChange={(e) =>
+                            handleSetPackagePosition(
+                              index,
+                              Number(e.target.value),
+                            )
+                          }
                           className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                          title={lang === "fa" ? "انتخاب مستقیم جایگاه" : "Direct Position Selection"}
+                          title={
+                            lang === "fa"
+                              ? "انتخاب مستقیم جایگاه"
+                              : "Direct Position Selection"
+                          }
                         >
                           {packages.map((_, idx) => (
                             <option key={idx} value={idx}>
@@ -615,7 +928,9 @@ export default function ColleaguesManagement({
 
                     {/* Original Edit/Delete buttons repositioned elegantly in content layout */}
                     <div className="flex justify-between items-start">
-                      <h4 className="text-white font-bold text-lg pr-4">{p.title}</h4>
+                      <h4 className="text-white font-bold text-lg pr-4">
+                        {p.title}
+                      </h4>
                       <div className="flex gap-1">
                         <button
                           onClick={() => {
@@ -623,7 +938,9 @@ export default function ColleaguesManagement({
                             setPTitle(p.title);
                             setPPrice(String(p.price));
                             setPTraffic(String(p.trafficGb));
-                            setPMinCreateGb(p.minCreateGb ? String(p.minCreateGb) : "");
+                            setPMinCreateGb(
+                              p.minCreateGb ? String(p.minCreateGb) : "",
+                            );
                             setPCategory(p.category || "");
                             setPDesc(p.description || "");
                             setShowAddPackage(true);
@@ -639,31 +956,46 @@ export default function ColleaguesManagement({
                           className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-md flex items-center gap-1 transition cursor-pointer"
                         >
                           <Trash className="w-3.5 h-3.5" />
-                          <span className="text-xs font-bold">{lang === "fa" ? "حذف" : "Delete"}</span>
+                          <span className="text-xs font-bold">
+                            {lang === "fa" ? "حذف" : "Delete"}
+                          </span>
                         </button>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-300">
-                      <span className="text-indigo-400 font-bold whitespace-nowrap">💰 {p.price.toLocaleString()} تومان</span>
-                      <span className="whitespace-nowrap">🗄️ {p.trafficGb} گیگابایت</span>
-                      <span className="text-amber-400 font-bold whitespace-nowrap">⚠️ حداقل حجم ساخت: {p.minCreateGb || 1} گیگابایت</span>
+                      <span className="text-indigo-400 font-bold whitespace-nowrap">
+                        💰 {p.price.toLocaleString()} تومان
+                      </span>
+                      <span className="whitespace-nowrap">
+                        🗄️ {p.trafficGb} گیگابایت
+                      </span>
+                      <span className="text-amber-400 font-bold whitespace-nowrap">
+                        ⚠️ حداقل حجم ساخت: {p.minCreateGb || 1} گیگابایت
+                      </span>
                       {p.category && (
                         <span className="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">
-                          {colleagueCategories.find(c => c.name === p.category)?.emoji || '📁'} {p.category}
+                          {colleagueCategories.find(
+                            (c) => c.name === p.category,
+                          )?.emoji || "📁"}{" "}
+                          {p.category}
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">{p.description}</p>
+                    <p className="mt-2 text-xs text-gray-400 whitespace-pre-wrap">
+                      {p.description}
+                    </p>
                   </div>
                 </div>
               ))}
-            {packages.length === 0 && (
-              <div className="col-span-full text-center py-8 text-gray-500">
-                {lang === "fa" ? "هیچ پکیجی ثبت نشده است." : "No packages found."}
-              </div>
-            )}
-          </div>
+              {packages.length === 0 && (
+                <div className="col-span-full text-center py-8 text-gray-500">
+                  {lang === "fa"
+                    ? "هیچ پکیجی ثبت نشده است."
+                    : "No packages found."}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -673,44 +1005,82 @@ export default function ColleaguesManagement({
           <table className="w-full text-right" dir="rtl">
             <thead className="bg-slate-900/60 pb-2">
               <tr>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مخاطب (آیدی)" : "User ID"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پکیج" : "Package"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "پیشوند" : "Prefix"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "توکن بازیابی" : "Recovery Token"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "یوزرنیم" : "Username"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "رمز" : "Password"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "کل حجم" : "Total Traffic"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "تخصیص داده شده" : "Allocated"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "مجموع مصرف کاربر" : "Real Usage"}</th>
-                <th className="px-4 py-3 text-gray-400 font-medium text-xs">{lang === "fa" ? "وضعیت" : "Status"}</th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "مخاطب (آیدی)" : "User ID"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "پکیج" : "Package"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "پیشوند" : "Prefix"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "توکن بازیابی" : "Recovery Token"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "یوزرنیم" : "Username"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "رمز" : "Password"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "کل حجم" : "Total Traffic"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "تخصیص داده شده" : "Allocated"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "مجموع مصرف کاربر" : "Real Usage"}
+                </th>
+                <th className="px-4 py-3 text-gray-400 font-medium text-xs">
+                  {lang === "fa" ? "وضعیت" : "Status"}
+                </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {accounts.map(acc => (
+              {accounts.map((acc) => (
                 <tr key={acc.id} className="hover:bg-slate-800/40 transition">
-                  <td className="px-4 py-3 text-sm text-gray-300 font-mono">{acc.userId || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-white font-bold">{acc.packageTitle}</td>
-                  <td className="px-4 py-3 text-sm text-gray-300">{acc.prefix || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-300 font-mono">
+                    {acc.userId || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-white font-bold">
+                    {acc.packageTitle}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-300">
+                    {acc.prefix || "-"}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-300 font-mono">
                     {acc.recoveryToken ? (
                       <div className="flex items-center gap-1.5 justify-start">
                         <span>{acc.recoveryToken}</span>
                         <button
-                          onClick={() => copyToClipboard(acc.recoveryToken, lang === "fa" ? "توکن بازیابی" : "Recovery Token")}
+                          onClick={() =>
+                            copyToClipboard(
+                              acc.recoveryToken,
+                              lang === "fa" ? "توکن بازیابی" : "Recovery Token",
+                            )
+                          }
                           className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
                           title={lang === "fa" ? "کپی توکن" : "Copy Token"}
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    ) : '-'}
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-indigo-300 font-mono">
                     <div className="flex items-center gap-1.5 justify-start">
                       <span>{acc.username}</span>
                       <button
-                        onClick={() => copyToClipboard(acc.username, lang === "fa" ? "یوزرنیم" : "Username")}
+                        onClick={() =>
+                          copyToClipboard(
+                            acc.username,
+                            lang === "fa" ? "یوزرنیم" : "Username",
+                          )
+                        }
                         className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
                         title={lang === "fa" ? "کپی یوزرنیم" : "Copy Username"}
                       >
@@ -722,7 +1092,12 @@ export default function ColleaguesManagement({
                     <div className="flex items-center gap-1.5 justify-start">
                       <span>{acc.password}</span>
                       <button
-                        onClick={() => copyToClipboard(acc.password, lang === "fa" ? "رمز عبور" : "Password")}
+                        onClick={() =>
+                          copyToClipboard(
+                            acc.password,
+                            lang === "fa" ? "رمز عبور" : "Password",
+                          )
+                        }
                         className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-amber-400 transition cursor-pointer"
                         title={lang === "fa" ? "کپی رمز عبور" : "Copy Password"}
                       >
@@ -730,14 +1105,24 @@ export default function ColleaguesManagement({
                       </button>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-400 font-mono">{acc.trafficGb} GB</td>
-                  <td className="px-4 py-3 text-sm text-blue-400 font-mono">{acc.usedTrafficGb || 0} GB</td>
-                  <td className="px-4 py-3 text-sm text-rose-400 font-mono">{acc.realUsedTrafficGb || 0} GB</td>
+                  <td className="px-4 py-3 text-sm text-gray-400 font-mono">
+                    {acc.trafficGb} GB
+                  </td>
+                  <td className="px-4 py-3 text-sm text-blue-400 font-mono">
+                    {acc.usedTrafficGb || 0} GB
+                  </td>
+                  <td className="px-4 py-3 text-sm text-rose-400 font-mono">
+                    {acc.realUsedTrafficGb || 0} GB
+                  </td>
                   <td className="px-4 py-3 text-sm">
                     {acc.status === "active" ? (
-                      <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md text-xs">{lang === 'fa' ? 'فعال' : 'Active'}</span>
+                      <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md text-xs">
+                        {lang === "fa" ? "فعال" : "Active"}
+                      </span>
                     ) : (
-                      <span className="text-rose-400 bg-rose-500/10 px-2 py-1 rounded-md text-xs">{lang === 'fa' ? 'منقضی' : 'Expired'}</span>
+                      <span className="text-rose-400 bg-rose-500/10 px-2 py-1 rounded-md text-xs">
+                        {lang === "fa" ? "منقضی" : "Expired"}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm">
@@ -745,7 +1130,11 @@ export default function ColleaguesManagement({
                       <button
                         onClick={() => resetAccount(acc.id)}
                         disabled={loading}
-                        title={lang === "fa" ? "ریست نام کاربری و رمز عبور" : "Reset Credentials"}
+                        title={
+                          lang === "fa"
+                            ? "ریست نام کاربری و رمز عبور"
+                            : "Reset Credentials"
+                        }
                         className="p-1.5 text-blue-400 hover:bg-blue-500/20 rounded-md"
                       >
                         <RotateCcw className="w-4 h-4" />
@@ -756,7 +1145,11 @@ export default function ColleaguesManagement({
                           setATraffic(String(acc.trafficGb));
                         }}
                         disabled={loading}
-                        title={lang === "fa" ? "ویرایش حجم حساب" : "Edit Account Traffic"}
+                        title={
+                          lang === "fa"
+                            ? "ویرایش حجم حساب"
+                            : "Edit Account Traffic"
+                        }
                         className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-md"
                       >
                         <Pencil className="w-4 h-4" />
@@ -775,7 +1168,9 @@ export default function ColleaguesManagement({
               {accounts.length === 0 && (
                 <tr>
                   <td colSpan={11} className="text-center py-8 text-gray-500">
-                    {lang === "fa" ? "هیچ حسابی صادر نشده است." : "No accounts found."}
+                    {lang === "fa"
+                      ? "هیچ حسابی صادر نشده است."
+                      : "No accounts found."}
                   </td>
                 </tr>
               )}
@@ -788,14 +1183,28 @@ export default function ColleaguesManagement({
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-white/10">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
-              <h3 className="text-white font-bold">{lang === "fa" ? "ویرایش حجم حساب همکار" : "Edit Account Traffic"}</h3>
+              <h3 className="text-white font-bold">
+                {lang === "fa"
+                  ? "ویرایش حجم حساب همکار"
+                  : "Edit Account Traffic"}
+              </h3>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1">{lang === "fa" ? "کل حجم (گیگابایت)" : "Total Traffic (GB)"}</label>
-                <input type="number" value={aTraffic} onChange={e => setATraffic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" dir="ltr" />
+                <label className="block text-xs font-bold text-gray-400 mb-1">
+                  {lang === "fa" ? "کل حجم (گیگابایت)" : "Total Traffic (GB)"}
+                </label>
+                <input
+                  type="number"
+                  value={aTraffic}
+                  onChange={(e) => setATraffic(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  dir="ltr"
+                />
                 <p className="text-xs text-gray-400 mt-2">
-                  {lang === "fa" ? "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد." : "Increasing this value expands the colleague's limit for creating users."}
+                  {lang === "fa"
+                    ? "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد."
+                    : "Increasing this value expands the colleague's limit for creating users."}
                 </p>
               </div>
 
@@ -807,7 +1216,9 @@ export default function ColleaguesManagement({
                   className="w-full px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg font-bold text-sm transition flex gap-2 items-center justify-center"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  {lang === "fa" ? "صفر کردن حجم مصرفی همکار" : "Reset Usage to Zero"}
+                  {lang === "fa"
+                    ? "صفر کردن حجم مصرفی همکار"
+                    : "Reset Usage to Zero"}
                 </button>
               </div>
             </div>
@@ -823,7 +1234,11 @@ export default function ColleaguesManagement({
                 disabled={loading}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition flex items-center justify-center gap-2"
               >
-                {loading ? "..." : (lang === "fa" ? "ذخیره تغییرات" : "Save Changes")}
+                {loading
+                  ? "..."
+                  : lang === "fa"
+                    ? "ذخیره تغییرات"
+                    : "Save Changes"}
               </button>
             </div>
           </div>
@@ -845,8 +1260,13 @@ export default function ColleaguesManagement({
 
       {/* Toast Notification Container */}
       {localToast && (
-        <div className="fixed bottom-5 right-5 z-50 animate-fadeIn flex items-center gap-2.5 bg-[#141b2d] border border-slate-800 rounded-xl px-4 py-3 shadow-2xl text-xs max-w-sm text-right font-sans" dir="rtl">
-          <div className={`p-1.5 rounded-full ${localToast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+        <div
+          className="fixed bottom-5 right-5 z-50 animate-fadeIn flex items-center gap-2.5 bg-[#141b2d] border border-slate-800 rounded-xl px-4 py-3 shadow-2xl text-xs max-w-sm text-right font-sans"
+          dir="rtl"
+        >
+          <div
+            className={`p-1.5 rounded-full ${localToast.type === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}
+          >
             <CheckCircle2 className="w-3.5 h-3.5" />
           </div>
           <p className="font-sans text-gray-200">{localToast.message}</p>
@@ -856,14 +1276,17 @@ export default function ColleaguesManagement({
       {/* Confirmation Modal Container */}
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in font-sans">
-          <div className="bg-slate-900/80 border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4" dir={lang === "fa" ? "rtl" : "ltr"}>
+          <div
+            className="bg-slate-900/80 border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4"
+            dir={lang === "fa" ? "rtl" : "ltr"}
+          >
             <div className="flex items-center gap-2 text-amber-400 border-b border-white/5 pb-3">
               <AlertCircle className="w-5 h-5 text-amber-400" />
               <h3 className="text-sm font-bold text-white">
                 {lang === "fa" ? "تایید نهایی عملیات" : "Confirm Operation"}
               </h3>
             </div>
-            
+
             <p className="text-white text-sm font-medium leading-relaxed font-sans">
               {confirmAction.message}
             </p>

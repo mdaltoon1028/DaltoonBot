@@ -1104,6 +1104,36 @@ app.post("/api/colleague-categories/delete", (req, res) => {
   res.json({ success: true, colleagueCategories: db.colleague_categories });
 });
 
+app.post("/api/colleague-categories/reorder", (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
+    }
+    const db = readJsonDb();
+    if (!db.colleague_categories) db.colleague_categories = [];
+
+    const catsMap = new Map(db.colleague_categories.map((c: any) => [c.id, c]));
+    const sortedCats: any[] = [];
+    orderedIds.forEach((id: string) => {
+      const cat = catsMap.get(id);
+      if (cat) {
+        sortedCats.push(cat);
+        catsMap.delete(id);
+      }
+    });
+    catsMap.forEach((cat) => {
+      sortedCats.push(cat);
+    });
+
+    db.colleague_categories = sortedCats;
+    writeJsonDb(db);
+    res.json({ success: true, colleagueCategories: db.colleague_categories });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post("/api/colleague-accounts/delete", (req, res) => {
   const db = readJsonDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
@@ -4909,6 +4939,36 @@ app.post("/api/plan-categories/delete", (req, res) => {
       writeJsonDb(db);
     }
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/plan-categories/reorder", async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
+    }
+    const db = readJsonDb();
+    if (!db.plan_categories) db.plan_categories = [];
+
+    const catsMap = new Map(db.plan_categories.map((c: any) => [c.id, c]));
+    const sortedCats: any[] = [];
+    orderedIds.forEach((id: string) => {
+      const cat = catsMap.get(id);
+      if (cat) {
+        sortedCats.push(cat);
+        catsMap.delete(id);
+      }
+    });
+    catsMap.forEach((cat) => {
+      sortedCats.push(cat);
+    });
+
+    db.plan_categories = sortedCats;
+    writeJsonDb(db);
+    res.json({ success: true, categories: db.plan_categories });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
