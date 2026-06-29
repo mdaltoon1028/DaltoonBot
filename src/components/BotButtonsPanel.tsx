@@ -228,6 +228,8 @@ export default function BotButtonsPanel({
   );
   const [welcomeText, setWelcomeText] = useState(settings.welcomeText || "");
   const [supportText, setSupportText] = useState(settings.supportText || "");
+  const [pinnedMessageText, setPinnedMessageText] = useState(settings.pinnedMessageText || "");
+  const [pinnedMessageActive, setPinnedMessageActive] = useState(!!settings.pinnedMessageActive);
   const [purchaseSuccessNote, setPurchaseSuccessNote] = useState(
     settings.purchaseSuccessNote || "",
   );
@@ -436,6 +438,8 @@ export default function BotButtonsPanel({
       supportHandle,
       welcomeText,
       supportText,
+      pinnedMessageText,
+      pinnedMessageActive,
       purchaseSuccessNote,
       purchaseSuccessAttachment: activePurchaseAttachment,
     });
@@ -1217,6 +1221,59 @@ export default function BotButtonsPanel({
                   ? "نکته: قالب‌بندی HTML مجاز است."
                   : "Tip: HTML tags are supported."}
               </span>
+            </div>
+
+            {/* Pinned Message Section */}
+            <div className="border border-indigo-500/20 bg-indigo-950/10 p-4 rounded-xl space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-sm font-semibold text-white flex items-center gap-1.5">
+                    📌 {lang === "fa" ? "فعالسازی پین خودکار پیام" : "Enable Auto-Pinned Message"}
+                  </label>
+                  <p className="text-[11px] text-gray-400">
+                    {lang === "fa"
+                      ? "با فعالسازی این گزینه، پیام مشخص شده به محض ورود کاربر به ربات (/start) در چت خصوصی او فرستاده و پین می‌شود."
+                      : "If enabled, this message will be sent and pinned in the user's private chat when they /start the bot."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPinnedMessageActive(!pinnedMessageActive)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    pinnedMessageActive ? "bg-indigo-600" : "bg-gray-800"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      pinnedMessageActive ? (lang === "fa" ? "-translate-x-5" : "translate-x-5") : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {pinnedMessageActive && (
+                <div className="space-y-1.5 animate-fadeIn">
+                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                    {lang === "fa" ? "متن پیام پین‌شونده" : "Pinned Message Text"}
+                  </label>
+                  <textarea
+                    rows={3}
+                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-200 focus:ring-1 focus:ring-indigo-500 font-mono"
+                    placeholder={
+                      lang === "fa"
+                        ? "مثال: 📢 آدرس جدید کانال ما را حتما دنبال کنید: @Daltoon_Store"
+                        : "e.g. 📢 Follow our new channel: @Daltoon_Store"
+                    }
+                    value={pinnedMessageText}
+                    onChange={(e) => setPinnedMessageText(e.target.value)}
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1 block">
+                    {lang === "fa"
+                      ? "نکته: قالب‌بندی HTML در پیام پین شده مجاز است."
+                      : "Tip: HTML tags are supported in the pinned message."}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Purchase success note text */}

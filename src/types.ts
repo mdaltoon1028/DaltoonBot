@@ -143,6 +143,10 @@ export interface PanelSettings {
   googleSearchApiKey?: string;
   googleSearchCx?: string;
   braveSearchApiKey?: string;
+
+  // Pinned Message Config
+  pinnedMessageActive?: boolean;
+  pinnedMessageText?: string;
 }
 
 export interface CustomPricingBox {

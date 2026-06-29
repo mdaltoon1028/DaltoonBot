@@ -244,7 +244,9 @@ def get_config():
         "ADMINS": [],
         "MANDATORY_JOIN_ACTIVE": False,
         "MANDATORY_JOIN_CHANNEL": "",
-        "MANDATORY_JOIN_TEXT": "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید."
+        "MANDATORY_JOIN_TEXT": "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.",
+        "PINNED_MESSAGE_ACTIVE": False,
+        "PINNED_MESSAGE_TEXT": ""
     }
     try:
         db = read_db_json()
@@ -418,6 +420,12 @@ def get_config():
             config["MANDATORY_JOIN_CHANNEL"] = panel_cfg["mandatoryJoinChannel"]
         if "mandatoryJoinText" in panel_cfg:
             config["MANDATORY_JOIN_TEXT"] = panel_cfg["mandatoryJoinText"]
+
+        # Parse Pinned Message configs
+        if "pinnedMessageActive" in panel_cfg:
+            config["PINNED_MESSAGE_ACTIVE"] = bool(panel_cfg["pinnedMessageActive"])
+        if "pinnedMessageText" in panel_cfg:
+            config["PINNED_MESSAGE_TEXT"] = panel_cfg["pinnedMessageText"]
 
         # Parse Guide Videos / File IDs
         for key in ["guideVideoHapp", "guideVideoIos", "guideVideoAndroid", "guideVideoV2rayn", "guideVideoKaring", "guideVideoMac", "guideVideoLinux"]:
@@ -2440,6 +2448,16 @@ def start_cmd(message):
         print(f"Error resetting reply markup: {e}")
         
     bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard())
+
+    # Send and pin message if configured
+    pinned_active = cfg.get("PINNED_MESSAGE_ACTIVE", False)
+    pinned_text = cfg.get("PINNED_MESSAGE_TEXT")
+    if pinned_active and pinned_text:
+        try:
+            sent_pin_msg = bot.send_message(message.chat.id, pinned_text, parse_mode="HTML")
+            bot.pin_chat_message(message.chat.id, sent_pin_msg.message_id, disable_notification=True)
+        except Exception as pin_err:
+            print(f"Error pinning message in start_cmd: {pin_err}")
 
 @bot.message_handler(commands=['buy'])
 def buy_cmd(message):
