@@ -66,27 +66,74 @@ done
 # De-duplicate the list of found files
 UNIQUE_FILES=$(echo "${FOUND_FILES[@]}" | tr ' ' '\n' | sort -u)
 
-for file_path in $UNIQUE_FILES; do
-    filename=$(basename "$file_path")
-    dirpath=$(dirname "$file_path")
-    
-    if [ "$filename" == ".env" ]; then
-        echo -e "${GREEN}Found and backing up configuration .env from $dirpath...${NC}"
-        cp "$file_path" "$BACKUP_DIR/.env_backup"
-    elif [ "$filename" == "Daltoon_Bot.json" ]; then
-        echo -e "${GREEN}Found and backing up database Daltoon_Bot.json from $dirpath...${NC}"
-        cp "$file_path" "$BACKUP_DIR/Daltoon_Bot.json"
-    elif [ "$filename" == "database.json" ]; then
-        echo -e "${GREEN}Found and backing up database database.json from $dirpath...${NC}"
-        cp "$file_path" "$BACKUP_DIR/database.json"
-    elif [ "$filename" == "db.json" ]; then
-        echo -e "${GREEN}Found and backing up database db.json from $dirpath...${NC}"
-        cp "$file_path" "$BACKUP_DIR/db.json"
-    elif [ "$filename" == "bot_database.json" ]; then
-        echo -e "${GREEN}Found and backing up database bot_database.json from $dirpath...${NC}"
-        cp "$file_path" "$BACKUP_DIR/bot_database.json"
-    fi
-done
+export UNIQUE_FILES
+node -e "
+const fs = require('fs');
+const path = require('path');
+
+const BACKUP_DIR = '$BACKUP_DIR';
+const filesStr = process.env.UNIQUE_FILES || '';
+const files = filesStr.split('\n').map(f => f.trim()).filter(Boolean);
+
+let bestDbFile = null;
+let bestDbScore = -1;
+
+let bestEnvFile = null;
+let bestEnvSize = -1;
+
+function getScore(p) {
+  try {
+    if (!fs.existsSync(p)) return -1;
+    const stat = fs.statSync(p);
+    const content = fs.readFileSync(p, 'utf8').trim();
+    if (!content || content === '{}' || content === '[]') return -1;
+    const parsed = JSON.parse(content);
+    let score = 1;
+    if (Array.isArray(parsed.users)) score += parsed.users.length * 10;
+    if (Array.isArray(parsed.transactions)) score += parsed.transactions.length * 10;
+    if (parsed.settings) {
+      if (parsed.settings.dashboardUsername) score += 20;
+      if (parsed.settings.panel_config) {
+        const pc = typeof parsed.settings.panel_config === 'string' ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
+        if (pc.botToken && pc.botToken !== 'DUMMY_TOKEN') score += 100;
+        if (pc.dashboardUsername) score += 50;
+      }
+    }
+    return score > 0 ? (score * 1000000) + stat.size : -1;
+  } catch(e) { return -1; }
+}
+
+for (const p of files) {
+  if (!fs.existsSync(p)) continue;
+  const baseName = path.basename(p);
+  const size = fs.statSync(p).size;
+  
+  if (baseName === '.env') {
+    if (size > bestEnvSize) {
+      bestEnvSize = size;
+      bestEnvFile = p;
+    }
+  } else {
+    const score = getScore(p);
+    if (score > bestDbScore) {
+      bestDbScore = score;
+      bestDbFile = p;
+    }
+  }
+}
+
+if (bestEnvFile) {
+  console.log('\x1b[32m[Installer Backup] Saving best configuration .env from ' + bestEnvFile + ' (' + bestEnvSize + ' bytes)\x1b[0m');
+  fs.copyFileSync(bestEnvFile, path.join(BACKUP_DIR, '.env_backup'));
+}
+
+if (bestDbFile) {
+  console.log('\x1b[32m[Installer Backup] Saving best database from ' + bestDbFile + ' (Score: ' + bestDbScore + ')\x1b[0m');
+  fs.copyFileSync(bestDbFile, path.join(BACKUP_DIR, 'Daltoon_Bot.json'));
+} else {
+  console.log('\x1b[33m[Installer Backup] No existing database detected.\x1b[0m');
+}
+"
 
 if [ ! -f "package.json" ]; then
     echo -e "${YELLOW}No package.json detected in the current directory.${NC}"
@@ -433,16 +480,21 @@ if (db.settings.panel_config) {
 }
 
 // Preserve old credentials if they are missing from prompt but in DB
+const finalUser = '$DASH_USER' || ps.dashboardUsername || db.settings.dashboardUsername || 'Daltoon';
+const finalPass = '$DASH_PASS' || ps.dashboardPassword || db.settings.dashboardPassword || 'Daltoon10';
+const parsedPort = parseInt('$DASH_PORT');
+const finalPort = (!isNaN(parsedPort) && parsedPort > 0) ? parsedPort : (ps.serverPort || db.settings.serverPort || 3000);
+
 const newConfig = {
   ...ps,
-  dashboardUsername: '$DASH_USER',
-  dashboardPassword: '$DASH_PASS',
-  serverPort: parseInt('$DASH_PORT')
+  dashboardUsername: finalUser,
+  dashboardPassword: finalPass,
+  serverPort: finalPort
 };
 
-db.settings.dashboardUsername = '$DASH_USER';
-db.settings.dashboardPassword = '$DASH_PASS';
-db.settings.serverPort = parseInt('$DASH_PORT');
+db.settings.dashboardUsername = finalUser;
+db.settings.dashboardPassword = finalPass;
+db.settings.serverPort = finalPort;
 db.settings.panel_config = JSON.stringify(newConfig);
 
 fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
