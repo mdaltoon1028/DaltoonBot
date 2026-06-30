@@ -5353,10 +5353,12 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
           typeof parsed.settings.panel_config === "string"
             ? JSON.parse(parsed.settings.panel_config)
             : parsed.settings.panel_config;
-        pc = { ...pc, ...preservedConfig };
+        pc = { ...preservedConfig, ...pc };
         parsed.settings.panel_config = JSON.stringify(pc);
       } catch (e) {}
     }
+
+    parsed.isNewInstall = false;
 
     const writeSuccess = writeJsonDb(parsed);
     

@@ -160,6 +160,62 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
             </div>
           )}
 
+          {/* Backup Restore Option */}
+          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+            <h3 className="text-xs font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+              📥 {lang === "fa" ? "آیا فایل پشتیبان (بکاپ) دارید؟" : "Have a database backup?"}
+            </h3>
+            <p className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+              {lang === "fa"
+                ? "اگر از قبل فایل بکاپ (پسوند JSON) دارید، آن را بارگذاری کنید تا همه تنظیمات، کاربران، سرورها و پیام‌های قبلی شما با یک کلیک بازگردند."
+                : "If you have a previous backup file (JSON), upload it to restore all your previous settings, users, servers, and channels immediately."}
+            </p>
+            <label className="flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 py-2.5 px-4 rounded-lg border border-emerald-500/30 transition-all text-xs font-semibold cursor-pointer w-full text-center">
+              <span>{lang === "fa" ? "📁 انتخاب و بارگذاری فایل بکاپ (JSON)" : "📁 Select & Restore Backup JSON"}</span>
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                disabled={isValidating}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  setIsValidating(true);
+                  setError(null);
+                  
+                  const reader = new FileReader();
+                  reader.onload = async (ev) => {
+                    const content = ev.target?.result;
+                    if (typeof content === 'string') {
+                      try {
+                        const fb = await fetch("/api/backup-restore", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ backupData: content })
+                        });
+                        const rJson = await fb.json();
+                        if (rJson.success) {
+                          setError(lang === "fa" ? "✅ بکاپ با موفقیت بازگردانی شد! صفحه در حال بروزرسانی است..." : "✅ Backup successfully restored! Reloading dashboard...");
+                          setTimeout(() => window.location.reload(), 2000);
+                        } else {
+                          setError(rJson.error || (lang === "fa" ? "خطا در بازگردانی بکاپ" : "Error restoring backup"));
+                          setIsValidating(false);
+                        }
+                      } catch(er: any) {
+                        setError(er.message);
+                        setIsValidating(false);
+                      }
+                    } else {
+                      setIsValidating(false);
+                    }
+                  }
+                  reader.readAsText(file);
+                }}
+              />
+            </label>
+          </div>
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5 flex items-center gap-2">
