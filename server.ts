@@ -2373,6 +2373,9 @@ function getActiveServers(settings: any) {
 
 function normalizeXuiUrl(url: string): string {
   let cleaned = `${url}`.trim();
+  // Strip any leading non-alphanumeric/non-protocol-accidental characters (like dots or extra slashes)
+  cleaned = cleaned.replace(/^[\s./]+/, "");
+  
   // Remove any trailing slashes
   cleaned = cleaned.replace(/\/+$/, "");
   
@@ -2398,8 +2401,8 @@ function normalizeXuiUrl(url: string): string {
       }
     }
   } else {
-    // No protocol, default to https://
-    cleaned = "https://" + cleaned;
+    // No protocol, default to http:// (since most 3x-ui panels are HTTP-based and are set up on IP:port)
+    cleaned = "http://" + cleaned;
   }
   return cleaned;
 }
@@ -2505,13 +2508,25 @@ async function loginXuiPanel(
   error?: string;
 }> {
   try {
+    const loginUrl = `${cleanedUrl}/login`;
     console.log(
-      `[Diagnostic] Executing initial GET handshake to: ${cleanedUrl}`,
+      `[Diagnostic] Executing initial GET handshake to login page: ${loginUrl}`,
     );
     // 1. Initial GET request to retrieve cookies and CSRF token if present
-    const getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 5000).catch(
+    // First try the specific login URL as that's where the login form (and CSRF token) is located
+    let getRes = await xuiFetch(loginUrl, { method: "GET" }, 5000).catch(
       () => null,
     );
+
+    // Fall back to base URL if the login URL failed or returned bad status (classic panels or different routing)
+    if (!getRes || !getRes.ok) {
+      console.log(
+        `[Diagnostic] GET handshake to ${loginUrl} was not successful. Falling back to base URL: ${cleanedUrl}`,
+      );
+      getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 5000).catch(
+        () => null,
+      );
+    }
 
     let initialCookie = "";
     let csrfToken = "";
@@ -2528,7 +2543,6 @@ async function loginXuiPanel(
     }
 
     // 2. Perform the POST login request
-    const loginUrl = `${cleanedUrl}/login`;
     const params = new URLSearchParams();
     params.append("username", username);
     params.append("password", password);
