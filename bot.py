@@ -848,6 +848,15 @@ def safe_send_qr_photo(chat_id, qr_url, full_text, markup):
         except Exception as e:
             print(f"[safe_send_qr_photo] Failed direct send: {e}")
             
+    # For long text (or fallback if send_photo failed), send as a single text message with an inline photo link!
+    # This allows up to 4096 characters with the QR code photo in ONE single message!
+    inline_photo_text = f'<a href="{qr_url}">&#8205;</a>{full_text}'
+    try:
+        bot.send_message(chat_id, inline_photo_text, parse_mode="HTML", reply_markup=markup)
+        return True
+    except Exception as e:
+        print(f"[safe_send_qr_photo] Failed inline photo message: {e}")
+        
     # If len > 1024 or direct sending failed, split it!
     short_caption = full_text
     rest_text = ""
@@ -1028,12 +1037,50 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                     if ib_id is not None:
                         inbounds_by_id[ib_id] = item
                     if ib_port is not None:
-                        inbounds_by_port[ib_port] = item
+                        if ib_port not in inbounds_by_port:
+                            inbounds_by_port[ib_port] = []
+                        inbounds_by_port[ib_port].append(item)
                     if ib_remark:
                         inbounds_by_remark[ib_remark.lower().strip()] = item
                 print(f"[get_client_all_links] Successfully prefetched {len(inb_list_raw)} inbounds.")
         except Exception as ex_inb:
             print(f"[get_client_all_links Prefetch Inbounds Error] {ex_inb}")
+
+        # Helper to find matching inbound based on port and remark/fragment similarity
+        def find_matching_inbound(port, fragment_or_ps):
+            if port is not None and port in inbounds_by_port:
+                candidates = inbounds_by_port[port]
+                if len(candidates) == 1:
+                    return candidates[0]
+                else:
+                    # Score based on remark similarity
+                    best_score = -1
+                    best_cand = None
+                    frag_lower = fragment_or_ps.lower().strip()
+                    for cand in candidates:
+                        cand_remark = cand.get("remark", "").lower().strip()
+                        score = 0
+                        if cand_remark in frag_lower:
+                            score += 100 + len(cand_remark)
+                        elif frag_lower in cand_remark:
+                            score += 50 + len(frag_lower)
+                        else:
+                            import re
+                            cand_words = set(re.findall(r'\w+|[^\w\s]', cand_remark))
+                            frag_words = set(re.findall(r'\w+|[^\w\s]', frag_lower))
+                            intersection = cand_words.intersection(frag_words)
+                            score += len(intersection) * 10
+                        if score > best_score:
+                            best_score = score
+                            best_cand = cand
+                    return best_cand
+            else:
+                # Fallback to remark matching
+                frag_lower = fragment_or_ps.lower().strip()
+                for r_key, ib in inbounds_by_remark.items():
+                    if r_key in frag_lower:
+                        return ib
+            return None
 
         # 1. Try links by Email first
         try:
@@ -1401,14 +1448,7 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                         vmess_ps = vmess_obj.get("ps", "")
                         
                         # Match inbound
-                        matching_inbound = None
-                        if vmess_port is not None and vmess_port in inbounds_by_port:
-                            matching_inbound = inbounds_by_port[vmess_port]
-                        else:
-                            for r_key, ib in inbounds_by_remark.items():
-                                if r_key in vmess_ps.lower():
-                                    matching_inbound = ib
-                                    break
+                        matching_inbound = find_matching_inbound(vmess_port, vmess_ps)
                                     
                         if matching_inbound:
                             ib_id = matching_inbound.get("id")
@@ -1475,15 +1515,7 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                 pass
                         
                         fragment = urllib.parse.unquote(parsed_url.fragment or "")
-                        matching_inbound = None
-                        
-                        if link_port is not None and link_port in inbounds_by_port:
-                            matching_inbound = inbounds_by_port[link_port]
-                        else:
-                            for r_key, ib in inbounds_by_remark.items():
-                                if r_key in fragment.lower():
-                                    matching_inbound = ib
-                                    break
+                        matching_inbound = find_matching_inbound(link_port, fragment)
                         
                         if matching_inbound:
                             ib_id = matching_inbound.get("id")
