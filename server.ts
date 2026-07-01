@@ -5308,7 +5308,7 @@ app.get("/api/backup-download", (req, res) => {
 
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=Daltoon_Backup.json",
+      "attachment; filename=Daltoon_Bot.json",
     );
     res.setHeader("Content-Type", "application/json");
     res.send(JSON.stringify(db, null, 2));

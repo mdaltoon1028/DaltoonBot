@@ -854,6 +854,16 @@ def check_client_exists(client_email, server_id=None):
 
 def add_copy_button_to_markup(markup, text, link):
     try:
+        from telebot.types import CopyTextButton
+        markup.add(types.InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=link)))
+        return
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[CopyTextButton Error] {e}")
+
+    # Fallback to local token mapping if CopyTextButton is not supported
+    try:
         import random, string
         db = read_sqlite_db()
         if "link_tokens" not in db:
@@ -869,7 +879,7 @@ def add_copy_button_to_markup(markup, text, link):
         if not token:
             token = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
             db["link_tokens"][token] = link
-            # Clean up old tokens if there are too many (e.g. > 2000)
+            # Clean up old tokens if there are too many
             if len(db["link_tokens"]) > 2000:
                 all_tks = list(db["link_tokens"].keys())
                 for tk in all_tks[:500]:
@@ -881,17 +891,8 @@ def add_copy_button_to_markup(markup, text, link):
             
         markup.add(types.InlineKeyboardButton(text=text, callback_data=f"showlink_{token}"))
     except Exception as e:
-        print(f"[Callback Copy Button Failed, Fallback to CopyText] {e}")
-        try:
-            from telebot.types import CopyTextButton
-            markup.add(types.InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=link)))
-        except TypeError:
-            markup.add(types.InlineKeyboardButton(text=text, url=link))
-        except Exception:
-            try:
-                markup.add(types.InlineKeyboardButton(text=text, copy_text={"text": link}))
-            except Exception:
-                markup.add(types.InlineKeyboardButton(text=text, url=link))
+        print(f"[Callback Copy Button Failed, Fallback to URL] {e}")
+        markup.add(types.InlineKeyboardButton(text=text, url=link))
 
 def get_qr_code_url(text):
     try:
@@ -3721,7 +3722,7 @@ def handle_main_menu_callback(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         vless_links = get_client_all_links(free_username, client_uuid, sub_link, server_id=active_server_id)
-        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+        links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
             f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
@@ -4061,7 +4062,7 @@ def handle_buy_pay(call):
 
         all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
         if all_links:
-            links_text = "\n".join([f"<code>{l}</code>" for l in all_links])
+            links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in all_links])
             configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         else:
             configs_block = (
@@ -4447,7 +4448,7 @@ def process_purchase_username(message, plan_id, spec):
         )
         
         vless_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
-        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+        links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -4731,7 +4732,7 @@ def callback_handler(call):
             vless_links = get_client_all_links(client_name, client_uuid, sub_link, server_id=k.get("serverId"))
             
             if vless_links:
-                links_text = "\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
+                links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{lnk}</code>" for lnk in vless_links])
                 text = (
                     f"⚡ <b>لیست کانفیگ‌های معمولی VLESS سرویس شما:</b>\n\n"
                     f"👤 نام سرویس: <code>{client_name}</code>\n\n"
@@ -5242,7 +5243,7 @@ def callback_handler(call):
                 note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
             vless_links = get_client_all_links(full_name, client_uuid, sub_link, server_id=server_id)
-            links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+            links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
             text_msg = (
                 f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
@@ -5393,7 +5394,7 @@ def callback_handler(call):
         elif action == "links":
             # show all VLESS links
             vless_links = get_client_all_links(sub.get("clientName", "User"), sub.get("clientUuid"), sub.get("subLink"), server_id=sub.get("serverId"))
-            links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub.get('subLink')}</code>"
+            links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub.get('subLink')}</code>"
             
             text = f"🚀 <b>لینک‌های اتصال مستقیم برای {sub.get('clientName', 'نامشخص')}:</b>\n\n{links_text}"
             markup = types.InlineKeyboardMarkup()
@@ -6035,7 +6036,7 @@ def callback_handler(call):
                 
                 all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
                 if all_links:
-                    links_text = "\n".join([f"<code>{l}</code>" for l in all_links])
+                    links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in all_links])
                     configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
                 else:
                     configs_block = (
@@ -7143,7 +7144,7 @@ def process_col_create_days(message, acc, name, gb):
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
     vless_links = get_client_all_links(full_name, client_uuid, sub_link, server_id=active_server_id)
-    links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+    links_text = "\n\n🔸━━━━━━━━━━━━━━━━━━🔸\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
     text_msg = (
         f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
