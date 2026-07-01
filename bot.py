@@ -49,7 +49,14 @@ DB_FILE = get_db_path()
 
 import sqlite3
 
-DB_SQLITE_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.db")
+DB_SQLITE_FILE = os.path.join(SCRIPT_DIR, "database.sqlite")
+import shutil
+legacy_db = os.path.join(SCRIPT_DIR, "Daltoon_Bot.db")
+if os.path.exists(legacy_db) and not os.path.exists(DB_SQLITE_FILE):
+    try:
+        shutil.copy2(legacy_db, DB_SQLITE_FILE)
+    except Exception as e:
+        pass
 
 def get_sqlite_conn():
     conn = sqlite3.connect(DB_SQLITE_FILE, timeout=30.0)
@@ -860,6 +867,9 @@ def add_copy_button_to_markup(markup, text, link):
     except ImportError:
         pass
     except Exception as e:
+        import traceback
+        with open("copy_error.log", "w") as f:
+            f.write(traceback.format_exc())
         print(f"[CopyTextButton Error] {e}")
 
     # Fallback to local token mapping if CopyTextButton is not supported
@@ -1670,7 +1680,16 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
         # so the caller will default to showing the sub_link.
         links = []
 
-    return links
+    # Ensure links are truly split (sometimes they come back separated by spaces instead of newlines)
+    final_links = []
+    import re
+    for lnk in links:
+        split_links = re.split(r'\s+(?=vless://|vmess://|trojan://|shadowsocks://|ss://)', str(lnk).strip())
+        for sl in split_links:
+            if sl.strip():
+                final_links.append(sl.strip())
+                
+    return final_links
 
 def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None, server_id=None):
     """

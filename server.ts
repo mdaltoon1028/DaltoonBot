@@ -30,7 +30,15 @@ try {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to SQLite DB store
-const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
+const legacyDbPath = path.resolve(process.cwd(), "Daltoon_Bot.db");
+const newDbPath = path.resolve(process.cwd(), "database.sqlite");
+
+if (fs.existsSync(legacyDbPath) && !fs.existsSync(newDbPath)) {
+  console.log("Migrating database to database.sqlite to avoid git conflicts...");
+  fs.copyFileSync(legacyDbPath, newDbPath);
+}
+
+const dbSqlitePath = newDbPath;
 const sqliteDb = (() => {
   const db = new Database(dbSqlitePath);
   db.pragma("journal_mode = WAL");
@@ -486,11 +494,7 @@ startPythonBot();
 // Full Wipe Database API
 app.post("/api/database/wipe-all", async (req, res) => {
   try {
-    const targetFile = path.resolve(process.cwd(), "Daltoon_Bot.db");
-    if (fs.existsSync(targetFile)) {
-      fs.unlinkSync(targetFile);
-    }
-    const targetDbFile = path.resolve(process.cwd(), "Daltoon_Bot.db");
+    const targetDbFile = path.resolve(process.cwd(), "database.sqlite");
     if (fs.existsSync(targetDbFile)) {
       try {
         sqliteDb.close();
@@ -5456,7 +5460,7 @@ async function performAutoBackup() {
       '',
       caption,
       `--${boundary}`,
-      `Content-Disposition: form-data; name="document"; filename="Daltoon_Bot.db"`,
+      `Content-Disposition: form-data; name="document"; filename="database.sqlite"`,
       `Content-Type: application/json`,
       '',
       ''
@@ -5672,7 +5676,7 @@ app.post("/api/system/update", async (req, res) => {
       console.log(
         "[Auto-Update] Starting background update sequence (stash -> pull -> pop)...",
       );
-      exec("git stash && git pull && git stash pop || true", (pullError: any) => {
+      exec("git fetch --all && git reset --hard origin/main || git reset --hard origin/master", (pullError: any) => {
         // Increment version in package.json AFTER git pull so it's not stashed away!
         try {
           const pkgPath = path.join(process.cwd(), "package.json");
@@ -5704,7 +5708,7 @@ app.post("/api/system/update", async (req, res) => {
 
         // Now run dependencies, rebuild, and restart all PM2 processes
         exec(
-          "chmod +x daltoon-dashboard install.sh 2>/dev/null || true && npm install && npm run build && pm2 restart all",
+          "chmod +x daltoon-dashboard install.sh 2>/dev/null || true && pip3 install -U pyTelegramBotAPI python-dotenv requests --break-system-packages || pip3 install -U pyTelegramBotAPI python-dotenv requests || true && npm install && npm run build && pm2 restart all",
           (buildError: any, stdout: string, stderr: string) => {
             if (buildError) {
               console.error("[Auto-Update Error in build]", buildError.message);
