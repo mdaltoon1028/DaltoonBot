@@ -176,6 +176,11 @@ export default function MultiServerConfig({
           setInbounds(data.inbounds);
           if (checkedInboundIds.length === 0) {
             setCheckedInboundIds(data.inbounds.map((ib: any) => ib.id));
+          } else {
+            const fetchedIds = data.inbounds.map((ib: any) => String(ib.id));
+            setCheckedInboundIds((prev) =>
+              prev.filter((id) => fetchedIds.includes(String(id)))
+            );
           }
         }
       } else {

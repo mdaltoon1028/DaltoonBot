@@ -840,6 +840,49 @@ def add_copy_button_to_markup(markup, text, link):
             except Exception:
                 markup.add(types.InlineKeyboardButton(text=text, url=link))
 
+def safe_send_qr_photo(chat_id, qr_url, full_text, markup):
+    if len(full_text) <= 1024:
+        try:
+            bot.send_photo(chat_id, qr_url, caption=full_text, parse_mode="HTML", reply_markup=markup)
+            return True
+        except Exception as e:
+            print(f"[safe_send_qr_photo] Failed direct send: {e}")
+            
+    # If len > 1024 or direct sending failed, split it!
+    short_caption = full_text
+    rest_text = ""
+    for marker in ["🚀 <b>لینک‌های", "🚀 لینک‌های", "⚠️ <b>توجه:", "⚠️ توجه:"]:
+        if marker in full_text:
+            parts = full_text.split(marker, 1)
+            short_caption = parts[0].strip()
+            rest_text = marker + parts[1].strip()
+            break
+            
+    if len(short_caption) > 1000:
+        short_caption = short_caption[:980] + "..."
+        rest_text = full_text
+    else:
+        if not rest_text:
+            rest_text = full_text
+            
+    hint = "\n\n📸 اسکنر QR فوق را اسکن کنید یا از دکمه‌های زیر استفاده کنید.\n👇 لینک‌های اتصال مستقیم در پیام بعدی ارسال شد."
+    if len(short_caption) + len(hint) <= 1024:
+        short_caption += hint
+        
+    try:
+        bot.send_photo(chat_id, qr_url, caption=short_caption, parse_mode="HTML", reply_markup=markup)
+        if rest_text:
+            bot.send_message(chat_id, rest_text, parse_mode="HTML")
+        return True
+    except Exception as e:
+        print(f"[safe_send_qr_photo] Failed split send: {e}")
+        try:
+            bot.send_message(chat_id, full_text, parse_mode="HTML", reply_markup=markup)
+            return True
+        except Exception as ex:
+            print(f"[safe_send_qr_photo] Absolute failure: {ex}")
+            return False
+
 def send_purchase_success_note_if_any(chat_id, only_media=True):
     cfg = get_config()
     note_text = cfg.get("PURCHASE_SUCCESS_NOTE", "")
@@ -1032,6 +1075,24 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
         # 3. Fallback: Parse inbounds statically and construct VLESS/VMESS/Trojan links if endpoints returned nothing but login was successful
         if not links:
             try:
+                # Fetch hosts first if available (v3.4+ Sanaei)
+                hosts_by_inbound = {}
+                try:
+                    url_hosts = f"{base_url}/panel/api/hosts/list"
+                    res_hosts = session.get(url_hosts, timeout=10, verify=False)
+                    if res_hosts.status_code == 200:
+                        hosts_data = res_hosts.json()
+                        if hosts_data.get("success") and isinstance(hosts_data.get("obj"), list):
+                            for h in hosts_data["obj"]:
+                                inb_id_val = h.get("inboundId")
+                                if inb_id_val is not None:
+                                    if inb_id_val not in hosts_by_inbound:
+                                        hosts_by_inbound[inb_id_val] = []
+                                    hosts_by_inbound[inb_id_val].append(h)
+                            print(f"[get_client_all_links] Successfully fetched {len(hosts_data['obj'])} hosts from separate endpoint.")
+                except Exception as ex_hosts:
+                    print(f"[get_client_all_links Hosts Fetch Error] {ex_hosts}")
+
                 url_list = f"{base_url}/panel/api/inbounds/list"
                 res_inb = session.get(url_list, timeout=20, verify=False)
                 inb_data = res_inb.json()
@@ -1100,6 +1161,34 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                 print(f"[get_client_all_links] Failed to parse externalProxy JSON: {e}")
 
                         targets = []
+                        inb_id = item.get("id")
+                        
+                        # 1. Add targets from separate Hosts list (v3.4+ Sanaei)
+                        if inb_id in hosts_by_inbound:
+                            for h in hosts_by_inbound[inb_id]:
+                                if h.get("enable") is False:
+                                    continue
+                                dest = h.get("address") or h.get("dest")
+                                p_port = h.get("port")
+                                if dest:
+                                    try:
+                                        p_port = int(p_port) if p_port is not None else port
+                                    except:
+                                        p_port = port
+                                    
+                                    h_security = h.get("security")
+                                    if h_security == "same" or not h_security:
+                                        h_security = None
+                                        
+                                    targets.append({
+                                        "domain": dest,
+                                        "port": p_port,
+                                        "security": h_security,
+                                        "sni": h.get("sni"),
+                                        "remark": h.get("remark")
+                                    })
+                                    
+                        # 2. Add targets from legacy externalProxy
                         if isinstance(ext_proxies, list) and len(ext_proxies) > 0:
                             for proxy in ext_proxies:
                                 if isinstance(proxy, dict):
@@ -1110,8 +1199,14 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                             p_port = int(p_port) if p_port is not None else port
                                         except:
                                             p_port = port
-                                        targets.append((dest, p_port))
-
+                                        targets.append({
+                                            "domain": dest,
+                                            "port": p_port,
+                                            "security": None,
+                                            "sni": None,
+                                            "remark": None
+                                        })
+                                        
                         if not targets and isinstance(ext_proxy_raw, str) and ext_proxy_raw.strip():
                             # Maybe simple string "host:port" or "host"
                             parts = ext_proxy_raw.replace("\n", ",").replace(";", ",").split(",")
@@ -1121,39 +1216,76 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                     if ":" in part:
                                         try:
                                             d, p = part.rsplit(":", 1)
-                                            targets.append((d, int(p)))
+                                            targets.append({
+                                                "domain": d,
+                                                "port": int(p),
+                                                "security": None,
+                                                "sni": None,
+                                                "remark": None
+                                            })
                                         except:
-                                            targets.append((part, port))
+                                            targets.append({
+                                                "domain": part,
+                                                "port": port,
+                                                "security": None,
+                                                "sni": None,
+                                                "remark": None
+                                            })
                                     else:
-                                        targets.append((part, port))
+                                        targets.append({
+                                            "domain": part,
+                                            "port": port,
+                                            "security": None,
+                                            "sni": None,
+                                            "remark": None
+                                        })
 
                         if not targets:
-                            targets.append((domain, port))
+                            targets.append({
+                                "domain": domain,
+                                "port": port,
+                                "security": None,
+                                "sni": None,
+                                "remark": None
+                            })
 
-                        for target_domain, target_port in targets:
+                        for tgt in targets:
+                            target_domain = tgt["domain"]
+                            target_port = tgt["port"]
+                            tgt_security = tgt["security"] if tgt["security"] else security
+                            tgt_sni = tgt["sni"] if tgt["sni"] else None
+                            tgt_remark = tgt["remark"] if tgt["remark"] else remark
+                            
                             if protocol == "vless" or protocol == "trojan":
                                 # Standard format: protocol://id@domain:port?security=...&type=...#remark
                                 paras = []
-                                paras.append(f"security={security}")
+                                paras.append(f"security={tgt_security}")
                                 paras.append(f"type={network}")
                                 
-                                if security == "reality":
-                                    r_settings = stream_settings.get("realitySettings", {})
-                                    sni = r_settings.get("serverNames", ["google.com"])[0]
-                                    pbk = r_settings.get("publicKey", "")
-                                    sid = r_settings.get("shortIds", [""])[0]
-                                    paras.append(f"sni={sni}")
-                                    if pbk:
-                                        paras.append(f"pbk={pbk}")
-                                    if sid:
-                                        paras.append(f"sid={sid}")
-                                    paras.append("fp=chrome")
-                                elif security == "tls":
-                                    t_settings = stream_settings.get("tlsSettings", {})
-                                    sni = t_settings.get("serverName", "")
-                                    if sni:
+                                if tgt_sni:
+                                    paras.append(f"sni={tgt_sni}")
+                                    if network == "ws":
+                                        paras.append(f"host={tgt_sni}")
+                                else:
+                                    if tgt_security == "reality":
+                                        r_settings = stream_settings.get("realitySettings", {})
+                                        sni = r_settings.get("serverNames", ["google.com"])[0]
+                                        pbk = r_settings.get("publicKey", "")
+                                        sid = r_settings.get("shortIds", [""])[0]
                                         paras.append(f"sni={sni}")
-                                        
+                                        if pbk:
+                                            paras.append(f"pbk={pbk}")
+                                        if sid:
+                                            paras.append(f"sid={sid}")
+                                        paras.append("fp=chrome")
+                                    elif tgt_security == "tls":
+                                        t_settings = stream_settings.get("tlsSettings", {})
+                                        sni = t_settings.get("serverName", "")
+                                        if sni:
+                                            paras.append(f"sni={sni}")
+                                            if network == "ws":
+                                                paras.append(f"host={sni}")
+                                                
                                 if network == "ws":
                                     ws_settings = stream_settings.get("wsSettings", {})
                                     path = ws_settings.get("path", "/")
@@ -1165,14 +1297,14 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                         paras.append(f"serviceName={service_name}")
                                         
                                 query_str = "&".join(paras)
-                                label = f"{remark}-{client_name}"
+                                label = f"{tgt_remark}-{client_name}"
                                 link = f"{protocol}://{client_id_or_password}@{target_domain}:{target_port}?{query_str}#{label}"
                                 links.append(link)
                                 
                             elif protocol == "vmess":
                                 vmess_obj = {
                                     "v": "2",
-                                    "ps": f"{remark}-{client_name}",
+                                    "ps": f"{tgt_remark}-{client_name}",
                                     "add": target_domain,
                                     "port": target_port,
                                     "id": client_uuid,
@@ -1182,27 +1314,33 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                     "type": "none",
                                     "host": "",
                                     "path": "",
-                                    "tls": "tls" if security == "tls" else "none",
+                                    "tls": "tls" if tgt_security in ["tls", "reality"] else "none",
                                     "sni": "",
                                     "fp": ""
                                 }
+                                if tgt_sni:
+                                    vmess_obj["sni"] = tgt_sni
+                                    if network == "ws":
+                                        vmess_obj["host"] = tgt_sni
+                                else:
+                                    if tgt_security in ["tls", "reality"]:
+                                        if tgt_security == "reality":
+                                            r_settings = stream_settings.get("realitySettings", {})
+                                            vmess_obj["sni"] = r_settings.get("serverNames", ["google.com"])[0]
+                                        else:
+                                            t_settings = stream_settings.get("tlsSettings", {})
+                                            vmess_obj["sni"] = t_settings.get("serverName", "")
+                                            
                                 if network == "ws":
                                     ws_settings = stream_settings.get("wsSettings", {})
                                     vmess_obj["path"] = ws_settings.get("path", "/")
-                                    headers = ws_settings.get("headers", {})
-                                    if headers:
-                                        vmess_obj["host"] = headers.get("Host", "")
+                                    if not vmess_obj["host"]:
+                                        headers = ws_settings.get("headers", {})
+                                        if headers:
+                                            vmess_obj["host"] = headers.get("Host", "")
                                 elif network == "grpc":
                                     grpc_settings = stream_settings.get("grpcSettings", {})
                                     vmess_obj["path"] = grpc_settings.get("serviceName", "")
-                                if security in ["tls", "reality"]:
-                                    vmess_obj["tls"] = "tls"
-                                    if security == "reality":
-                                        r_settings = stream_settings.get("realitySettings", {})
-                                        vmess_obj["sni"] = r_settings.get("serverNames", ["google.com"])[0]
-                                    else:
-                                        t_settings = stream_settings.get("tlsSettings", {})
-                                        vmess_obj["sni"] = t_settings.get("serverName", "")
                                 
                                 json_str = json.dumps(vmess_obj, ensure_ascii=False)
                                 b64_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
@@ -3262,13 +3400,9 @@ def handle_main_menu_callback(call):
             add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
             markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
-            bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
-        except:
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
-            markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
-            markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
-            bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
+            safe_send_qr_photo(message.chat.id, qr_url, success_text, markup)
+        except Exception as e:
+            print(f"[Bot] Failed free test QR send: {e}")
             
         send_purchase_success_note_if_any(message.chat.id, only_media=True)
 
@@ -3614,10 +3748,9 @@ def handle_buy_pay(call):
         try:
             import urllib.parse
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-            bot.send_photo(tg_id, qr_url, caption=success_msg, parse_mode="HTML", reply_markup=markup)
+            safe_send_qr_photo(tg_id, qr_url, success_msg, markup)
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
-            bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=markup)
             
         send_purchase_success_note_if_any(tg_id, only_media=True)
         
@@ -4001,10 +4134,9 @@ def process_purchase_username(message, plan_id, spec):
         try:
             import urllib.parse
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-            bot.send_photo(message.chat.id, qr_url, caption=success_text, parse_mode="HTML", reply_markup=markup)
+            safe_send_qr_photo(message.chat.id, qr_url, success_text, markup)
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
-            bot.send_message(message.chat.id, success_text, parse_mode="HTML", reply_markup=markup)
             
         send_purchase_success_note_if_any(message.chat.id, only_media=True)
     finally:
@@ -4785,10 +4917,9 @@ def callback_handler(call):
             try:
                 import urllib.parse
                 qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-                bot.send_photo(call.message.chat.id, qr_url, caption=text_msg, parse_mode="HTML", reply_markup=markup)
+                safe_send_qr_photo(call.message.chat.id, qr_url, text_msg, markup)
             except Exception as e:
                 print(f"[Bot Warning] Failed to send QR Photo: {e}")
-                bot.send_message(call.message.chat.id, text_msg, parse_mode="HTML", reply_markup=markup)
 
             show_colleague_panel_msg(call.message, live_acc)
             
@@ -5591,10 +5722,9 @@ def callback_handler(call):
                 try:
                     import urllib.parse
                     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-                    bot.send_photo(tg_id, qr_url, caption=success_msg, parse_mode="HTML", reply_markup=markup)
+                    safe_send_qr_photo(tg_id, qr_url, success_msg, markup)
                 except Exception as e:
                     print(f"[Bot Warning] Failed to send custom QR Photo: {e}")
-                    bot.send_message(tg_id, success_msg, parse_mode="HTML", reply_markup=markup)
                     
                 send_purchase_success_note_if_any(tg_id, only_media=True)
                 
@@ -6691,10 +6821,9 @@ def process_col_create_days(message, acc, name, gb):
     try:
         import urllib.parse
         qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
-        bot.send_photo(message.chat.id, qr_url, caption=text_msg, parse_mode="HTML", reply_markup=markup)
+        safe_send_qr_photo(message.chat.id, qr_url, text_msg, markup)
     except Exception as e:
         print(f"[Bot Warning] Failed to send QR Photo: {e}")
-        bot.send_message(message.chat.id, text_msg, parse_mode="HTML", reply_markup=markup)
         
     send_purchase_success_note_if_any(message.chat.id, only_media=True)
     
