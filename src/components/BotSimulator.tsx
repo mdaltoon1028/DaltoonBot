@@ -1473,8 +1473,26 @@ export default function BotSimulator({
         return;
       }
 
-      const cardNo = settings?.cardNumber || "۶۲۷۳-۸۱۱۰-۱۲۳۴-۵۶۷۸";
-      const cardName = settings?.cardHolder || "مدیریت دالتون";
+      const cardNumbersList = settings?.cardNumbers || [];
+      let bankDetailsFa = "";
+      let bankDetailsEn = "";
+      if (Array.isArray(cardNumbersList) && cardNumbersList.length > 0) {
+        bankDetailsFa = cardNumbersList.map((c: any, idx: number) => 
+          `💳 ${idx + 1}. ${c.bankName || c.bank || "بانک"}:\n` +
+          `<code>${c.number || c.cardNumber || ""}</code>\n` +
+          `👤 به نام: <b>${c.holder || c.cardHolder || ""}</b>`
+        ).join("\n\n");
+        bankDetailsEn = cardNumbersList.map((c: any, idx: number) => 
+          `💳 ${idx + 1}. ${c.bankName || c.bank || "Bank"}:\n` +
+          `<code>${c.number || c.cardNumber || ""}</code>\n` +
+          `👤 Owner: <b>${c.holder || c.cardHolder || ""}</b>`
+        ).join("\n\n");
+      } else {
+        const cardNo = settings?.cardNumber || "۶۲۷۳-۸۱۱۰-۱۲۳۴-۵۶۷۸";
+        const cardName = settings?.cardHolder || "مدیریت دالتون";
+        bankDetailsFa = `💳 شماره کارت: <code>${cardNo}</code>\n👤 نام صاحب حساب: <b>${cardName}</b>`;
+        bankDetailsEn = `💳 Card: <code>${cardNo}</code>\n👤 Owner: <b>${cardName}</b>`;
+      }
 
       const msgText = lang === "fa"
         ? `💳 <b>فاکتور کارت‌به‌کارت مستقیم جهت تمدید اشتراک:</b>\n\n` +
@@ -1484,8 +1502,7 @@ export default function BotSimulator({
           `💰 <b>مبلغ قابل پرداخت: ${price.toLocaleString()} تومان</b>\n\n` +
           `──────────────────\n` +
           `📌 <b>مشخصات حساب بانکی جهت واریز:</b>\n` +
-          `💳 شماره کارت: <code>${cardNo}</code>\n` +
-          `👤 نام صاحب حساب: <b>${cardName}</b>\n\n` +
+          `${bankDetailsFa}\n\n` +
           `👇 پس از انجام کارت‌به‌کارت، روی دکمه زیر ضربه بزنید و تصویر فیش واریز را بارگذاری نمایید تا تمدید توسط ادمین تأیید شود:`
         : `💳 <b>Direct Card-to-Card Invoice for Renewal:</b>\n\n` +
           `👤 Service: <code>${sub.clientName || sub.planName}</code>\n` +
@@ -1494,8 +1511,7 @@ export default function BotSimulator({
           `💰 <b>Amount Due: ${price.toLocaleString()} Toman</b>\n\n` +
           `──────────────────\n` +
           `📌 <b>Bank Details:</b>\n` +
-          `💳 Card: <code>${cardNo}</code>\n` +
-          `👤 Owner: <b>${cardName}</b>\n\n` +
+          `${bankDetailsEn}\n\n` +
           `👇 After making the payment, click below to upload your transaction slip:`;
 
       addBotReply(

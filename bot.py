@@ -212,6 +212,22 @@ def normalize_xui_url(url):
 
 active_purchases = set()
 
+def get_card_payment_info(cfg):
+    card_numbers_list = cfg.get("CARD_NUMBERS")
+    if card_numbers_list and isinstance(card_numbers_list, list) and len(card_numbers_list) > 0:
+        lines = []
+        for idx, c in enumerate(card_numbers_list):
+            b_name = c.get("bankName") or c.get("bank") or "بانک"
+            num = c.get("number") or c.get("cardNumber") or ""
+            holder = c.get("holder") or c.get("cardHolder") or ""
+            if num:
+                lines.append(f"💳 {idx+1}. {b_name}:\n<code>{num}</code>\n👤 به نام: <b>{holder}</b>")
+        return "📥 کارت‌های بانکی جهت واریز:\n\n" + "\n\n".join(lines)
+    else:
+        num = cfg.get('CARD_NUMBER', 'درج نشده')
+        holder = cfg.get('CARD_HOLDER', 'درج نشده')
+        return f"📥 شماره کارت ۱۶ رقمی بانک:\n<code>{num}</code>\n👤 به نام: <b>{holder}</b>"
+
 # Load Dynamic Configurations
 def get_config():
     """ Load real-time configurations from Daltoon_Bot.json or fallback to env vars """
@@ -372,6 +388,7 @@ def get_config():
             config["CARD_NUMBER"] = panel_cfg["cardNumber"]
         if panel_cfg.get("cardHolder"):
             config["CARD_HOLDER"] = panel_cfg["cardHolder"]
+        config["CARD_NUMBERS"] = panel_cfg.get("cardNumbers", [])
         if panel_cfg.get("botWebUrl"):
             config["BOT_WEB_URL"] = panel_cfg["botWebUrl"].rstrip("/")
         if "welcomeText" in panel_cfg:
@@ -3385,9 +3402,7 @@ def handle_buy_pay(call):
             f"👤 نام کاربری: <code>{username_input}</code>\n"
             f"💰 مبلغ قابل پرداخت: <b>{spec.get('price', 0):,} تومان</b>\n\n"
             f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-            f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-            f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
-            f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+            f"{get_card_payment_info(cfg)}\n\n"
             f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
         )
         bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
@@ -5100,9 +5115,7 @@ def callback_handler(call):
             text = (
                 f"💳 <b>سفارش حساب همکار - مبلغ {int(amount):,} تومان:</b>\n\n"
                 f"لطفاً مبلغ فوق را به کارت زیر واریز نمایید:\n\n"
-                f"📥 شماره کارت ۱۶ رقمی:\n"
-                f"<code>{cfg.get('CARD_NUMBER', '')}</code>\n"
-                f"👤 به نام: <b>{cfg.get('CARD_HOLDER', '')}</b>\n\n"
+                f"{get_card_payment_info(cfg)}\n\n"
                 f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b>."
             )
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
@@ -5356,9 +5369,7 @@ def callback_handler(call):
                 f"📊 حجم: <b>{gb} GB</b> | زمان: <b>{days} روز</b>\n"
                 f"💰 مبلغ قابل پرداخت: <b>{price:,} تومان</b>\n\n"
                 f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-                f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-                f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
-                f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+                f"{get_card_payment_info(cfg)}\n\n"
                 f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و دریافت کانفیگ برای ادمین ثبت شود."
             )
             bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
@@ -5582,9 +5593,7 @@ def callback_handler(call):
                     f"⏳ مدت زمان تمدید: <b>{days} روز</b>\n"
                     f"💰 مبلغ قابل پرداخت: <b>{price:,} تومان</b>\n\n"
                     f"لطفاً مبلغ فوق را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-                    f"📥 شماره کارت ۱۶ رقمی:\n"
-                    f"<code>{cfg.get('CARD_NUMBER', 'درج نشده')}</code>\n"
-                    f"👤 به نام: <b>{cfg.get('CARD_HOLDER', 'درج نشده')}</b>\n\n"
+                    f"{get_card_payment_info(cfg)}\n\n"
                     f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت بررسی و اعمال تمدید برای ادمین ارسال شود."
                 )
                 bot.edit_message_text(text_response, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
@@ -5819,9 +5828,7 @@ def callback_handler(call):
             text = (
                 f"💳 <b>درخواست شارژ حساب کاربری به مبلغ {amount:,} تومان:</b>\n\n"
                 f"لطفاً مبلغ دقیق <b>{amount:,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-                f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-                f"<code>{cfg['CARD_NUMBER']}</code>\n"
-                f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
+                f"{get_card_payment_info(cfg)}\n\n"
                 f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
             )
             bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=get_cancel_keyboard())
@@ -7407,9 +7414,7 @@ def process_custom_charge_amount(message):
     text_response = (
         f"💳 <b>درخواست شارژ حساب کاربری به مبلغ {amount:,} تومان:</b>\n\n"
         f"لطفاً مبلغ دقیق <b>{amount:,} تومان</b> را به کارت عابربانک مدیریت واریز نمایید:\n\n"
-        f"📥 شماره کارت ۱۶ رقمی بانک ملی:\n"
-        f"<code>{cfg['CARD_NUMBER']}</code>\n"
-        f"👤 به نام: <b>{cfg['CARD_HOLDER']}</b>\n\n"
+        f"{get_card_payment_info(cfg)}\n\n"
         f"📸 پس از انتقال/واریز، <b>فقط عکس فیش یا رسید پرداختی خود را به این چت بفرستید</b> تا جهت تایید و شارژ برای ادمین ثبت شود."
     )
     bot.send_message(message.chat.id, text_response, parse_mode="HTML", reply_markup=get_cancel_keyboard())

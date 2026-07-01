@@ -12,7 +12,13 @@ import {
   ArrowUpRight, 
   ShieldAlert,
   DownloadCloud,
-  UploadCloud
+  UploadCloud,
+  TrendingUp,
+  Coins,
+  Clock,
+  Zap,
+  CalendarDays,
+  BarChart3
 } from "lucide-react";
 
 interface DashboardOverviewProps {
@@ -40,6 +46,26 @@ export default function DashboardOverview({
 }: DashboardOverviewProps) {
   const t = translations[lang];
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
+
+  // Live Advanced Financial Calculations
+  const approvedTxs = (transactions || []).filter(tx => tx.status === "approved");
+
+  const sumIncomeForHours = (hours: number) => {
+    const cutoff = Date.now() - hours * 60 * 60 * 1000;
+    return approvedTxs
+      .filter(tx => {
+        if (!tx.date) return false;
+        const txTime = new Date(tx.date).getTime();
+        return txTime >= cutoff;
+      })
+      .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+  };
+
+  const dailyIncome = sumIncomeForHours(24);
+  const fortyEightHoursIncome = sumIncomeForHours(48);
+  const seventyTwoHoursIncome = sumIncomeForHours(72);
+  const weeklyIncome = sumIncomeForHours(24 * 7);
+  const monthlyIncome = sumIncomeForHours(24 * 30);
 
   return (
     <div id="dashboard-tab" className="space-y-6">
@@ -99,6 +125,174 @@ export default function DashboardOverview({
           </div>
           <div className={`p-3 rounded-lg ${pendingTransactionsCount > 0 ? "bg-amber-500/20 text-amber-400 animate-pulse" : "bg-gray-800 text-gray-500"}`}>
             <ShieldAlert className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Cool Advanced Live Income Dashboard */}
+      <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-2xl relative overflow-hidden shadow-2xl">
+        {/* Glow indicator line */}
+        <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-teal-500 via-indigo-500 to-purple-500" />
+        
+        {/* Background ambient radial aura */}
+        <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-gray-800 pb-4">
+          <div>
+            <h3 className="font-display font-bold text-lg text-white flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <TrendingUp className="w-4 h-4" />
+              </span>
+              {lang === "fa" ? "گزارش زنده درآمدهای ربات دالتون" : "Daltoon Bot Live Treasury Analytics"}
+            </h3>
+            <p className="text-xs text-gray-400 mt-1">
+              {lang === "fa" 
+                ? "بررسی و پایش دقیق مالی در بازه‌های زمانی مختلف بر اساس تراکنش‌های تایید شده" 
+                : "Real-time auditing of approved store transactions across custom temporal windows"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-[10px] uppercase tracking-wider font-mono text-emerald-400 font-semibold">
+              {lang === "fa" ? "به‌روزرسانی آنی فعال" : "Live Synchronization Active"}
+            </span>
+          </div>
+        </div>
+
+        {/* 5-Column Bento Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {/* Daily (24h) */}
+          <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium font-sans">
+                {lang === "fa" ? "۲۴ ساعت گذشته" : "Last 24 Hours"}
+              </span>
+              <span className="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 text-[10px] font-bold">
+                {lang === "fa" ? "امروز" : "Daily"}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
+                  {dailyIncome.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+              </div>
+              <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-teal-500 to-indigo-500 h-1 rounded-full transition-all duration-500" 
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (dailyIncome / totalIncome) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 48 Hours */}
+          <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium font-sans">
+                {lang === "fa" ? "۴۸ ساعت گذشته" : "Last 48 Hours"}
+              </span>
+              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-bold">
+                {lang === "fa" ? "۲ روز" : "48h"}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
+                  {fortyEightHoursIncome.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+              </div>
+              <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1 rounded-full transition-all duration-500" 
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (fortyEightHoursIncome / totalIncome) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 72 Hours */}
+          <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium font-sans">
+                {lang === "fa" ? "۷۲ ساعت گذشته" : "Last 72 Hours"}
+              </span>
+              <span className="p-1.5 rounded-lg bg-pink-500/10 text-pink-400 text-[10px] font-bold">
+                {lang === "fa" ? "۳ روز" : "72h"}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
+                  {seventyTwoHoursIncome.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+              </div>
+              <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-pink-500 to-rose-500 h-1 rounded-full transition-all duration-500" 
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (seventyTwoHoursIncome / totalIncome) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Weekly */}
+          <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium font-sans">
+                {lang === "fa" ? "هفتگی (۷ روز اخیر)" : "Weekly (Last 7 Days)"}
+              </span>
+              <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 text-[10px] font-bold">
+                {lang === "fa" ? "هفته" : "Weekly"}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
+                  {weeklyIncome.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+              </div>
+              <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 h-1 rounded-full transition-all duration-500" 
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (weeklyIncome / totalIncome) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly */}
+          <div className="group col-span-2 md:col-span-1 relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium font-sans">
+                {lang === "fa" ? "ماهانه (۳۰ روز اخیر)" : "Monthly (Last 30 Days)"}
+              </span>
+              <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 text-[10px] font-bold">
+                {lang === "fa" ? "ماه" : "Monthly"}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
+                  {monthlyIncome.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+              </div>
+              <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-purple-500 to-indigo-500 h-1 rounded-full transition-all duration-500" 
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (monthlyIncome / totalIncome) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>

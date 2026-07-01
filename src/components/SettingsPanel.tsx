@@ -237,6 +237,7 @@ export default function SettingsPanel({
       cardNumber,
       cardHolder: bankOwner,
       bankName,
+      cardNumbers,
       welcomeText,
       supportText,
       tgChannel,
@@ -276,6 +277,7 @@ export default function SettingsPanel({
       cardNumber,
       cardHolder: bankOwner,
       bankName,
+      cardNumbers,
       welcomeText,
       supportText,
       tgChannel,
@@ -389,6 +391,49 @@ export default function SettingsPanel({
   const [cardNumber, setCardNumber] = useState(settings.cardNumber || "");
   const [bankName, setBankName] = useState(settings.bankName || "");
   const [bankOwner, setBankOwner] = useState(settings.cardHolder || "");
+  const [cardNumbers, setCardNumbers] = useState<any[]>(() => {
+    if (settings.cardNumbers && Array.isArray(settings.cardNumbers) && settings.cardNumbers.length > 0) {
+      return settings.cardNumbers;
+    }
+    if (settings.cardNumber) {
+      return [{
+        bankName: settings.bankName || "",
+        number: settings.cardNumber,
+        holder: settings.cardHolder || ""
+      }];
+    }
+    return [{ bankName: "", number: "", holder: "" }];
+  });
+
+  useEffect(() => {
+    const first = cardNumbers[0] || {};
+    setCardNumber(first.number || "");
+    setBankName(first.bankName || "");
+    setBankOwner(first.holder || "");
+  }, [cardNumbers]);
+
+  const handleAddCard = () => {
+    setCardNumbers([...cardNumbers, { bankName: "", number: "", holder: "" }]);
+  };
+
+  const handleRemoveCard = (index: number) => {
+    const updated = cardNumbers.filter((_, idx) => idx !== index);
+    if (updated.length === 0) {
+      setCardNumbers([{ bankName: "", number: "", holder: "" }]);
+    } else {
+      setCardNumbers(updated);
+    }
+  };
+
+  const handleCardFieldChange = (index: number, field: string, value: string) => {
+    const updated = cardNumbers.map((c, idx) => {
+      if (idx === index) {
+        return { ...c, [field]: value };
+      }
+      return c;
+    });
+    setCardNumbers(updated);
+  };
 
   const [welcomeText, setWelcomeText] = useState(
     settings.welcomeText ||
@@ -520,6 +565,7 @@ export default function SettingsPanel({
       cardNumber,
       cardHolder: bankOwner,
       bankName,
+      cardNumbers,
       welcomeText,
       supportText,
       tgChannel,
@@ -2019,48 +2065,90 @@ export default function SettingsPanel({
 
         {/* Card instruction parameters */}
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
-          <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-indigo-400" />
-            {t.cardPaymentTitle}
-          </h3>
-          <p className="text-xs text-gray-400">{t.cardPaymentDesc}</p>
+          <div className="flex items-center justify-between">
+            <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-indigo-400" />
+              {t.cardPaymentTitle}
+            </h3>
+            <button
+              type="button"
+              onClick={handleAddCard}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              {lang === "fa" ? "افزودن کارت جدید" : "Add New Card"}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">
+            {lang === "fa" 
+              ? "می‌توانید یک یا چند کارت بانکی را جهت نمایش در پیام کارت به کارت ربات ثبت نمایید." 
+              : "You can register one or multiple bank cards to be displayed in the bot's card-to-card message."}
+          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {t.cardNumberLabel}
-              </label>
-              <input
-                type="text"
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm font-semibold text-white font-mono focus:ring-1 focus:ring-indigo-500"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value)}
-              />
-            </div>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+            {cardNumbers.map((card, index) => (
+              <div 
+                key={index} 
+                className="bg-[#1f2937]/30 border border-gray-800 p-4 rounded-xl relative space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-gray-800/50 pb-2">
+                  <span className="text-xs font-semibold text-indigo-400">
+                    {lang === "fa" ? `کارت شماره ${index + 1}` : `Card #${index + 1}`}
+                  </span>
+                  {cardNumbers.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCard(index)}
+                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/20 transition-all"
+                      title={lang === "fa" ? "حذف کارت" : "Remove Card"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
 
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {t.bankNameLabel}
-              </label>
-              <input
-                type="text"
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-              />
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] uppercase tracking-wider text-gray-400 mb-1">
+                      {t.cardNumberLabel}
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-sm font-semibold text-white font-mono focus:ring-1 focus:ring-indigo-500"
+                      value={card.number || ""}
+                      onChange={(e) => handleCardFieldChange(index, "number", e.target.value)}
+                      placeholder="6273-8110-1234-5678"
+                    />
+                  </div>
 
-            <div className="md:col-span-3">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {t.holderNameLabel}
-              </label>
-              <input
-                type="text"
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500"
-                value={bankOwner}
-                onChange={(e) => setBankOwner(e.target.value)}
-              />
-            </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-gray-400 mb-1">
+                      {t.bankNameLabel}
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500"
+                      value={card.bankName || ""}
+                      onChange={(e) => handleCardFieldChange(index, "bankName", e.target.value)}
+                      placeholder={lang === "fa" ? "مثلا ملی، سامان" : "e.g., Melli, Saman"}
+                    />
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="block text-[11px] uppercase tracking-wider text-gray-400 mb-1">
+                      {t.holderNameLabel}
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500"
+                      value={card.holder || ""}
+                      onChange={(e) => handleCardFieldChange(index, "holder", e.target.value)}
+                      placeholder={lang === "fa" ? "نام و نام خانوادگی صاحب کارت" : "Cardholder full name"}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

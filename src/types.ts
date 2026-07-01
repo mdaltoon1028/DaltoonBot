@@ -31,6 +31,7 @@ export interface PanelSettings {
   cardNumber?: string;
   cardHolder?: string;
   bankName?: string;
+  cardNumbers?: Array<{ bankName: string; number: string; holder: string }>;
   welcomeText?: string;
   guidesText?: string;
   supportText?: string;
