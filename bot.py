@@ -49,14 +49,7 @@ DB_FILE = get_db_path()
 
 import sqlite3
 
-DB_SQLITE_FILE = os.path.join(SCRIPT_DIR, "database.sqlite")
-import shutil
-legacy_db = os.path.join(SCRIPT_DIR, "Daltoon_Bot.db")
-if os.path.exists(legacy_db) and not os.path.exists(DB_SQLITE_FILE):
-    try:
-        shutil.copy2(legacy_db, DB_SQLITE_FILE)
-    except Exception as e:
-        pass
+DB_SQLITE_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.db")
 
 def get_sqlite_conn():
     conn = sqlite3.connect(DB_SQLITE_FILE, timeout=30.0)

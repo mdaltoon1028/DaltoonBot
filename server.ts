@@ -30,15 +30,7 @@ try {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Path to SQLite DB store
-const legacyDbPath = path.resolve(process.cwd(), "Daltoon_Bot.db");
-const newDbPath = path.resolve(process.cwd(), "database.sqlite");
-
-if (fs.existsSync(legacyDbPath) && !fs.existsSync(newDbPath)) {
-  console.log("Migrating database to database.sqlite to avoid git conflicts...");
-  fs.copyFileSync(legacyDbPath, newDbPath);
-}
-
-const dbSqlitePath = newDbPath;
+const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
 const sqliteDb = (() => {
   const db = new Database(dbSqlitePath);
   db.pragma("journal_mode = WAL");
@@ -494,7 +486,7 @@ startPythonBot();
 // Full Wipe Database API
 app.post("/api/database/wipe-all", async (req, res) => {
   try {
-    const targetDbFile = path.resolve(process.cwd(), "database.sqlite");
+    const targetDbFile = path.resolve(process.cwd(), "Daltoon_Bot.db");
     if (fs.existsSync(targetDbFile)) {
       try {
         sqliteDb.close();
@@ -5460,7 +5452,7 @@ async function performAutoBackup() {
       '',
       caption,
       `--${boundary}`,
-      `Content-Disposition: form-data; name="document"; filename="database.sqlite"`,
+      `Content-Disposition: form-data; name="document"; filename="Daltoon_Bot.db"`,
       `Content-Type: application/json`,
       '',
       ''
@@ -5676,7 +5668,7 @@ app.post("/api/system/update", async (req, res) => {
       console.log(
         "[Auto-Update] Starting background update sequence (stash -> pull -> pop)...",
       );
-      exec("git fetch --all && git reset --hard origin/main || git reset --hard origin/master", (pullError: any) => {
+      exec("git stash && git pull origin main --rebase || git pull origin master --rebase || git pull || true && git stash pop || true", (pullError: any) => {
         // Increment version in package.json AFTER git pull so it's not stashed away!
         try {
           const pkgPath = path.join(process.cwd(), "package.json");
