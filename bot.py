@@ -117,8 +117,54 @@ def get_db_path():
 
 DB_FILE = get_db_path()
 
+import sqlite3
+
+DB_SQLITE_FILE = os.path.join(SCRIPT_DIR, "Daltoon_Bot.db")
+
+def get_sqlite_conn():
+    conn = sqlite3.connect(DB_SQLITE_FILE, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    return conn
+
+def init_sqlite_db():
+    try:
+        conn = get_sqlite_conn()
+        conn.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT);")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[SQLite Init Error] {e}")
+
+# Call immediately
+init_sqlite_db()
+
+def migrate_json_to_sqlite():
+    # Check if sqlite is empty, and if json has data, migrate it!
+    try:
+        conn = get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM kv")
+        count = cursor.fetchone()[0]
+        if count == 0 and os.path.exists(DB_FILE):
+            print("[SQLite Migration] Migrating JSON to SQLite database in Python...")
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    data = json.loads(content)
+                    for key, val in data.items():
+                        cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, json.dumps(val, ensure_ascii=False)))
+                    conn.commit()
+                    print("[SQLite Migration] Python database migration completed successfully!")
+        conn.close()
+    except Exception as e:
+        print(f"[SQLite Migration Error in Python] {e}")
+
+# Call immediately
+migrate_json_to_sqlite()
+
 def read_db_json():
-    """ Read core database structure always from shared json file """
+    """ Read core database structure from shared SQLite database instead of json file """
     default_db = {
         "users": [],
         "transactions": [],
@@ -142,31 +188,39 @@ def read_db_json():
         "isNewInstall": False,
         "logs": []
     }
-    if not os.path.exists(DB_FILE):
-        return default_db
+    
     try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if not content: return default_db
-            data = json.loads(content)
-            # Ensure all keys exist
-            for key, val in default_db.items():
-                if key not in data:
-                    data[key] = val
-            return data
+        conn = get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM kv")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return default_db
+            
+        data = {}
+        for row in rows:
+            try:
+                data[row[0]] = json.loads(row[1])
+            except Exception as pe:
+                print(f"[SQLite Parse Error] for key {row[0]}: {pe}")
+                
+        # Ensure all keys exist
+        for key, val in default_db.items():
+            if key not in data:
+                data[key] = val
+        return data
     except Exception as e:
-        print(f"[JSON Database Error] Could not read {DB_FILE}: {e}")
-        # Critical: if file exists but is unreadable, do NOT return default_db to avoid overwriting it later
-        if os.path.exists(DB_FILE):
-            raise Exception(f"Database file {DB_FILE} exists but is unreadable/corrupt. Manual intervention required to avoid data loss.")
+        print(f"[SQLite Database Read Error] {e}")
         return default_db
 
 def write_db_json(data):
-    """ Atomic persistence for the shared JSON structure with strict safeguards """
+    """ Persistence for the shared SQLite database structure with strict safeguards """
     if not data:
         return False
         
-    # Safeguard: Never overwrite if it looks like a reset/empty database unless it's a fresh install
+    # Safeguard: Never overwrite if it looks like a reset/empty database
     has_users = isinstance(data.get("users"), list) and len(data.get("users")) > 0
     has_transactions = isinstance(data.get("transactions"), list) and len(data.get("transactions")) > 0
     has_plans = isinstance(data.get("vpn_plans"), list) and len(data.get("vpn_plans")) > 0
@@ -181,21 +235,32 @@ def write_db_json(data):
             
     has_token = bool(panel_cfg.get("botToken") or panel_cfg.get("bot_token") or settings.get("botToken") or settings.get("BOT_TOKEN"))
     
-    # If file already exists and contains data, but the new 'data' is empty, REFUSE.
-    if os.path.exists(DB_FILE) and os.path.getsize(DB_FILE) > 100:
-        if not has_users and not has_transactions and not has_plans and not has_token:
-            print("[JSON Database Write CRITICAL] Refusing to overwrite populated database with empty/reset data structure.")
-            return False
-
     try:
-        tmp_file = DB_FILE + ".tmp"
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        os.replace(tmp_file, DB_FILE)
+        conn = get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM kv")
+        count = cursor.fetchone()[0]
+        
+        # If database already contains data, but the new 'data' is empty, REFUSE.
+        if count > 0:
+            if not has_users and not has_transactions and not has_plans and not has_token:
+                print("[SQLite Database Write CRITICAL] Refusing to overwrite populated database with empty/reset data structure.")
+                conn.close()
+                return False
+                
+        # Write keys atomically in a single transaction
+        cursor.execute("BEGIN TRANSACTION;")
+        for key, val in data.items():
+            cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, json.dumps(val, ensure_ascii=False)))
+        conn.commit()
+        conn.close()
         return True
     except Exception as e:
-        print(f"[JSON Database Write Error] {e}")
-        return False
+        print(f"[SQLite Database Write Error] {e}")
+        try:
+            conn.rollback()
+            conn.close()
+        except: pass
         return False
 
 def normalize_xui_url(url):
@@ -295,7 +360,10 @@ def get_config():
         "MANDATORY_JOIN_CHANNELS": [],
         "MANDATORY_JOIN_TEXT": "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.",
         "PINNED_MESSAGE_ACTIVE": False,
-        "PINNED_MESSAGE_TEXT": ""
+        "PINNED_MESSAGE_TEXT": "",
+        "QR_TEMPLATE": "",
+        "QR_COLOR": "",
+        "QR_LOGO": ""
     }
     try:
         db = read_db_json()

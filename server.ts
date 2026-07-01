@@ -7,6 +7,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import dns from "dns";
+import Database from "better-sqlite3";
 
 // Prefer IPv4 DNS resolution first to fix native fetch failing on self-hosted VPS servers (especially with dual-stack domain names like AwanLLM)
 dns.setDefaultResultOrder("ipv4first");
@@ -131,6 +132,49 @@ const dbJsonPath = (() => {
   return targetPath;
 })();;
 
+// Path to SQLite DB store (supports robust concurrency, transactions and atomic writes)
+const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
+const sqliteDb = (() => {
+  const db = new Database(dbSqlitePath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kv (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+  return db;
+})();
+
+function migrateJsonToSqlite() {
+  const jsonPath = dbJsonPath;
+  if (fs.existsSync(jsonPath)) {
+    try {
+      const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get() as { count: number };
+      if (rowCountRow.count === 0) {
+        console.log("[SQLite Migration] Migrating active database from JSON to SQLite...");
+        const raw = fs.readFileSync(jsonPath, "utf8").trim();
+        if (raw) {
+          const data = JSON.parse(raw);
+          const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
+          const transaction = sqliteDb.transaction((obj: any) => {
+            for (const key of Object.keys(obj)) {
+              insert.run(key, JSON.stringify(obj[key]));
+            }
+          });
+          transaction(data);
+          console.log("[SQLite Migration] Migration completed successfully!");
+        }
+      }
+    } catch (e: any) {
+      console.error("[SQLite Migration Error]", e.message);
+    }
+  }
+}
+
+migrateJsonToSqlite();
+
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
   if (process.env.PORT && !isNaN(Number(process.env.PORT))) {
@@ -138,11 +182,11 @@ function getServerPort(): number {
   }
   // Try to load port from database
   try {
-    if (fs.existsSync(dbJsonPath)) {
-      const dbContent = fs.readFileSync(dbJsonPath, "utf8");
-      const dbData = JSON.parse(dbContent);
-      if (dbData.settings && dbData.settings.panel_config) {
-        let pc = dbData.settings.panel_config;
+    const row = sqliteDb.prepare("SELECT value FROM kv WHERE key = 'settings'").get() as { value: string } | undefined;
+    if (row) {
+      const settings = JSON.parse(row.value);
+      if (settings && settings.panel_config) {
+        let pc = settings.panel_config;
         if (typeof pc === "string") pc = JSON.parse(pc);
         if (pc.serverPort && !isNaN(Number(pc.serverPort))) {
           return Number(pc.serverPort);
@@ -197,9 +241,11 @@ interface DbSchema {
 // Function to read JSON Database, seeding with default templates if not found
 function readJsonDb(): DbSchema {
   try {
-    if (!fs.existsSync(dbJsonPath)) {
+    const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
+    
+    if (rows.length === 0) {
       console.warn(
-        `[Database] JSON database not found at ${dbJsonPath}. Returning default structure but NOT writing to disk yet to avoid accidental wipes.`,
+        `[Database] SQLite database is empty. Returning default structure but NOT writing to disk yet to avoid accidental wipes.`,
       );
       const defaultDb: DbSchema = {
         users: [],
@@ -231,11 +277,16 @@ function readJsonDb(): DbSchema {
       };
       return defaultDb;
     }
-    const raw = fs.readFileSync(dbJsonPath, "utf8");
-    if (!raw || raw.trim() === "") {
-        throw new Error("Database file is empty");
+
+    const db: any = {};
+    for (const row of rows) {
+      try {
+        db[row.key] = JSON.parse(row.value);
+      } catch (err) {
+        console.error(`[Database Parse Error] for key ${row.key}:`, err);
+      }
     }
-    const db = JSON.parse(raw);
+
     db.isNewInstall = false;
 
     let modified = false;
@@ -266,7 +317,7 @@ function readJsonDb(): DbSchema {
       writeJsonDb(db);
     }
 
-    return db;
+    return db as DbSchema;
   } catch (err) {
     console.error(
       "[Database] Read error, preventing data wipe! Returning in-memory empty dataset but skipping writes:",
@@ -300,36 +351,37 @@ function writeJsonDb(data: DbSchema): boolean {
     return false;
   }
 
-  // Safeguard: refuse to overwrite if existing file is large but new data is empty
+  // Safeguard: refuse to overwrite if existing database is large but new data is empty
   try {
-    if (fs.existsSync(dbJsonPath)) {
-      const stats = fs.statSync(dbJsonPath);
-      // If the file is reasonably large (already contains data)
-      if (stats.size > 1000) {
-        const hasUsers = Array.isArray(data.users) && data.users.length > 0;
-        const hasTransactions = Array.isArray(data.transactions) && data.transactions.length > 0;
-        
-        let hasToken = false;
-        try {
-          const cfg = JSON.parse(data.settings?.panel_config || "{}");
-          hasToken = !!(cfg.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
-        } catch(err) {}
+    const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get() as { count: number };
+    if (rowCountRow.count > 0) {
+      const hasUsers = Array.isArray(data.users) && data.users.length > 0;
+      const hasTransactions = Array.isArray(data.transactions) && data.transactions.length > 0;
+      
+      let hasToken = false;
+      try {
+        const cfg = JSON.parse(data.settings?.panel_config || "{}");
+        hasToken = !!(cfg.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
+      } catch(err) {}
 
-        if (!hasUsers && !hasTransactions && !hasToken) {
-          console.error("[Database] CRITICAL Safeguard: Refusing to overwrite populated database with empty/reset structure!");
-          return false;
-        }
+      if (!hasUsers && !hasTransactions && !hasToken) {
+        console.error("[Database] CRITICAL Safeguard: Refusing to overwrite populated database with empty/reset structure!");
+        return false;
       }
     }
   } catch (err) {}
 
   try {
-    const tmpPath = dbJsonPath + ".tmp";
-    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
-    fs.renameSync(tmpPath, dbJsonPath);
+    const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
+    const transaction = sqliteDb.transaction((obj: any) => {
+      for (const key of Object.keys(obj)) {
+        insert.run(key, JSON.stringify(obj[key]));
+      }
+    });
+    transaction(data);
     return true;
   } catch (err: any) {
-    console.error("[Database Write Error]", err.message);
+    console.error("[Database SQLite Write Error]", err.message);
     return false;
   }
 }
@@ -542,6 +594,15 @@ app.post("/api/database/wipe-all", async (req, res) => {
     if (fs.existsSync(targetFile)) {
       fs.unlinkSync(targetFile);
     }
+    const targetDbFile = path.resolve(process.cwd(), "Daltoon_Bot.db");
+    if (fs.existsSync(targetDbFile)) {
+      try {
+        sqliteDb.close();
+      } catch (e) {}
+      try { fs.unlinkSync(targetDbFile); } catch (e) {}
+      try { fs.unlinkSync(targetDbFile + "-wal"); } catch (e) {}
+      try { fs.unlinkSync(targetDbFile + "-shm"); } catch (e) {}
+    }
     // Also clear process-level cache if any (though here it's just variables)
     res.json({
       success: true,
@@ -563,6 +624,9 @@ app.post("/api/database/reset", async (req, res) => {
     if (fs.existsSync(dbJsonPath)) {
       fs.unlinkSync(dbJsonPath);
     }
+    try {
+      sqliteDb.exec("DELETE FROM kv;");
+    } catch (e) {}
     const freshDb = readJsonDb();
     res.json({
       success: true,
@@ -5330,33 +5394,28 @@ app.post("/api/login", async (req, res) => {
 // X. Backup Management endpoints
 app.get("/api/backup-download", (req, res) => {
   try {
-    if (fs.existsSync(dbJsonPath)) {
-      const raw = fs.readFileSync(dbJsonPath, "utf8");
-      const db = JSON.parse(raw);
+    const db = readJsonDb();
 
-      // Compress and optimize binary-like image strings inside the database to keep backups tiny
-      if (db.transactions && Array.isArray(db.transactions)) {
-        db.transactions = db.transactions.map((t: any) => {
-          if (
-            t.receiptImage &&
-            t.receiptImage.length > 500 &&
-            t.receiptImage.startsWith("data:")
-          ) {
-            return { ...t, receiptImage: "placeholder_cleared" };
-          }
-          return t;
-        });
-      }
-
-      res.setHeader(
-        "Content-Disposition",
-        "attachment; filename=Daltoon_Bot.json",
-      );
-      res.setHeader("Content-Type", "application/json");
-      res.send(JSON.stringify(db, null, 2));
-    } else {
-      res.status(404).json({ error: "Database file not found." });
+    // Compress and optimize binary-like image strings inside the database to keep backups tiny
+    if (db.transactions && Array.isArray(db.transactions)) {
+      db.transactions = db.transactions.map((t: any) => {
+        if (
+          t.receiptImage &&
+          t.receiptImage.length > 500 &&
+          t.receiptImage.startsWith("data:")
+        ) {
+          return { ...t, receiptImage: "placeholder_cleared" };
+        }
+        return t;
+      });
     }
+
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=Daltoon_Bot.json",
+    );
+    res.setHeader("Content-Type", "application/json");
+    res.send(JSON.stringify(db, null, 2));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -5475,9 +5534,7 @@ async function performAutoBackup() {
     const botToken = settings.botToken;
     if (!botToken || botToken === "DUMMY_TOKEN") return;
 
-    if (!fs.existsSync(dbJsonPath)) return;
-
-    const fileBuffer = fs.readFileSync(dbJsonPath);
+    const fileBuffer = Buffer.from(JSON.stringify(db, null, 2), "utf8");
 
     const dateStr = new Date().toLocaleString("fa-IR", {
       timeZone: "Asia/Tehran",
