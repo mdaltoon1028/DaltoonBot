@@ -2841,44 +2841,46 @@ async function addVpnClientApi(
 
     let lastError = "";
     try {
-      const addRes = await xuiFetch(
-        addUrl,
-        {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify(payload),
-        },
-        8000,
-      );
+      if (false) {
+        const addRes = await xuiFetch(
+          addUrl,
+          {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          },
+          8000,
+        );
 
-      if (addRes.ok) {
-        const addText = await addRes.text();
-        try {
-          const addJson = JSON.parse(addText);
-          if (addJson && addJson.success) {
-            console.log(
-              `[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(", ")} successfully.`,
-            );
-            const subBase =
-              server.subUrl && server.subUrl.trim() !== ""
-                ? normalizeXuiUrl(server.subUrl)
-                : cleanedUrl;
-            const subLink = `${subBase}/sub/${xuiSubId}`;
-            return { success: true, clientUuid, subLink };
-          } else {
+        if (addRes.ok) {
+          const addText = await addRes.text();
+          try {
+            const addJson = JSON.parse(addText);
+            if (addJson && addJson.success) {
+              console.log(
+                `[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(", ")} successfully.`,
+              );
+              const subBase =
+                server.subUrl && server.subUrl.trim() !== ""
+                  ? normalizeXuiUrl(server.subUrl)
+                  : cleanedUrl;
+              const subLink = `${subBase}/sub/${xuiSubId}`;
+              return { success: true, clientUuid, subLink };
+            } else {
+              console.warn(
+                `[Sanaei API Response] Global creation error/unsupported: ${addText}`,
+              );
+              lastError = addJson?.msg || addText;
+            }
+          } catch (e) {
             console.warn(
-              `[Sanaei API Response] Global creation error/unsupported: ${addText}`,
+              `[Sanaei API Response] Global creation returned non-json: ${addText.substring(0, 50)}`,
             );
-            lastError = addJson?.msg || addText;
+            lastError = "Non-JSON response";
           }
-        } catch (e) {
-          console.warn(
-            `[Sanaei API Response] Global creation returned non-json: ${addText.substring(0, 50)}`,
-          );
-          lastError = "Non-JSON response";
+        } else {
+          lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
         }
-      } else {
-        lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
       }
     } catch (err: any) {
       console.error(
