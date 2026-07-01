@@ -94,6 +94,11 @@ export interface PanelSettings {
   purchaseSuccessAttachment?: {fileData: string, fileName: string, fileType: "image"|"video"|"voice"|"file"} | null;
   panelConnectionActive?: boolean;
 
+  // Custom QR settings
+  qrTemplate?: string;
+  qrColor?: string;
+  qrLogo?: string;
+
   // New Payment Gateways
   gatewayPlisioWallet?: string;
   gatewayNowpaymentsKey?: string;

@@ -210,6 +210,38 @@ def normalize_xui_url(url):
         cleaned = "http://" + cleaned
     return cleaned
 
+def build_subscription_url(server_sub, base_url, token):
+    if not token:
+        token = ""
+    token = token.strip()
+    
+    if not server_sub:
+        b = base_url or ""
+        b = b.strip()
+        if not b.startswith("http://") and not b.startswith("https://"):
+            b = "http://" + b
+        if b.endswith("/"):
+            b = b[:-1]
+        return f"{b}/sub/{token}"
+    
+    cleaned_sub = server_sub.strip()
+    if not cleaned_sub.startswith("http://") and not cleaned_sub.startswith("https://"):
+        cleaned_sub = "http://" + cleaned_sub
+    
+    from urllib.parse import urlparse
+    parsed = urlparse(cleaned_sub)
+    path = parsed.path
+    
+    # If path is empty, or just "/", default is to append "/sub/"
+    if not path or path == "/":
+        domain_part = f"{parsed.scheme}://{parsed.netloc}"
+        return f"{domain_part}/sub/{token}"
+    else:
+        if cleaned_sub.endswith("/"):
+            return f"{cleaned_sub}{token}"
+        else:
+            return f"{cleaned_sub}/{token}"
+
 active_purchases = set()
 
 def get_card_payment_info(cfg):
@@ -430,6 +462,11 @@ def get_config():
             config["TG_CHANNEL"] = panel_cfg["tgChannel"]
         if "supportHandle" in panel_cfg:
             config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
+        
+        # Parse QR configurations
+        config["QR_TEMPLATE"] = panel_cfg.get("qrTemplate", "")
+        config["QR_COLOR"] = panel_cfg.get("qrColor", "")
+        config["QR_LOGO"] = panel_cfg.get("qrLogo", "")
         
         # Parse Mandatory Join configs
         if "mandatoryJoinActive" in panel_cfg:
@@ -772,26 +809,44 @@ def login_xui(server_id=None, force=False):
         print(f"[Sanaei X-UI API] Handshake error during authentication: {e}")
     return False
 
-def check_client_exists(client_email):
+def check_client_exists(client_email, server_id=None):
     # Local check first (so even simulated offline users will be blocked from dupes)
     db = read_db_json()
     keys = db.get("subscription_keys", [])
-    lower_email = client_email.lower()
+    lower_email = client_email.lower().strip()
     for k in keys:
-        if k.get("clientName", "").lower() == lower_email or k.get("plan_id", "").lower() == lower_email:
+        if k.get("clientName", "").lower().strip() == lower_email:
             return True
 
     cfg = get_config()
-    base_url = cfg['XUI_URL']
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+    if not server and servers:
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
+        
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+        server_id_to_use = server.get("id")
+    else:
+        base_url = cfg.get("XUI_URL", "")
+        server_id_to_use = None
+        
+    if not base_url: 
+        return False
+        
     if base_url.endswith("/"):
         base_url = base_url[:-1]
 
-    if not login_xui():
-        # Fallback to local check result if panel offline (already returned False if not found locally)
+    if not login_xui(server_id=server_id_to_use):
         return False
+        
+    session = get_session(server_id=server_id_to_use)
     try:
         url = f"{base_url}/panel/api/inbounds/getClientTraffics/{client_email}"
-        response = get_session().get(url, timeout=20, verify=False)
+        response = session.get(url, timeout=20, verify=False)
         data = response.json()
         if data.get("success") and data.get("obj"):
             return True
@@ -839,6 +894,37 @@ def add_copy_button_to_markup(markup, text, link):
                 markup.add(types.InlineKeyboardButton(text=text, copy_text={"text": link}))
             except Exception:
                 markup.add(types.InlineKeyboardButton(text=text, url=link))
+
+def get_qr_code_url(text):
+    try:
+        cfg = get_config()
+        qr_template = cfg.get("QR_TEMPLATE", "").strip()
+        qr_color = cfg.get("QR_COLOR", "").strip()
+        qr_logo = cfg.get("QR_LOGO", "").strip()
+        
+        import urllib.parse
+        encoded_text = urllib.parse.quote(text)
+        
+        # If user defined a custom template, use it
+        if qr_template:
+            url = qr_template
+            url = url.replace("{text}", encoded_text)
+            url = url.replace("{logo_url}", urllib.parse.quote(qr_logo) if qr_logo else "")
+            url = url.replace("{color}", urllib.parse.quote(qr_color) if qr_color else "")
+            return url
+            
+        # Default beautiful QuickChart QR Code
+        color_param = qr_color.lstrip('#') if qr_color else "111827"
+        logo_param = urllib.parse.quote(qr_logo) if qr_logo else ""
+        
+        url = f"https://quickchart.io/qr?text={encoded_text}&width=350&height=350&color={color_param}&margin=2"
+        if logo_param:
+            url += f"&centerImageUrl={logo_param}&centerImageWidth=70&centerImageHeight=70"
+        return url
+    except Exception as e:
+        print(f"[get_qr_code_url Error] {e}")
+        import urllib.parse
+        return f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(text)}"
 
 def safe_send_qr_photo(chat_id, qr_url, full_text, markup):
     if len(full_text) <= 1024:
@@ -1660,12 +1746,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     
     panel_type = server.get("panelType", "sanaei") if server else "sanaei"
     
-    # Resolve correct subscription base URL
-    sub_base = cfg.get('SUB_URL', base_url)
+    server_sub = None
     if server:
         server_sub = server.get("subUrl") or server.get("panelUrl")
-        if server_sub:
-            sub_base = normalize_xui_url(server_sub)
+    if not server_sub:
+        server_sub = cfg.get('SUB_URL', base_url)
             
     if panel_type in ["rebecca", "pasarguard"]:
         if not inbound_ids:
@@ -1696,13 +1781,12 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             if res.ok:
                 rj = res.json()
                 print(f"[{panel_type} API] User '{safe_email}' created successfully.")
-                sub_token = rj.get("sub_token", rj.get("subscription_url", ""))
                 if "subscription_url" in rj:
                     final_sub = rj["subscription_url"]
                     if final_sub.startswith("/"):
-                        final_sub = sub_base + final_sub
+                        final_sub = build_subscription_url(server_sub, base_url, final_sub.lstrip("/"))
                 else:
-                    final_sub = f"{sub_base}/sub/{safe_email}"
+                    final_sub = build_subscription_url(server_sub, base_url, safe_email)
                 return client_uuid, final_sub
             else:
                 err_msg = f"HTTP {res.status_code}: {res.text}"
@@ -1737,11 +1821,11 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     headers = {"Accept": "application/json"}
 
     # Resolve correct subscription base URL
-    sub_base = cfg.get('SUB_URL', base_url)
+    server_sub = None
     if server:
         server_sub = server.get("subUrl") or server.get("panelUrl")
-        if server_sub:
-            sub_base = normalize_xui_url(server_sub)
+    if not server_sub:
+        server_sub = cfg.get('SUB_URL', base_url)
 
     # Attempt to use the NEW Unified API first
     last_err_msg = ""
@@ -1764,7 +1848,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
                 u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
         if u_res.ok and u_res.json().get("success"):
             print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
-            return client_uuid, f"{sub_base}/sub/{xui_sub_id}"
+            return client_uuid, build_subscription_url(server_sub, base_url, xui_sub_id)
         else:
             last_err_msg = f"Unified API: HTTP {u_res.status_code} {u_res.text}"
     except Exception as e:
@@ -1797,7 +1881,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
             print(f"[Classic API Error] {last_err_msg}")
     
     if success_count > 0:
-        return client_uuid, f"{sub_base}/sub/{xui_sub_id}"
+        return client_uuid, build_subscription_url(server_sub, base_url, xui_sub_id)
 
     session.last_error = last_err_msg
     return None, None
@@ -2549,6 +2633,35 @@ def log_action(tg_id, username, action, details):
         db["logs"] = db["logs"][-1000:]
     db["logs"].append(log)
     write_db_json(db)
+
+def notify_admins_of_error(err_title, err_detail, user_info=""):
+    try:
+        cfg = get_config()
+        owner_id = cfg.get("OWNER_ID")
+        admins = cfg.get("ADMINS", [])
+        
+        msg = (
+            f"⚠️ <b>گزارش خطای اتصال پنل (سیستمی):</b>\n\n"
+            f"🔹 <b>بخش:</b> {err_title}\n"
+            f"👤 <b>کاربر:</b> {user_info}\n"
+            f"❌ <b>متن کامل خطا:</b>\n"
+            f"<code>{err_detail}</code>"
+        )
+        
+        recipients = []
+        if owner_id:
+            recipients.append(owner_id)
+        for adm in admins:
+            if adm not in recipients:
+                recipients.append(adm)
+                
+        for r_id in recipients:
+            try:
+                bot.send_message(r_id, msg, parse_mode="HTML")
+            except Exception as e:
+                print(f"[Admin Notif Error] Failed to notify {r_id}: {e}")
+    except Exception as e:
+        print(f"[notify_admins_of_error failed] {e}")
 
 def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name="", client_uuid="", server_id=None):
     print(f"[create_sub_key] Registering: id={key_id}, user={tg_id}, plan={plan_name}")
@@ -3512,16 +3625,6 @@ def handle_main_menu_callback(call):
             
         bot.send_message(message.chat.id, f"⏳ در حال ساخت اکانت تست رایگان ({free_days_str} - {free_gb_str}) از پنل سرور {nickname}... لطفاً چند لحظه صبر کنید.")
         
-        import string
-        import random
-        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-        free_username = f"test_{random_suffix}"
-        
-        # In case test_xxxx exists, loop (rare but good practice)
-        while check_client_exists(free_username):
-            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-            free_username = f"test_{random_suffix}"
-            
         # Select active server to pass to add_vpn_client_api, create_sub_key and get_client_all_links
         cfg = get_config()
         servers = cfg.get("SERVERS", [])
@@ -3537,6 +3640,16 @@ def handle_main_menu_callback(call):
             active_server = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
             
         active_server_id = active_server.get("id") if active_server else None
+
+        import string
+        import random
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        free_username = f"test_{random_suffix}"
+        
+        # In case test_xxxx exists, loop (rare but good practice)
+        while check_client_exists(free_username, server_id=active_server_id):
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            free_username = f"test_{random_suffix}"
 
         free_gb = cfg.get("FREE_TEST_GB", 0.1)
         free_days = cfg.get("FREE_TEST_DAYS", 1.0)
@@ -3594,7 +3707,7 @@ def handle_main_menu_callback(call):
             note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
         vless_links = get_client_all_links(free_username, client_uuid, sub_link, server_id=active_server_id)
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
             f"🎁 <b>اکانت تست رایگان شما با موفقیت ساخته شد!</b>\n\n"
@@ -3602,14 +3715,14 @@ def handle_main_menu_callback(call):
             f"⏳ اعتبار: ۱ روز\n"
             f"💬 حجم: ۱۰۰ مگابایت\n\n"
             f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         )
         
         try:
             import urllib.parse
-            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            qr_url = get_qr_code_url(sub_link)
             markup = types.InlineKeyboardMarkup(row_width=1)
-            add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+            add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
             markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             safe_send_qr_photo(message.chat.id, qr_url, success_text, markup)
@@ -3727,7 +3840,7 @@ def process_purchase_username_manual(message, plan_id, spec):
         return
 
     # Check existence
-    if check_client_exists(username_input):
+    if check_client_exists(username_input, server_id=spec.get("server_id")):
         msg = bot.send_message(
             message.chat.id,
             "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n\n"
@@ -3883,10 +3996,11 @@ def handle_buy_pay(call):
                 
                 session = get_session()
                 last_err = getattr(session, "last_error", "خطای ناشناخته")
+                notify_admins_of_error("خرید دستی پلن", last_err, f"ID: {tg_id} / Username: {username_input}")
                 refund_message = (
                     "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
                     "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ در این لحظه وجود ندارد.\n\n"
-                    f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                    "⚠️ <b>جزئیات خطا جهت بررسی به تیم پشتیبانی گزارش شد.</b>\n\n"
                     f"💰 <b>مبلغ {spec['price']:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
                     "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید."
                 )
@@ -3933,8 +4047,8 @@ def handle_buy_pay(call):
 
         all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
         if all_links:
-            links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
-            configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+            links_text = "\n".join([f"<code>{l}</code>" for l in all_links])
+            configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         else:
             configs_block = (
                 f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n"
@@ -3952,14 +4066,14 @@ def handle_buy_pay(call):
             f"{configs_block}{note_append}"
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
-        add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+        add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
         markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
         markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
         markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
         
         try:
             import urllib.parse
-            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            qr_url = get_qr_code_url(sub_link)
             safe_send_qr_photo(tg_id, qr_url, success_msg, markup)
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
@@ -4212,7 +4326,7 @@ def process_purchase_username(message, plan_id, spec):
         return
 
     # Check if this name is already taken in our active keys or panel (local prevention check)
-    if check_client_exists(username_input):
+    if check_client_exists(username_input, server_id=spec.get("server_id")):
         msg = bot.send_message(
             message.chat.id,
             "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n\n"
@@ -4267,16 +4381,17 @@ def process_purchase_username(message, plan_id, spec):
                 
                 session = get_session()
                 last_err = getattr(session, "last_error", "خطای ناشناخته")
+                notify_admins_of_error("خرید خودکار پلن", last_err, f"ID: {tg_id} / Username: {username_input}")
                 refund_message = (
                     "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
                     "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ در این لحظه وجود ندارد.\n\n"
-                    f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                    "⚠️ <b>جزئیات خطا جهت بررسی به تیم پشتیبانی گزارش شد.</b>\n\n"
                     f"💰 <b>مبلغ {spec['price']:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
                     "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید."
                 )
                 bot.send_message(tg_id, refund_message, parse_mode="HTML")
                 return
-
+            
             # Fallback simulated dynamic link
             client_uuid = str(uuid.uuid4())
             import random, string
@@ -4318,7 +4433,7 @@ def process_purchase_username(message, plan_id, spec):
         )
         
         vless_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=spec.get("server_id"))
-        links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+        links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
         success_text = (
             f"🎉 <b>خرید شما با موفقیت انجام شد!</b>\n\n"
@@ -4328,12 +4443,12 @@ def process_purchase_username(message, plan_id, spec):
             f"💬 حجم بسته: <b>{spec['traffic']} گیگابایت</b>\n"
             f"💳 هزینه کسر شده: {price_charged_display}\n\n"
             f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+            f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
         )
         
         # Build markup with copy button at the top, and append custom menu keys
         markup = types.InlineKeyboardMarkup(row_width=1)
-        add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+        add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
         markup.row(types.InlineKeyboardButton("🔗 پنل مدیریت (لینک‌های کانفیگ)", callback_data=f"mysub_manage_{sub_id}"))
         markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
         
@@ -4345,7 +4460,7 @@ def process_purchase_username(message, plan_id, spec):
         # Try sending the QR code photo
         try:
             import urllib.parse
-            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+            qr_url = get_qr_code_url(sub_link)
             safe_send_qr_photo(message.chat.id, qr_url, success_text, markup)
         except Exception as e:
             print(f"[Bot Warning] Failed to send QR Photo: {e}")
@@ -5043,11 +5158,12 @@ def callback_handler(call):
                 if not cfg.get("SIMULATOR_MODE"):
                     session = get_session()
                     last_err = getattr(session, "last_error", "خطای ناشناخته")
+                    notify_admins_of_error("ساخت کانفیگ همکار", last_err, f"Colleague ID: {acc_id} / Client Name: {full_name}")
                     bot.send_message(
                         call.message.chat.id,
                         "❌ <b>خطا در ساخت کانفیگ همکار!</b>\n\n"
                         "متأسفانه امکان اتصال به پنل x-ui و ایجاد این اکانت در این لحظه وجود ندارد.\n\n"
-                        f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                        "⚠️ <b>جزئیات خطا جهت بررسی به تیم پشتیبانی گزارش شد.</b>\n\n"
                         "⚠️ <b>هیچ ترافیکی از حساب همکار شما کسر نشد.</b>\n\n",
                         parse_mode="HTML", reply_markup=get_custom_keyboard()
                     )
@@ -5112,7 +5228,7 @@ def callback_handler(call):
                 note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
             vless_links = get_client_all_links(full_name, client_uuid, sub_link, server_id=server_id)
-            links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+            links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
             text_msg = (
                 f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
@@ -5120,15 +5236,15 @@ def callback_handler(call):
                 f"🗄 <b>حجم:</b> {gb} گیگابایت\n"
                 f"⏳ <b>اعتبار:</b> {days} روز\n\n"
                 f"👇 جهت کپی کردن لینک‌ها، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-                f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+                f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
             )
 
             markup = types.InlineKeyboardMarkup(row_width=2)
-            add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+            add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
 
             try:
                 import urllib.parse
-                qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+                qr_url = get_qr_code_url(sub_link)
                 safe_send_qr_photo(call.message.chat.id, qr_url, text_msg, markup)
             except Exception as e:
                 print(f"[Bot Warning] Failed to send QR Photo: {e}")
@@ -5870,11 +5986,12 @@ def callback_handler(call):
                         
                         session = get_session()
                         last_err = getattr(session, "last_error", "خطای ناشناخته")
+                        notify_admins_of_error("خرید کانفیگ دلخواه", last_err, f"ID: {tg_id} / Username: {username_input}")
                         bot.send_message(
                             tg_id,
                             "❌ <b>خطا در ساخت کانفیگ!</b>\n\n"
                             "متأسفانه مشکلی در اتصال به پنل x-ui رخ داد و امکان ساخت خودکار کانفیگ دلخواه در این لحظه وجود ندارد.\n\n"
-                            f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                            "⚠️ <b>جزئیات خطا جهت بررسی به تیم پشتیبانی گزارش شد.</b>\n\n"
                             f"💰 <b>مبلغ {price:,} تومان به طور خودکار و فوری به کیف پول شما بازگردانده شد.</b>\n\n"
                             "موجودی شما محفوظ است. لطفاً چند لحظه دیگر مجدداً تلاش کنید یا با پشتیبانی در تماس باشید.",
                             parse_mode="HTML"
@@ -5904,8 +6021,8 @@ def callback_handler(call):
                 
                 all_links = get_client_all_links(username_input, client_uuid, sub_link, server_id=server_id)
                 if all_links:
-                    links_text = "\n\n".join([f"<code>{l}</code>" for l in all_links])
-                    configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+                    links_text = "\n".join([f"<code>{l}</code>" for l in all_links])
+                    configs_block = f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
                 else:
                     configs_block = (
                         f"⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n"
@@ -5926,14 +6043,14 @@ def callback_handler(call):
                 )
                 
                 markup = types.InlineKeyboardMarkup(row_width=1)
-                add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+                add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
                 markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
                 markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
                 markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
                 
                 try:
                     import urllib.parse
-                    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+                    qr_url = get_qr_code_url(sub_link)
                     safe_send_qr_photo(tg_id, qr_url, success_msg, markup)
                 except Exception as e:
                     print(f"[Bot Warning] Failed to send custom QR Photo: {e}")
@@ -6943,11 +7060,12 @@ def process_col_create_days(message, acc, name, gb):
         if not cfg.get("SIMULATOR_MODE"):
             session = get_session()
             last_err = getattr(session, "last_error", "خطای ناشناخته")
+            notify_admins_of_error("ساخت کانفیگ همکار (تیم)", last_err, f"Colleague ID: {acc.get('id')} / Name: {name}")
             bot.send_message(
                 message.chat.id,
                 "❌ <b>خطا در ساخت کانفیگ همکار!</b>\n\n"
                 "متأسفانه امکان اتصال به پنل x-ui و ایجاد این اکانت در این لحظه وجود ندارد.\n\n"
-                f"⚠️ <b>جزئیات خطا:</b> <code>{last_err}</code>\n\n"
+                "⚠️ <b>جزئیات خطا جهت بررسی به تیم پشتیبانی گزارش شد.</b>\n\n"
                 "⚠️ <b>هیچ ترافیکی از حساب همکار شما کسر نشد.</b>\n\n"
                 "لطفاً وضعیت سرور را بررسی کرده یا مجدداً تلاش کنید.",
                 parse_mode="HTML",
@@ -7011,7 +7129,7 @@ def process_col_create_days(message, acc, name, gb):
         note_append = f"\n\n━━━━━━━━━━━━━━━━━━\n{success_note}"
 
     vless_links = get_client_all_links(full_name, client_uuid, sub_link, server_id=active_server_id)
-    links_text = "\n\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
+    links_text = "\n".join([f"<code>{l}</code>" for l in vless_links]) if vless_links else f"<code>{sub_link}</code>"
 
     text_msg = (
         f"✅ <b>لینک سابسکریپشن شما با موفقیت ایجاد شد:</b>\n\n"
@@ -7020,19 +7138,19 @@ def process_col_create_days(message, acc, name, gb):
         f"⏳ <b>اعتبار:</b> {days} روز\n\n"
         f"🔗 <b>لینک سابسکریپشن (قابل کپی):</b>\n<code>{sub_link}</code>\n\n"
         f"👇 جهت کپی کردن لینک‌های مستقیم، روی دکمه زیر ضربه بزنید:{note_append}\n\n"
-        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n\n{links_text}"
+        f"🚀 <b>لینک‌های اتصال مستقیم:</b>\n{links_text}"
     )
     
     # Build markup with copy button at the top
     markup = types.InlineKeyboardMarkup(row_width=2)
-    add_copy_button_to_markup(markup, "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", sub_link)
+    add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
     
     # Do NOT append custom menu keys here as this is colleague flow
     # markup.add(types.InlineKeyboardButton("🔙 بازگشت به پنل همکار", callback_data=f"col_panel_{live_acc['id']}"))
     
     try:
         import urllib.parse
-        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(sub_link)}"
+        qr_url = get_qr_code_url(sub_link)
         safe_send_qr_photo(message.chat.id, qr_url, text_msg, markup)
     except Exception as e:
         print(f"[Bot Warning] Failed to send QR Photo: {e}")
@@ -8234,7 +8352,7 @@ def process_custom_vol_username(message, server_id, gb, days):
         bot.register_next_step_handler(msg, process_custom_vol_username, server_id, gb, days)
         return
         
-    if check_client_exists(text):
+    if check_client_exists(text, server_id=server_id):
         msg = bot.reply_to(
             message,
             "⚠️ <b>این نام کاربری از قبل در لیست کاربران سرور موجود است!</b>\n"

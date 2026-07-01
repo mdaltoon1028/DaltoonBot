@@ -501,6 +501,11 @@ export default function SettingsPanel({
       ? settings.mandatoryJoinActive
       : false,
   );
+  
+  // Custom QR Code style state variables
+  const [qrTemplate, setQrTemplate] = useState(settings.qrTemplate || "");
+  const [qrColor, setQrColor] = useState(settings.qrColor || "");
+  const [qrLogo, setQrLogo] = useState(settings.qrLogo || "");
   const [mandatoryJoinChannels, setMandatoryJoinChannels] = useState<string[]>(() => {
     if (settings.mandatoryJoinChannels && Array.isArray(settings.mandatoryJoinChannels) && settings.mandatoryJoinChannels.length > 0) {
       return settings.mandatoryJoinChannels;
@@ -613,6 +618,9 @@ export default function SettingsPanel({
       mandatoryJoinText,
       autoBackupEnabled,
       autoBackupInterval,
+      qrTemplate,
+      qrColor,
+      qrLogo,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -1455,6 +1463,102 @@ export default function SettingsPanel({
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
           >
             {lang === "fa" ? "ذخیره تنظیمات بکاپ" : "Save Backup Settings"}
+          </button>
+        </div>
+      </div>
+
+      {/* QR Code Customization Card */}
+      <div id="qr-code-config" className="bg-[#1e293b]/40 border border-slate-700/50 p-5 rounded-xl space-y-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/10">
+            <Sparkles className="w-5 h-5 text-blue-400 animate-pulse" />
+          </div>
+          <h3 className="font-display font-bold text-gray-200">
+            {lang === "fa"
+              ? "🎨 شخصی‌سازی و زیباسازی کدهای QR"
+              : "🎨 QR Code Customization & Styling"}
+          </h3>
+        </div>
+
+        <p className="text-xs text-gray-400 leading-relaxed">
+          {lang === "fa"
+            ? "کدهای QR ربات خود را با رنگ برندینگ خود، درج لوگو/واترمارک اختصاصی در مرکز، یا فرمت‌های سفارشی کاملاً دگرگون کنید."
+            : "Customize your QR Codes with custom branding colors, watermarks/logos, or use custom generation APIs."}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          {/* QR Code Color */}
+          <div className="space-y-1.5 text-right font-sans" dir="rtl">
+            <label className="text-xs font-semibold text-gray-300">
+              {lang === "fa" ? "رنگ کدهای QR (کد هگز):" : "QR Code Color (Hex):"}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="#111827"
+                className="flex-1 bg-[#111827] border border-gray-750 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
+                value={qrColor}
+                onChange={(e) => setQrColor(e.target.value)}
+                dir="ltr"
+              />
+              <input
+                type="color"
+                className="w-10 h-10 bg-[#111827] border border-gray-750 rounded-lg p-1 cursor-pointer"
+                value={qrColor.startsWith("#") ? qrColor : `#${qrColor}` || "#111827"}
+                onChange={(e) => setQrColor(e.target.value)}
+              />
+            </div>
+            <p className="text-[10px] text-gray-500">
+              {lang === "fa" ? "پیشنهاد: #111827 (مشکی لوکس)، #2563eb (آبی)، #8b5cf6 (بنفش)" : "Recommended: #111827 (Black), #2563eb (Blue), #8b5cf6 (Purple)"}
+            </p>
+          </div>
+
+          {/* QR Code Logo (Watermark) */}
+          <div className="space-y-1.5 text-right font-sans" dir="rtl">
+            <label className="text-xs font-semibold text-gray-300">
+              {lang === "fa" ? "لینک عکس لوگو/واترمارک مرکز:" : "Center Logo/Watermark Image URL:"}
+            </label>
+            <input
+              type="text"
+              placeholder="https://example.com/logo.png"
+              className="w-full bg-[#111827] border border-gray-750 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
+              value={qrLogo}
+              onChange={(e) => setQrLogo(e.target.value)}
+              dir="ltr"
+            />
+            <p className="text-[10px] text-gray-500">
+              {lang === "fa" ? "لینک آیکون یا لوگویی که مایلید در مرکز کد QR حک شود." : "URL of a transparent PNG icon to be embedded in the center."}
+            </p>
+          </div>
+        </div>
+
+        {/* Custom API Template URL */}
+        <div className="space-y-1.5 text-right font-sans pt-1" dir="rtl">
+          <label className="text-xs font-semibold text-gray-300">
+            {lang === "fa" ? "آدرس دلخواه تولید QR (پیشرفته):" : "Custom QR API Template URL (Advanced):"}
+          </label>
+          <input
+            type="text"
+            placeholder="https://quickchart.io/qr?text={text}&width=400&height=400&centerImageUrl={logo_url}&color={color}"
+            className="w-full bg-[#111827] border border-gray-750 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
+            value={qrTemplate}
+            onChange={(e) => setQrTemplate(e.target.value)}
+            dir="ltr"
+          />
+          <p className="text-[10px] text-gray-500">
+            {lang === "fa" 
+              ? "برای شخصی‌سازی کامل، می‌توانید از هر سرویسی استفاده کنید. متغیرها: {text} برای لینک، {color} برای رنگ، {logo_url} برای لوگو" 
+              : "Placeholders: {text} for payload, {color} for hex color, {logo_url} for center icon."}
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e)}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
+          >
+            {lang === "fa" ? "ذخیره تنظیمات QR" : "Save QR Settings"}
           </button>
         </div>
       </div>
