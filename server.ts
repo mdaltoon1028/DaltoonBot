@@ -877,11 +877,15 @@ app.get("/api/data", async (req, res) => {
             );
 
             if (loginResult.success && loginResult.cookie) {
+              const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+              if (loginResult.csrfToken) {
+                listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+              }
               const listRes = await xuiFetch(
                 `${cleanedUrl}/panel/api/inbounds/list`,
                 {
                   method: "GET",
-                  headers: { Cookie: loginResult.cookie },
+                  headers: listHeaders,
                 },
                 5000,
               );
@@ -2674,13 +2678,15 @@ async function addVpnClientApi(
 
     // Fallback: fetch dynamically if none specified
     if (inboundIds.length === 0) {
+      const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+      if (loginResult.csrfToken) {
+        listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+      }
       const listRes = await xuiFetch(
         `${cleanedUrl}/panel/api/inbounds/list`,
         {
           method: "GET",
-          headers: {
-            Cookie: loginResult.cookie,
-          },
+          headers: listHeaders,
         },
         5000,
       );
@@ -2728,14 +2734,18 @@ async function addVpnClientApi(
 
     // Fetch all inbounds from panel to ensure valid IDs
     try {
+      const listHeaders: Record<string, string> = {
+        Cookie: loginResult.cookie,
+        Accept: "application/json",
+      };
+      if (loginResult.csrfToken) {
+        listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+      }
       const listRes = await xuiFetch(
         `${cleanedUrl}/panel/api/inbounds/list`,
         {
           method: "GET",
-          headers: {
-            Cookie: loginResult.cookie,
-            Accept: "application/json",
-          },
+          headers: listHeaders,
         },
         5000,
       );
@@ -3480,13 +3490,17 @@ app.post("/api/xui/test-connection", async (req, res) => {
     if (loginResult.success && loginResult.cookie) {
       // Confirm read access rights on the list api
       try {
+        const listHeaders: Record<string, string> = {
+          Cookie: loginResult.cookie,
+        };
+        if (loginResult.csrfToken) {
+          listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+        }
         const listRes = await xuiFetch(
           `${cleanedUrl}/panel/api/inbounds/list`,
           {
             method: "GET",
-            headers: {
-              Cookie: loginResult.cookie,
-            },
+            headers: listHeaders,
           },
           4000,
         );
