@@ -2497,6 +2497,41 @@ async function loginRebeccaPasarguard(baseUrl: string, username: string, passwor
 }
 
 // Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
+// Helper class to manage cookies
+class CookieJar {
+  private cookies = new Map<string, string>();
+
+  public parseAndAdd(cookieHeader: string | null) {
+    if (!cookieHeader) return;
+    // Split by commas that are likely separating multiple Set-Cookie headers
+    const parts = cookieHeader.split(/,(?=[^;]*=)/);
+    for (const part of parts) {
+      const cookiePart = part.split(";")[0].trim();
+      const eqIdx = cookiePart.indexOf("=");
+      if (eqIdx > 0) {
+        const name = cookiePart.substring(0, eqIdx).trim();
+        const value = cookiePart.substring(eqIdx + 1).trim();
+        if (name && value) {
+          this.cookies.set(name, value);
+        }
+      }
+    }
+  }
+
+  public getCookieHeaderString(): string {
+    const list: string[] = [];
+    for (const [name, value] of this.cookies.entries()) {
+      list.push(`${name}=${value}`);
+    }
+    return list.join("; ");
+  }
+
+  public isEmpty(): boolean {
+    return this.cookies.size === 0;
+  }
+}
+
+// Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
 async function loginXuiPanel(
   cleanedUrl: string,
   username: string,
@@ -2508,50 +2543,59 @@ async function loginXuiPanel(
   error?: string;
 }> {
   try {
-    const loginUrl = `${cleanedUrl}/login`;
+    const jar = new CookieJar();
+    let csrfToken = "";
+
     console.log(
-      `[Diagnostic] Executing initial GET handshake to login page: ${loginUrl}`,
+      `[Diagnostic] Executing initial GET handshake to base URL: ${cleanedUrl}`,
     );
-    // 1. Initial GET request to retrieve cookies and CSRF token if present
-    // First try the specific login URL as that's where the login form (and CSRF token) is located
-    let getRes = await xuiFetch(loginUrl, { method: "GET" }, 5000).catch(
+
+    // 1. Try GET on the base URL first (this matches Python bot's successful approach)
+    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 6000).catch(
       () => null,
     );
 
-    // Fall back to base URL if the login URL failed or returned bad status (classic panels or different routing)
+    // If base URL GET failed or returned bad status, fall back to /login URL
     if (!getRes || !getRes.ok) {
+      const loginUrl = `${cleanedUrl}/login`;
       console.log(
-        `[Diagnostic] GET handshake to ${loginUrl} was not successful. Falling back to base URL: ${cleanedUrl}`,
+        `[Diagnostic] GET handshake to base URL failed or returned bad status. Trying direct login page: ${loginUrl}`,
       );
-      getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 5000).catch(
+      getRes = await xuiFetch(loginUrl, { method: "GET" }, 6000).catch(
         () => null,
       );
     }
 
-    let initialCookie = "";
-    let csrfToken = "";
+    if (getRes) {
+      const setCookieHeader = getRes.headers.get("set-cookie");
+      if (setCookieHeader) {
+        jar.parseAndAdd(setCookieHeader);
+        console.log(`[Cookies] Handshake response cookies parsed: ${jar.getCookieHeaderString()}`);
+      }
 
-    if (getRes && getRes.ok) {
-      const getCookieHeader = getRes.headers.get("set-cookie") || "";
-      initialCookie = getCookieHeader.split(";")[0] || "";
-      const html = await getRes.text();
-      const match = html.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
-      if (match) {
+      const text = await getRes.text().catch(() => "");
+      const match = text.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/i);
+      if (match && match[1]) {
         csrfToken = match[1];
-        console.log(`[CSRF] CSRF token successfully extracted: ${csrfToken}`);
+        console.log(`[CSRF] CSRF token successfully extracted from handshake: ${csrfToken}`);
       }
     }
 
     // 2. Perform the POST login request
+    const loginUrl = `${cleanedUrl}/login`;
     const params = new URLSearchParams();
     params.append("username", username);
     params.append("password", password);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/x-www-form-urlencoded",
+      "Referer": `${cleanedUrl}/`,
+      "Origin": cleanedUrl,
     };
-    if (initialCookie) {
-      headers["Cookie"] = initialCookie;
+
+    const cookieHeader = jar.getCookieHeaderString();
+    if (cookieHeader) {
+      headers["Cookie"] = cookieHeader;
     }
     if (csrfToken) {
       headers["X-Csrf-Token"] = csrfToken;
@@ -2565,7 +2609,7 @@ async function loginXuiPanel(
         headers,
         body: params.toString(),
       },
-      6000,
+      8000,
     );
 
     const bodyText = await loginRes.text();
@@ -2581,9 +2625,25 @@ async function loginXuiPanel(
     );
 
     if (loginRes.ok && bodyJson && bodyJson.success) {
-      const loginCookieHeader = loginRes.headers.get("set-cookie") || "";
-      const loginCookie = loginCookieHeader.split(";")[0] || initialCookie;
-      return { success: true, cookie: loginCookie, csrfToken };
+      const loginCookieHeader = loginRes.headers.get("set-cookie");
+      if (loginCookieHeader) {
+        jar.parseAndAdd(loginCookieHeader);
+      }
+
+      // Check if a new CSRF token was issued in headers or body
+      let postCsrfToken = loginRes.headers.get("X-Csrf-Token") || csrfToken;
+      if (!postCsrfToken) {
+        const match = bodyText.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/i);
+        if (match && match[1]) {
+          postCsrfToken = match[1];
+        }
+      }
+
+      return {
+        success: true,
+        cookie: jar.getCookieHeaderString(),
+        csrfToken: postCsrfToken || null,
+      };
     } else {
       const errMsg =
         bodyJson?.msg ||
