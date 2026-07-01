@@ -9,3 +9,7 @@ coverage/
 database.json
 __pycache__/
 *.pyc
+Daltoon_Bot.db
+Daltoon_Bot.db-shm
+Daltoon_Bot.db-wal
+Daltoon_Bot.json
