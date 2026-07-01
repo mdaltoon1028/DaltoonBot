@@ -29,110 +29,7 @@ try {
 // Disable SSL verification for outgoing requests to 3x-ui panels
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-// Path to JSON-based DB store (relative to script to support reliable CWD-independent execution like PM2)
-const dbJsonPath = (() => {
-  const targetPath = path.resolve(process.cwd(), "Daltoon_Bot.json");
-  const possibleFiles = ["db.json", "database.json", "bot_database.json", "Daltoon_bot.json"];
-
-  // Helper inspect file for actual registered data
-  const getFileScore = (filePath: string): number => {
-    try {
-      if (!fs.existsSync(filePath)) return -1;
-      const stat = fs.statSync(filePath);
-      const content = fs.readFileSync(filePath, "utf8").trim();
-      if (!content || content === "{}" || content === "[]") return -1;
-      const parsed = JSON.parse(content);
-
-      let score = 0;
-      if (Array.isArray(parsed.users) && parsed.users.length > 0)
-        score += parsed.users.length * 10;
-      if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0)
-        score += parsed.transactions.length * 10;
-
-      if (parsed.settings && parsed.settings.panel_config) {
-        try {
-          const config =
-            typeof parsed.settings.panel_config === "string"
-              ? JSON.parse(parsed.settings.panel_config)
-              : parsed.settings.panel_config;
-          if (
-            config.botToken &&
-            config.botToken !== "DUMMY_TOKEN" &&
-            config.botToken.trim() !== ""
-          ) {
-            score += 50000;
-          }
-        } catch (err) {}
-      }
-
-      if (score > 0) {
-        return score * 1000000 + stat.size;
-      }
-      return -1;
-    } catch (e) {
-      return -1;
-    }
-  };
-
-  // If target file doesn't exist or is empty, try to migrate from legacy files
-  const targetScore = getFileScore(targetPath);
-  if (targetScore <= 0) {
-    let bestFile = "";
-    let bestScore = -1;
-
-    for (const f of possibleFiles) {
-      const rootPath = path.resolve(process.cwd(), f);
-      const scriptPath = path.resolve(_dirname, f);
-      const parentPath = path.resolve(_dirname, "..", f);
-
-      for (const p of [rootPath, scriptPath, parentPath]) {
-        const score = getFileScore(p);
-        if (score > bestScore) {
-          bestScore = score;
-          bestFile = p;
-        }
-      }
-    }
-
-    if (bestScore > -1 && bestFile && bestFile.toLowerCase() !== targetPath.toLowerCase()) {
-      console.log(`[Database Migration] Migrating active database from legacy ${bestFile} to standard ${targetPath}...`);
-      try {
-        const rawData = fs.readFileSync(bestFile, "utf8");
-        fs.writeFileSync(targetPath, rawData, "utf8");
-        console.log("[Database Migration] Migration completed successfully.");
-      } catch (e: any) {
-        console.error("[Database Migration] Failed to copy database file:", e.message);
-      }
-    }
-  }
-
-  // Delete all legacy files completely to prevent future confusion or conflict
-  for (const f of possibleFiles) {
-    const rootPath = path.resolve(process.cwd(), f);
-    const scriptPath = path.resolve(_dirname, f);
-    const parentPath = path.resolve(_dirname, "..", f);
-
-    for (const p of [rootPath, scriptPath, parentPath]) {
-      if (p.toLowerCase() !== targetPath.toLowerCase() && fs.existsSync(p)) {
-        try {
-          fs.unlinkSync(p);
-          console.log(`[Database Cleanup] Legacy file ${p} has been completely deleted.`);
-        } catch (e) {}
-      }
-      // Also clean up any .bak files to keep directory super tidy
-      const bakPath = p + ".bak";
-      if (bakPath.toLowerCase() !== (targetPath + ".bak").toLowerCase() && fs.existsSync(bakPath)) {
-        try {
-          fs.unlinkSync(bakPath);
-        } catch (e) {}
-      }
-    }
-  }
-
-  return targetPath;
-})();;
-
-// Path to SQLite DB store (supports robust concurrency, transactions and atomic writes)
+// Path to SQLite DB store
 const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
 const sqliteDb = (() => {
   const db = new Database(dbSqlitePath);
@@ -147,14 +44,23 @@ const sqliteDb = (() => {
   return db;
 })();
 
-function migrateJsonToSqlite() {
-  const jsonPath = dbJsonPath;
-  if (fs.existsSync(jsonPath)) {
+function migrateLegacyJsonToSqlite() {
+  const possibleFiles = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"];
+  let bestFile = "";
+  for (const f of possibleFiles) {
+    const p = path.resolve(process.cwd(), f);
+    if (fs.existsSync(p)) {
+      bestFile = p;
+      break;
+    }
+  }
+
+  if (bestFile) {
     try {
       const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get() as { count: number };
       if (rowCountRow.count === 0) {
-        console.log("[SQLite Migration] Migrating active database from JSON to SQLite...");
-        const raw = fs.readFileSync(jsonPath, "utf8").trim();
+        console.log(`[SQLite Migration] Migrating active database from legacy ${bestFile} to SQLite...`);
+        const raw = fs.readFileSync(bestFile, "utf8").trim();
         if (raw) {
           const data = JSON.parse(raw);
           const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
@@ -173,7 +79,7 @@ function migrateJsonToSqlite() {
   }
 }
 
-migrateJsonToSqlite();
+migrateLegacyJsonToSqlite();
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
@@ -215,7 +121,7 @@ console.log(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-console.log(`[Database] Connecting to JSON file database at: ${dbJsonPath}`);
+console.log(`[Database] Connecting to JSON file database at: ${dbSqlitePath}`);
 
 // Define types for pure JSON database to align perfectly with schema
 interface DbSchema {
@@ -239,7 +145,7 @@ interface DbSchema {
 }
 
 // Function to read JSON Database, seeding with default templates if not found
-function readJsonDb(): DbSchema {
+function readSqliteDb(): DbSchema {
   try {
     const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
     
@@ -313,8 +219,8 @@ function readJsonDb(): DbSchema {
     }
 
     if (modified) {
-      // Use writeJsonDb instead of direct write to respect safeguards
-      writeJsonDb(db);
+      // Use writeSqliteDb instead of direct write to respect safeguards
+      writeSqliteDb(db);
     }
 
     return db as DbSchema;
@@ -336,13 +242,13 @@ function readJsonDb(): DbSchema {
       tickets: [],
       colleague_packages: [],
       colleague_accounts: [],
-      _isReadError: true, // Flag to prevent writeJsonDb from overwriting
+      _isReadError: true, // Flag to prevent writeSqliteDb from overwriting
     } as unknown as DbSchema;
   }
 }
 
 // Function to write back data
-function writeJsonDb(data: DbSchema): boolean {
+function writeSqliteDb(data: DbSchema): boolean {
   if (!data) return false;
   if ((data as any)._isReadError) {
     console.error(
@@ -387,7 +293,7 @@ function writeJsonDb(data: DbSchema): boolean {
 }
 
 function getSystemSettings(db?: any) {
-  const data = db || readJsonDb();
+  const data = db || readSqliteDb();
   let parsedSettings = {};
   if (data.settings) {
     parsedSettings = { ...data.settings };
@@ -501,7 +407,7 @@ function startPythonBot() {
   }
 
   // Load latest settings to check if BOT_TOKEN is empty
-  const db = readJsonDb();
+  const db = readSqliteDb();
   const settings = getSystemSettings(db);
   const token = settings.botToken;
 
@@ -581,8 +487,8 @@ function startPythonBot() {
 }
 
 // Ensure database file gets seeded on startup
-readJsonDb();
-console.log(`[Database] Using active database at: ${dbJsonPath}`);
+readSqliteDb();
+console.log(`[Database] Using active database at: ${dbSqlitePath}`);
 startPythonBot();
 
 // --- API Endpoints ---
@@ -590,7 +496,7 @@ startPythonBot();
 // Full Wipe Database API
 app.post("/api/database/wipe-all", async (req, res) => {
   try {
-    const targetFile = path.resolve(process.cwd(), "Daltoon_Bot.json");
+    const targetFile = path.resolve(process.cwd(), "Daltoon_Bot.db");
     if (fs.existsSync(targetFile)) {
       fs.unlinkSync(targetFile);
     }
@@ -621,13 +527,13 @@ app.post("/api/database/wipe-all", async (req, res) => {
 // Reset Database API
 app.post("/api/database/reset", async (req, res) => {
   try {
-    if (fs.existsSync(dbJsonPath)) {
-      fs.unlinkSync(dbJsonPath);
+    if (fs.existsSync(dbSqlitePath)) {
+      fs.unlinkSync(dbSqlitePath);
     }
     try {
       sqliteDb.exec("DELETE FROM kv;");
     } catch (e) {}
-    const freshDb = readJsonDb();
+    const freshDb = readSqliteDb();
     res.json({
       success: true,
       message: "Database reset to empty template successfully.",
@@ -646,7 +552,7 @@ app.get("/copy", (req, res) => {
       const protocol =
         req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
       const dynamicUrl = `${protocol}://${host}`;
-      const db = readJsonDb();
+      const db = readSqliteDb();
       if (db.settings) {
         let pcObj: any = {};
         if (db.settings.panel_config) {
@@ -657,7 +563,7 @@ app.get("/copy", (req, res) => {
         if (pcObj.botWebUrl !== dynamicUrl) {
           pcObj.botWebUrl = dynamicUrl;
           db.settings.panel_config = JSON.stringify(pcObj);
-          writeJsonDb(db);
+          writeSqliteDb(db);
         }
       }
     }
@@ -848,7 +754,7 @@ app.get("/copy", (req, res) => {
 // 1. Get complete aggregated database snapshot
 app.get("/api/data", async (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
     // Ensure admins list is properly formatted
@@ -997,7 +903,7 @@ app.get("/api/data", async (req, res) => {
           }
         }
         db.inbounds = allInbounds;
-        writeJsonDb(db);
+        writeSqliteDb(db);
       } catch (e: any) {
         console.warn("[Background 3x-ui Sync Warning]:", e.message);
       }
@@ -1036,12 +942,12 @@ app.get("/api/data", async (req, res) => {
 // 2. Save panel configuration
 // --- GIFT CODES API ---
 app.get("/api/gift-codes", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   res.json(db.gift_codes || []);
 });
 
 app.post("/api/gift-codes", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.gift_codes) db.gift_codes = [];
   const { code, amount, maxUsage, durationDays } = req.body;
   if (!code || !amount || maxUsage === undefined)
@@ -1058,21 +964,21 @@ app.post("/api/gift-codes", (req, res) => {
     durationDays: durationDays ? parseInt(durationDays, 10) : undefined,
   };
   db.gift_codes.push(newCode);
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true, item: newCode });
 });
 
 app.post("/api/gift-codes/delete", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.gift_codes) db.gift_codes = [];
   db.gift_codes = db.gift_codes.filter((c) => c.id !== req.body.id);
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true });
 });
 
 // --- Colleague Endpoints ---
 app.post("/api/colleague-packages/save", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_packages) db.colleague_packages = [];
   const { id, title, price, trafficGb, category, description, minCreateGb } = req.body;
   if (!id || !title || price === undefined || trafficGb === undefined) {
@@ -1101,17 +1007,17 @@ app.post("/api/colleague-packages/save", (req, res) => {
       minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
     });
   }
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
 });
 
 app.post("/api/colleague-packages/delete", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_packages) db.colleague_packages = [];
   db.colleague_packages = db.colleague_packages.filter(
     (p) => p.id !== req.body.id,
   );
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
 });
 
@@ -1121,7 +1027,7 @@ app.post("/api/colleague-packages/reorder", (req, res) => {
     if (!Array.isArray(orderedIds)) {
       return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
     }
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.colleague_packages) db.colleague_packages = [];
 
     const pkgsMap = new Map(db.colleague_packages.map((p: any) => [p.id, p]));
@@ -1138,7 +1044,7 @@ app.post("/api/colleague-packages/reorder", (req, res) => {
     });
 
     db.colleague_packages = sortedPkgs;
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, colleaguePackages: db.colleague_packages });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -1147,12 +1053,12 @@ app.post("/api/colleague-packages/reorder", (req, res) => {
 
 // --- Colleague Category Endpoints ---
 app.get("/api/colleague-categories", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   res.json(db.colleague_categories || []);
 });
 
 app.post("/api/colleague-categories/save", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_categories) db.colleague_categories = [];
   const { id, name, emoji } = req.body;
   if (!name) return res.status(400).json({ error: "Missing name" });
@@ -1163,17 +1069,17 @@ app.post("/api/colleague-categories/save", (req, res) => {
   } else {
     db.colleague_categories.push({ id, name, emoji: emoji || "📁" });
   }
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true, colleagueCategories: db.colleague_categories });
 });
 
 app.post("/api/colleague-categories/delete", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_categories) db.colleague_categories = [];
   db.colleague_categories = db.colleague_categories.filter(
     (c) => c.id !== req.body.id,
   );
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true, colleagueCategories: db.colleague_categories });
 });
 
@@ -1183,7 +1089,7 @@ app.post("/api/colleague-categories/reorder", (req, res) => {
     if (!Array.isArray(orderedIds)) {
       return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
     }
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.colleague_categories) db.colleague_categories = [];
 
     const catsMap = new Map(db.colleague_categories.map((c: any) => [c.id, c]));
@@ -1200,7 +1106,7 @@ app.post("/api/colleague-categories/reorder", (req, res) => {
     });
 
     db.colleague_categories = sortedCats;
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, colleagueCategories: db.colleague_categories });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -1208,17 +1114,17 @@ app.post("/api/colleague-categories/reorder", (req, res) => {
 });
 
 app.post("/api/colleague-accounts/delete", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
   db.colleague_accounts = db.colleague_accounts.filter(
     (a) => a.id !== req.body.id,
   );
-  writeJsonDb(db);
+  writeSqliteDb(db);
   res.json({ success: true, colleagueAccounts: db.colleague_accounts });
 });
 
 app.post("/api/colleague-accounts/reset", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
 
   const accIndex = db.colleague_accounts.findIndex((a) => a.id === req.body.id);
@@ -1229,7 +1135,7 @@ app.post("/api/colleague-accounts/reset", (req, res) => {
     db.colleague_accounts[accIndex].password = Math.random()
       .toString(36)
       .substring(2, 10);
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, colleagueAccounts: db.colleague_accounts });
   } else {
     res.json({ success: false, error: "Account not found" });
@@ -1237,13 +1143,13 @@ app.post("/api/colleague-accounts/reset", (req, res) => {
 });
 
 app.post("/api/colleague-accounts/edit", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
 
   const accIndex = db.colleague_accounts.findIndex((a) => a.id === req.body.id);
   if (accIndex !== -1 && req.body.trafficGb !== undefined) {
     db.colleague_accounts[accIndex].trafficGb = req.body.trafficGb;
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, colleagueAccounts: db.colleague_accounts });
   } else {
     res.json({ success: false, error: "Account not found or missing fields" });
@@ -1251,14 +1157,14 @@ app.post("/api/colleague-accounts/edit", (req, res) => {
 });
 
 app.post("/api/colleague-accounts/reset-usage", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
 
   const accIndex = db.colleague_accounts.findIndex((a) => a.id === req.body.id);
   if (accIndex !== -1) {
     db.colleague_accounts[accIndex].usedTrafficGb = 0;
     db.colleague_accounts[accIndex].realUsedTrafficGb = 0;
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, colleagueAccounts: db.colleague_accounts });
   } else {
     res.json({ success: false, error: "Account not found" });
@@ -1268,7 +1174,7 @@ app.post("/api/colleague-accounts/reset-usage", (req, res) => {
 // --- PROMO CODES ENDPOINTS ---
 app.post("/api/promo-codes", (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.promo_codes) db.promo_codes = [];
     const nextCode = req.body;
 
@@ -1281,7 +1187,7 @@ app.post("/api/promo-codes", (req, res) => {
       db.promo_codes.push(nextCode);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, item: nextCode });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -1290,10 +1196,10 @@ app.post("/api/promo-codes", (req, res) => {
 
 app.post("/api/promo-codes/delete", (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.promo_codes) db.promo_codes = [];
     db.promo_codes = db.promo_codes.filter((p: any) => p.id !== req.body.id);
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -1304,7 +1210,7 @@ app.post("/api/promo-codes/delete", (req, res) => {
 app.post("/api/tickets/create", (req, res) => {
   try {
     const { userId, username, subject, message } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
 
     const ticketId = "TKB-" + Math.floor(Math.random() * 9000 + 1000);
@@ -1326,7 +1232,7 @@ app.post("/api/tickets/create", (req, res) => {
     };
 
     db.tickets.push(newTicket);
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({
       success: true,
@@ -1342,11 +1248,11 @@ app.post("/api/tickets/create", (req, res) => {
 app.post("/api/tickets/delete", (req, res) => {
   try {
     const { ticketId } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
 
     db.tickets = db.tickets.filter((t: any) => t.id !== ticketId);
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true, tickets: db.tickets });
   } catch (err: any) {
@@ -1357,7 +1263,7 @@ app.post("/api/tickets/delete", (req, res) => {
 app.post("/api/tickets/reply", (req, res) => {
   try {
     const { ticketId, reply } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
 
     const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
@@ -1371,7 +1277,7 @@ app.post("/api/tickets/reply", (req, res) => {
       ticket.status = "answered";
       ticket.updatedAt = new Date().toISOString();
 
-      writeJsonDb(db);
+      writeSqliteDb(db);
 
       // Notify the user on Telegram of the admin reply
       const settings = getSystemSettings(db);
@@ -1416,7 +1322,7 @@ app.post("/api/tickets/reply", (req, res) => {
 app.post("/api/tickets/close", (req, res) => {
   try {
     const { ticketId } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
 
     const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
@@ -1424,7 +1330,7 @@ app.post("/api/tickets/close", (req, res) => {
       const ticket = db.tickets[ticketIdx];
       ticket.status = "closed";
       ticket.updatedAt = new Date().toISOString();
-      writeJsonDb(db);
+      writeSqliteDb(db);
 
       // Notify the user on Telegram of ticket closure
       const settings = getSystemSettings(db);
@@ -1455,7 +1361,7 @@ app.post("/api/tickets/close", (req, res) => {
 app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
   try {
     const { id } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
     if (subIdx >= 0) {
       const key = db.subscription_keys[subIdx];
@@ -1498,7 +1404,7 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
         key.subLink = resetResult.subLink;
 
         db.subscription_keys[subIdx] = key;
-        writeJsonDb(db);
+        writeSqliteDb(db);
         res.json({ success: true, key });
       } else {
         res.status(500).json({
@@ -1519,7 +1425,7 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
 app.post("/api/subscription-keys/transfer-ownership", async (req, res) => {
   try {
     const { id, targetUserIdOrUsername } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const cleanTarget = String(targetUserIdOrUsername).replace("@", "").trim();
     const targetUser = db.users.find(
@@ -1556,7 +1462,7 @@ app.post("/api/subscription-keys/transfer-ownership", async (req, res) => {
         (k: any) => k.userId === targetUser.userId && k.status === "active",
       ).length;
 
-      writeJsonDb(db);
+      writeSqliteDb(db);
       res.json({
         success: true,
         key,
@@ -1575,7 +1481,7 @@ app.post("/api/subscription-keys/transfer-ownership", async (req, res) => {
 app.post("/api/transactions/instant-pay", async (req, res) => {
   try {
     const { userId, amount, description } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const user = db.users.find((u: any) => u.userId === Number(userId));
     if (!user) {
@@ -1597,7 +1503,7 @@ app.post("/api/transactions/instant-pay", async (req, res) => {
     };
 
     db.transactions.unshift(newTx);
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({
       success: true,
       userWalletBalance: user.walletBalance,
@@ -1617,7 +1523,7 @@ function getAiClient(): GoogleGenAI {
 
     // 1. Try to load from database settings first (User Preferred)
     try {
-      const db = readJsonDb();
+      const db = readSqliteDb();
       // Ensure we check both stringified panel_config and direct settings for robustness
       let settingsObj = db.settings || {};
       if (db.settings && db.settings.panel_config) {
@@ -1773,7 +1679,7 @@ app.post("/api/ai/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required." });
     }
 
-    const dbData = readJsonDb();
+    const dbData = readSqliteDb();
     const systemSettings = getSystemSettings(dbData);
 
     const activeUsersCount = (dbData.users || []).filter(
@@ -2142,7 +2048,7 @@ app.post("/api/ai/test-key", async (req, res) => {
 // ---------------------------
 
 app.post("/api/gift-codes/edit", (req, res) => {
-  const db = readJsonDb();
+  const db = readSqliteDb();
   if (!db.gift_codes) db.gift_codes = [];
   const { id, code, amount, maxUsage, durationDays } = req.body;
   if (!id || !code || amount === undefined || maxUsage === undefined) {
@@ -2165,7 +2071,7 @@ app.post("/api/gift-codes/edit", (req, res) => {
   });
 
   if (updatedCode) {
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, item: updatedCode });
   } else {
     res.status(404).json({ error: "Code not found" });
@@ -2228,7 +2134,7 @@ app.post("/api/settings", async (req, res) => {
       payload.ownerId = Number(payload.ownerId);
     }
 
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     // Compare admins list to find newly added ones
     const prevSettings = getSystemSettings(db);
@@ -2253,7 +2159,7 @@ app.post("/api/settings", async (req, res) => {
     );
 
     db.settings.panel_config = configValue;
-    const saveSuccess = writeJsonDb(db);
+    const saveSuccess = writeSqliteDb(db);
 
     if (!saveSuccess) {
       return res.status(500).json({ 
@@ -2743,7 +2649,7 @@ async function addVpnClientApi(
   try {
     // Check locally first
     if (!bypassDuplicateCheck) {
-      const db = readJsonDb();
+      const db = readSqliteDb();
       const subs = db.subscription_keys || [];
       const _lMail = clientEmail.toLowerCase();
       for (let s of subs) {
@@ -3059,7 +2965,7 @@ async function addVpnClientApi(
 // 2.3 Delete a VPN client from XUI Panel globally
 async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
 
@@ -3151,7 +3057,7 @@ async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
 // 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel
 async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientUuid?: string) {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
     if (activeServers.length === 0)
@@ -3296,7 +3202,7 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientU
 // 2.5 Change/Reset client UUID and Subscription ID on XUI Panel (Highly Resilient with delete/add fallback and local generation fallback)
 async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const crypto = await import("crypto");
 
@@ -3466,7 +3372,7 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
       const crypto = await import("crypto");
       const newUuid = crypto.randomUUID();
       const newSubId = crypto.randomBytes(8).toString("hex");
-      const db = readJsonDb();
+      const db = readSqliteDb();
       const settings = getSystemSettings(db);
 
       const activeServers = getActiveServers(settings);
@@ -3679,9 +3585,9 @@ app.post("/api/xui/test-connection", async (req, res) => {
             });
 
             // Persist the synced inbounds to cache database
-            const db = readJsonDb();
+            const db = readSqliteDb();
             db.inbounds = freshInbounds;
-            writeJsonDb(db);
+            writeSqliteDb(db);
 
             return res.json({
               success: true,
@@ -3778,7 +3684,7 @@ app.post("/api/broadcast", async (req, res) => {
       }
     }
 
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
     let botToken =
       settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
@@ -3912,7 +3818,7 @@ app.post("/api/broadcast", async (req, res) => {
 app.post("/api/users", async (req, res) => {
   try {
     const { userId, username, walletBalance, joinDate, status } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const idx = db.users.findIndex((u) => u.userId === Number(userId));
     const existing = idx >= 0 ? db.users[idx] : null;
@@ -3932,7 +3838,7 @@ app.post("/api/users", async (req, res) => {
       db.users.unshift(nextUser);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, message: "User written/updated." });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -3942,7 +3848,7 @@ app.post("/api/users", async (req, res) => {
 app.post("/api/users/adjust", async (req, res) => {
   try {
     const { userId, amount } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const user = db.users.find((u) => u.userId === Number(userId));
     if (!user) {
@@ -3968,7 +3874,7 @@ app.post("/api/users/adjust", async (req, res) => {
       db.logs = db.logs.slice(-1000);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true, nextBal });
   } catch (error: any) {
@@ -3979,12 +3885,12 @@ app.post("/api/users/adjust", async (req, res) => {
 app.post("/api/users/ban", async (req, res) => {
   try {
     const { userId, status } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const user = db.users.find((u) => u.userId === Number(userId));
     if (user) {
       user.status = status;
-      writeJsonDb(db);
+      writeSqliteDb(db);
     }
 
     res.json({ success: true });
@@ -3999,7 +3905,7 @@ app.post("/api/users/send-message", async (req, res) => {
     if (!userId || !message) {
       return res.status(400).json({ success: false, error: "کاربر یا متن پیام ارسال نشده است." });
     }
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
     let botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
     if (botToken) botToken = botToken.trim();
@@ -4038,13 +3944,13 @@ app.post("/api/users/send-message", async (req, res) => {
 app.post("/api/users/delete", async (req, res) => {
   try {
     const { userId } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     db.users = db.users.filter((u) => u.userId !== Number(userId));
     db.subscription_keys = db.subscription_keys.filter(
       (k) => k.userId !== Number(userId),
     );
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true, message: "User completely cleared." });
   } catch (error: any) {
@@ -4065,7 +3971,7 @@ app.post("/api/transactions", async (req, res) => {
       date,
       description,
     } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const nextTx = {
       id,
@@ -4085,7 +3991,7 @@ app.post("/api/transactions", async (req, res) => {
       db.transactions.unshift(nextTx);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -4095,7 +4001,7 @@ app.post("/api/transactions", async (req, res) => {
 app.post("/api/transactions/approve", async (req, res) => {
   try {
     const { id, amount } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const tx = db.transactions.find((t) => t.id === id);
     if (tx) {
@@ -4504,7 +4410,7 @@ app.post("/api/transactions/approve", async (req, res) => {
         db.logs = db.logs.slice(-1000);
       }
 
-      writeJsonDb(db);
+      writeSqliteDb(db);
 
       // Try to notify the user via Telegram Bot API on success
       try {
@@ -4537,7 +4443,7 @@ app.post("/api/transactions/approve", async (req, res) => {
               if (!token) {
                 token = Math.random().toString(36).substring(2, 10);
                 db.link_tokens[token] = tx._generatedSubLink;
-                writeJsonDb(db);
+                writeSqliteDb(db);
               }
 
               postDataObj.reply_markup = {
@@ -4615,7 +4521,7 @@ app.post("/api/transactions/approve", async (req, res) => {
 app.post("/api/transactions/reject", async (req, res) => {
   try {
     const { id } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const tx = db.transactions.find((t) => t.id === id);
     if (tx) {
@@ -4634,7 +4540,7 @@ app.post("/api/transactions/reject", async (req, res) => {
         db.logs = db.logs.slice(-1000);
       }
 
-      writeJsonDb(db);
+      writeSqliteDb(db);
 
       // Try to notify the user via Telegram Bot API on reject
       try {
@@ -4680,10 +4586,10 @@ app.post("/api/transactions/reject", async (req, res) => {
 app.post("/api/transactions/delete", async (req, res) => {
   try {
     const { id } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     db.transactions = db.transactions.filter((t) => t.id !== id);
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true });
   } catch (error: any) {
@@ -4693,9 +4599,9 @@ app.post("/api/transactions/delete", async (req, res) => {
 
 app.post("/api/transactions/clear-history", async (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     db.transactions = [];
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true });
   } catch (error: any) {
@@ -4708,7 +4614,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
   try {
     const { userId, clientName, trafficLimitGb, expiryDays, planName } =
       req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
     if (!settings.panelConnectionActive) {
@@ -4764,7 +4670,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
         ).length;
       }
 
-      writeJsonDb(db);
+      writeSqliteDb(db);
       return res.json({
         success: true,
         subKey: newSub,
@@ -4799,7 +4705,7 @@ app.post("/api/subscription-keys", async (req, res) => {
       trafficUsedGb,
       status,
     } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const nextSub = {
       id,
@@ -4829,7 +4735,7 @@ app.post("/api/subscription-keys", async (req, res) => {
       ).length;
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -4839,7 +4745,7 @@ app.post("/api/subscription-keys", async (req, res) => {
 app.post("/api/subscription-keys/delete", async (req, res) => {
   try {
     const { id, userId } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const keyToDelete = db.subscription_keys.find((k: any) => k.id === id);
     if (keyToDelete) {
@@ -4879,7 +4785,7 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
       ).length;
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -4889,7 +4795,7 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
 app.post("/api/subscription-keys/renew", async (req, res) => {
   try {
     const { id, addGb, addDays } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const key = db.subscription_keys?.find((k: any) => k.id === id);
     if (!key) {
@@ -4950,7 +4856,7 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       ).length;
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true, key });
   } catch (error: any) {
@@ -4961,7 +4867,7 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
 app.post("/api/subscription-keys/toggle", async (req, res) => {
   try {
     const { id, status } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const keyToToggle = db.subscription_keys.find((k: any) => k.id === id);
     if (!keyToToggle)
@@ -4993,7 +4899,7 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
       ).length;
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, status: newStatus });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5004,7 +4910,7 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
 app.post("/api/custom-buttons", async (req, res) => {
   try {
     const { id, text, replyText } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const nextBtn = { id, text, replyText };
     const idx = db.custom_buttons.findIndex((b) => b.id === id);
@@ -5014,7 +4920,7 @@ app.post("/api/custom-buttons", async (req, res) => {
       db.custom_buttons.push(nextBtn);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5024,10 +4930,10 @@ app.post("/api/custom-buttons", async (req, res) => {
 app.post("/api/custom-buttons/delete", async (req, res) => {
   try {
     const { id } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     db.custom_buttons = db.custom_buttons.filter((b) => b.id !== id);
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({ success: true });
   } catch (error: any) {
@@ -5039,12 +4945,12 @@ app.post("/api/custom-buttons/delete", async (req, res) => {
 app.post("/api/inbounds/toggle", async (req, res) => {
   try {
     const { id, status } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const ib = db.inbounds.find((i) => i.id === Number(id));
     if (ib) {
       ib.status = status;
-      writeJsonDb(db);
+      writeSqliteDb(db);
     }
 
     res.json({ success: true });
@@ -5055,7 +4961,7 @@ app.post("/api/inbounds/toggle", async (req, res) => {
 
 app.get("/api/vpn-plans", (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     res.json({ success: true, vpnPlans: db.vpn_plans || [] });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5065,7 +4971,7 @@ app.get("/api/vpn-plans", (req, res) => {
 // --- Plan Categories API ---
 app.get("/api/plan-categories", (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     res.json({ success: true, categories: db.plan_categories || [] });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5075,7 +4981,7 @@ app.get("/api/plan-categories", (req, res) => {
 app.post("/api/plan-categories", (req, res) => {
   try {
     const category = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.plan_categories) db.plan_categories = [];
 
     if (category.id) {
@@ -5090,7 +4996,7 @@ app.post("/api/plan-categories", (req, res) => {
       db.plan_categories.push(category);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, category });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5100,10 +5006,10 @@ app.post("/api/plan-categories", (req, res) => {
 app.post("/api/plan-categories/delete", (req, res) => {
   try {
     const { id } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (db.plan_categories) {
       db.plan_categories = db.plan_categories.filter((c: any) => c.id !== id);
-      writeJsonDb(db);
+      writeSqliteDb(db);
     }
     res.json({ success: true });
   } catch (error: any) {
@@ -5117,7 +5023,7 @@ app.post("/api/plan-categories/reorder", async (req, res) => {
     if (!Array.isArray(orderedIds)) {
       return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
     }
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.plan_categories) db.plan_categories = [];
 
     const catsMap = new Map(db.plan_categories.map((c: any) => [c.id, c]));
@@ -5134,7 +5040,7 @@ app.post("/api/plan-categories/reorder", async (req, res) => {
     });
 
     db.plan_categories = sortedCats;
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, categories: db.plan_categories });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5146,7 +5052,7 @@ app.post("/api/vpn-plans", async (req, res) => {
   try {
     const { id, name, durationDays, trafficGb, price, category, configStock } =
       req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
 
     const nextPlan = {
@@ -5166,7 +5072,7 @@ app.post("/api/vpn-plans", async (req, res) => {
       db.vpn_plans.push(nextPlan);
     }
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5176,11 +5082,11 @@ app.post("/api/vpn-plans", async (req, res) => {
 app.post("/api/vpn-plans/delete", async (req, res) => {
   try {
     const { id } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
 
     db.vpn_plans = db.vpn_plans.filter((p) => p.id !== id);
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5193,7 +5099,7 @@ app.post("/api/vpn-plans/reorder", async (req, res) => {
     if (!Array.isArray(orderedIds)) {
       return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
     }
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
 
     const plansMap = new Map(db.vpn_plans.map((p: any) => [p.id, p]));
@@ -5210,7 +5116,7 @@ app.post("/api/vpn-plans/reorder", async (req, res) => {
     });
 
     db.vpn_plans = sortedPlans;
-    writeJsonDb(db);
+    writeSqliteDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -5220,7 +5126,7 @@ app.post("/api/vpn-plans/reorder", async (req, res) => {
 app.post("/api/vpn-plans/buy", async (req, res) => {
   try {
     const { planId, userId, clientName } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
 
     const planIdx = db.vpn_plans.findIndex((p) => p.id === planId);
@@ -5331,7 +5237,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       (k) => k.userId === Number(userId) && k.status === "active",
     ).length;
 
-    writeJsonDb(db);
+    writeSqliteDb(db);
 
     res.json({
       success: true,
@@ -5350,7 +5256,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     const settings = getSystemSettings(db);
 
@@ -5394,7 +5300,7 @@ app.post("/api/login", async (req, res) => {
 // X. Backup Management endpoints
 app.get("/api/backup-download", (req, res) => {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
 
     // Compress and optimize binary-like image strings inside the database to keep backups tiny
     if (db.transactions && Array.isArray(db.transactions)) {
@@ -5412,7 +5318,7 @@ app.get("/api/backup-download", (req, res) => {
 
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=Daltoon_Bot.json",
+      "attachment; filename=Daltoon_Bot.db",
     );
     res.setHeader("Content-Type", "application/json");
     res.send(JSON.stringify(db, null, 2));
@@ -5440,7 +5346,7 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
     } catch (e) {
       return res.status(400).json({
         success: false,
-        error: "فرمت فایل بکاپ معتبر نیست (باید JSON باشد).",
+        error: "فرمت فایل بکاپ معتبر نیست (باید SQLite/JSON معتبر باشد).",
       });
     }
 
@@ -5453,7 +5359,7 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
     // Preserve current active critical settings if they are customized
     let preservedConfig: any = {};
     try {
-      const currentDb = readJsonDb();
+      const currentDb = readSqliteDb();
       if (currentDb && currentDb.settings && currentDb.settings.panel_config) {
         const pc =
           typeof currentDb.settings.panel_config === "string"
@@ -5507,7 +5413,7 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
 
     parsed.isNewInstall = false;
 
-    const writeSuccess = writeJsonDb(parsed);
+    const writeSuccess = writeSqliteDb(parsed);
     
     if (!writeSuccess) {
       return res.status(500).json({ success: false, error: "خطا در ذخیره بکاپ به دلیل مشکلات سیستمی (Safeguard). فایل ممکن است نامعتبر باشد." });
@@ -5524,7 +5430,7 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
 
 async function performAutoBackup() {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
     if (!settings.autoBackupEnabled) return;
@@ -5560,7 +5466,7 @@ async function performAutoBackup() {
       '',
       caption,
       `--${boundary}`,
-      `Content-Disposition: form-data; name="document"; filename="Daltoon_Bot.json"`,
+      `Content-Disposition: form-data; name="document"; filename="Daltoon_Bot.db"`,
       `Content-Type: application/json`,
       '',
       ''
@@ -5583,10 +5489,10 @@ async function performAutoBackup() {
       throw new Error(resJson?.description || "Failed to send backup document to Telegram");
     }
 
-    const freshDb = readJsonDb();
+    const freshDb = readSqliteDb();
     if (!freshDb.settings) freshDb.settings = {};
     freshDb.settings.lastAutoBackup = String(Date.now());
-    writeJsonDb(freshDb);
+    writeSqliteDb(freshDb);
     console.log(`[Auto Backup] Successfully sent backup to owner ${ownerId}`);
   } catch (err: any) {
     console.error(`[Auto Backup Error]`, err.message);
@@ -5595,7 +5501,7 @@ async function performAutoBackup() {
 
 async function checkAutoBackup() {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
     if (!settings.autoBackupEnabled || !settings.autoBackupInterval) return;
@@ -5828,7 +5734,7 @@ app.post("/api/system/update", async (req, res) => {
 // --- CRON JOBS ---
 async function autoCleanExpiredFreeTrials() {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const now = new Date();
     // Allow 1 day buffer or strict? The user said "تست های رایگان بعد از تموم شدن مستقیم پاک بشن"
     // So if expireDate is yesterday or earlier, delete.
@@ -5916,7 +5822,7 @@ async function autoCleanExpiredFreeTrials() {
       }
     }
 
-    const freshDb = readJsonDb();
+    const freshDb = readSqliteDb();
 
     // We only remove keys that we specifically decided to delete earlier
     const deletedIds = new Set(keysToDelete.map((k) => k.id));
@@ -5933,7 +5839,7 @@ async function autoCleanExpiredFreeTrials() {
       ).length;
     }
 
-    writeJsonDb(freshDb);
+    writeSqliteDb(freshDb);
     console.log(
       `[Auto Cleanup] Successfully deleted ${keysToDelete.length} expired free trials from Panel and Local DB.`,
     );
@@ -6025,7 +5931,7 @@ async function sendPurchaseSuccessNoteIfAnyServer(
 
 async function autoSyncTrafficUsage() {
   try {
-    const db = readJsonDb();
+    const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
     const activeServers = getActiveServers(settings);
@@ -6145,7 +6051,7 @@ async function autoSyncTrafficUsage() {
       }
     }
 
-    const freshDb = readJsonDb();
+    const freshDb = readSqliteDb();
     let updatedCount = 0;
 
     for (let k of freshDb.subscription_keys || []) {
@@ -6388,7 +6294,7 @@ async function autoSyncTrafficUsage() {
     }
 
     if (updatedCount > 0) {
-      writeJsonDb(freshDb);
+      writeSqliteDb(freshDb);
       console.log(
         `[Auto Sync Usage] Updated traffic usage for ${updatedCount} subscriptions.`,
       );

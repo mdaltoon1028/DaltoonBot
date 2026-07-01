@@ -1421,7 +1421,7 @@ export default function SettingsPanel({
         <p className="text-xs text-gray-400 leading-relaxed">
           {lang === "fa"
             ? "بکاپ‌های دوره‌ای باعث اطمینان خاطر شما از حفظ اطلاعات سیستم می‌شود. فایل بکاپ به تلگرام Owner ارسال می‌گردد."
-            : "Periodically backup the Daltoon_Bot.json and send it to the system owner's Telegram account."}
+            : "Periodically backup the Daltoon_Bot.db and send it to the system owner's Telegram account."}
         </p>
 
         {autoBackupEnabled && (
@@ -1535,20 +1535,19 @@ export default function SettingsPanel({
         {/* Custom API Template URL */}
         <div className="space-y-1.5 text-right font-sans pt-1" dir="rtl">
           <label className="text-xs font-semibold text-gray-300">
-            {lang === "fa" ? "آدرس دلخواه تولید QR (پیشرفته):" : "Custom QR API Template URL (Advanced):"}
+            {lang === "fa" ? "تمپلیت پیشرفته QR (فرمت JSON یا لینک دلخواه):" : "Advanced QR Template (JSON Config or Custom API URL):"}
           </label>
-          <input
-            type="text"
-            placeholder="https://quickchart.io/qr?text={text}&width=400&height=400&centerImageUrl={logo_url}&color={color}"
-            className="w-full bg-[#111827] border border-gray-750 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
+          <textarea
+            placeholder={`{\n  "body": "mosaic",\n  "eye": "frame13",\n  "eyeBall": "ball14",\n  "bodyColor": "#000000"\n}`}
+            className="w-full bg-[#111827] border border-gray-750 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-mono h-24"
             value={qrTemplate}
             onChange={(e) => setQrTemplate(e.target.value)}
             dir="ltr"
           />
-          <p className="text-[10px] text-gray-500">
+          <p className="text-[10px] text-gray-500 leading-relaxed">
             {lang === "fa" 
-              ? "برای شخصی‌سازی کامل، می‌توانید از هر سرویسی استفاده کنید. متغیرها: {text} برای لینک، {color} برای رنگ، {logo_url} برای لوگو" 
-              : "Placeholders: {text} for payload, {color} for hex color, {logo_url} for center icon."}
+              ? "می‌توانید کدهای JSON ساخته شده توسط qrcode-monkey.com را اینجا قرار دهید تا کدها با ظاهر کاستوم تولید شوند! (همچنین لینک API ساده هم پشتیبانی می‌شود. متغیرها: {text}، {color} و {logo_url})" 
+              : "Paste QRCode-Monkey JSON config, or use a custom API URL with placeholders {text}, {color}, {logo_url}."}
           </p>
         </div>
 
@@ -2314,8 +2313,8 @@ export default function SettingsPanel({
             <Database className="w-4 h-4 text-gray-500" />
             <span className="text-[10px] uppercase font-mono text-gray-500">
               {lang === "fa"
-                ? "دیتابیس درگاه محلی: JSON 'Daltoon_Bot.json'"
-                : "Local Cache DB: JSON 'Daltoon_Bot.json'"}
+                ? "دیتابیس درگاه محلی: SQLite 'Daltoon_Bot.db'"
+                : "Local Cache DB: SQLite 'Daltoon_Bot.db'"}
             </span>
           </div>
 

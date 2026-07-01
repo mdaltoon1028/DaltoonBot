@@ -841,7 +841,7 @@ export default function App() {
 
         if (!isAuto) {
           console.log(
-            "[Full-Stack Sync] JSON database refreshed successfully.",
+            "[Full-Stack Sync] SQLite database refreshed successfully.",
           );
           setToastMessage(
             lang === "fa"

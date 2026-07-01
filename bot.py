@@ -2,7 +2,7 @@
 """
 Daltoon Systems - Real-Time Python Telegram Bot & Sanaei 3x-ui API Sync
 Designed specifically for: Sanaei X-UI v3.2 Panel (https://tr.sub-daltoon.ir:2096/Daltoon)
-Centralized Database: Daltoon_Bot.json (Shared with React Admin Dashboard)
+Centralized Database: Daltoon_Bot.db (Shared with React Admin Dashboard)
 """
 
 import os
@@ -40,80 +40,9 @@ import urllib.parse
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 def get_db_path():
     """ 
-    Streamlined: Use ONLY Daltoon_Bot.json.
-    Migrates legacy data if Daltoon_Bot.json is missing, then completely deletes all legacy db files.
+    Return the legacy JSON path to be used by migration script.
     """
-    target_path = os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
-    possible_files = ["db.json", "database.json", "bot_database.json", "Daltoon_bot.json"]
-
-    def get_file_score(path):
-        try:
-            if not os.path.exists(path): return -1
-            size = os.path.getsize(path)
-            if size < 5: return -1
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                score = 0
-                
-                users = data.get("users")
-                if isinstance(users, list) and len(users) > 0:
-                    score += len(users) * 10
-                    
-                transactions = data.get("transactions")
-                if isinstance(transactions, list) and len(transactions) > 0:
-                    score += len(transactions) * 10
-                    
-                settings = data.get("settings", {})
-                if settings.get("BOT_TOKEN") or settings.get("botToken") or settings.get("panel_config"):
-                    score += 50000
-                    
-                if score > 0:
-                    return (score * 1000000) + size
-                return -1
-        except: return -1
-
-    target_score = get_file_score(target_path)
-    if target_score <= 0:
-        best_file = ""
-        best_score = -1
-
-        for f in possible_files:
-            root_path = os.path.join(SCRIPT_DIR, f)
-            parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
-            
-            for p in [root_path, parent_path]:
-                score = get_file_score(p)
-                if score > best_score:
-                    best_score = score
-                    best_file = p
-
-        if best_score > -1 and best_file and best_file.lower() != target_path.lower():
-            print(f"[Database Migration] Migrating legacy active database from {best_file} to standard {target_path}...")
-            try:
-                import shutil
-                shutil.copy2(best_file, target_path)
-                print("[Database Migration] Migration copy completed successfully.")
-            except Exception as e:
-                print(f"[Database Migration] Failed to migrate database: {e}")
-
-    # Delete all legacy files to prevent any future conflict or confusion
-    for f in possible_files:
-        root_path = os.path.join(SCRIPT_DIR, f)
-        parent_path = os.path.join(os.path.dirname(SCRIPT_DIR), f)
-        for p in [root_path, parent_path]:
-            if p.lower() != target_path.lower() and os.path.exists(p):
-                try:
-                    os.remove(p)
-                    print(f"[Database Cleanup] Legacy file {p} completely deleted.")
-                except: pass
-            # Also delete legacy backup files
-            bak_path = p + ".bak"
-            if bak_path.lower() != (target_path + ".bak").lower() and os.path.exists(bak_path):
-                try:
-                    os.remove(bak_path)
-                except: pass
-
-    return target_path
+    return os.path.join(SCRIPT_DIR, "Daltoon_Bot.json")
 
 DB_FILE = get_db_path()
 
@@ -163,7 +92,7 @@ def migrate_json_to_sqlite():
 # Call immediately
 migrate_json_to_sqlite()
 
-def read_db_json():
+def read_sqlite_db():
     """ Read core database structure from shared SQLite database instead of json file """
     default_db = {
         "users": [],
@@ -215,7 +144,7 @@ def read_db_json():
         print(f"[SQLite Database Read Error] {e}")
         return default_db
 
-def write_db_json(data):
+def write_sqlite_db(data):
     """ Persistence for the shared SQLite database structure with strict safeguards """
     if not data:
         return False
@@ -327,7 +256,7 @@ def get_card_payment_info(cfg):
 
 # Load Dynamic Configurations
 def get_config():
-    """ Load real-time configurations from Daltoon_Bot.json or fallback to env vars """
+    """ Load real-time configurations from Daltoon_Bot.db or fallback to env vars """
     config = {
         "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
         "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
@@ -366,7 +295,7 @@ def get_config():
         "QR_LOGO": ""
     }
     try:
-        db = read_db_json()
+        db = read_sqlite_db()
         settings = db.get("settings", {})
         settings_str = settings.get("panel_config")
         
@@ -879,7 +808,7 @@ def login_xui(server_id=None, force=False):
 
 def check_client_exists(client_email, server_id=None):
     # Local check first (so even simulated offline users will be blocked from dupes)
-    db = read_db_json()
+    db = read_sqlite_db()
     keys = db.get("subscription_keys", [])
     lower_email = client_email.lower().strip()
     for k in keys:
@@ -925,7 +854,7 @@ def check_client_exists(client_email, server_id=None):
 def add_copy_button_to_markup(markup, text, link):
     try:
         import random, string
-        db = read_db_json()
+        db = read_sqlite_db()
         if "link_tokens" not in db:
             db["link_tokens"] = {}
         
@@ -947,7 +876,7 @@ def add_copy_button_to_markup(markup, text, link):
                         del db["link_tokens"][tk]
                     except KeyError:
                         pass
-            write_db_json(db)
+            write_sqlite_db(db)
             
         markup.add(types.InlineKeyboardButton(text=text, callback_data=f"showlink_{token}"))
     except Exception as e:
@@ -975,6 +904,22 @@ def get_qr_code_url(text):
         
         # If user defined a custom template, use it
         if qr_template:
+            # Check if it's a JSON config for qrcode-monkey
+            if qr_template.startswith("{") and qr_template.endswith("}"):
+                try:
+                    import json
+                    config = json.loads(qr_template)
+                    if qr_color:
+                        config["bodyColor"] = qr_color if qr_color.startswith("#") else f"#{qr_color}"
+                    if qr_logo:
+                        config["logo"] = qr_logo
+                    
+                    encoded_config = urllib.parse.quote(json.dumps(config))
+                    return f"https://api.qrcode-monkey.com/qr/custom?data={encoded_text}&config={encoded_config}"
+                except Exception as e:
+                    print(f"[QRCode Monkey JSON Parse Error] {e}")
+
+            # Legacy custom URL replacement
             url = qr_template
             url = url.replace("{text}", encoded_text)
             url = url.replace("{logo_url}", urllib.parse.quote(qr_logo) if qr_logo else "")
@@ -1741,7 +1686,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     import random, string, time, json, os, uuid, re
     cfg = get_config()
-    db = read_db_json()
+    db = read_sqlite_db()
     settings = db.get("settings", {})
     servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
     
@@ -2346,23 +2291,23 @@ def delete_vpn_client_api(client_email, client_uuid=None, server_id=None):
 
 # --- User Management DB Queries ---
 def set_user_pending_charge(tg_id, amount):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["pendingChargeAmount"] = amount
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def pop_user_pending_charge(tg_id):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         amount = user.pop("pendingChargeAmount", None)
-        write_db_json(db)
+        write_sqlite_db(db)
         return amount
     return None
 
 def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None, custom_gb=None, custom_days=None, custom_price=None):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if str(u["userId"]) == str(tg_id)), None)
     if user:
         user["pendingPurchasePlanId"] = plan_id
@@ -2371,10 +2316,10 @@ def set_user_pending_purchase(tg_id, plan_id, client_name, server_id=None, custo
         user["pendingPurchaseCustomGb"] = custom_gb
         user["pendingPurchaseCustomDays"] = custom_days
         user["pendingPurchaseCustomPrice"] = custom_price
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def get_user_pending_purchase(tg_id):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if str(u["userId"]) == str(tg_id)), None)
     if user:
         return (
@@ -2388,13 +2333,13 @@ def get_user_pending_purchase(tg_id):
     return None, None, None, None, None, None
 
 def clear_user_pending_purchase(tg_id):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user.pop("pendingPurchasePlanId", None)
         user.pop("pendingPurchaseClientName", None)
         user.pop("pendingPurchaseServerId", None)
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def to_persian_digits(s):
     eng = "0123456789"
@@ -2459,7 +2404,7 @@ def get_tehran_date_str():
     return tehran_now.strftime("%Y-%m-%d")
 
 def register_tg_user(tg_id, username, referral_id=None):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if not user:
         join_date = get_tehran_date_str()
@@ -2544,32 +2489,32 @@ def register_tg_user(tg_id, username, referral_id=None):
                                                     pass
 
         db["users"].append(new_user)
-        write_db_json(db)
-        print(f"[Database] Registered new user into JSON: {tg_id}")
+        write_sqlite_db(db)
+        print(f"[Database] Registered new user into SQLite: {tg_id}")
         try:
             log_action(tg_id, username or f"user_{tg_id}", "ثبت‌نام کاربر", f"کاربر جدید با شناسه {tg_id} برای اولین بار عضو ربات شد.")
         except Exception as e:
             print("Error logging user registration:", e)
     elif username and user.get("username") != username:
         user["username"] = username
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def get_user_data(tg_id):
-    db = read_db_json()
+    db = read_sqlite_db()
     return next((u for u in db["users"] if str(u.get("userId")) == str(tg_id)), None)
 
 def update_user_wallet_balance(tg_id, amount):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["walletBalance"] = max(0.0, float(user.get("walletBalance", 0.0)) + float(amount))
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def process_referral_on_purchase(user, amount_spent):
     if not user.get("referredBy") or user.get("hasPurchasedPlan"):
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     import json
     try:
         settings = json.loads(db.get("settings", {}).get("panel_config", "{}"))
@@ -2644,25 +2589,25 @@ def process_referral_on_purchase(user, amount_spent):
     if user_in_db:
         user_in_db["hasPurchasedPlan"] = True
     
-    write_db_json(db)
+    write_sqlite_db(db)
 
 def update_user_balance(tg_id, new_balance):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if u["userId"] == tg_id), None)
     if user:
         user["walletBalance"] = max(0.0, float(new_balance))
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def update_user_pinned_seen(tg_id, pinned_text):
-    db = read_db_json()
+    db = read_sqlite_db()
     user = next((u for u in db["users"] if str(u.get("userId")) == str(tg_id)), None)
     if user:
         user["lastPinnedMsgSeen"] = pinned_text
-        write_db_json(db)
+        write_sqlite_db(db)
 
 def log_transaction(tg_id, amount, action, details, flow_type="out"):
     import time
-    db = read_db_json()
+    db = read_sqlite_db()
     if "transactions" not in db:
         db["transactions"] = []
     user = next((u for u in db.get("users", []) if u.get("userId") == tg_id), None)
@@ -2679,12 +2624,12 @@ def log_transaction(tg_id, amount, action, details, flow_type="out"):
         "description": f"{details} ({action})"
     }
     db["transactions"].insert(0, new_tx)
-    write_db_json(db)
+    write_sqlite_db(db)
 
 def log_action(tg_id, username, action, details):
     import uuid
     from datetime import datetime
-    db = read_db_json()
+    db = read_sqlite_db()
     if not db.get("logs"):
         db["logs"] = []
     
@@ -2700,7 +2645,7 @@ def log_action(tg_id, username, action, details):
     if len(db["logs"]) > 1000:
         db["logs"] = db["logs"][-1000:]
     db["logs"].append(log)
-    write_db_json(db)
+    write_sqlite_db(db)
 
 def notify_admins_of_error(err_title, err_detail, user_info=""):
     try:
@@ -2733,7 +2678,7 @@ def notify_admins_of_error(err_title, err_detail, user_info=""):
 
 def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, limit_gb, client_name="", client_uuid="", server_id=None):
     print(f"[create_sub_key] Registering: id={key_id}, user={tg_id}, plan={plan_name}")
-    db = read_db_json()
+    db = read_sqlite_db()
     new_sub = {
         "id": key_id,
         "userId": tg_id,
@@ -2758,7 +2703,7 @@ def create_sub_key(key_id, tg_id, plan_id, plan_name, sub_link, expire_date, lim
     if user:
         user["activePlansCount"] = sum(1 for k in db["subscription_keys"] if str(k.get("userId")) == str(tg_id) and k.get("status") == "active")
         
-    if write_db_json(db):
+    if write_sqlite_db(db):
         print(f"[create_sub_key] Successfully committed to DB for user {tg_id}")
     else:
         print(f"[create_sub_key] FAILED to write to DB for user {tg_id}")
@@ -2825,7 +2770,7 @@ def get_custom_keyboard():
                 
     # Custom dynamic buttons from DB
     try:
-        db = read_db_json()
+        db = read_sqlite_db()
         cb = db.get("custom_buttons", [])
         for i in range(0, len(cb), 2):
             if i + 1 < len(cb):
@@ -2844,7 +2789,7 @@ def get_cancel_keyboard():
 
 def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, price, sub_id):
     try:
-        db = read_db_json()
+        db = read_sqlite_db()
         user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
         username_val = user.get("username", "N/A") if user else "N/A"
         
@@ -3020,7 +2965,7 @@ def process_successful_payment(message):
         global pending_col_requests
         if 'pending_col_requests' in globals() and tg_id in pending_col_requests:
             req = pending_col_requests[tg_id]
-            db = read_db_json()
+            db = read_sqlite_db()
             package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
             if package:
                 finalize_colleague_purchase(tg_id, req, package, message)
@@ -3123,7 +3068,7 @@ def buy_cmd(message):
         
     cfg = get_config()
     nickname = cfg.get("BOT_NICKNAME", "دالتون")
-    db = read_db_json()
+    db = read_sqlite_db()
     
     servers = cfg.get("SERVERS", [])
     
@@ -3305,7 +3250,7 @@ def handle_main_menu_callback(call):
         pass
         
     cfg = get_config()
-    db = read_db_json()
+    db = read_sqlite_db()
     user = get_user_data(tg_id)
     
     if action == "mm_btnAiChat":
@@ -3494,12 +3439,12 @@ def handle_main_menu_callback(call):
             join_date_g = get_tehran_date_str()
             # update user in db to store it
             user["joinDate"] = join_date_g
-            db_conn = read_db_json()
+            db_conn = read_sqlite_db()
             for u in db_conn.get("users", []):
                 if u["userId"] == tg_id:
                     u["joinDate"] = join_date_g
                     break
-            write_db_json(db_conn)
+            write_sqlite_db(db_conn)
             
         f_date = format_gregorian_to_jalali_str(join_date_g)
 
@@ -3744,7 +3689,7 @@ def handle_main_menu_callback(call):
         if user_idx >= 0:
             users[user_idx]["hasReceivedFreeTest"] = True
             db["users"] = users
-            write_db_json(db)
+            write_sqlite_db(db)
                 
         import time
         expire_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + free_days * 24 * 60 * 60))
@@ -3842,7 +3787,7 @@ def handle_main_menu_callback(call):
             # Sync user's referralCount to make sure stats in DB match exactly
             if "referralCount" not in user or user["referralCount"] < real_referrals_count:
                 user["referralCount"] = real_referrals_count
-                write_db_json(db)
+                write_sqlite_db(db)
             referrals_count = user.get("referralCount", 0)
             referrals_reward = user.get("referralRewardTotal", 0)
         else:
@@ -3949,7 +3894,7 @@ def handle_buy_pay(call):
     is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
     is_privileged = is_owner or is_admin
 
-    db = read_db_json()
+    db = read_sqlite_db()
     db_plans = db.get("vpn_plans", [])
     db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
     
@@ -4055,7 +4000,7 @@ def handle_buy_pay(call):
             if not cfg.get("SIMULATOR_MODE"):
                 # Refund user wallet immediately if they were charged
                 if not is_privileged:
-                    fresh_db = read_db_json()
+                    fresh_db = read_sqlite_db()
                     fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
                     current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
                     refunded_bal = current_bal + float(spec["price"])
@@ -4172,7 +4117,7 @@ def handle_discount_decision(call):
     username_input = data[3]
     tg_id = call.from_user.id
     
-    db = read_db_json()
+    db = read_sqlite_db()
     db_plans = db.get("vpn_plans", [])
     db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
     
@@ -4226,7 +4171,7 @@ def process_promo_code_input(message, plan_id, username_input, spec):
         bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     promo_codes = db.get("promo_codes", [])
     promo = next((p for p in promo_codes if p["code"].upper() == code_text), None)
     
@@ -4413,7 +4358,7 @@ def process_purchase_username(message, plan_id, spec):
 
     active_purchases.add(tg_id)
     try:
-        db = read_db_json()
+        db = read_sqlite_db()
         keys = db.get("subscription_keys", [])
         
         # Deduct balance
@@ -4440,7 +4385,7 @@ def process_purchase_username(message, plan_id, spec):
             if not cfg.get("SIMULATOR_MODE"):
                 # Refund user wallet immediately if they were charged
                 if not is_privileged:
-                    fresh_db = read_db_json()
+                    fresh_db = read_sqlite_db()
                     fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
                     current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
                     refunded_bal = current_bal + float(spec["price"])
@@ -4597,7 +4542,7 @@ def callback_handler(call):
     if call.data.startswith("showlink_"):
         token = call.data.split("_")[1]
         try:
-            db = read_db_json()
+            db = read_sqlite_db()
             link = db.get("link_tokens", {}).get(token)
             if link:
                 bot.answer_callback_query(call.id, "لینک کانفیگ با موفقیت آماده شد ⚡")
@@ -4643,7 +4588,7 @@ def callback_handler(call):
         sub_action = parts[1]
         target_sub_id = parts[2]
         
-        db = read_db_json()
+        db = read_sqlite_db()
         subscription_keys = db.get("subscription_keys", [])
         k = next((sub for sub in subscription_keys if sub["id"] == target_sub_id and sub["userId"] == tg_id), None)
         
@@ -4704,7 +4649,7 @@ def callback_handler(call):
                 print(f"Error calling local toggle API: {e}")
             
             # Re-read DB since Node.js updated it
-            db = read_db_json()
+            db = read_sqlite_db()
             subscription_keys = db.get("subscription_keys", [])
             idx = next((i for i, sub in enumerate(subscription_keys) if sub["id"] == target_sub_id and sub["userId"] == tg_id), -1)
             if idx != -1:
@@ -4890,7 +4835,7 @@ def callback_handler(call):
             if user:
                 user["activePlansCount"] = sum(1 for sub in db["subscription_keys"] if sub["userId"] == tg_id and sub["status"] == "active")
             
-            write_db_json(db)
+            write_sqlite_db(db)
             
             log_action(
                 tg_id,
@@ -5057,7 +5002,7 @@ def callback_handler(call):
                 if sub_link:
                     k['subLink'] = sub_link
                     
-                write_db_json(db)
+                write_sqlite_db(db)
                 
                 notify_admins_of_purchase(tg_id, "تمدید اشتراک (کیف پول)", f"طرح: {spec['name']} ({spec['traffic']}GB / {spec['duration']} روز) برای سرویس {client_name}", spec['price'], target_sub_id)
                 
@@ -5136,7 +5081,7 @@ def callback_handler(call):
     if call.data.startswith("ccdel_"):
         bot.answer_callback_query(call.id)
         sub_id = call.data.split("_")[1]
-        db = read_db_json()
+        db = read_sqlite_db()
         keys = db.get("subscription_keys", [])
         
         idx = next((i for i, k in enumerate(keys) if k["id"] == sub_id), -1)
@@ -5164,7 +5109,7 @@ def callback_handler(call):
             
         keys.pop(idx)
         db["subscription_keys"] = keys
-        write_db_json(db)
+        write_sqlite_db(db)
         
         bot.edit_message_text("✅ کاربر با موفقیت حذف شد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
         
@@ -5179,7 +5124,7 @@ def callback_handler(call):
         acc_id = parts[1]
         package_id = parts[2]
         
-        db = read_db_json()
+        db = read_sqlite_db()
         package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
         accounts = db.get("colleague_accounts", [])
         acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
@@ -5204,7 +5149,7 @@ def callback_handler(call):
             days = int(parts[3])
             server_id = "_".join(parts[4:])
             
-            db = read_db_json()
+            db = read_sqlite_db()
             accounts = db.get("colleague_accounts", [])
             live_acc = next((a for a in accounts if a["id"] == acc_id), None)
             
@@ -5280,7 +5225,7 @@ def callback_handler(call):
             if "pending_col_creations" in db and acc_id in db["pending_col_creations"]:
                 del db["pending_col_creations"][acc_id]
                 
-            write_db_json(db)
+            write_sqlite_db(db)
             
             log_action(
                 call.from_user.id, 
@@ -5330,7 +5275,7 @@ def callback_handler(call):
             bot.edit_message_text("❌ دیتای ناقص.", chat_id=call.message.chat.id, message_id=call.message.message_id)
             return
         
-        db = read_db_json()
+        db = read_sqlite_db()
         accounts = db.get("colleague_accounts", [])
         acc = next((a for a in accounts if a["id"] == acc_id), None)
         if not acc:
@@ -5411,7 +5356,7 @@ def callback_handler(call):
         acc_id = parts[2]
         sub_id = parts[3]
         
-        db = read_db_json()
+        db = read_sqlite_db()
         accounts = db.get("colleague_accounts", [])
         acc = next((a for a in accounts if a["id"] == acc_id), None)
         
@@ -5469,7 +5414,7 @@ def callback_handler(call):
             except Exception as e:
                 print(f"Error calling local toggle API: {e}")
             
-            db = read_db_json()
+            db = read_sqlite_db()
             keys = db.get("subscription_keys", [])
             sub_idx = next((i for i, k in enumerate(keys) if k["id"] == sub_id), -1)
             if sub_idx != -1:
@@ -5571,7 +5516,7 @@ def callback_handler(call):
             
             keys.pop(sub_idx)
             db["subscription_keys"] = keys
-            write_db_json(db)
+            write_sqlite_db(db)
             
             bot.edit_message_text("✅ کاربر با موفقیت حذف شد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
             show_colleague_panel(call.message, acc)
@@ -5613,7 +5558,7 @@ def callback_handler(call):
     if call.data.startswith("buy_colleague_"):
         bot.answer_callback_query(call.id)
         package_id = call.data.replace("buy_colleague_", "")
-        db = read_db_json()
+        db = read_sqlite_db()
         package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
         
         if not package:
@@ -5666,7 +5611,7 @@ def callback_handler(call):
         package_id = req["package_id"]
         action = req.get("action", "buy")
         
-        db = read_db_json()
+        db = read_sqlite_db()
         package = next((p for p in db.get("colleague_packages", []) if p["id"] == package_id), None)
         if not package:
             bot.send_message(tg_id, "❌ بسته مورد نظر یافت نشد.", reply_markup=get_custom_keyboard())
@@ -5759,7 +5704,7 @@ def callback_handler(call):
         bot.answer_callback_query(call.id)
         server_id = call.data.split("_", 1)[1]
         
-        db = read_db_json()
+        db = read_sqlite_db()
         cfg = get_config()
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
         
@@ -5857,7 +5802,7 @@ def callback_handler(call):
                 else:
                     category_name = data_stripped
         
-        db = read_db_json()
+        db = read_sqlite_db()
         db_plans = db.get("vpn_plans", [])
         
         plans_data = []
@@ -5957,7 +5902,7 @@ def callback_handler(call):
             price = int(parts[6])
             
         tg_id = call.from_user.id
-        db = read_db_json()
+        db = read_sqlite_db()
         cfg = get_config()
         
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
@@ -6045,7 +5990,7 @@ def callback_handler(call):
                     print("[buycust_pay] Failed to get sub_link from add_vpn_client_api")
                     if not cfg.get("SIMULATOR_MODE"):
                         if not is_privileged:
-                            fresh_db = read_db_json()
+                            fresh_db = read_sqlite_db()
                             fresh_user = next((u for u in fresh_db["users"] if u["userId"] == tg_id), None)
                             current_bal = float(fresh_user.get("walletBalance", 0.0)) if fresh_user else 0.0
                             refunded_bal = current_bal + float(price)
@@ -6173,7 +6118,7 @@ def callback_handler(call):
             price = int(parts[4])
         
         tg_id = call.from_user.id
-        db = read_db_json()
+        db = read_sqlite_db()
         subscription_keys = db.get("subscription_keys", [])
         k = next((sub for sub in subscription_keys if sub["id"] == target_sub_id and sub["userId"] == tg_id), None)
         
@@ -6284,7 +6229,7 @@ def callback_handler(call):
             if sub_link:
                 k['subLink'] = sub_link
                 
-            write_db_json(db)
+            write_sqlite_db(db)
             
             notify_admins_of_purchase(tg_id, "تمدید اشتراک دلخواه (کیف پول)", f"افزودن: {gb}GB / {days} روز برای سرویس {client_name}", price, target_sub_id)
             
@@ -6320,7 +6265,7 @@ def callback_handler(call):
             
         tg_id = call.fromuser.id if hasattr(call, "fromuser") else call.from_user.id
         
-        db = read_db_json()
+        db = read_sqlite_db()
         db_plans = db.get("vpn_plans", [])
         db_plan = next((dp for dp in db_plans if dp["id"] == plan_id), None)
         
@@ -6459,7 +6404,7 @@ def callback_handler(call):
         
     elif call.data.startswith("vless_link_"):
         sub_id = call.data.replace("vless_link_", "")
-        db = read_db_json()
+        db = read_sqlite_db()
         sub = next((s for s in db.get("subscription_keys", []) if s["id"] == sub_id), None)
         
         if sub and sub.get("subLink"):
@@ -6917,7 +6862,7 @@ def process_colleague_login_username(message):
         start_cmd(message)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     accounts = db.get("colleague_accounts", [])
     acc = next((a for a in accounts if a["username"] == text), None)
     
@@ -6965,7 +6910,7 @@ def process_col_search_user(message, acc):
         show_colleague_panel_msg(message, acc)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     keys = db.get("subscription_keys", [])
     col_keys = [k for k in keys if k.get("colleagueAccountId") == acc["id"]]
     
@@ -7030,7 +6975,7 @@ def process_col_create_gb(message, acc, name):
         return
         
     # Enforce matched package minimum GB limit
-    db = read_db_json()
+    db = read_sqlite_db()
     pkgs = db.get("colleague_packages", [])
     matched_pkg = next((p for p in pkgs if p.get("id") == acc.get("packageId")), None)
     min_gb = 1
@@ -7062,7 +7007,7 @@ def process_col_create_days(message, acc, name, gb):
         bot.register_next_step_handler(msg, process_col_create_days, acc, name, gb)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     accounts = db.get("colleague_accounts", [])
     acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc["id"]), -1)
     
@@ -7117,11 +7062,11 @@ def process_col_create_days(message, acc, name, gb):
     bot.send_message(message.chat.id, f"لطفاً سرور مورد نظر برای ساخت کانفیگ همکار را انتخاب کنید:\nنام کاربری: {name}\nحجم: {gb} گیگابایت\nاعتبار: {days} روز", reply_markup=markup)
     
     # Save temporary name in db to be retrieved in callback
-    db = read_db_json()
+    db = read_sqlite_db()
     if "pending_col_creations" not in db:
         db["pending_col_creations"] = {}
     db["pending_col_creations"][acc['id']] = {"name": name, "gb": gb, "days": days}
-    write_db_json(db)
+    write_sqlite_db(db)
     return
     
     if not sub_link:
@@ -7176,7 +7121,7 @@ def process_col_create_days(message, acc, name, gb):
         db["subscription_keys"] = []
     db["subscription_keys"].append(sub)
     
-    write_db_json(db)
+    write_sqlite_db(db)
     
     log_action(
         message.from_user.id, 
@@ -7258,7 +7203,7 @@ def process_col_renew_days(message, acc, sub, add_gb):
         bot.register_next_step_handler(msg, process_col_renew_days, acc, sub, add_gb)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     accounts = db.get("colleague_accounts", [])
     acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc["id"]), -1)
     
@@ -7327,7 +7272,7 @@ def process_col_renew_days(message, acc, sub, add_gb):
             live_acc["usedTrafficGb"] = used
             accounts[acc_idx] = live_acc
             db["colleague_accounts"] = accounts
-            write_db_json(db)
+            write_sqlite_db(db)
             bot.send_message(message.chat.id, "❌ خطا در اتصال به سرور جهت انجام عملیات تمدید.\n\n✅ حجم کسر شده بازگردانده شد.", reply_markup=get_custom_keyboard())
             show_colleague_panel_msg(message, live_acc)
             return
@@ -7339,7 +7284,7 @@ def process_col_renew_days(message, acc, sub, add_gb):
             
         keys[sub_idx] = live_sub
         db["subscription_keys"] = keys
-        write_db_json(db)
+        write_sqlite_db(db)
         
         bot.send_message(message.chat.id, "✅ تمدید کاربر با موفقیت انجام شد.", reply_markup=get_custom_keyboard())
         
@@ -7360,7 +7305,7 @@ def process_colleague_prefix(message, package):
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     if any(a.get("prefix") and a.get("prefix").lower() == text.lower() for a in db.get("colleague_accounts", [])):
         msg = bot.send_message(message.chat.id, "❌ این پیشوند (Prefix) قبلاً توسط شخص دیگری ثبت شده است! لطفا یک پیشوند دیگر وارد کنید:", reply_markup=get_cancel_keyboard())
         bot.register_next_step_handler(msg, process_colleague_prefix, package)
@@ -7391,7 +7336,7 @@ def process_colleague_pkg_token(message, package, prefix_text):
         bot.register_next_step_handler(msg, process_colleague_pkg_token, package, prefix_text)
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     if any(a.get("recoveryToken") == token for a in db.get("colleague_accounts", [])):
         msg = bot.send_message(message.chat.id, "❌ این توکن قبلاً توسط شخص دیگری ثبت شده است! لطفاً یک توکن اختصاصی دیگر وارد کنید:", reply_markup=get_cancel_keyboard())
         bot.register_next_step_handler(msg, process_colleague_pkg_token, package, prefix_text)
@@ -7490,7 +7435,7 @@ def finalize_colleague_purchase(tg_id, req, package, message=None):
         from datetime import datetime
         
         action = req.get("action", "buy")
-        db = read_db_json()
+        db = read_sqlite_db()
         
         if action == "buy":
             prefix_text = req.get("prefix", "")
@@ -7517,7 +7462,7 @@ def finalize_colleague_purchase(tg_id, req, package, message=None):
             }
             
             db["colleague_accounts"].append(new_acc)
-            write_db_json(db)
+            write_sqlite_db(db)
             
             tg_user = ""
             try:
@@ -7554,7 +7499,7 @@ def finalize_colleague_purchase(tg_id, req, package, message=None):
                 acc["packageTitle"] = package["title"]
                 accounts[acc_idx] = acc
                 db["colleague_accounts"] = accounts
-                write_db_json(db)
+                write_sqlite_db(db)
                 
                 tg_user = str(tg_id)
                 log_action(tg_id, tg_user, "renew_colleague_package", f"بسته همکار تمدید شد. افزایش حجم: {package['trafficGb']} GB")
@@ -7601,12 +7546,12 @@ def process_colleague_login_password(message, acc):
         
     if not acc.get("userId"):
         acc["userId"] = tg_id
-        db = read_db_json()
+        db = read_sqlite_db()
         for idx, a in enumerate(db.get("colleague_accounts", [])):
             if a["id"] == acc["id"]:
                 db["colleague_accounts"][idx]["userId"] = tg_id
                 break
-        write_db_json(db)
+        write_sqlite_db(db)
 
     bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود.", reply_markup=types.ReplyKeyboardRemove())
     show_colleague_panel_msg(message, acc)
@@ -7630,10 +7575,10 @@ def process_ticket_message(message):
     import random
     from datetime import datetime
 
-    # Create ticket in JSON database for dashboard visibility
+    # Create ticket in SQLite database for dashboard visibility
     ticket_id = f"TKB-{random.randint(1000, 9999)}"
     try:
-        db = read_db_json()
+        db = read_sqlite_db()
         if "tickets" not in db or not isinstance(db["tickets"], list):
             db["tickets"] = []
         
@@ -7654,7 +7599,7 @@ def process_ticket_message(message):
             ]
         }
         db["tickets"].append(new_ticket)
-        write_db_json(db)
+        write_sqlite_db(db)
     except Exception as dberr:
         print("Error saving ticket to db:", dberr)
 
@@ -7718,7 +7663,7 @@ def show_ticket_main_menu(chat_id):
     bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
 
 def show_user_tickets_list(chat_id, user_id, message_id=None):
-    db = read_db_json()
+    db = read_sqlite_db()
     tickets = db.get("tickets", [])
     
     # Filter tickets for this user
@@ -7766,7 +7711,7 @@ def show_user_tickets_list(chat_id, user_id, message_id=None):
         bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=markup)
 
 def show_ticket_detail(chat_id, ticket_id, message_id=None):
-    db = read_db_json()
+    db = read_sqlite_db()
     tickets = db.get("tickets", [])
     ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
     
@@ -7854,7 +7799,7 @@ def process_user_reply_message(message, ticket_id):
         bot.register_next_step_handler(msg, process_user_reply_message, ticket_id)
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     tickets = db.get("tickets", [])
     ticket_idx = next((i for i, t in enumerate(tickets) if t.get("id") == ticket_id), -1)
 
@@ -7872,7 +7817,7 @@ def process_user_reply_message(message, ticket_id):
     tickets[ticket_idx]["updatedAt"] = datetime.now().isoformat()
     
     db["tickets"] = tickets
-    write_db_json(db)
+    write_sqlite_db(db)
 
     # Notify admins about user reply
     cfg = get_config()
@@ -7916,7 +7861,7 @@ def process_gift_code(message):
         start_cmd(message)
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     gift_codes = db.get("gift_codes", [])
     
     code_obj = next((c for c in gift_codes if c["code"] == text), None)
@@ -7962,7 +7907,7 @@ def process_gift_code(message):
     if user:
         user["walletBalance"] = user.get("walletBalance", 0) + code_obj["amount"]
         
-    write_db_json(db)
+    write_sqlite_db(db)
     
     log_action(
         tg_id, 
@@ -8049,7 +7994,7 @@ def handle_master_media_upload(message):
     # If they are NOT in a purchase flow, give them the File ID instantly!
     if is_owner or is_admin:
         p_plan, _, _, _, _, _ = get_user_pending_purchase(tg_id)
-        db_p = read_db_json()
+        db_p = read_sqlite_db()
         user_p = next((u for u in db_p.get("users", []) if u["userId"] == tg_id), None)
         has_pending_charge = user_p.get("pendingChargeAmount") if user_p else None
         
@@ -8122,7 +8067,7 @@ def handle_receipt_upload(message):
         if pending_plan_id in ["custom_vol", "custom_renew"] and p_price:
             extracted_amount = int(p_price)
         else:
-            db = read_db_json()
+            db = read_sqlite_db()
             db_plans = db.get("vpn_plans", [])
             db_plan = next((dp for dp in db_plans if dp["id"] == pending_plan_id), None)
             extracted_amount = int(db_plan["price"]) if db_plan else 0
@@ -8158,8 +8103,8 @@ def handle_receipt_upload(message):
             img_base64 = base64.b64encode(response.content).decode('utf-8')
             receipt_data_uri = f"data:image/jpeg;base64,{img_base64}"
             
-            # Save transaction to JSON database
-            db = read_db_json()
+            # Save transaction to SQLite database
+            db = read_sqlite_db()
             if "transactions" not in db:
                 db["transactions"] = []
                 
@@ -8197,7 +8142,7 @@ def handle_receipt_upload(message):
                     new_tx["customDays"] = p_days
             
             db["transactions"].insert(0, new_tx)
-            write_db_json(db)
+            write_sqlite_db(db)
             
             # Clear pending purchase if it exists
             if pending_plan_id:
@@ -8251,7 +8196,7 @@ def process_colleague_recover_token(message):
         bot.send_message(message.chat.id, "عملیات بازیابی حساب همکار لغو شد.", reply_markup=get_custom_keyboard())
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     accounts = db.get("colleague_accounts", [])
     
     # search for token in colleague accounts
@@ -8291,7 +8236,7 @@ def process_colleague_change_password_pass(message, acc_id, new_user):
         bot.send_message(message.chat.id, "عملیات تغییر مشخصات لغو شد.", reply_markup=get_custom_keyboard())
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     accounts = db.get("colleague_accounts", [])
     acc_idx = next((i for i, a in enumerate(accounts) if a["id"] == acc_id), None)
     
@@ -8302,12 +8247,12 @@ def process_colleague_change_password_pass(message, acc_id, new_user):
     accounts[acc_idx]["username"] = new_user
     accounts[acc_idx]["password"] = new_pass
     db["colleague_accounts"] = accounts
-    write_db_json(db)
+    write_sqlite_db(db)
     
     bot.send_message(message.chat.id, f"✅ <b>مشخصات حساب شما تغییر کرد:</b>\n\n👤 <b>یوزرنیم جدید:</b> <code>{new_user}</code>\n🔑 <b>رمز عبور جدید:</b> <code>{new_pass}</code>\n\nجهت ورود به پنل از منوی همکاران استفاده کنید.", parse_mode="HTML", reply_markup=get_custom_keyboard())
 
 def get_custom_pricing_limits(server_id):
-    db = read_db_json()
+    db = read_sqlite_db()
     settings_data = db.get("settings", {})
     import json
     try:
@@ -8449,7 +8394,7 @@ def process_custom_vol_username(message, server_id, gb, days):
 def send_final_custom_purchase_message(message, server_id, username_input, gb, days, applied_promo=None, discount_amount=0):
     tg_id = message.chat.id if hasattr(message, 'chat') else message.from_user.id
     cfg = get_config()
-    db = read_db_json()
+    db = read_sqlite_db()
     settings_data = db.get("settings", {})
     
     import json
@@ -8539,7 +8484,7 @@ def process_custom_vol_promo_input(message, server_id, username_input, gb, days)
         bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
         return
 
-    db = read_db_json()
+    db = read_sqlite_db()
     promo_codes = db.get("promo_codes", [])
     promo = next((p for p in promo_codes if p["code"].upper() == code_text), None)
     
@@ -8636,7 +8581,7 @@ def process_renew_gb(message, target_sub_id):
         main_menu_message(message)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
     server_id = k.get("serverId") if k else None
         
@@ -8672,7 +8617,7 @@ def process_renew_days(message, target_sub_id, gb):
         main_menu_message(message)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
     server_id = k.get("serverId") if k else None
         
@@ -8693,7 +8638,7 @@ def process_renew_days(message, target_sub_id, gb):
         bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
         return
         
-    db = read_db_json()
+    db = read_sqlite_db()
     k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
     if not k:
         bot.send_message(message.chat.id, "❌ خطا: اشتراک یافت نشد.")
@@ -8766,7 +8711,7 @@ def process_renew_days(message, target_sub_id, gb):
     
     bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
 
-# Initialize JSON DB on startup
+# Initialize SQLite DB on startup
 if __name__ == "__main__":
     # Terminate any duplicate bot processes to avoid polling conflict & delayed updates
     import signal
@@ -8791,7 +8736,7 @@ if __name__ == "__main__":
     except Exception as pid_err:
         print(f"[Daltoon Bot PID Write Error]: {pid_err}")
 
-    read_db_json()
+    read_sqlite_db()
     print("Daltoon Telegram Bot core fully online on JSON synchronization database...")
     
     # Flag to ensure startup sync only happens once per clean process start
