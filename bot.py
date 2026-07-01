@@ -914,7 +914,7 @@ def get_qr_code_url(text):
                 try:
                     import json
                     config = json.loads(qr_template)
-                    if qr_color:
+                    if qr_color and qr_color.lower() != "none":
                         config["bodyColor"] = qr_color if qr_color.startswith("#") else f"#{qr_color}"
                     if qr_logo:
                         config["logo"] = qr_logo
@@ -928,11 +928,15 @@ def get_qr_code_url(text):
             url = qr_template
             url = url.replace("{text}", encoded_text)
             url = url.replace("{logo_url}", urllib.parse.quote(qr_logo) if qr_logo else "")
-            url = url.replace("{color}", urllib.parse.quote(qr_color) if qr_color else "")
+            color_val = qr_color if qr_color and qr_color.lower() != "none" else ""
+            url = url.replace("{color}", urllib.parse.quote(color_val) if color_val else "")
             return url
             
         # Default beautiful QuickChart QR Code
-        color_param = qr_color.lstrip('#') if qr_color else "111827"
+        color_param = "111827"
+        if qr_color and qr_color.lower() != "none":
+            color_param = qr_color.lstrip('#')
+            
         logo_param = urllib.parse.quote(qr_logo) if qr_logo else ""
         
         url = f"https://quickchart.io/qr?text={encoded_text}&width=350&height=350&color={color_param}&margin=2"

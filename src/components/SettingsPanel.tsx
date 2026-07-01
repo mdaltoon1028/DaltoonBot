@@ -1495,7 +1495,7 @@ export default function SettingsPanel({
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="#111827"
+                placeholder="#111827 (Leave empty or type 'none' to use JSON template color)"
                 className="flex-1 bg-[#111827] border border-gray-750 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
                 value={qrColor}
                 onChange={(e) => setQrColor(e.target.value)}
@@ -1504,12 +1504,13 @@ export default function SettingsPanel({
               <input
                 type="color"
                 className="w-10 h-10 bg-[#111827] border border-gray-750 rounded-lg p-1 cursor-pointer"
-                value={qrColor.startsWith("#") ? qrColor : `#${qrColor}` || "#111827"}
+                value={/^#[0-9A-Fa-f]{6}$/.test(qrColor.startsWith("#") ? qrColor : `#${qrColor}`) ? (qrColor.startsWith("#") ? qrColor : `#${qrColor}`) : "#111827"}
                 onChange={(e) => setQrColor(e.target.value)}
+                disabled={qrColor.toLowerCase() === "none"}
               />
             </div>
             <p className="text-[10px] text-gray-500">
-              {lang === "fa" ? "پیشنهاد: #111827 (مشکی لوکس)، #2563eb (آبی)، #8b5cf6 (بنفش)" : "Recommended: #111827 (Black), #2563eb (Blue), #8b5cf6 (Purple)"}
+              {lang === "fa" ? "برای استفاده از رنگ قالب JSON کلمه none را بنویسید یا کادر را خالی بگذارید." : "Type 'none' or leave empty to use the JSON template's original color."}
             </p>
           </div>
 
