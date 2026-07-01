@@ -990,6 +990,51 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
     
     if login_xui(server_id) and base_url:
         session = get_session()
+        
+        # Prefetch hosts and inbounds to replace domain names/overrides in links returned by any endpoint
+        hosts_by_inbound = {}
+        inbounds_by_port = {}
+        inbounds_by_remark = {}
+        inbounds_by_id = {}
+        inb_list_raw = []
+        
+        try:
+            url_hosts = f"{base_url}/panel/api/hosts/list"
+            res_hosts = session.get(url_hosts, timeout=10, verify=False)
+            if res_hosts.status_code == 200:
+                hosts_data = res_hosts.json()
+                if hosts_data.get("success") and isinstance(hosts_data.get("obj"), list):
+                    for h in hosts_data["obj"]:
+                        inb_id_val = h.get("inboundId")
+                        if inb_id_val is not None:
+                            if inb_id_val not in hosts_by_inbound:
+                                hosts_by_inbound[inb_id_val] = []
+                            hosts_by_inbound[inb_id_val].append(h)
+                    print(f"[get_client_all_links] Successfully prefetched {len(hosts_data['obj'])} hosts.")
+        except Exception as ex_hosts:
+            print(f"[get_client_all_links Prefetch Hosts Error] {ex_hosts}")
+
+        try:
+            url_list = f"{base_url}/panel/api/inbounds/list"
+            res_inb = session.get(url_list, timeout=20, verify=False)
+            inb_data = res_inb.json()
+            if inb_data.get("success") and isinstance(inb_data.get("obj"), list):
+                inb_list_raw = inb_data["obj"]
+                import json
+                for item in inb_list_raw:
+                    ib_id = item.get("id")
+                    ib_port = item.get("port")
+                    ib_remark = item.get("remark")
+                    if ib_id is not None:
+                        inbounds_by_id[ib_id] = item
+                    if ib_port is not None:
+                        inbounds_by_port[ib_port] = item
+                    if ib_remark:
+                        inbounds_by_remark[ib_remark.lower().strip()] = item
+                print(f"[get_client_all_links] Successfully prefetched {len(inb_list_raw)} inbounds.")
+        except Exception as ex_inb:
+            print(f"[get_client_all_links Prefetch Inbounds Error] {ex_inb}")
+
         # 1. Try links by Email first
         try:
             url = f"{base_url}/panel/api/clients/links/{client_name}"
@@ -1075,28 +1120,7 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
         # 3. Fallback: Parse inbounds statically and construct VLESS/VMESS/Trojan links if endpoints returned nothing but login was successful
         if not links:
             try:
-                # Fetch hosts first if available (v3.4+ Sanaei)
-                hosts_by_inbound = {}
-                try:
-                    url_hosts = f"{base_url}/panel/api/hosts/list"
-                    res_hosts = session.get(url_hosts, timeout=10, verify=False)
-                    if res_hosts.status_code == 200:
-                        hosts_data = res_hosts.json()
-                        if hosts_data.get("success") and isinstance(hosts_data.get("obj"), list):
-                            for h in hosts_data["obj"]:
-                                inb_id_val = h.get("inboundId")
-                                if inb_id_val is not None:
-                                    if inb_id_val not in hosts_by_inbound:
-                                        hosts_by_inbound[inb_id_val] = []
-                                    hosts_by_inbound[inb_id_val].append(h)
-                            print(f"[get_client_all_links] Successfully fetched {len(hosts_data['obj'])} hosts from separate endpoint.")
-                except Exception as ex_hosts:
-                    print(f"[get_client_all_links Hosts Fetch Error] {ex_hosts}")
-
-                url_list = f"{base_url}/panel/api/inbounds/list"
-                res_inb = session.get(url_list, timeout=20, verify=False)
-                inb_data = res_inb.json()
-                if inb_data.get("success") and isinstance(inb_data.get("obj"), list):
+                if inb_list_raw:
                     import json
                     import base64
                     domain = base_url.split("://")[-1].split(":")[0]  # default domain of the panel
@@ -1108,7 +1132,7 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                                 domain = parsed_sub.hostname
                         except Exception as parse_ex:
                             print(f"[get_client_all_links Domain Parsing Error] {parse_ex}")
-                    for item in inb_data["obj"]:
+                    for item in inb_list_raw:
                         protocol = item.get("protocol", "").lower()
                         if protocol not in ["vless", "vmess", "trojan"]:
                             continue
@@ -1350,6 +1374,162 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                     print(f"[get_client_all_links] Reconstructed {len(links)} links statically from inbounds list.")
             except Exception as e:
                 print(f"[get_client_all_links static reconstruction error] {e}")
+
+        # 3.5 Global post-processing: If we retrieved any links, but we have hosts/overrides configured for their inbounds,
+        # replace the domains/ports/overrides in those links with the host settings.
+        if links:
+            processed_links = []
+            for link in links:
+                if link.startswith("vmess://"):
+                    try:
+                        b64_data = link[8:]
+                        # Add padding if needed
+                        padding = len(b64_data) % 4
+                        if padding:
+                            b64_data += "=" * (4 - padding)
+                        import json
+                        import base64
+                        decoded = base64.b64decode(b64_data).decode('utf-8', errors='ignore')
+                        vmess_obj = json.loads(decoded)
+                        
+                        vmess_port = None
+                        try:
+                            vmess_port = int(vmess_obj.get("port"))
+                        except:
+                            pass
+                            
+                        vmess_ps = vmess_obj.get("ps", "")
+                        
+                        # Match inbound
+                        matching_inbound = None
+                        if vmess_port is not None and vmess_port in inbounds_by_port:
+                            matching_inbound = inbounds_by_port[vmess_port]
+                        else:
+                            for r_key, ib in inbounds_by_remark.items():
+                                if r_key in vmess_ps.lower():
+                                    matching_inbound = ib
+                                    break
+                                    
+                        if matching_inbound:
+                            ib_id = matching_inbound.get("id")
+                            ib_hosts = hosts_by_inbound.get(ib_id, [])
+                            active_hosts = [h for h in ib_hosts if h.get("enable") is not False]
+                            
+                            if active_hosts:
+                                for h in active_hosts:
+                                    h_address = h.get("address") or h.get("dest")
+                                    h_port = h.get("port")
+                                    if not h_address:
+                                        continue
+                                    try:
+                                        h_port = int(h_port) if h_port is not None else vmess_port
+                                    except:
+                                        h_port = vmess_port if vmess_port is not None else 80
+                                        
+                                    h_security = h.get("security")
+                                    h_sni = h.get("sni")
+                                    h_remark = h.get("remark")
+                                    
+                                    new_obj = dict(vmess_obj)
+                                    new_obj["add"] = h_address
+                                    new_obj["port"] = h_port
+                                    
+                                    if h_security and h_security != "same":
+                                        new_obj["tls"] = "tls" if h_security in ["tls", "reality"] else "none"
+                                        
+                                    if h_sni:
+                                        new_obj["sni"] = h_sni
+                                        if new_obj.get("net") == "ws":
+                                            new_obj["host"] = h_sni
+                                            
+                                    if h_remark:
+                                        new_obj["ps"] = f"{h_remark}-{vmess_ps}"
+                                        
+                                    json_str = json.dumps(new_obj, ensure_ascii=False)
+                                    b64_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+                                    processed_links.append(f"vmess://{b64_str}")
+                                continue
+                        processed_links.append(link)
+                    except Exception as vmess_ex:
+                        print(f"[get_client_all_links Post VMESS Error] {vmess_ex}")
+                        processed_links.append(link)
+                else:
+                    # Non-vmess links (vless, trojan, ss, etc.)
+                    import urllib.parse
+                    try:
+                        parsed_url = urllib.parse.urlparse(link)
+                        netloc = parsed_url.netloc
+                        if "@" in netloc:
+                            credential, host_port = netloc.split("@", 1)
+                        else:
+                            credential = ""
+                            host_port = netloc
+                        
+                        link_port = None
+                        link_domain = host_port
+                        if ":" in host_port:
+                            link_domain, port_str = host_port.rsplit(":", 1)
+                            try:
+                                link_port = int(port_str)
+                            except:
+                                pass
+                        
+                        fragment = urllib.parse.unquote(parsed_url.fragment or "")
+                        matching_inbound = None
+                        
+                        if link_port is not None and link_port in inbounds_by_port:
+                            matching_inbound = inbounds_by_port[link_port]
+                        else:
+                            for r_key, ib in inbounds_by_remark.items():
+                                if r_key in fragment.lower():
+                                    matching_inbound = ib
+                                    break
+                        
+                        if matching_inbound:
+                            ib_id = matching_inbound.get("id")
+                            ib_hosts = hosts_by_inbound.get(ib_id, [])
+                            active_hosts = [h for h in ib_hosts if h.get("enable") is not False]
+                            
+                            if active_hosts:
+                                for h in active_hosts:
+                                    h_address = h.get("address") or h.get("dest")
+                                    h_port = h.get("port")
+                                    if not h_address:
+                                        continue
+                                    try:
+                                        h_port = int(h_port) if h_port is not None else link_port
+                                    except:
+                                        h_port = link_port if link_port is not None else 80
+                                        
+                                    h_security = h.get("security")
+                                    h_sni = h.get("sni")
+                                    h_remark = h.get("remark")
+                                    
+                                    new_host_port = f"{h_address}:{h_port}"
+                                    new_netloc = f"{credential}@{new_host_port}" if credential else new_host_port
+                                    
+                                    query_params = urllib.parse.parse_qs(parsed_url.query)
+                                    if h_security and h_security != "same":
+                                        query_params["security"] = [h_security]
+                                    if h_sni:
+                                        query_params["sni"] = [h_sni]
+                                        if "host" in query_params or parsed_url.scheme in ["vless", "trojan", "vmess"]:
+                                            query_params["host"] = [h_sni]
+                                            
+                                    new_query = urllib.parse.urlencode(query_params, doseq=True)
+                                    new_fragment = fragment
+                                    if h_remark:
+                                        new_fragment = f"{h_remark}-{fragment}"
+                                        
+                                    new_url = parsed_url._replace(netloc=new_netloc, query=new_query, fragment=new_fragment)
+                                    processed_links.append(urllib.parse.urlunparse(new_url))
+                                continue
+                        processed_links.append(link)
+                    except Exception as parse_ex:
+                        print(f"[get_client_all_links Post non-VMESS Error] {parse_ex} for link {link}")
+                        processed_links.append(link)
+                        
+            links = processed_links
 
     # 4. Semi-dynamic fallback based on XUI_URL
     if not links:
