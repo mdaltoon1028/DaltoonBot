@@ -1085,83 +1085,129 @@ def get_client_all_links(client_name, client_uuid, sub_link=None, server_id=None
                         security = stream_settings.get("security", "none")
                         network = stream_settings.get("network", "tcp")
                         
-                        if protocol == "vless" or protocol == "trojan":
-                            # Standard format: protocol://id@domain:port?security=...&type=...#remark
-                            paras = []
-                            paras.append(f"security={security}")
-                            paras.append(f"type={network}")
-                            
-                            if security == "reality":
-                                r_settings = stream_settings.get("realitySettings", {})
-                                sni = r_settings.get("serverNames", ["google.com"])[0]
-                                pbk = r_settings.get("publicKey", "")
-                                sid = r_settings.get("shortIds", [""])[0]
-                                paras.append(f"sni={sni}")
-                                if pbk:
-                                    paras.append(f"pbk={pbk}")
-                                if sid:
-                                    paras.append(f"sid={sid}")
-                                paras.append("fp=chrome")
-                            elif security == "tls":
-                                t_settings = stream_settings.get("tlsSettings", {})
-                                sni = t_settings.get("serverName", "")
-                                if sni:
-                                    paras.append(f"sni={sni}")
-                                    
-                            if network == "ws":
-                                ws_settings = stream_settings.get("wsSettings", {})
-                                path = ws_settings.get("path", "/")
-                                paras.append(f"path={path}")
-                            elif network == "grpc":
-                                grpc_settings = stream_settings.get("grpcSettings", {})
-                                service_name = grpc_settings.get("serviceName", "")
-                                if service_name:
-                                    paras.append(f"serviceName={service_name}")
-                                    
-                            query_str = "&".join(paras)
-                            label = f"{remark}-{client_name}"
-                            link = f"{protocol}://{client_id_or_password}@{domain}:{port}?{query_str}#{label}"
-                            links.append(link)
-                            
-                        elif protocol == "vmess":
-                            vmess_obj = {
-                                "v": "2",
-                                "ps": f"{remark}-{client_name}",
-                                "add": domain,
-                                "port": port,
-                                "id": client_uuid,
-                                "aid": "0",
-                                "scy": "auto",
-                                "net": network,
-                                "type": "none",
-                                "host": "",
-                                "path": "",
-                                "tls": "tls" if security == "tls" else "none",
-                                "sni": "",
-                                "fp": ""
-                            }
-                            if network == "ws":
-                                ws_settings = stream_settings.get("wsSettings", {})
-                                vmess_obj["path"] = ws_settings.get("path", "/")
-                                headers = ws_settings.get("headers", {})
-                                if headers:
-                                    vmess_obj["host"] = headers.get("Host", "")
-                            elif network == "grpc":
-                                grpc_settings = stream_settings.get("grpcSettings", {})
-                                vmess_obj["path"] = grpc_settings.get("serviceName", "")
-                            if security in ["tls", "reality"]:
-                                vmess_obj["tls"] = "tls"
+                        # Parse externalProxy if present in the inbound or its streamSettings
+                        ext_proxies = []
+                        ext_proxy_raw = item.get("externalProxy", "")
+                        if not ext_proxy_raw and isinstance(stream_settings, dict):
+                            ext_proxy_raw = stream_settings.get("externalProxy", "")
+                        if ext_proxy_raw:
+                            try:
+                                if isinstance(ext_proxy_raw, str):
+                                    ext_proxies = json.loads(ext_proxy_raw)
+                                elif isinstance(ext_proxy_raw, list):
+                                    ext_proxies = ext_proxy_raw
+                            except Exception as e:
+                                print(f"[get_client_all_links] Failed to parse externalProxy JSON: {e}")
+
+                        targets = []
+                        if isinstance(ext_proxies, list) and len(ext_proxies) > 0:
+                            for proxy in ext_proxies:
+                                if isinstance(proxy, dict):
+                                    dest = proxy.get("dest")
+                                    p_port = proxy.get("port")
+                                    if dest:
+                                        try:
+                                            p_port = int(p_port) if p_port is not None else port
+                                        except:
+                                            p_port = port
+                                        targets.append((dest, p_port))
+
+                        if not targets and isinstance(ext_proxy_raw, str) and ext_proxy_raw.strip():
+                            # Maybe simple string "host:port" or "host"
+                            parts = ext_proxy_raw.replace("\n", ",").replace(";", ",").split(",")
+                            for part in parts:
+                                part = part.strip()
+                                if part:
+                                    if ":" in part:
+                                        try:
+                                            d, p = part.rsplit(":", 1)
+                                            targets.append((d, int(p)))
+                                        except:
+                                            targets.append((part, port))
+                                    else:
+                                        targets.append((part, port))
+
+                        if not targets:
+                            targets.append((domain, port))
+
+                        for target_domain, target_port in targets:
+                            if protocol == "vless" or protocol == "trojan":
+                                # Standard format: protocol://id@domain:port?security=...&type=...#remark
+                                paras = []
+                                paras.append(f"security={security}")
+                                paras.append(f"type={network}")
+                                
                                 if security == "reality":
                                     r_settings = stream_settings.get("realitySettings", {})
-                                    vmess_obj["sni"] = r_settings.get("serverNames", ["google.com"])[0]
-                                else:
+                                    sni = r_settings.get("serverNames", ["google.com"])[0]
+                                    pbk = r_settings.get("publicKey", "")
+                                    sid = r_settings.get("shortIds", [""])[0]
+                                    paras.append(f"sni={sni}")
+                                    if pbk:
+                                        paras.append(f"pbk={pbk}")
+                                    if sid:
+                                        paras.append(f"sid={sid}")
+                                    paras.append("fp=chrome")
+                                elif security == "tls":
                                     t_settings = stream_settings.get("tlsSettings", {})
-                                    vmess_obj["sni"] = t_settings.get("serverName", "")
-                            
-                            json_str = json.dumps(vmess_obj, ensure_ascii=False)
-                            b64_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-                            link = f"vmess://{b64_str}"
-                            links.append(link)
+                                    sni = t_settings.get("serverName", "")
+                                    if sni:
+                                        paras.append(f"sni={sni}")
+                                        
+                                if network == "ws":
+                                    ws_settings = stream_settings.get("wsSettings", {})
+                                    path = ws_settings.get("path", "/")
+                                    paras.append(f"path={path}")
+                                elif network == "grpc":
+                                    grpc_settings = stream_settings.get("grpcSettings", {})
+                                    service_name = grpc_settings.get("serviceName", "")
+                                    if service_name:
+                                        paras.append(f"serviceName={service_name}")
+                                        
+                                query_str = "&".join(paras)
+                                label = f"{remark}-{client_name}"
+                                link = f"{protocol}://{client_id_or_password}@{target_domain}:{target_port}?{query_str}#{label}"
+                                links.append(link)
+                                
+                            elif protocol == "vmess":
+                                vmess_obj = {
+                                    "v": "2",
+                                    "ps": f"{remark}-{client_name}",
+                                    "add": target_domain,
+                                    "port": target_port,
+                                    "id": client_uuid,
+                                    "aid": "0",
+                                    "scy": "auto",
+                                    "net": network,
+                                    "type": "none",
+                                    "host": "",
+                                    "path": "",
+                                    "tls": "tls" if security == "tls" else "none",
+                                    "sni": "",
+                                    "fp": ""
+                                }
+                                if network == "ws":
+                                    ws_settings = stream_settings.get("wsSettings", {})
+                                    vmess_obj["path"] = ws_settings.get("path", "/")
+                                    headers = ws_settings.get("headers", {})
+                                    if headers:
+                                        vmess_obj["host"] = headers.get("Host", "")
+                                elif network == "grpc":
+                                    grpc_settings = stream_settings.get("grpcSettings", {})
+                                    vmess_obj["path"] = grpc_settings.get("serviceName", "")
+                                if security in ["tls", "reality"]:
+                                    vmess_obj["tls"] = "tls"
+                                    if security == "reality":
+                                        r_settings = stream_settings.get("realitySettings", {})
+                                        vmess_obj["sni"] = r_settings.get("serverNames", ["google.com"])[0]
+                                    else:
+                                        t_settings = stream_settings.get("tlsSettings", {})
+                                        vmess_obj["sni"] = t_settings.get("serverName", "")
+                                
+                                json_str = json.dumps(vmess_obj, ensure_ascii=False)
+                                b64_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+                                link = f"vmess://{b64_str}"
+                                links.append(link)
                             
                     print(f"[get_client_all_links] Reconstructed {len(links)} links statically from inbounds list.")
             except Exception as e:

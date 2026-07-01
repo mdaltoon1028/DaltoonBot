@@ -4170,7 +4170,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                     vlessLinks = decoded
                       .split("\n")
                       .filter(
-                        (l) => l.trim().length > 0 && l.startsWith("vless://"),
+                        (l) => l.trim().length > 0 && l.includes("://"),
                       );
                   }
                 } catch (e) {}
@@ -4276,7 +4276,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                     vlessLinks = decoded
                       .split("\n")
                       .filter(
-                        (l) => l.trim().length > 0 && l.startsWith("vless://"),
+                        (l) => l.trim().length > 0 && l.includes("://"),
                       );
                   }
                 } catch (e) {}

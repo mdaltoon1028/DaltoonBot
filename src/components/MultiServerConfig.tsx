@@ -417,14 +417,18 @@ export default function MultiServerConfig({
                     <input
                       type="checkbox"
                       className="mt-1"
-                      checked={checkedInboundIds.includes(ib.id)}
+                      checked={checkedInboundIds.some((id) => String(id) === String(ib.id))}
                       onChange={(e) => {
-                        if (e.target.checked)
-                          setCheckedInboundIds((prev) => [...prev, ib.id]);
-                        else
+                        if (e.target.checked) {
+                          setCheckedInboundIds((prev) => {
+                            if (prev.some((id) => String(id) === String(ib.id))) return prev;
+                            return [...prev, ib.id];
+                          });
+                        } else {
                           setCheckedInboundIds((prev) =>
-                            prev.filter((id) => id !== ib.id),
+                            prev.filter((id) => String(id) !== String(ib.id)),
                           );
+                        }
                       }}
                     />
                     <div className="text-xs text-gray-300">
