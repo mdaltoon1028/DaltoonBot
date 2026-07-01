@@ -501,9 +501,23 @@ export default function SettingsPanel({
       ? settings.mandatoryJoinActive
       : false,
   );
+  const [mandatoryJoinChannels, setMandatoryJoinChannels] = useState<string[]>(() => {
+    if (settings.mandatoryJoinChannels && Array.isArray(settings.mandatoryJoinChannels) && settings.mandatoryJoinChannels.length > 0) {
+      return settings.mandatoryJoinChannels;
+    }
+    if (settings.mandatoryJoinChannel) {
+      return [settings.mandatoryJoinChannel];
+    }
+    return [""];
+  });
   const [mandatoryJoinChannel, setMandatoryJoinChannel] = useState(
     settings.mandatoryJoinChannel || "",
   );
+
+  useEffect(() => {
+    setMandatoryJoinChannel(mandatoryJoinChannels[0] || "");
+  }, [mandatoryJoinChannels]);
+
   const [mandatoryJoinText, setMandatoryJoinText] = useState(
     settings.mandatoryJoinText ||
       "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.",
@@ -595,6 +609,7 @@ export default function SettingsPanel({
       autoWarningFirstConnectionBtn,
       mandatoryJoinActive,
       mandatoryJoinChannel,
+      mandatoryJoinChannels,
       mandatoryJoinText,
       autoBackupEnabled,
       autoBackupInterval,
@@ -1259,30 +1274,67 @@ export default function SettingsPanel({
         </p>
 
         {mandatoryJoinActive && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fadeIn">
-            {/* Telegram Channel Link / Username */}
-            <div className="space-y-1.5 text-right font-sans" dir="rtl">
-              <label className="text-xs font-semibold text-gray-300">
-                {lang === "fa"
-                  ? "آدرس یا آیدی کانال (با @ یا لینک کامل):"
-                  : "Channel Username or Link:"}
-              </label>
-              <input
-                type="text"
-                className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
-                placeholder={
-                  lang === "fa"
-                    ? "@example_channel یا لینک کامل"
-                    : "@example_channel or full invite link"
-                }
-                value={mandatoryJoinChannel}
-                onChange={(e) => setMandatoryJoinChannel(e.target.value)}
-              />
+          <div className="space-y-4 pt-2 animate-fadeIn" dir="rtl">
+            {/* Multi-channels List */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-300">
+                  {lang === "fa"
+                    ? "کانال‌های تلگرام جهت عضویت اجباری (کاربر باید در تمامی آن‌ها عضو شود):"
+                    : "Telegram channels for mandatory join (user must join all):"}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setMandatoryJoinChannels([...mandatoryJoinChannels, ""])}
+                  className="px-2.5 py-1.5 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {lang === "fa" ? "افزودن کانال" : "Add Channel"}
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                {mandatoryJoinChannels.map((chan, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute right-3 top-2.5 text-xs text-gray-500 font-mono">
+                        #{idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 pr-8 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-mono"
+                        placeholder={
+                          lang === "fa"
+                            ? "@example_channel یا لینک کامل"
+                            : "@example_channel or full invite link"
+                        }
+                        value={chan}
+                        onChange={(e) => {
+                          const updated = [...mandatoryJoinChannels];
+                          updated[idx] = e.target.value;
+                          setMandatoryJoinChannels(updated);
+                        }}
+                      />
+                    </div>
+                    {mandatoryJoinChannels.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMandatoryJoinChannels(mandatoryJoinChannels.filter((_, i) => i !== idx));
+                        }}
+                        className="text-red-400 hover:text-red-300 p-2.5 rounded bg-red-950/20 border border-red-900/30 hover:border-red-800 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Message payload */}
             <div
-              className="space-y-1.5 text-right font-sans md:col-span-2"
+              className="space-y-1.5 text-right font-sans"
               dir="rtl"
             >
               <label className="text-xs font-semibold text-gray-300">

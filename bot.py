@@ -260,6 +260,7 @@ def get_config():
         "ADMINS": [],
         "MANDATORY_JOIN_ACTIVE": False,
         "MANDATORY_JOIN_CHANNEL": "",
+        "MANDATORY_JOIN_CHANNELS": [],
         "MANDATORY_JOIN_TEXT": "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.",
         "PINNED_MESSAGE_ACTIVE": False,
         "PINNED_MESSAGE_TEXT": ""
@@ -435,6 +436,8 @@ def get_config():
             config["MANDATORY_JOIN_ACTIVE"] = bool(panel_cfg["mandatoryJoinActive"])
         if "mandatoryJoinChannel" in panel_cfg:
             config["MANDATORY_JOIN_CHANNEL"] = panel_cfg["mandatoryJoinChannel"]
+        if "mandatoryJoinChannels" in panel_cfg:
+            config["MANDATORY_JOIN_CHANNELS"] = panel_cfg["mandatoryJoinChannels"]
         if "mandatoryJoinText" in panel_cfg:
             config["MANDATORY_JOIN_TEXT"] = panel_cfg["mandatoryJoinText"]
 
@@ -2300,16 +2303,8 @@ def get_main_reply_keyboard():
     markup.add(types.KeyboardButton("🔙 بازگشت به منوی اصلی"))
     return markup
 
-def is_user_member_of_channel(user_id):
-    cfg = get_config()
-    if not cfg.get("MANDATORY_JOIN_ACTIVE"):
-        return True
-    
-    # Bypass for owner or administrators
-    if user_id == cfg.get("OWNER_ID") or user_id in cfg.get("ADMINS", []):
-         return True
-
-    channel = cfg.get("MANDATORY_JOIN_CHANNEL", "").strip()
+def is_user_member_of_single_channel(user_id, channel):
+    channel = channel.strip()
     if not channel:
         return True
         
@@ -2348,9 +2343,38 @@ def is_user_member_of_channel(user_id):
         # This guarantees that a misconfiguration or API error will not brick the bot / lock all users out.
         return True
 
-def get_channel_join_link():
+def is_user_member_of_channel(user_id):
     cfg = get_config()
-    channel = cfg.get("MANDATORY_JOIN_CHANNEL", "").strip()
+    if not cfg.get("MANDATORY_JOIN_ACTIVE"):
+        return True
+    
+    # Bypass for owner or administrators
+    if user_id == cfg.get("OWNER_ID") or user_id in cfg.get("ADMINS", []):
+         return True
+
+    channels = []
+    # Try multiple channels first
+    multi_channels = cfg.get("MANDATORY_JOIN_CHANNELS")
+    if multi_channels and isinstance(multi_channels, list):
+        channels = [c.strip() for c in multi_channels if c and c.strip()]
+        
+    # Fallback to single channel if multi is empty
+    if not channels:
+        single = cfg.get("MANDATORY_JOIN_CHANNEL", "").strip()
+        if single:
+            channels = [single]
+            
+    if not channels:
+        return True
+
+    for chan in channels:
+        if not is_user_member_of_single_channel(user_id, chan):
+            return False
+            
+    return True
+
+def get_channel_join_link(channel):
+    channel = channel.strip()
     if "http" in channel:
         return channel
     clean = channel.replace("@", "")
@@ -2358,11 +2382,24 @@ def get_channel_join_link():
 
 def get_mandatory_join_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    join_link = get_channel_join_link()
-    markup.add(
-        types.InlineKeyboardButton("📢 عضویت در کانال", url=join_link),
-        types.InlineKeyboardButton("عضو شدم✅", callback_data="check_mandatory_join")
-    )
+    cfg = get_config()
+    
+    channels = []
+    multi_channels = cfg.get("MANDATORY_JOIN_CHANNELS")
+    if multi_channels and isinstance(multi_channels, list):
+        channels = [c.strip() for c in multi_channels if c and c.strip()]
+        
+    if not channels:
+        single = cfg.get("MANDATORY_JOIN_CHANNEL", "").strip()
+        if single:
+            channels = [single]
+
+    for idx, chan in enumerate(channels):
+        join_link = get_channel_join_link(chan)
+        btn_label = f"📢 عضویت در کانال {idx + 1}" if len(channels) > 1 else "📢 عضویت در کانال"
+        markup.add(types.InlineKeyboardButton(btn_label, url=join_link))
+        
+    markup.add(types.InlineKeyboardButton("عضو شدم✅", callback_data="check_mandatory_join"))
     return markup
 
 def verify_mandatory_join_and_warn(chat_id, user_id):

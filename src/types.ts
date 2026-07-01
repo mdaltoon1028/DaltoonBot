@@ -121,6 +121,7 @@ export interface PanelSettings {
   // Mandatory Join Config
   mandatoryJoinActive?: boolean;
   mandatoryJoinChannel?: string;
+  mandatoryJoinChannels?: string[];
   mandatoryJoinText?: string;
 
   admins?: Array<{
