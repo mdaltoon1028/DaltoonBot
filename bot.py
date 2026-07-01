@@ -1866,24 +1866,22 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     # Attempt to use the NEW Unified API first
     last_err_msg = ""
     try:
-        # Disable unified API for now since it causes 1 inbound issue on some versions
-        if False:
-            unified_url = f"{base_url}/panel/api/clients/add"
-            unified_payload = {
-                "client": client_config,
-                "inboundIds": inbound_ids
-            }
-            u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
-            if u_res.status_code == 401:
-                print(f"[Sanaei API] Got 401 Unauthorized, forcing login retry...")
-                if login_xui(server_id, force=True):
-                    session = get_session(server_id=server_id)
-                    u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
-            if u_res.ok and u_res.json().get("success"):
-                print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
-                return client_uuid, build_subscription_url(server_sub, base_url, xui_sub_id)
-            else:
-                last_err_msg = f"Unified API: HTTP {u_res.status_code} {u_res.text}"
+        unified_url = f"{base_url}/panel/api/clients/add"
+        unified_payload = {
+            "client": client_config,
+            "inboundIds": inbound_ids
+        }
+        u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
+        if u_res.status_code == 401:
+            print(f"[Sanaei API] Got 401 Unauthorized, forcing login retry...")
+            if login_xui(server_id, force=True):
+                session = get_session(server_id=server_id)
+                u_res = session.post(unified_url, json=unified_payload, headers=headers, timeout=20, verify=False)
+        if u_res.ok and u_res.json().get("success"):
+            print(f"[Unified API] Successfully added user '{safe_email}' to {len(inbound_ids)} inbounds.")
+            return client_uuid, build_subscription_url(server_sub, base_url, xui_sub_id)
+        else:
+            last_err_msg = f"Unified API: HTTP {u_res.status_code} {u_res.text}"
     except Exception as e:
         last_err_msg = f"Unified API error: {e}"
         print(f"[Unified API Error] Fallback to classic: {e}")
