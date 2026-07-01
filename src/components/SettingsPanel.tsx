@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react"; // React hooks
 import { PanelSettings, CustomButton, VpnPlan, InboundInfo } from "../types";
 import { Language, translations } from "../locales";
 import ConfirmationModal from "./ConfirmationModal";

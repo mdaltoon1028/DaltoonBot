@@ -1,4 +1,4 @@
-import express from "express";
+import express from "express"; // core
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
@@ -358,16 +358,6 @@ function getSystemSettings(db?: any) {
     ...parsedSettings,
   };
 
-  if (process.env.BOT_TOKEN)
-    settings.botToken = process.env.BOT_TOKEN;
-  if (process.env.OWNER_ID)
-    settings.ownerId = Number(process.env.OWNER_ID);
-  if (process.env.DASHBOARD_USERNAME || process.env.PANEL_USER)
-    settings.dashboardUsername = process.env.DASHBOARD_USERNAME || process.env.PANEL_USER;
-  if (process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS)
-    settings.dashboardPassword = process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS;
-  if (process.env.PORT)
-    settings.serverPort = Number(process.env.PORT);
 
   return settings;
 }
@@ -2158,7 +2148,7 @@ app.post("/api/settings", async (req, res) => {
         ),
     );
 
-    db.settings.panel_config = configValue;
+    if (!db.settings) db.settings = {}; db.settings.panel_config = configValue;
     const saveSuccess = writeSqliteDb(db);
 
     if (!saveSuccess) {
